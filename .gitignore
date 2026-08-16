@@ -1,0 +1,32 @@
+# ── Dependencias ─────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
+
+# ── Builds ───────────────────────────────────────────────────
+dist/
+build/
+
+# ── Variables de entorno ──────────────────────────────────────
+.env
+.env.local
+.env.production
+
+# ── Prisma ───────────────────────────────────────────────────
+backend/src/infrastructure/database/prisma/migrations/
+
+# ── Logs ─────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+
+# ── Editor ───────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+
+# ── OS ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── TypeScript ───────────────────────────────────────────────
+*.tsbuildinfo

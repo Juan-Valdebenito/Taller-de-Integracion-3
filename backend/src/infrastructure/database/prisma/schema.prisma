@@ -1,0 +1,168 @@
+// ============================================================
+// Schema de Prisma - Plataforma Transporte Público Urbano
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ────────────────────────────────────────────────────
+
+enum UserRole {
+  PASSENGER
+  COMPANY
+  ADMIN
+}
+
+enum BusStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+}
+
+enum ComplaintStatus {
+  PENDING
+  IN_REVIEW
+  RESOLVED
+  REJECTED
+}
+
+enum ComplaintCategory {
+  DELAY
+  OVERCROWDING
+  DRIVER_BEHAVIOR
+  VEHICLE_CONDITION
+  ACCESSIBILITY
+  OTHER
+}
+
+// ── Modelos ───────────────────────────────────────────────────
+
+model Company {
+  id          String   @id @default(uuid())
+  name        String
+  rut         String   @unique
+  address     String?
+  phone       String?
+  email       String   @unique
+  logoUrl     String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  buses       Bus[]
+  routes      Route[]
+  complaints  Complaint[]
+
+  @@map("companies")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         UserRole @default(PASSENGER)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  companyId    String?
+  company      Company? @relation(fields: [companyId], references: [id])
+
+  complaints   Complaint[]
+
+  @@map("users")
+}
+
+model Route {
+  id          String   @id @default(uuid())
+  name        String
+  code        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+
+  stops       Stop[]
+  buses       Bus[]
+  complaints  Complaint[]
+
+  @@map("routes")
+}
+
+model Stop {
+  id        String  @id @default(uuid())
+  name      String
+  latitude  Float
+  longitude Float
+  order     Int
+
+  routeId   String
+  route     Route   @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  @@map("stops")
+}
+
+model Bus {
+  id                String    @id @default(uuid())
+  patente           String    @unique
+  capacity          Int       @default(40)
+  currentPassengers Int       @default(0)
+  boardings         Int       @default(0)
+  alightings        Int       @default(0)
+  schoolBoardings   Int       @default(0)
+  status            BusStatus @default(INACTIVE)
+  // Ubicación en tiempo real (actualizada vía Socket.io)
+  lastLatitude      Float?
+  lastLongitude     Float?
+  lastHeading       Float?
+  lastSpeed         Float?
+  lastLocationAt    DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  companyId         String
+  company           Company   @relation(fields: [companyId], references: [id])
+
+  routeId           String?
+  route             Route?    @relation(fields: [routeId], references: [id])
+
+  complaints        Complaint[]
+
+  @@map("buses")
+}
+
+model Complaint {
+  id            String            @id @default(uuid())
+  title         String
+  description   String
+  category      ComplaintCategory @default(OTHER)
+  status        ComplaintStatus   @default(PENDING)
+  adminResponse String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  passengerId   String
+  passenger     User              @relation(fields: [passengerId], references: [id])
+
+  busId         String?
+  bus           Bus?              @relation(fields: [busId], references: [id])
+
+  routeId       String?
+  route         Route?            @relation(fields: [routeId], references: [id])
+
+  companyId     String
+  company       Company           @relation(fields: [companyId], references: [id])
+
+  @@map("complaints")
+}
