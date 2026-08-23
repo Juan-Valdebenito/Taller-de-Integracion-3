@@ -25,6 +25,7 @@ import { AdminDashboardPage } from '../presentation/pages/admin/AdminDashboardPa
 import { AdminUsersPage } from '../presentation/pages/admin/AdminUsersPage';
 import { AdminRoutesPage } from '../presentation/pages/admin/AdminRoutesPage';
 import { AdminCompaniesPage } from '../presentation/pages/admin/AdminCompaniesPage';
+import { AdminComplaintsPage } from '../presentation/pages/admin/AdminComplaintsPage';
 
 export const router = createBrowserRouter([
   // ── Redirección raíz ─────────────────────────────────────
@@ -78,6 +79,7 @@ export const router = createBrowserRouter([
       { path: 'users', element: <AdminUsersPage /> },
       { path: 'routes', element: <AdminRoutesPage /> },
       { path: 'companies', element: <AdminCompaniesPage /> },
+      { path: 'complaints', element: <AdminComplaintsPage /> },
     ],
   },
 ]);
