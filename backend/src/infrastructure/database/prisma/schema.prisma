@@ -147,13 +147,14 @@ model Complaint {
   title         String
   description   String
   category      ComplaintCategory @default(OTHER)
+  rating        Int?
   status        ComplaintStatus   @default(PENDING)
   adminResponse String?
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
-  passengerId   String
-  passenger     User              @relation(fields: [passengerId], references: [id])
+  passengerId   String?
+  passenger     User?             @relation(fields: [passengerId], references: [id])
 
   busId         String?
   bus           Bus?              @relation(fields: [busId], references: [id])
@@ -161,8 +162,8 @@ model Complaint {
   routeId       String?
   route         Route?            @relation(fields: [routeId], references: [id])
 
-  companyId     String
-  company       Company           @relation(fields: [companyId], references: [id])
+  companyId     String?
+  company       Company?          @relation(fields: [companyId], references: [id])
 
   @@map("complaints")
 }

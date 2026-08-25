@@ -3,6 +3,7 @@ import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import app from './infrastructure/http/app';
 import { setupSocketIO } from './infrastructure/socket/socketServer';
+import { startSimulation } from './infrastructure/socket/simulation';
 
 const PORT = process.env.PORT ?? 3001;
 
@@ -17,6 +18,7 @@ const io = new SocketIOServer(httpServer, {
 });
 
 setupSocketIO(io);
+startSimulation(io);
 
 // ── Iniciar servidor ───────────────────────────────────────
 httpServer.listen(PORT, () => {
@@ -26,3 +28,4 @@ httpServer.listen(PORT, () => {
 });
 
 export { io };
+

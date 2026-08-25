@@ -36,5 +36,8 @@
     "prisma": "^5.10.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.3.3"
+  },
+  "prisma": {
+    "schema": "src/infrastructure/database/prisma/schema.prisma"
   }
 }
