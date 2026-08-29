@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<coverage generated="1788022125374" clover="3.2.0">
+  <project timestamp="1788022125374" name="All files">
+    <metrics statements="24" coveredstatements="24" conditionals="16" coveredconditionals="16" methods="5" coveredmethods="5" elements="45" coveredelements="45" complexity="0" loc="24" ncloc="24" packages="1" files="1" classes="1"/>
+    <file name="ETAService.ts" path="C:\Users\sebas\OneDrive\Escritorio\Taller-de-Integracion-3\backend\src\domain\services\ETAService.ts">
+      <metrics statements="24" coveredstatements="24" conditionals="16" coveredconditionals="16" methods="5" coveredmethods="5"/>
+      <line num="25" count="1" type="stmt"/>
+      <line num="37" count="1" type="stmt"/>
+      <line num="38" count="1" type="stmt"/>
+      <line num="48" count="88" type="stmt"/>
+      <line num="50" count="22" type="stmt"/>
+      <line num="51" count="22" type="stmt"/>
+      <line num="54" count="22" type="stmt"/>
+      <line num="60" count="22" type="stmt"/>
+      <line num="61" count="22" type="stmt"/>
+      <line num="71" count="28" type="cond" truecount="2" falsecount="0"/>
+      <line num="72" count="24" type="cond" truecount="2" falsecount="0"/>
+      <line num="74" count="19" type="stmt"/>
+      <line num="76" count="19" type="cond" truecount="2" falsecount="0"/>
+      <line num="77" count="14" type="stmt"/>
+      <line num="80" count="5" type="stmt"/>
+      <line num="81" count="5" type="stmt"/>
+      <line num="83" count="5" type="cond" truecount="2" falsecount="0"/>
+      <line num="84" count="2" type="stmt"/>
+      <line num="86" count="3" type="stmt"/>
+      <line num="102" count="17" type="stmt"/>
+      <line num="107" count="17" type="cond" truecount="4" falsecount="0"/>
+      <line num="114" count="17" type="cond" truecount="2" falsecount="0"/>
+      <line num="116" count="17" type="stmt"/>
+      <line num="133" count="4" type="stmt"/>
+    </file>
+  </project>
+</coverage>
