@@ -41,6 +41,13 @@ enum ComplaintCategory {
   OTHER
 }
 
+enum TripStatus {
+  SCHEDULED    // Programado, aún no ha salido
+  IN_PROGRESS  // En curso
+  COMPLETED    // Completado
+  CANCELLED    // Cancelado
+}
+
 // ── Modelos ───────────────────────────────────────────────────
 
 model Company {
@@ -96,6 +103,7 @@ model Route {
   stops       Stop[]
   buses       Bus[]
   complaints  Complaint[]
+  trips       Trip[]
 
   @@map("routes")
 }
@@ -122,12 +130,14 @@ model Bus {
   alightings        Int       @default(0)
   schoolBoardings   Int       @default(0)
   status            BusStatus @default(INACTIVE)
+
   // Ubicación en tiempo real (actualizada vía Socket.io)
   lastLatitude      Float?
   lastLongitude     Float?
   lastHeading       Float?
   lastSpeed         Float?
   lastLocationAt    DateTime?
+
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -138,8 +148,46 @@ model Bus {
   route             Route?    @relation(fields: [routeId], references: [id])
 
   complaints        Complaint[]
+  trips             Trip[]
 
   @@map("buses")
+}
+
+/// Viaje realizado por una micro en una ruta (del MER: VIAJE)
+model Trip {
+  id            String     @id @default(uuid())
+  departureTime DateTime                         // Hora de salida programada / real
+  arrivalTime   DateTime?                        // Hora de llegada (null si aún no terminó)
+  status        TripStatus @default(SCHEDULED)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  busId         String
+  bus           Bus        @relation(fields: [busId], references: [id])
+
+  routeId       String
+  route         Route      @relation(fields: [routeId], references: [id])
+
+  passengerLogs PassengerLog[]
+  complaints    Complaint[]
+
+  @@map("trips")
+}
+
+/// Registro de pasajeros en un punto del viaje (del MER: REGISTRO_PASAJEROS)
+model PassengerLog {
+  id          String   @id @default(uuid())
+  boardings   Int      @default(0)   // Subidas en este registro
+  alightings  Int      @default(0)   // Bajadas en este registro
+  isSchool    Boolean  @default(false) // ¿Pasaje escolar?
+  locationLat Float?                  // Coordenada GPS donde se registró
+  locationLng Float?
+  recordedAt  DateTime @default(now()) // Momento exacto del registro
+
+  tripId      String
+  trip        Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@map("passenger_logs")
 }
 
 model Complaint {
@@ -163,6 +211,10 @@ model Complaint {
 
   companyId     String
   company       Company           @relation(fields: [companyId], references: [id])
+
+  // Viaje específico al que aplica el reclamo (opcional)
+  tripId        String?
+  trip          Trip?             @relation(fields: [tripId], references: [id])
 
   @@map("complaints")
 }
