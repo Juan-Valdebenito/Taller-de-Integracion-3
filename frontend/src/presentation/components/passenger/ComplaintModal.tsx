@@ -11,11 +11,12 @@ interface ComplaintModalProps {
 }
 
 const CATEGORIES = [
-  'Conducción',
-  'Frecuencia/Demora',
-  'Cobro/Validación',
-  'Trato conductor',
-  'Otro'
+  { value: 'OVERCROWDING', label: '⚠️ Sobrecupo / Exceso de Aforo' },
+  { value: 'DELAY', label: '⏱️ Frecuencia / Demora Excesiva' },
+  { value: 'DRIVER_BEHAVIOR', label: '🛑 Conducción Imprudente / Trato Conductor' },
+  { value: 'VEHICLE_CONDITION', label: '🧹 Estado del Vehículo / Aseo' },
+  { value: 'ACCESSIBILITY', label: '♿ Problemas de Accesibilidad' },
+  { value: 'OTHER', label: 'ℹ️ Otro Motivo' },
 ];
 
 export const ComplaintModal: React.FC<ComplaintModalProps> = ({ 
@@ -26,7 +27,7 @@ export const ComplaintModal: React.FC<ComplaintModalProps> = ({
 }) => {
   const [rating, setRating] = useState<number>(0);
   const [hoverRating, setHoverRating] = useState<number>(0);
-  const [category, setCategory] = useState<string>('');
+  const [category, setCategory] = useState<string>('OVERCROWDING');
   const [comment, setComment] = useState<string>('');
   
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -50,27 +51,25 @@ export const ComplaintModal: React.FC<ComplaintModalProps> = ({
     setError(null);
 
     try {
-      // Usamos el endpoint definido en el backend actual
       await axios.post('http://localhost:3001/api/v1/complaints', {
         busId,
-        // Adaptado al modelo sugerido previamente para el backend Go, 
-        // pero mapeado a lo que podría esperar el backend actual Node.
-        title: `Reclamo Línea ${lineName}`,
+        lineName,
+        title: `Reporte Línea ${lineName || busId}`,
         description: comment || 'Sin comentarios adicionales',
         category: category,
         rating: rating,
-        lineName: lineName
       });
       setSuccess(true);
       setTimeout(() => {
         handleClose();
       }, 2000);
     } catch (err: any) {
-      setError(err.response?.data?.message || err.response?.data?.error || 'Ocurrió un error al enviar el reclamo (Endpoint no implementado aún).');
+      setError(err.response?.data?.message || 'Ocurrió un error al enviar el reclamo.');
     } finally {
       setIsLoading(false);
     }
   };
+
 
   const handleClose = () => {
     setSuccess(false);
@@ -139,7 +138,7 @@ export const ComplaintModal: React.FC<ComplaintModalProps> = ({
               >
                 <option value="" disabled>Selecciona una opción...</option>
                 {CATEGORIES.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
+                  <option key={cat.value} value={cat.value}>{cat.label}</option>
                 ))}
               </select>
             </div>

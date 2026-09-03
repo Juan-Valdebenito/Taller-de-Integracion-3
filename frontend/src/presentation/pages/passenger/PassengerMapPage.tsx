@@ -1,37 +1,57 @@
 import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { ComplaintModal } from '../../components/passenger/ComplaintModal';
 import { LiveMap, BusData } from '../../components/passenger/LiveMap';
-import { io } from 'socket.io-client';
+import { SimulationDevTools } from '../../components/passenger/SimulationDevTools';
+import { io, Socket } from 'socket.io-client';
 
 const SOCKET_URL = 'http://localhost:3001';
 
 export function PassengerMapPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedBus, setSelectedBus] = useState({ busId: '', lineName: '' });
+  const [selectedBus, setSelectedBus] = useState({ busId: 'B-7A-01', lineName: '7A' });
   const [buses, setBuses] = useState<BusData[]>([]);
+  const [socket, setSocket] = useState<Socket | null>(null);
 
   useEffect(() => {
-    // Conectar a Socket.io
-    const socket = io(SOCKET_URL);
+    // Carga inicial inmediata vía REST para que aparezcan de inmediato en el mapa
+    axios.get(`${SOCKET_URL}/api/v1/buses`)
+      .then((res) => {
+        if (res.data?.data && Array.isArray(res.data.data)) {
+          setBuses(res.data.data);
+        }
+      })
+      .catch((err) => console.warn('Carga inicial REST:', err.message));
 
-    // Escuchar actualizaciones de ubicación en tiempo real
-    socket.on('bus:location:broadcast', (data: BusData) => {
+    // Conectar a Socket.io
+    const socketInstance = io(SOCKET_URL, {
+      transports: ['websocket', 'polling'],
+    });
+    setSocket(socketInstance);
+
+
+    const updateBusState = (data: BusData) => {
       setBuses((prevBuses) => {
-        const existingBusIndex = prevBuses.findIndex(b => b.id === data.id);
+        const existingBusIndex = prevBuses.findIndex((b) => b.id === data.id);
         if (existingBusIndex >= 0) {
-          // Actualizar ubicación de micro existente
-          const newBuses = [...prevBuses];
-          newBuses[existingBusIndex] = data;
-          return newBuses;
+          const updated = [...prevBuses];
+          updated[existingBusIndex] = {
+            ...updated[existingBusIndex],
+            ...data,
+          };
+          return updated;
         } else {
-          // Agregar nueva micro al mapa
           return [...prevBuses, data];
         }
       });
-    });
+    };
+
+    // Escuchar actualizaciones de ubicación y estado de aforo en tiempo real
+    socketInstance.on('bus:location:broadcast', updateBusState);
+    socketInstance.on('bus:status:broadcast', updateBusState);
 
     return () => {
-      socket.disconnect();
+      socketInstance.disconnect();
     };
   }, []);
 
@@ -48,10 +68,27 @@ export function PassengerMapPage() {
       padding: 'var(--space-4)',
       boxSizing: 'border-box'
     }}>
-      {/* Mapa Interactivo */}
-      <LiveMap buses={buses} onBusClick={handleBusClick} />
+      {/* Mapa Interactivo con Aforo Dinámico */}
+      <LiveMap 
+        buses={buses} 
+        onBusClick={handleBusClick} 
+        selectedBusId={selectedBus.busId}
+      />
 
-      {/* Modal de Reclamo */}
+      {/* Panel Flotante DevTools para Simulación de Sensores y Pagos (Líneas 7A, 7B, 1C) */}
+      <SimulationDevTools
+        socket={socket}
+        buses={buses as any}
+        selectedBusId={selectedBus.busId}
+        onSelectBus={(busId) => {
+          const found = buses.find((b) => b.id === busId);
+          if (found) {
+            setSelectedBus({ busId: found.id, lineName: found.line });
+          }
+        }}
+      />
+
+      {/* Modal Flotante Contextual de Reclamo */}
       <ComplaintModal 
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
