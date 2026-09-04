@@ -1,5 +1,8 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 
+// Guards de autenticación y rol
+import { RequireAuth, RequireRole } from '../presentation/components/auth/RouteGuards';
+
 // Layouts
 import { PassengerLayout } from '../presentation/layouts/PassengerLayout';
 import { CompanyLayout } from '../presentation/layouts/CompanyLayout';
@@ -34,7 +37,7 @@ export const router = createBrowserRouter([
     element: <Navigate to="/passenger/map" replace />,
   },
 
-  // ── Autenticación ────────────────────────────────────────
+  // ── Autenticación (rutas públicas) ───────────────────────
   {
     path: '/auth',
     element: <AuthLayout />,
@@ -46,9 +49,17 @@ export const router = createBrowserRouter([
   },
 
   // ── Pasajero ─────────────────────────────────────────────
+  // RequireAuth → redirige a /auth/login si no autenticado
+  // RequireRole → redirige al portal propio si el rol no es PASSENGER
   {
     path: '/passenger',
-    element: <PassengerLayout />,
+    element: (
+      <RequireAuth>
+        <RequireRole allowedRoles={['PASSENGER']}>
+          <PassengerLayout />
+        </RequireRole>
+      </RequireAuth>
+    ),
     children: [
       { index: true, element: <Navigate to="/passenger/map" replace /> },
       { path: 'map', element: <PassengerMapPage /> },
@@ -59,7 +70,13 @@ export const router = createBrowserRouter([
   // ── Empresa / Sucursal ────────────────────────────────────
   {
     path: '/company',
-    element: <CompanyLayout />,
+    element: (
+      <RequireAuth>
+        <RequireRole allowedRoles={['COMPANY']}>
+          <CompanyLayout />
+        </RequireRole>
+      </RequireAuth>
+    ),
     children: [
       { index: true, element: <Navigate to="/company/dashboard" replace /> },
       { path: 'dashboard', element: <CompanyDashboardPage /> },
@@ -72,7 +89,13 @@ export const router = createBrowserRouter([
   // ── Administrador ─────────────────────────────────────────
   {
     path: '/admin',
-    element: <AdminLayout />,
+    element: (
+      <RequireAuth>
+        <RequireRole allowedRoles={['ADMIN']}>
+          <AdminLayout />
+        </RequireRole>
+      </RequireAuth>
+    ),
     children: [
       { index: true, element: <Navigate to="/admin/dashboard" replace /> },
       { path: 'dashboard', element: <AdminDashboardPage /> },
