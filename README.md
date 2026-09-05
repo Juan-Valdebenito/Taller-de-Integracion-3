@@ -6,63 +6,84 @@ Sistema integral de monitoreo, gestión y transparencia del transporte público 
 
 ## 🏗️ Arquitectura
 
-Monorepo con **Clean Architecture** en ambas capas:
+Monorepo con **Clean Architecture**:
 
 ```
 Taller-de-Integracion-3/
-├── frontend/    # React 18 + Vite + TypeScript
-└── backend/     # Node.js + Express + TypeScript + Prisma + PostgreSQL
+├── frontend/      # React 18 + Vite + TypeScript
+├── backend/       # Node.js + Express + TypeScript + Prisma (referencia original)
+└── backend-go/    # ✅ Go + Gin + pgx + PostgreSQL (backend activo)
 ```
 
-### Capas (ambos proyectos)
+### Capas del Backend Go
 
-| Capa | Backend | Frontend |
-|------|---------|----------|
-| **Dominio** | `domain/entities/`, `domain/repositories/` | `core/domain/` |
-| **Aplicación** | `application/use-cases/` | `core/use-cases/` |
-| **Infraestructura** | `infrastructure/database/`, `infrastructure/http/` | `infrastructure/api/`, `infrastructure/socket/` |
-| **Presentación** | — | `presentation/` (React) |
+| Paquete | Responsabilidad |
+|---------|----------------|
+| `internal/config` | Carga de variables de entorno |
+| `internal/db` | Pool de conexiones PostgreSQL (pgxpool) |
+| `internal/domain` | Structs y enums del dominio |
+| `internal/repository` | Queries SQL directas con pgx |
+| `internal/handler` | Handlers HTTP (Gin) |
+| `internal/middleware` | JWT auth + autorización por roles |
+| `internal/router` | Registro de rutas y grupos |
+| `cmd/server` | Punto de entrada (`main.go`) |
 
 ---
 
-## 🚀 Inicio rápido
+## 🚀 Inicio rápido — Backend Go
 
 ### Prerrequisitos
 
-- Node.js 18+
-- PostgreSQL (corriendo localmente o en Docker)
+- [Go 1.22+](https://go.dev/dl/)
+- PostgreSQL corriendo localmente
 
-### 1. Instalar dependencias
+### 1. Inicializar la base de datos
 
 ```bash
-npm install
+# Crear la base de datos
+psql -U postgres -c "CREATE DATABASE transporte_db;"
+
+# Ejecutar el script SQL completo
+psql -U postgres -d transporte_db -f database_setup.sql
 ```
 
 ### 2. Configurar variables de entorno
 
 ```bash
-# Backend
-cp backend/.env.example backend/.env
-# Edita backend/.env con tu DATABASE_URL y JWT_SECRET
+cd backend-go
+cp .env.example .env
+# Edita .env si tus credenciales de PostgreSQL son distintas
 ```
 
-### 3. Inicializar base de datos
+### 3. Descargar dependencias
 
 ```bash
-cd backend
-npm run db:generate    # Genera el cliente Prisma
-npm run db:migrate     # Ejecuta las migraciones
+cd backend-go
+go mod tidy
 ```
 
-### 4. Iniciar en modo desarrollo
+### 4. Ejecutar el servidor Go
 
 ```bash
-# Desde la raíz (inicia ambos)
-npm run dev
+cd backend-go
+go run ./cmd/server/...
+# Servidor en http://localhost:3001
+```
 
-# O por separado:
-npm run dev:backend    # http://localhost:3001
-npm run dev:frontend   # http://localhost:5173
+### 5. Ejecutar el frontend (en otra terminal)
+
+```bash
+npm run dev:frontend
+# http://localhost:5173
+```
+
+---
+
+## 🚀 Inicio rápido — Frontend (solo)
+
+```bash
+npm install
+npm run dev:frontend
 ```
 
 ---
@@ -79,31 +100,46 @@ npm run dev:frontend   # http://localhost:5173
 
 ## 📡 API REST
 
-Base: `http://localhost:3001/api/v1`
+Base URL: `http://localhost:3001/api/v1`
 
-| Recurso | Método | Endpoint |
-|---------|--------|----------|
-| Auth | POST | `/auth/login`, `/auth/register` |
-| Usuarios | GET/PUT/DELETE | `/users`, `/users/:id` |
-| Micros | GET/POST/PUT/DELETE | `/buses`, `/buses/:id` |
-| Rutas | GET/POST/PUT/DELETE | `/routes`, `/routes/:id` |
-| Reclamos | GET/POST/PUT | `/complaints` |
+| Recurso | Método | Endpoint | Roles |
+|---------|--------|----------|-------|
+| Health | GET | `/health` | Público |
+| Auth | POST | `/auth/register` | Público |
+| Auth | POST | `/auth/login` | Público |
+| Auth | POST | `/auth/logout` | Público |
+| Auth | GET | `/auth/me` | Autenticado |
+| Usuarios | GET | `/users` | ADMIN |
+| Usuarios | GET | `/users/:id` | Autenticado |
+| Usuarios | PUT | `/users/:id` | ADMIN |
+| Usuarios | DELETE | `/users/:id` | ADMIN |
+| Buses | GET | `/buses?routeId=` | Autenticado |
+| Buses | GET | `/buses/:id` | Autenticado |
+| Buses | GET | `/buses/:id/location` | Autenticado |
+| Buses | POST | `/buses` | ADMIN, COMPANY |
+| Buses | PUT | `/buses/:id` | ADMIN, COMPANY |
+| Buses | DELETE | `/buses/:id` | ADMIN |
+| Rutas | GET | `/routes` | Autenticado |
+| Rutas | GET | `/routes/:id` | Autenticado |
+| Rutas | GET | `/routes/:id/stops` | Autenticado |
+| Rutas | GET | `/routes/:id/buses` | Autenticado |
+| Rutas | POST | `/routes` | ADMIN |
+| Rutas | PUT | `/routes/:id` | ADMIN, COMPANY |
+| Rutas | DELETE | `/routes/:id` | ADMIN |
+| Reclamos | GET | `/complaints` | ADMIN, COMPANY |
+| Reclamos | GET | `/complaints/:id` | Autenticado |
+| Reclamos | POST | `/complaints` | PASSENGER |
+| Reclamos | PUT | `/complaints/:id/status` | ADMIN, COMPANY |
+| Reclamos | DELETE | `/complaints/:id` | ADMIN |
 
----
+### Autenticación
 
-## 🔌 WebSocket (Socket.io)
+Todos los endpoints protegidos requieren el header:
+```
+Authorization: Bearer <token>
+```
 
-| Evento (cliente → servidor) | Descripción |
-|-----------------------------|-------------|
-| `route:join` | Unirse a la sala de una ruta |
-| `route:leave` | Salir de la sala de una ruta |
-| `bus:location:update` | Actualizar ubicación de micro |
-| `bus:passengers:update` | Actualizar pasajeros |
-
-| Evento (servidor → cliente) | Descripción |
-|-----------------------------|-------------|
-| `bus:location:broadcast` | Difundir ubicación actualizada |
-| `bus:status:broadcast` | Difundir estado actualizado |
+El token se obtiene desde `POST /auth/login` o `POST /auth/register`.
 
 ---
 
@@ -112,8 +148,23 @@ Base: `http://localhost:3001/api/v1`
 | Área | Tecnología |
 |------|-----------|
 | Frontend | React 18, Vite, TypeScript, React Router v6 |
-| Backend | Express, TypeScript, Socket.io |
-| Base de datos | PostgreSQL + Prisma ORM |
-| Autenticación | JWT |
-| Tiempo real | Socket.io |
-| Monorepo | npm workspaces |
+| Backend | **Go 1.22, Gin, pgx v5** |
+| Base de datos | **PostgreSQL** |
+| Autenticación | **JWT (golang-jwt/jwt)** |
+| Hash contraseñas | **bcrypt (golang.org/x/crypto)** |
+| Tiempo real | Socket.IO (backend TS - pendiente migración) |
+| Monorepo | npm workspaces (frontend) |
+
+---
+
+## 🔌 WebSocket (Socket.io) — Backend TypeScript (referencia)
+
+> El backend Go actualmente no implementa WebSockets.
+> El backend TypeScript en `backend/` tiene la implementación de referencia.
+
+| Evento (cliente → servidor) | Descripción |
+|-----------------------------|-------------|
+| `route:join` | Unirse a la sala de una ruta |
+| `route:leave` | Salir de la sala de una ruta |
+| `bus:location:update` | Actualizar ubicación de micro |
+| `bus:passengers:update` | Actualizar pasajeros |
