@@ -17,6 +17,7 @@ func Setup(
 	busH *handler.BusHandler,
 	routeH *handler.RouteHandler,
 	complaintH *handler.ComplaintHandler,
+	occupancyH *handler.OccupancyHandler,
 ) *gin.Engine {
 	r := gin.Default()
 
@@ -35,6 +36,9 @@ func Setup(
 
 	// ── API v1 ────────────────────────────────────────────────
 	api := r.Group("/api/v1")
+
+	// Ocupación (público — sin auth para facilitar integración con dispositivos)
+	api.POST("/occupancy", occupancyH.Predict)
 
 	// Auth (público)
 	auth := api.Group("/auth")
