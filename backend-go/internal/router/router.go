@@ -6,12 +6,14 @@ import (
 
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/handler"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/middleware"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/token"
 )
 
 // Setup configura y retorna el router Gin con todas las rutas registradas.
 func Setup(
 	corsOrigin string,
 	jwtSecret string,
+	bl *token.Blacklist,
 	authH *handler.AuthHandler,
 	userH *handler.UserHandler,
 	busH *handler.BusHandler,
@@ -36,17 +38,20 @@ func Setup(
 	// ── API v1 ────────────────────────────────────────────────
 	api := r.Group("/api/v1")
 
-	// Auth (público)
-	auth := api.Group("/auth")
+	// Alias del middleware para mayor legibilidad
+	auth := func() gin.HandlerFunc { return middleware.Authenticate(jwtSecret, bl) }
+
+	// Auth (público excepto /logout y /me que requieren token válido)
+	authGroup := api.Group("/auth")
 	{
-		auth.POST("/register", authH.Register)
-		auth.POST("/login", authH.Login)
-		auth.POST("/logout", authH.Logout)
-		auth.GET("/me", middleware.Authenticate(jwtSecret), authH.Me)
+		authGroup.POST("/register", authH.Register)
+		authGroup.POST("/login", authH.Login)
+		authGroup.POST("/logout", auth(), authH.Logout)
+		authGroup.GET("/me", auth(), authH.Me)
 	}
 
 	// Usuarios (requiere autenticación; operaciones de admin requieren rol)
-	users := api.Group("/users", middleware.Authenticate(jwtSecret))
+	users := api.Group("/users", auth())
 	{
 		users.GET("/", middleware.Authorize("ADMIN"), userH.GetAll)
 		users.GET("/:id", userH.GetByID)
@@ -55,7 +60,7 @@ func Setup(
 	}
 
 	// Buses
-	buses := api.Group("/buses", middleware.Authenticate(jwtSecret))
+	buses := api.Group("/buses", auth())
 	{
 		buses.GET("/", busH.GetAll)
 		buses.GET("/:id", busH.GetByID)
@@ -66,7 +71,7 @@ func Setup(
 	}
 
 	// Rutas de transporte
-	routes := api.Group("/routes", middleware.Authenticate(jwtSecret))
+	routes := api.Group("/routes", auth())
 	{
 		routes.GET("/", routeH.GetAll)
 		routes.GET("/:id", routeH.GetByID)
@@ -78,7 +83,7 @@ func Setup(
 	}
 
 	// Reclamos
-	complaints := api.Group("/complaints", middleware.Authenticate(jwtSecret))
+	complaints := api.Group("/complaints", auth())
 	{
 		complaints.GET("/", middleware.Authorize("ADMIN", "COMPANY"), complaintH.GetAll)
 		complaints.GET("/:id", complaintH.GetByID)
