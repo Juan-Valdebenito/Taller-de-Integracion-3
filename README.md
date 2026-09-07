@@ -65,8 +65,9 @@ go mod tidy
 ### 4. Ejecutar el servidor Go
 
 ```bash
+# Desde backend-go
 cd backend-go
-go run ./cmd/server/...
+go run ./cmd/server
 # Servidor en http://localhost:3001
 ```
 
@@ -82,9 +83,13 @@ npm run dev:frontend
 ## 🚀 Inicio rápido — Frontend (solo)
 
 ```bash
-npm install
-npm run dev:frontend
+cd frontend
+npm.cmd install
+npm.cmd run dev
 ```
+
+> En PowerShell, usa `npm.cmd` si aparece el error de que `npm.ps1` no puede
+> ejecutarse por la politica de scripts.
 
 ---
 
