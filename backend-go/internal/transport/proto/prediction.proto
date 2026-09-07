@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package prediction;
+
+option go_package = "github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/transport/proto;predictionpb";
+
+// ── Mensajes ──────────────────────────────────────────────────────────────────
+
+// PredictionRequest encapsula los datos de entrada para la predicción de ocupación.
+message PredictionRequest {
+  string route_id           = 1;  // ID de la ruta
+  int32  current_passengers = 2;  // Pasajeros actuales en el bus
+  int32  capacity           = 3;  // Capacidad máxima del bus
+  int32  hour               = 4;  // Hora del día (0-23)
+  int32  day_of_week        = 5;  // Día de la semana (0=Dom…6=Sáb)
+}
+
+// PredictionResponse encapsula el resultado de la predicción del modelo ML.
+message PredictionResponse {
+  double predicted_ratio      = 1;  // Ratio de ocupación proyectado (0.0–1.0)
+  int32  predicted_passengers = 2;  // Pasajeros proyectados
+  string occupancy_level      = 3;  // LOW | MEDIUM | HIGH | FULL
+  double confidence           = 4;  // Confianza del modelo (0.0–1.0)
+  string predictor_name       = 5;  // Nombre/versión del modelo activo
+  string predicted_at         = 6;  // ISO-8601 timestamp de la predicción
+}
+
+// ── Servicio ──────────────────────────────────────────────────────────────────
+
+// PredictionService expone la predicción de ocupación a través de gRPC.
+service PredictionService {
+  // Predict solicita una predicción de ocupación para un bus dado.
+  rpc Predict(PredictionRequest) returns (PredictionResponse);
+}
