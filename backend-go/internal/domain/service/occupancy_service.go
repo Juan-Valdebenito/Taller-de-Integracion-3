@@ -1,9 +1,13 @@
 package service
 
 import (
+	"context"
+	"fmt"
 	"math"
 	"math/rand"
 	"time"
+
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/transport"
 )
 
 // ── Tipos de ocupación ────────────────────────────────────────────────────────
@@ -166,7 +170,105 @@ func (p *HeuristicPredictor) Predict(input OccupancyInput) (OccupancyResult, err
 	}, nil
 }
 
+// ── Predictor remoto ML (Opción C) ────────────────────────────────────────────
+
+// MLRemotePredictor implementa OccupancyPredictor delegando en un
+// transport.PredictionClient, que puede ser gRPC o HTTP según configuración.
+//
+// Es el punto de integración entre el dominio Go y el clúster de ML externo.
+// Se activa en main.go con:
+//
+//	client, _ := transport.NewPredictionClient(cfg)
+//	occupancySvc.SetPredictor(service.NewMLRemotePredictor(client))
+//
+// El handler y el router no requieren ningún cambio.
+type MLRemotePredictor struct {
+	client  transport.PredictionClient
+	timeout time.Duration
+}
+
+// NewMLRemotePredictor crea un predictor que consulta al microservicio ML externo.
+//
+// client debe ser una instancia válida de transport.PredictionClient
+// (ya sea GRPCPredictionClient, HTTPPredictionClient, o un mock en tests).
+//
+// timeout controla el tiempo máximo de espera de cada predicción remota.
+// Si es 0 se usa 5 segundos por defecto.
+func NewMLRemotePredictor(client transport.PredictionClient, timeout time.Duration) *MLRemotePredictor {
+	if timeout <= 0 {
+		timeout = 5 * time.Second
+	}
+	return &MLRemotePredictor{
+		client:  client,
+		timeout: timeout,
+	}
+}
+
+// Name implementa OccupancyPredictor.
+func (p *MLRemotePredictor) Name() string {
+	return "ml-remote"
+}
+
+// Predict implementa OccupancyPredictor.
+//
+// Convierte OccupancyInput → transport.PredictRequest, llama al microservicio
+// externo y convierte transport.PredictResponse → OccupancyResult.
+//
+// Si el microservicio no está disponible o devuelve un error, este método
+// lo propaga sin aplicar fallback — el llamador (OccupancyService) puede
+// decidir usar el HeuristicPredictor como fallback si lo desea.
+func (p *MLRemotePredictor) Predict(input OccupancyInput) (OccupancyResult, error) {
+	if p.client == nil {
+		return OccupancyResult{}, fmt.Errorf("ml-remote: cliente de transporte no inicializado")
+	}
+
+	// Timeout por predicción individual
+	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
+	defer cancel()
+
+	// Mapeo OccupancyInput → transport.PredictRequest
+	req := transport.PredictRequest{
+		RouteID:           input.RouteID,
+		CurrentPassengers: input.CurrentPassengers,
+		Capacity:          input.Capacity,
+		Hour:              input.Hour,
+		DayOfWeek:         input.DayOfWeek,
+	}
+
+	resp, err := p.client.Predict(ctx, req)
+	if err != nil {
+		return OccupancyResult{}, fmt.Errorf("ml-remote: error al predecir: %w", err)
+	}
+
+	// Calcular ratio actual con los datos de entrada (no viene en la respuesta ML)
+	currentRatio := 0.0
+	if input.Capacity > 0 {
+		currentRatio = math.Round(float64(input.CurrentPassengers)/float64(input.Capacity)*1000) / 1000
+	}
+
+	// Clasificar nivel de ocupación desde el string devuelto por el modelo
+	level := OccupancyLevel(resp.OccupancyLevel)
+	if level == "" {
+		level = classifyLevel(resp.PredictedRatio)
+	}
+
+	return OccupancyResult{
+		CurrentRatio:        currentRatio,
+		CurrentPassengers:   input.CurrentPassengers,
+		PredictedRatio:      math.Round(resp.PredictedRatio*1000) / 1000,
+		PredictedPassengers: resp.PredictedPassengers,
+		OccupancyLevel:      level,
+		OccupancyText:       levelText(level),
+		OccupancyColor:      levelColor(level),
+		Confidence:          resp.Confidence,
+		IsSimulated:         false, // dato real del modelo ML
+		PredictorName:       resp.PredictorName,
+		PredictedAt:         resp.PredictedAt,
+	}, nil
+}
+
 // ── Helpers internos ──────────────────────────────────────────────────────────
+
 
 func peakHourMultiplier(hour, dow int) float64 {
 	dayMult, ok := dayMultipliers[dow]
