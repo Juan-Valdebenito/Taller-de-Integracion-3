@@ -4,6 +4,7 @@ import userRoutes from './user.routes';
 import busRoutes from './bus.routes';
 import routeRoutes from './route.routes';
 import complaintRoutes from './complaint.routes';
+import predictionRoutes from './prediction.routes';
 
 const apiRouter = Router();
 
@@ -13,5 +14,6 @@ apiRouter.use('/users', userRoutes);
 apiRouter.use('/buses', busRoutes);
 apiRouter.use('/routes', routeRoutes);
 apiRouter.use('/complaints', complaintRoutes);
+apiRouter.use('/prediction', predictionRoutes);
 
 export { apiRouter };

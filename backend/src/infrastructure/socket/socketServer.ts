@@ -1,4 +1,5 @@
 import { Server } from 'socket.io';
+import { processSimulationEvent, SimulationEventType, buses } from './simulation';
 
 /**
  * Eventos de Socket.IO del sistema de transporte.
@@ -15,6 +16,9 @@ export enum SocketEvents {
   // Salas (rooms)
   JOIN_ROUTE_ROOM = 'route:join',
   LEAVE_ROUTE_ROOM = 'route:leave',
+
+  // DevTools / Simulación
+  SIMULATE_EVENT = 'bus:simulate:event',
 }
 
 /**
@@ -23,6 +27,38 @@ export enum SocketEvents {
 export const setupSocketIO = (io: Server): void => {
   io.on('connection', (socket) => {
     console.log(`🔌 Socket conectado: ${socket.id}`);
+
+    // Emitir estado actual de todos los buses al conectarse
+    buses.forEach((bus) => {
+      socket.emit(SocketEvents.BUS_LOCATION_BROADCAST, {
+        id: bus.id,
+        line: bus.line,
+        lat: bus.lat,
+        lng: bus.lng,
+        status: bus.status,
+        capacity: bus.capacity,
+        currentPassengers: bus.currentPassengers,
+        occupancyPercentage: bus.occupancyPercentage,
+        boardings: bus.boardings,
+        schoolBoardings: bus.schoolBoardings,
+        alightings: bus.alightings,
+        isFull: bus.isFull,
+        lastEvent: bus.lastEvent,
+      });
+    });
+
+    // ── Inyección manual de eventos desde DevTools ──────────
+    socket.on(
+      SocketEvents.SIMULATE_EVENT,
+      (data: { busId: string; eventType: SimulationEventType }) => {
+        if (data?.busId && data?.eventType) {
+          const updated = processSimulationEvent(data.busId, data.eventType);
+          if (updated) {
+            console.log(`🎮 [SIMULATION DEVTOOLS] ${data.busId} -> ${data.eventType}`);
+          }
+        }
+      },
+    );
 
     // ── Unirse a la sala de una ruta específica ─────────────
     socket.on(SocketEvents.JOIN_ROUTE_ROOM, (routeId: string) => {
@@ -46,7 +82,6 @@ export const setupSocketIO = (io: Server): void => {
         heading?: number;
         speed?: number;
       }) => {
-        // TODO: Persistir en BD vía use-case
         // Retransmitir a todos en la sala de la ruta
         io.to(`route:${data.routeId}`).emit(
           SocketEvents.BUS_LOCATION_BROADCAST,
@@ -69,7 +104,6 @@ export const setupSocketIO = (io: Server): void => {
         alightings: number;
         schoolBoardings: number;
       }) => {
-        // TODO: Persistir en BD vía use-case
         io.to(`route:${data.routeId}`).emit(
           SocketEvents.BUS_STATUS_BROADCAST,
           {
@@ -86,3 +120,4 @@ export const setupSocketIO = (io: Server): void => {
     });
   });
 };
+

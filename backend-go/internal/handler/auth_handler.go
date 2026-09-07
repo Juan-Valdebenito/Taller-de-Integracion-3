@@ -1,8 +1,11 @@
 package handler
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -12,29 +15,53 @@ import (
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/middleware"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/repository"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/token"
 )
 
 // AuthHandler maneja los endpoints de autenticación.
 type AuthHandler struct {
 	userRepo  *repository.UserRepository
 	jwtSecret string
+	blacklist *token.Blacklist
 }
 
-func NewAuthHandler(userRepo *repository.UserRepository, jwtSecret string) *AuthHandler {
-	return &AuthHandler{userRepo: userRepo, jwtSecret: jwtSecret}
+func NewAuthHandler(userRepo *repository.UserRepository, jwtSecret string, bl *token.Blacklist) *AuthHandler {
+	return &AuthHandler{userRepo: userRepo, jwtSecret: jwtSecret, blacklist: bl}
 }
 
-// generateToken crea un JWT firmado con los datos del usuario.
-func (h *AuthHandler) generateToken(user *domain.User) (string, error) {
+// generateJTI crea un identificador único para el token (JWT ID).
+func generateJTI() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
+}
+
+// generateToken crea un JWT firmado HS256 con los datos del usuario.
+// Incluye el claim "jti" para poder revocar tokens específicos en el logout.
+func (h *AuthHandler) generateToken(user *domain.User) (string, time.Time, error) {
+	jti, err := generateJTI()
+	if err != nil {
+		return "", time.Time{}, err
+	}
+
+	exp := time.Now().Add(7 * 24 * time.Hour)
+
 	claims := jwt.MapClaims{
+		"jti":   jti,
 		"id":    user.ID,
 		"email": user.Email,
 		"role":  string(user.Role),
-		"exp":   time.Now().Add(7 * 24 * time.Hour).Unix(),
+		"exp":   exp.Unix(),
 		"iat":   time.Now().Unix(),
 	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(h.jwtSecret))
+	t := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signed, err := t.SignedString([]byte(h.jwtSecret))
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	return signed, exp, nil
 }
 
 // Register godoc
@@ -88,13 +115,13 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	token, err := h.generateToken(user)
+	tokenStr, _, err := h.generateToken(user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al generar token"})
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"token": token, "user": user})
+	c.JSON(http.StatusCreated, gin.H{"token": tokenStr, "user": user})
 }
 
 // Login godoc
@@ -115,24 +142,52 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	// Verificar que la cuenta esté activa
+	if !user.IsActive {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Cuenta desactivada. Contacta al administrador"})
+		return
+	}
+
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(body.Password)); err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Credenciales inválidas"})
 		return
 	}
 
-	token, err := h.generateToken(user)
+	tokenStr, _, err := h.generateToken(user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al generar token"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"token": token, "user": user})
+	c.JSON(http.StatusOK, gin.H{"token": tokenStr, "user": user})
 }
 
 // Logout godoc
-// POST /api/v1/auth/logout
-// JWT es stateless: el cliente debe eliminar el token del almacenamiento local.
+// POST /api/v1/auth/logout — requiere middleware Authenticate
+// Revoca el token actual agregándolo al blacklist hasta su expiración.
 func (h *AuthHandler) Logout(c *gin.Context) {
+	authHeader := c.GetHeader("Authorization")
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		c.JSON(http.StatusOK, gin.H{"message": "Sesión cerrada correctamente"})
+		return
+	}
+
+	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+
+	// Parsear sin verificar nuevamente (el middleware ya lo hizo)
+	p := jwt.NewParser()
+	parsed, _, err := p.ParseUnverified(tokenStr, jwt.MapClaims{})
+	if err == nil {
+		if claims, ok := parsed.Claims.(jwt.MapClaims); ok {
+			jti, _ := claims["jti"].(string)
+			expFloat, _ := claims["exp"].(float64)
+			if jti != "" && expFloat > 0 {
+				exp := time.Unix(int64(expFloat), 0)
+				h.blacklist.Revoke(jti, exp)
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "Sesión cerrada correctamente"})
 }
 

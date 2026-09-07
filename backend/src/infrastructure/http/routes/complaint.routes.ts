@@ -1,180 +1,147 @@
-import { Router, Response } from 'express';
-import { PrismaComplaintRepository } from '../../database/prisma/repositories/PrismaComplaintRepository';
-import { authenticate, authorize, AuthRequest } from '../middlewares/auth.middleware';
-import { AppError } from '../../../shared/errors/AppError';
-import { ComplaintStatus } from '../../../shared/enums';
-import { ComplaintCategory } from '../../../domain/entities/Complaint';
+import { Router, Request, Response } from 'express';
+import { ComplaintStore } from '../../database/complaintStore';
+import { ComplaintCategory, ComplaintStatus } from '@prisma/client';
 
 const router = Router();
 const repo = new PrismaComplaintRepository();
 
-// ── GET /api/v1/complaints ────────────────────────────────────
-// ADMIN: ve todos los reclamos
-// COMPANY: ve solo los de su empresa
-router.get(
-  '/',
-  authenticate,
-  authorize('ADMIN', 'COMPANY'),
-  async (req: AuthRequest, res: Response, next) => {
-    try {
-      const complaints =
-        req.user!.role === 'ADMIN'
-          ? await repo.findAll()
-          : await repo.findByCompanyId(req.user!.id);
+// GET /api/v1/complaints - Listar reclamos e incidentes (con filtros de estado, categoría y bus)
+router.get('/', async (req: Request, res: Response) => {
+  try {
+    const { status, category, busId } = req.query;
 
-      res.json({ data: complaints });
-    } catch (err) {
-      next(err);
+    const filters: {
+      status?: ComplaintStatus;
+      category?: ComplaintCategory;
+      busId?: string;
+    } = {};
+
+    if (status && Object.values(ComplaintStatus).includes(status as ComplaintStatus)) {
+      filters.status = status as ComplaintStatus;
     }
-  },
-);
 
-// ── GET /api/v1/complaints/my ─────────────────────────────────
-// PASSENGER: ve sus propios reclamos
-router.get(
-  '/my',
-  authenticate,
-  authorize('PASSENGER'),
-  async (req: AuthRequest, res: Response, next) => {
-    try {
-      const complaints = await repo.findByPassengerId(req.user!.id);
-      res.json({ data: complaints });
-    } catch (err) {
-      next(err);
+    if (category && Object.values(ComplaintCategory).includes(category as ComplaintCategory)) {
+      filters.category = category as ComplaintCategory;
     }
-  },
-);
 
-// ── GET /api/v1/complaints/:id ────────────────────────────────
-// Cualquier usuario autenticado puede ver un reclamo por ID
-router.get(
-  '/:id',
-  authenticate,
-  async (req: AuthRequest, res: Response, next) => {
-    try {
-      const complaint = await repo.findById(req.params.id);
-      if (!complaint) throw new AppError('Reclamo no encontrado', 404);
-
-      // PASSENGER solo puede ver sus propios reclamos
-      if (
-        req.user!.role === 'PASSENGER' &&
-        complaint.passengerId !== req.user!.id
-      ) {
-        throw new AppError('No tienes permisos para ver este reclamo', 403);
-      }
-
-      res.json({ data: complaint });
-    } catch (err) {
-      next(err);
+    if (busId && typeof busId === 'string') {
+      filters.busId = busId;
     }
-  },
-);
 
-// ── POST /api/v1/complaints ───────────────────────────────────
-// PASSENGER: crea un nuevo reclamo
-router.post(
-  '/',
-  authenticate,
-  authorize('PASSENGER'),
-  async (req: AuthRequest, res: Response, next) => {
-    try {
-      const { title, description, category, busId, routeId, companyId } =
-        req.body as {
-          title: string;
-          description: string;
-          category: ComplaintCategory;
-          busId?: string;
-          routeId?: string;
-          companyId: string;
-        };
+    const complaints = await ComplaintStore.listAll(filters);
 
-      if (!title || !description || !category || !companyId) {
-        throw new AppError(
-          'Los campos title, description, category y companyId son requeridos',
-          400,
-        );
-      }
+    res.json({
+      status: 'success',
+      count: complaints.length,
+      data: complaints,
+    });
+  } catch (error) {
+    console.error('[COMPLAINTS GET ERROR]', error);
+    res.status(500).json({ status: 'error', message: 'Error al listar reclamos' });
+  }
+});
 
-      const complaint = await repo.create({
-        title,
-        description,
-        category,
-        status: ComplaintStatus.PENDING,
-        passengerId: req.user!.id,
-        busId: busId ?? null,
-        routeId: routeId ?? null,
-        companyId,
-        adminResponse: null,
+// GET /api/v1/complaints/:id - Obtener detalle de reclamo por ID
+router.get('/:id', async (req: Request, res: Response) => {
+  try {
+    const complaint = await ComplaintStore.findById(req.params.id);
+    if (!complaint) {
+      return res.status(404).json({ status: 'fail', message: 'Reclamo no encontrado' });
+    }
+
+    res.json({
+      status: 'success',
+      data: complaint,
+    });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: 'Error al obtener reclamo' });
+  }
+});
+
+// POST /api/v1/complaints - Crear nuevo reclamo (pasajero o reporte contextual)
+router.post('/', async (req: Request, res: Response) => {
+  try {
+    const { busId, lineName, title, description, category, rating, passengerId } = req.body;
+
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'La calificación (rating) debe ser un número entero entre 1 y 5 estrellas',
       });
-
-      res.status(201).json({ data: complaint });
-    } catch (err) {
-      next(err);
     }
-  },
-);
 
-// ── PUT /api/v1/complaints/:id/status ────────────────────────
-// ADMIN / COMPANY: cambia estado y agrega respuesta
-router.put(
-  '/:id/status',
-  authenticate,
-  authorize('ADMIN', 'COMPANY'),
-  async (req: AuthRequest, res: Response, next) => {
-    try {
-      const { status, adminResponse } = req.body as {
-        status: ComplaintStatus;
-        adminResponse?: string;
-      };
+    // Sanitizar textos para evitar inyección
+    const cleanTitle = (title || `Incidente en Línea ${lineName || 'Desconocida'}`)
+      .toString()
+      .trim()
+      .substring(0, 150);
 
-      const validStatuses = Object.values(ComplaintStatus);
-      if (!status || !validStatuses.includes(status)) {
-        throw new AppError(
-          `Estado inválido. Debe ser uno de: ${validStatuses.join(', ')}`,
-          400,
-        );
-      }
+    const cleanDescription = (description || 'Sin comentarios adicionales')
+      .toString()
+      .trim()
+      .substring(0, 1000);
 
-      const existing = await repo.findById(req.params.id);
-      if (!existing) throw new AppError('Reclamo no encontrado', 404);
+    let prismaCategory: ComplaintCategory = ComplaintCategory.OTHER;
+    if (category && Object.values(ComplaintCategory).includes(category as ComplaintCategory)) {
+      prismaCategory = category as ComplaintCategory;
+    }
 
-      // COMPANY solo puede gestionar reclamos de su empresa
-      if (
-        req.user!.role === 'COMPANY' &&
-        existing.companyId !== req.user!.id
-      ) {
-        throw new AppError('No tienes permisos para gestionar este reclamo', 403);
-      }
+    const complaint = await ComplaintStore.create({
+      title: cleanTitle,
+      description: cleanDescription,
+      category: prismaCategory,
+      rating: Number(rating),
+      busId: busId || undefined,
+      lineName: lineName || undefined,
+      passengerId: passengerId || undefined,
+    });
 
-      const updated = await repo.update(req.params.id, {
-        status,
-        adminResponse: adminResponse ?? null,
+    res.status(201).json({
+      status: 'success',
+      message: 'Reclamo registrado exitosamente en el protocolo de gestión',
+      data: complaint,
+    });
+  } catch (error) {
+    console.error('[COMPLAINTS POST ERROR]', error);
+    res.status(500).json({ status: 'error', message: 'Error interno al registrar el reclamo' });
+  }
+});
+
+// PATCH / PUT /api/v1/complaints/:id/status - Actualizar estado y respuesta del administrador
+const handleStatusUpdate = async (req: Request, res: Response) => {
+  try {
+    const { status, adminResponse } = req.body;
+
+    if (!status || !Object.values(ComplaintStatus).includes(status as ComplaintStatus)) {
+      return res.status(400).json({
+        status: 'fail',
+        message: `Estado inválido. Los estados permitidos son: ${Object.values(ComplaintStatus).join(', ')}`,
       });
-
-      res.json({ data: updated });
-    } catch (err) {
-      next(err);
     }
-  },
-);
 
-// ── DELETE /api/v1/complaints/:id ────────────────────────────
-// ADMIN: elimina un reclamo
-router.delete(
-  '/:id',
-  authenticate,
-  authorize('ADMIN'),
-  async (req: AuthRequest, res: Response, next) => {
-    try {
-      const existing = await repo.findById(req.params.id);
-      if (!existing) throw new AppError('Reclamo no encontrado', 404);
+    const updated = await ComplaintStore.updateStatus(
+      req.params.id,
+      status as ComplaintStatus,
+      adminResponse
+    );
 
-      await repo.delete(req.params.id);
-      res.status(204).send();
-    } catch (err) {
-      next(err);
+    if (!updated) {
+      return res.status(404).json({ status: 'fail', message: 'Reclamo no encontrado' });
     }
-  },
-);
+
+    res.json({
+      status: 'success',
+      message: `Estado del reclamo actualizado a ${status}`,
+      data: updated,
+    });
+  } catch (error) {
+    console.error('[COMPLAINTS STATUS UPDATE ERROR]', error);
+    res.status(500).json({ status: 'error', message: 'Error al actualizar estado del reclamo' });
+  }
+};
+
+router.put('/:id/status', handleStatusUpdate);
+router.patch('/:id/status', handleStatusUpdate);
 
 export default router;
+
