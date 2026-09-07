@@ -2,12 +2,14 @@
 import { useEffect, useState } from 'react';
 import { apiClient } from '../../../infrastructure/api/apiClient';
 
+type ComplaintStatus = 'PENDING' | 'IN_REVIEW' | 'RESOLVED' | 'REJECTED';
+
 interface Complaint {
   id: string;
   title: string;
   description: string;
   category: string;
-  status: string;
+  status: ComplaintStatus;
   passengerId: string;
   busId: string | null;
   routeId: string | null;
@@ -21,25 +23,48 @@ interface ComplaintsResponse {
   data: Complaint[];
 }
 
+interface ComplaintResponse {
+  data: Complaint;
+}
+
 const initialForm = {
   title: '',
   description: '',
   category: ''
 };
 
+const CATEGORY_LABELS: Record<string, string> = {
+  DELAY: 'Retraso',
+  OVERCROWDING: 'Exceso de pasajeros',
+  DRIVER_BEHAVIOR: 'Comportamiento del conductor',
+  VEHICLE_CONDITION: 'Condición del vehículo',
+  ACCESSIBILITY: 'Accesibilidad',
+  OTHER: 'Otro',
+};
+
+const STATUS_LABELS: Record<ComplaintStatus, string> = {
+  PENDING: 'Pendiente',
+  IN_REVIEW: 'En revisión',
+  RESOLVED: 'Resuelto',
+  REJECTED: 'Rechazado',
+};
+
 export function PassengerComplaintsPage() {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(initialForm);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const loadComplaints = async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      const response = await apiClient.get<ComplaintsResponse>('/complaints/my',);
+      const response = 
+        await apiClient.get<ComplaintsResponse>('/complaints/my',);
 
       setComplaints(response.data.data);
     } catch (err) {
@@ -63,31 +88,35 @@ export function PassengerComplaintsPage() {
     }
 
     try {
+      setIsSubmitting(true);
       setError(null);
+      setSuccess(null);
 
-      const response = await apiClient.post<{ data: Complaint}>(
+      const response = await apiClient.post<ComplaintResponse>(
         '/complaints',
         {
-          title: form.title,
-          description: form.description,
+          title: form.title.trim(),
+          description: form.description.trim(),
           category: form.category,
-
           companyId: 'company-demo',
         },
       );
 
       const newComplaint = response.data.data;
+
       setComplaints((current) => [
         newComplaint, 
         ...current,
       ]);
 
       setForm(initialForm);
-
       setShowForm(false);
+      setSuccess('Reclamo creado exitosamente');
     } catch (err) {
       console.error('Error al crear el reclamo:', err);
       setError('No se puede crear el reclamo');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -95,7 +124,12 @@ export function PassengerComplaintsPage() {
 
   if (isLoading) {
     return (
-      <div style={{ padding: 'var(--space-8)', textAlign: 'center' }}>
+      <div 
+        style={{ 
+          padding: 'var(--space-8)', 
+          textAlign: 'center' 
+        }}
+      >
         <span style={{ fontSize: '3rem' }}>📋</span>
 
         <h1 style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 700, margin: 'var(--space-4) 0 var(--space-2)' }}>
@@ -124,7 +158,7 @@ export function PassengerComplaintsPage() {
           </p>
         </div>
 
-        <button type="button" onClick={() => { setShowForm(true); setError(null);}}>
+        <button type="button" onClick={() => { setShowForm(true); setError(null); setSuccess(null);}}>
           Crear reclamo
         </button>
       </div>
@@ -132,6 +166,12 @@ export function PassengerComplaintsPage() {
       {error && (
         <div style={{ marginBottom: 'var(--space-6)', padding: 'var(--space-6)', borderRadius: 'var(--radius-lg)', background: 'var(--color-background-secondary)', }}>
           {error}
+        </div>
+      )}
+
+      {success && (
+         <div style={{ marginBottom: 'var(--space-6)', padding: 'var(--space-6)', borderRadius: 'var(--radius-lg)', background: 'var(--color-background-secondary)', }}>
+          {success}
         </div>
       )}
 
@@ -151,6 +191,7 @@ export function PassengerComplaintsPage() {
                 value={form.title}
                 onChange={(event) => setForm({...form, title: event.target.value})}
                 placeholder="Titulo del reclamo"
+                disabled={isSubmitting}
               />
             </div>
 
@@ -161,12 +202,15 @@ export function PassengerComplaintsPage() {
               <select
                 value={form.category}
                 onChange={(event) => setForm({...form, category: event.target.value})}
+                disabled={isSubmitting}
               >
                 <option value="">Seleccionar categoría</option>
-                <option value="DRIVER">Conductor</option>
-                <option value="VEHICLE">Vehículo</option>
-                <option value="ROUTE">Ruta</option>
-                <option value="SERVICE">Servicio</option>
+                <option value="DELAY">Retraso</option>
+                <option value="OVERCROWDING">Exceso de pasajeros</option>
+                <option value="DRIVER_BEHAVIOR">Comportamiento del conductor</option>
+                <option value="VEHICLE_CONDITION">Estado del vehículo</option>
+                <option value="ACCESSIBILITY">Accesibilidad</option>
+                <option value="OTHER">Otro</option>
               </select>
             </div>
 
@@ -180,12 +224,13 @@ export function PassengerComplaintsPage() {
                 onChange={(event) => setForm({...form, description: event.target.value})}
                 placeholder="Describa su reclamo"
                 rows={5}
+                disabled={isSubmitting}
               />
             </div>
 
             <div style={{ display: 'flex', gap: 'var(--space-4)' }}>
-              <button type="submit">
-                Enviar reclamo
+              <button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Enviando...' : 'Enviar reclamo'}
               </button>
 
               <button type="button" onClick={() => { setShowForm(false); setForm(initialForm); setError(null); }}>
@@ -203,6 +248,7 @@ export function PassengerComplaintsPage() {
           <h2 style={{ marginTop: 'var(--space-4)', fontWeight: 600, }}>
             No tienes reclamos
           </h2>
+
           <p style={{ color: 'var(--color-text-secondary)', }}>
             Tus reclamos aparecceran aqui
           </p>
@@ -221,13 +267,14 @@ export function PassengerComplaintsPage() {
 
                 <p>
                   <strong>Categoria:</strong>{' '}
-                  {complaint.category}
+                  {CATEGORY_LABELS[complaint.category] ?? complaint.category}
                 </p>
 
                 <p>
-                  <strong>Estado:</strong>{' '}
-                  {complaint.status}
-                </p>
+                <strong>Estado:</strong>{' '}
+                {STATUS_LABELS[complaint.status] ??
+                  complaint.status}
+              </p>
 
                 {complaint.adminResponse && (
                   <p>
