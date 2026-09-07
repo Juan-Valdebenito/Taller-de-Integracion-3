@@ -3,6 +3,7 @@ import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import app from './infrastructure/http/app';
 import { setupSocketIO } from './infrastructure/socket/socketServer';
+import { startSimulation } from './infrastructure/socket/simulation';
 
 const PORT = process.env.PORT ?? 3001;
 
@@ -11,12 +12,21 @@ const httpServer = createServer(app);
 // ── Socket.IO ──────────────────────────────────────────────
 const io = new SocketIOServer(httpServer, {
   cors: {
-    origin: process.env.SOCKET_CORS_ORIGIN ?? 'http://localhost:5173',
+    origin: (origin, callback) => {
+      // Permitir cualquier origen local de Vite o sin origen (como Postman o apps móviles)
+      if (!origin || origin.includes('localhost') || origin.includes('127.0.0.1')) {
+        callback(null, true);
+      } else {
+        callback(null, true);
+      }
+    },
     methods: ['GET', 'POST'],
+    credentials: true,
   },
 });
 
 setupSocketIO(io);
+startSimulation(io);
 
 // ── Iniciar servidor ───────────────────────────────────────
 httpServer.listen(PORT, () => {
@@ -26,3 +36,4 @@ httpServer.listen(PORT, () => {
 });
 
 export { io };
+

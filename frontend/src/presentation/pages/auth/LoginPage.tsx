@@ -1,55 +1,51 @@
-import { useState, type FormEvent } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
-import { apiClient } from '../../../infrastructure/api/apiClient';
-import type { AuthUser } from '../../context/AuthContext';
 
-// ── Mapa de rol → ruta home ───────────────────────────────────────────────────
-const ROLE_HOME: Record<string, string> = {
-  PASSENGER: '/passenger/map',
-  COMPANY:   '/company/dashboard',
-  ADMIN:     '/admin/dashboard',
-};
-
-// ── Componente ────────────────────────────────────────────────────────────────
 export function LoginPage() {
-  const { login } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
+  const { login } = useAuth();
 
-  const [email, setEmail]       = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError]       = useState<string | null>(null);
-  const [loading, setLoading]   = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Tras el login volver a la URL original o ir al portal del rol
-  const from = (location.state as { from?: Location })?.from?.pathname;
-
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setLoading(true);
+    setErrorMessage(null);
+    setIsLoading(true);
 
     try {
-      const { data } = await apiClient.post<{ token: string; user: AuthUser }>(
-        '/auth/login',
-        { email, password },
+      const res = await axios.post('http://localhost:3001/api/v1/auth/login', {
+        email,
+        password,
+      });
+
+      const { token, user } = res.data.data;
+      login(token, user);
+
+      if (user.role === 'ADMIN') {
+        navigate('/admin/dashboard');
+      } else if (user.role === 'COMPANY') {
+        navigate('/company/dashboard');
+      } else {
+        navigate('/passenger/map');
+      }
+    } catch (err: any) {
+      setErrorMessage(
+        err.response?.data?.message || 'Error al iniciar sesión. Verifica tus credenciales.'
       );
-
-      login(data.token, data.user);
-
-      // Redirigir a la URL previa o al portal del rol
-      const destination = from ?? ROLE_HOME[data.user.role] ?? '/';
-      navigate(destination, { replace: true });
-
-    } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { error?: string } } })
-          ?.response?.data?.error ?? 'Error al iniciar sesión. Intenta de nuevo.';
-      setError(msg);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
+  };
+
+  const handleFillDemo = (demoEmail: string, demoPass: string) => {
+    setEmail(demoEmail);
+    setPassword(demoPass);
+    setErrorMessage(null);
   };
 
   return (
@@ -58,137 +54,140 @@ export function LoginPage() {
       border: '1px solid var(--color-border)',
       borderRadius: 'var(--radius-xl)',
       padding: 'var(--space-8)',
-      width: '100%',
-      maxWidth: '420px',
+      boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
     }}>
-      {/* Encabezado */}
-      <div style={{ textAlign: 'center', marginBottom: 'var(--space-6)' }}>
-        <span style={{ fontSize: '2.5rem' }}>🚌</span>
-        <h1 style={{
-          fontSize: 'var(--font-size-xl)',
-          fontWeight: 700,
-          marginTop: 'var(--space-2)',
-          marginBottom: 'var(--space-1)',
-        }}>
-          Iniciar sesión
-        </h1>
-        <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
-          Plataforma de Transporte Público
-        </p>
-      </div>
+      <h2 style={{ fontSize: 'var(--font-size-xl)', fontWeight: 700, marginBottom: 'var(--space-2)' }}>
+        Iniciar sesión
+      </h2>
+      <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)', marginBottom: 'var(--space-6)' }}>
+        Ingresa tus credenciales protegidas con hash bcrypt
+      </p>
 
-      {/* Error */}
-      {error && (
+      {errorMessage && (
         <div style={{
-          background: 'hsla(0,84%,55%,0.12)',
-          border: '1px solid hsla(0,84%,55%,0.35)',
-          borderRadius: 'var(--radius-md)',
-          padding: 'var(--space-3) var(--space-4)',
-          color: 'hsl(0,84%,65%)',
-          fontSize: 'var(--font-size-sm)',
-          marginBottom: 'var(--space-5)',
+          background: 'rgba(239, 68, 68, 0.15)',
+          color: '#f87171',
+          padding: '10px 14px',
+          borderRadius: '8px',
+          fontSize: '13px',
+          marginBottom: '16px',
+          border: '1px solid rgba(239, 68, 68, 0.3)',
         }}>
-          {error}
+          {errorMessage}
         </div>
       )}
 
-      {/* Formulario */}
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
-          <label
-            htmlFor="login-email"
-            style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600, color: 'var(--color-text-secondary)' }}
-          >
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <div style={{ textAlign: 'left' }}>
+          <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '4px' }}>
             Correo electrónico
           </label>
           <input
-            id="login-email"
             type="email"
-            autoComplete="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="usuario@ejemplo.com"
+            placeholder="ejemplo@transporte.cl"
             style={{
-              padding: 'var(--space-3) var(--space-4)',
-              borderRadius: 'var(--radius-md)',
+              width: '100%',
+              padding: '10px 12px',
+              borderRadius: '8px',
               border: '1px solid var(--color-border)',
               background: 'var(--color-surface-2)',
-              color: 'var(--color-text-primary)',
-              fontSize: 'var(--font-size-base)',
-              outline: 'none',
-              transition: 'border-color 0.15s',
+              color: 'inherit',
+              boxSizing: 'border-box',
             }}
           />
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
-          <label
-            htmlFor="login-password"
-            style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600, color: 'var(--color-text-secondary)' }}
-          >
+        <div style={{ textAlign: 'left' }}>
+          <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '4px' }}>
             Contraseña
           </label>
           <input
-            id="login-password"
             type="password"
-            autoComplete="current-password"
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
             style={{
-              padding: 'var(--space-3) var(--space-4)',
-              borderRadius: 'var(--radius-md)',
+              width: '100%',
+              padding: '10px 12px',
+              borderRadius: '8px',
               border: '1px solid var(--color-border)',
               background: 'var(--color-surface-2)',
-              color: 'var(--color-text-primary)',
-              fontSize: 'var(--font-size-base)',
-              outline: 'none',
-              transition: 'border-color 0.15s',
+              color: 'inherit',
+              boxSizing: 'border-box',
             }}
           />
         </div>
 
         <button
-          id="login-submit"
           type="submit"
-          disabled={loading}
+          disabled={isLoading}
           style={{
-            marginTop: 'var(--space-2)',
-            padding: 'var(--space-3)',
-            borderRadius: 'var(--radius-md)',
+            marginTop: '8px',
+            padding: '12px',
+            background: 'var(--color-primary-600, #2563eb)',
+            color: 'white',
             border: 'none',
-            background: loading
-              ? 'var(--color-surface-2)'
-              : 'linear-gradient(135deg, hsl(215,80%,55%), hsl(200,95%,47%))',
-            color: loading ? 'var(--color-text-muted)' : '#fff',
-            fontSize: 'var(--font-size-base)',
+            borderRadius: '8px',
             fontWeight: 700,
-            cursor: loading ? 'not-allowed' : 'pointer',
-            transition: 'opacity 0.15s',
+            cursor: 'pointer',
+            opacity: isLoading ? 0.7 : 1,
+            transition: 'background 0.2s',
           }}
         >
-          {loading ? 'Ingresando…' : 'Ingresar'}
+          {isLoading ? 'Verificando...' : 'Entrar'}
         </button>
       </form>
 
-      {/* Pie */}
-      <p style={{
-        textAlign: 'center',
-        marginTop: 'var(--space-5)',
-        fontSize: 'var(--font-size-sm)',
-        color: 'var(--color-text-secondary)',
-      }}>
+      {/* Cuentas Demo de prueba rápida */}
+      <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid var(--color-border)' }}>
+        <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', display: 'block', marginBottom: '8px' }}>
+          CUENTAS DE PRUEBA SIMULADAS (CON HASH BCRYPT):
+        </span>
+        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+          <button
+            type="button"
+            onClick={() => handleFillDemo('admin@transporte.cl', 'Admin1234!')}
+            style={{
+              padding: '4px 8px',
+              fontSize: '11px',
+              background: 'rgba(56, 189, 248, 0.1)',
+              border: '1px solid #38bdf8',
+              color: '#38bdf8',
+              borderRadius: '6px',
+              cursor: 'pointer',
+            }}
+          >
+            Admin
+          </button>
+          <button
+            type="button"
+            onClick={() => handleFillDemo('carlos.pasajero@gmail.com', 'Pasajero1234!')}
+            style={{
+              padding: '4px 8px',
+              fontSize: '11px',
+              background: 'rgba(74, 222, 128, 0.1)',
+              border: '1px solid #4ade80',
+              color: '#4ade80',
+              borderRadius: '6px',
+              cursor: 'pointer',
+            }}
+          >
+            Pasajero
+          </button>
+        </div>
+      </div>
+
+      <p style={{ marginTop: '16px', fontSize: '12px', color: 'var(--color-text-secondary)' }}>
         ¿No tienes cuenta?{' '}
-        <Link
-          to="/auth/register"
-          style={{ color: 'hsl(200,95%,55%)', fontWeight: 600, textDecoration: 'none' }}
-        >
-          Regístrate
+        <Link to="/auth/register" style={{ color: '#38bdf8', fontWeight: 600 }}>
+          Regístrate aquí
         </Link>
       </p>
     </div>
   );
 }
+

@@ -8,7 +8,16 @@ import { apiRouter } from './routes';
 const app = express();
 
 // ── Middlewares globales ───────────────────────────────────
-app.use(cors({ origin: process.env.CORS_ORIGIN ?? 'http://localhost:5173' }));
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      callback(null, true);
+    } else {
+      callback(null, true);
+    }
+  },
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
