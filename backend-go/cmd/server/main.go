@@ -78,7 +78,7 @@ func main() {
 	occupancyH := handler.NewOccupancyHandler(occupancySvc)
 
 	// ── Router ────────────────────────────────────────────────
-	r := router.Setup(cfg.CORSOrigin, cfg.JWTSecret, blacklist, authH, userH, busH, routeH, complaintH, occupancyH)
+	r := router.Setup(cfg.CORSOrigin, cfg.JWTSecret, pool, blacklist, authH, userH, busH, routeH, complaintH, occupancyH)
 
 	// ── Iniciar servidor ──────────────────────────────────────
 	addr := fmt.Sprintf(":%s", cfg.Port)

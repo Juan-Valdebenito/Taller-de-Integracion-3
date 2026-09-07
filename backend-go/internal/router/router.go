@@ -1,8 +1,12 @@
 package router
 
 import (
+	"context"
+	"time"
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/handler"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/middleware"
@@ -13,6 +17,7 @@ import (
 func Setup(
 	corsOrigin string,
 	jwtSecret string,
+	pool *pgxpool.Pool,
 	bl *token.Blacklist,
 	authH *handler.AuthHandler,
 	userH *handler.UserHandler,
@@ -22,6 +27,8 @@ func Setup(
 	occupancyH *handler.OccupancyHandler,
 ) *gin.Engine {
 	r := gin.Default()
+	metrics := middleware.NewMetrics()
+	r.Use(metrics.CollectHTTP())
 
 	// ── CORS ──────────────────────────────────────────────────
 	r.Use(cors.New(cors.Config{
@@ -32,9 +39,16 @@ func Setup(
 	}))
 
 	// ── Health check ──────────────────────────────────────────
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok", "lang": "go"})
-	})
+	// Endpoints de infraestructura: sin autenticacion para probes de Kubernetes.
+	// /health se conserva como alias por compatibilidad con clientes existentes.
+	r.GET("/health", middleware.Healthz)
+	r.GET("/healthz", middleware.Healthz)
+	r.GET("/readyz", middleware.Readyz(func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		return pool.Ping(ctx)
+	}))
+	r.GET("/metrics", metrics.Prometheus)
 
 	// ── API v1 ────────────────────────────────────────────────
 	api := r.Group("/api/v1")
