@@ -1,8 +1,9 @@
 import React from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './LiveMap.css';
+import { HazardMarker } from './HazardMarker';
 
 // Fix for default Leaflet icon paths in React
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -32,9 +33,23 @@ export interface BusData {
   };
 }
 
+export interface HazardData {
+  id: string;
+  lat: number;
+  lng: number;
+  title: string;
+  description: string;
+  createdAt: string;
+  usefulVotes: number;
+}
+
 interface LiveMapProps {
   buses: BusData[];
+  hazards: HazardData[];
   onBusClick: (busId: string, lineName: string) => void;
+  onMapClick: (lat: number, lng: number) => void;
+  onHazardUseful: (id: string) => boolean;
+  onHazardResolve: (id: string) => void;
   selectedBusId?: string;
 }
 
@@ -101,7 +116,16 @@ const createBusIcon = (line: string, passengers: number = 0, capacity: number = 
   });
 };
 
-export const LiveMap: React.FC<LiveMapProps> = ({ buses, onBusClick }) => {
+export const LiveMap: React.FC<LiveMapProps> = ({ buses, hazards, onBusClick, onMapClick, onHazardUseful, onHazardResolve }) => {
+  const MapClickHandler = () => {
+    useMapEvents({
+      click(e) {
+        onMapClick(e.latlng.lat, e.latlng.lng);
+      },
+    });
+    return null;
+  };
+
   return (
     <div className="live-map-container">
       <MapContainer 
@@ -115,6 +139,8 @@ export const LiveMap: React.FC<LiveMapProps> = ({ buses, onBusClick }) => {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         
+        <MapClickHandler />
+        
         {buses.map((bus) => {
           const pass = bus.currentPassengers ?? 0;
           const cap = bus.capacity ?? 35;
@@ -125,6 +151,7 @@ export const LiveMap: React.FC<LiveMapProps> = ({ buses, onBusClick }) => {
               key={bus.id} 
               position={[bus.lat, bus.lng]} 
               icon={icon}
+              bubblingMouseEvents={false}
               eventHandlers={{
                 click: () => onBusClick(bus.id, bus.line)
               }}
@@ -158,6 +185,15 @@ export const LiveMap: React.FC<LiveMapProps> = ({ buses, onBusClick }) => {
             </Marker>
           );
         })}
+
+        {hazards.map((hazard) => (
+          <HazardMarker
+            key={hazard.id}
+            hazard={hazard}
+            onUseful={onHazardUseful}
+            onResolve={onHazardResolve}
+          />
+        ))}
       </MapContainer>
     </div>
   );

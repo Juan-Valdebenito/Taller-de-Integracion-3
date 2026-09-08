@@ -43,11 +43,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
   );
   const [user, setUser] = useState<AuthUser | null>(() => {
     const stored = localStorage.getItem('user');
-    return stored ? (JSON.parse(stored) as AuthUser) : null;
+    if (stored && stored !== 'undefined') {
+      try {
+        return JSON.parse(stored) as AuthUser;
+      } catch (error) {
+        console.error('Error parsing user from localStorage:', error);
+        localStorage.removeItem('user');
+        return null;
+      }
+    }
+    return null;
   });
   const [isLoading] = useState(false);
 
   const login = useCallback((newToken: string, newUser: AuthUser) => {
+    console.log('Logging in user:', newUser);
+    console.log('Storing token in localStorage:', newToken);
     localStorage.setItem('token', newToken);
     localStorage.setItem('user', JSON.stringify(newUser));
     setToken(newToken);
