@@ -23,7 +23,7 @@ export function LoginPage() {
         password,
       });
 
-      const { token, user } = res.data.data;
+      const { token, user } = res.data.data;  // en backend-gp res.data, en el viejo res.data.data
       login(token, user);
 
       if (user.role === 'ADMIN') {
@@ -34,6 +34,7 @@ export function LoginPage() {
         navigate('/passenger/map');
       }
     } catch (err: any) {
+      console.error('Error al iniciar sesión:', err);
       setErrorMessage(
         err.response?.data?.message || 'Error al iniciar sesión. Verifica tus credenciales.'
       );
