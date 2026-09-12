@@ -1,11 +1,14 @@
 package router
 
 import (
+	"net/http"
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/handler"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/middleware"
+	ws "github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/websocket"
 )
 
 // Setup configura y retorna el router Gin con todas las rutas registradas.
@@ -18,6 +21,7 @@ func Setup(
 	routeH *handler.RouteHandler,
 	complaintH *handler.ComplaintHandler,
 	occupancyH *handler.OccupancyHandler,
+	wsHandler *ws.WSHandler,
 ) *gin.Engine {
 	r := gin.Default()
 
@@ -33,6 +37,9 @@ func Setup(
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok", "lang": "go"})
 	})
+
+	// ── WebSocket (Pub/Sub — ubicación y aforo de buses) ──────
+	r.GET("/ws", gin.WrapH(http.Handler(wsHandler)))
 
 	// ── API v1 ────────────────────────────────────────────────
 	api := r.Group("/api/v1")

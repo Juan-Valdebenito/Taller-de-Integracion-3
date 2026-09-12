@@ -10,6 +10,7 @@ import (
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/handler"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/repository"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/router"
+	ws "github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/websocket"
 )
 
 func main() {
@@ -39,8 +40,15 @@ func main() {
 	occupancySvc := service.NewOccupancyService()
 	occupancyH := handler.NewOccupancyHandler(occupancySvc)
 
+	// ── WebSocket Hub (Pub/Sub) ───────────────────────────────
+	hub := ws.NewHub(occupancySvc)
+	go hub.Run()
+
+	wsHandler := ws.NewWSHandler(hub, cfg.JWTSecret, []string{cfg.CORSOrigin})
+	fmt.Println("📡  WebSocket Pub/Sub activo en /ws")
+
 	// ── Router ────────────────────────────────────────────────
-	r := router.Setup(cfg.CORSOrigin, cfg.JWTSecret, authH, userH, busH, routeH, complaintH, occupancyH)
+	r := router.Setup(cfg.CORSOrigin, cfg.JWTSecret, authH, userH, busH, routeH, complaintH, occupancyH, wsHandler)
 
 	// ── Iniciar servidor ──────────────────────────────────────
 	addr := fmt.Sprintf(":%s", cfg.Port)
@@ -51,3 +59,4 @@ func main() {
 		log.Fatalf("❌ Error al iniciar servidor: %v", err)
 	}
 }
+
