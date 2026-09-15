@@ -23,14 +23,28 @@ func NewComplaintHandler(complaintRepo *repository.ComplaintRepository) *Complai
 // GetAll godoc
 // GET /api/v1/complaints
 func (h *ComplaintHandler) GetAll(c *gin.Context) {
-	complaints, err := h.complaintRepo.FindAll(c.Request.Context())
+	filters := repository.ComplaintFilters{
+		Status: c.Query("status"),
+		Category: c.Query("category"),
+		BusID: c.Query("busId"),
+	}
+
+	complaints, err := h.complaintRepo.FindAll(
+		c.Request.Context(),
+		filters,
+	)
+
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener reclamos"})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Error al obtener reclamos",
+		})
 		return
 	}
+
 	if complaints == nil {
 		complaints = []domain.Complaint{}
 	}
+
 	c.JSON(http.StatusOK, complaints)
 }
 

@@ -1,159 +1,291 @@
-import { useMemo, useState } from 'react';
+/** Página de reclamos del pasajero - Por implementar */
+import { useEffect, useState } from 'react';
+import { apiClient } from '../../../infrastructure/api/apiClient';
 
-type PassengerComplaintStatus = 'PENDING' | 'IN_REVIEW' | 'RESOLVED';
+type ComplaintStatus = 'PENDING' | 'IN_REVIEW' | 'RESOLVED' | 'REJECTED';
 
-interface PassengerComplaint {
+interface Complaint {
   id: string;
   title: string;
+  description: string;
+  category: string;
+  status: ComplaintStatus;
+  passengerId: string;
+  busId: string | null;
+  routeId: string | null;
+  companyId: string;
+  adminResponse: string | null;
   createdAt: string;
-  status: PassengerComplaintStatus;
+  updatedAt: string;
 }
 
-const STATUS_LABELS: Record<PassengerComplaintStatus, string> = {
+interface ComplaintsResponse {
+  data: Complaint[];
+}
+
+interface ComplaintResponse {
+  data: Complaint;
+}
+
+const initialForm = {
+  title: '',
+  description: '',
+  category: ''
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  DELAY: 'Retraso',
+  OVERCROWDING: 'Exceso de pasajeros',
+  DRIVER_BEHAVIOR: 'Comportamiento del conductor',
+  VEHICLE_CONDITION: 'Condición del vehículo',
+  ACCESSIBILITY: 'Accesibilidad',
+  OTHER: 'Otro',
+};
+
+const STATUS_LABELS: Record<ComplaintStatus, string> = {
   PENDING: 'Pendiente',
-  IN_REVIEW: 'En revision',
+  IN_REVIEW: 'En revisión',
   RESOLVED: 'Resuelto',
+  REJECTED: 'Rechazado',
 };
-
-const STATUS_COLORS: Record<PassengerComplaintStatus, string> = {
-  PENDING: 'hsl(38,92%,50%)',
-  IN_REVIEW: 'hsl(215,80%,55%)',
-  RESOLVED: 'hsl(142,71%,45%)',
-};
-
-const MOCK_COMPLAINTS: PassengerComplaint[] = [
-  {
-    id: 'pc-1',
-    title: 'La micro no se detuvo en mi paradero',
-    createdAt: '23/08/2026 09:10',
-    status: 'PENDING',
-  },
-  {
-    id: 'pc-2',
-    title: 'Retraso de 35 minutos en hora punta',
-    createdAt: '22/08/2026 18:40',
-    status: 'IN_REVIEW',
-  },
-  {
-    id: 'pc-3',
-    title: 'Mala ventilacion en bus de ruta 301',
-    createdAt: '20/08/2026 14:05',
-    status: 'RESOLVED',
-  },
-];
-
-function Badge({ status }: { status: PassengerComplaintStatus }) {
-  const color = STATUS_COLORS[status];
-  return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        padding: '2px 10px',
-        borderRadius: '9999px',
-        fontSize: '11px',
-        fontWeight: 700,
-        background: `${color}18`,
-        color,
-        border: `1px solid ${color}33`,
-      }}
-    >
-      {STATUS_LABELS[status]}
-    </span>
-  );
-}
 
 export function PassengerComplaintsPage() {
-  const [complaints, setComplaints] = useState<PassengerComplaint[]>(MOCK_COMPLAINTS);
+  const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState(initialForm);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
-  const stats = useMemo(
-    () => ({
-      total: complaints.length,
-      pending: complaints.filter((c) => c.status === 'PENDING').length,
-      resolved: complaints.filter((c) => c.status === 'RESOLVED').length,
-    }),
-    [complaints],
-  );
+  const loadComplaints = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
 
-  const simulateProgress = () => {
-    setComplaints((prev) => {
-      const idx = prev.findIndex((c) => c.status === 'PENDING');
-      if (idx === -1) return prev;
+      const response = 
+        await apiClient.get<ComplaintsResponse>('/complaints/my',);
 
-      const next = [...prev];
-      next[idx] = { ...next[idx], status: 'IN_REVIEW' };
-      return next;
-    });
+      setComplaints(response.data.data);
+    } catch (err) {
+      console.error('Error al cargar los reclamos:', err);
+      setError('Error al cargar los reclamos');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  return (
-    <div style={{ padding: 'var(--space-8)', display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
-      <div>
-        <h1 style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 700, margin: 0 }}>
-        Mis reclamos
-        </h1>
-        <p style={{ color: 'var(--color-text-secondary)', marginTop: 'var(--space-2)' }}>
-          Vista simulada para validar flujo visual mientras se termina la API.
-        </p>
-      </div>
+  useEffect(() => {
+    loadComplaints();
+  }, []);
 
-      <div
-        style={{
-          background: 'linear-gradient(135deg, hsla(200,95%,47%,0.16), hsla(160,84%,39%,0.14))',
-          border: '1px solid hsla(200,95%,47%,0.35)',
-          borderRadius: 'var(--radius-lg)',
-          padding: 'var(--space-4)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: 'var(--space-3)',
-          flexWrap: 'wrap',
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!form.title.trim() || !form.description.trim() || !form.category) {
+      setError('Complete todos los campos obligatorios');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setError(null);
+      setSuccess(null);
+
+      const response = await apiClient.post<ComplaintResponse>(
+        '/complaints',
+        {
+          title: form.title.trim(),
+          description: form.description.trim(),
+          category: form.category,
+          companyId: 'company-demo',
+        },
+      );
+
+      const newComplaint = response.data.data;
+
+      setComplaints((current) => [
+        newComplaint, 
+        ...current,
+      ]);
+
+      setForm(initialForm);
+      setShowForm(false);
+      setSuccess('Reclamo creado exitosamente');
+    } catch (err) {
+      console.error('Error al crear el reclamo:', err);
+      setError('No se puede crear el reclamo');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Cargando los reclamos
+
+  if (isLoading) {
+    return (
+      <div 
+        style={{ 
+          padding: 'var(--space-8)', 
+          textAlign: 'center' 
         }}
       >
+        <span style={{ fontSize: '3rem' }}>📋</span>
+
+        <h1 style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 700, margin: 'var(--space-4) 0 var(--space-2)' }}>
+          Mis Reclamos
+        </h1>
+        <p style={{ color: 'var(--color-text-secondary)' }}>
+          Cargando reclamos...
+        </p>
+      </div>
+    );
+  }
+
+  // Pagina de reclamos
+
+  return (
+    <div style={{ padding: 'var(--space-8)' }}>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)', }} >
         <div>
-          <p style={{ margin: 0, fontWeight: 700, color: 'var(--color-text-primary)' }}>Modo simulacion activo</p>
-          <p style={{ margin: '4px 0 0', color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
-            Total: {stats.total} | Pendientes: {stats.pending} | Resueltos: {stats.resolved}
+          <h1 style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 700}}>
+            📋 Mis Reclamos
+          </h1>
+
+          <p style={{ color: 'var(--color-text-secondary)' }}>
+            Consulta y registra tus reclamos
           </p>
         </div>
-        <button
-          onClick={simulateProgress}
-          style={{
-            padding: 'var(--space-2) var(--space-4)',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid hsla(200,95%,47%,0.35)',
-            background: 'var(--color-surface-1)',
-            color: 'var(--color-text-primary)',
-            fontWeight: 700,
-            cursor: 'pointer',
-          }}
-        >
-          Simular avance de un reclamo
+
+        <button type="button" onClick={() => { setShowForm(true); setError(null); setSuccess(null);}}>
+          Crear reclamo
         </button>
       </div>
 
-      <div style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead style={{ background: 'var(--color-surface-2)' }}>
-            <tr>
-              <th style={{ textAlign: 'left', padding: 'var(--space-3) var(--space-4)', fontSize: '11px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Reclamo</th>
-              <th style={{ textAlign: 'left', padding: 'var(--space-3) var(--space-4)', fontSize: '11px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Fecha</th>
-              <th style={{ textAlign: 'left', padding: 'var(--space-3) var(--space-4)', fontSize: '11px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {complaints.map((complaint) => (
-              <tr key={complaint.id} style={{ borderTop: '1px solid var(--color-border)' }}>
-                <td style={{ padding: 'var(--space-3) var(--space-4)', color: 'var(--color-text-primary)', fontWeight: 600 }}>{complaint.title}</td>
-                <td style={{ padding: 'var(--space-3) var(--space-4)', color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>{complaint.createdAt}</td>
-                <td style={{ padding: 'var(--space-3) var(--space-4)' }}>
-                  <Badge status={complaint.status} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {error && (
+        <div style={{ marginBottom: 'var(--space-6)', padding: 'var(--space-6)', borderRadius: 'var(--radius-lg)', background: 'var(--color-background-secondary)', }}>
+          {error}
+        </div>
+      )}
+
+      {success && (
+         <div style={{ marginBottom: 'var(--space-6)', padding: 'var(--space-6)', borderRadius: 'var(--radius-lg)', background: 'var(--color-background-secondary)', }}>
+          {success}
+        </div>
+      )}
+
+      {showForm && (
+        <div style={{ marginBottom: 'var(--space-6)', padding: 'var(--space-6)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', }}>
+          <h2 style={{ fontSize: 'var(--font-size-xl)', fontWeight: 700, marginBottom: 'var(--space-4)', }}>
+            Nuevo reclamo
+          </h2>
+
+          <form onSubmit={handleSubmit}>
+            <div style={{ marginBottom: 'var(--space-4)' }}>
+              <label>
+                Titulo:
+              </label>
+              <input
+                type="text"
+                value={form.title}
+                onChange={(event) => setForm({...form, title: event.target.value})}
+                placeholder="Titulo del reclamo"
+                disabled={isSubmitting}
+              />
+            </div>
+
+            <div style={{ marginBottom: 'var(--space-4)' }}>
+              <label>
+                Categoria:
+              </label>
+              <select
+                value={form.category}
+                onChange={(event) => setForm({...form, category: event.target.value})}
+                disabled={isSubmitting}
+              >
+                <option value="">Seleccionar categoría</option>
+                <option value="DELAY">Retraso</option>
+                <option value="OVERCROWDING">Exceso de pasajeros</option>
+                <option value="DRIVER_BEHAVIOR">Comportamiento del conductor</option>
+                <option value="VEHICLE_CONDITION">Estado del vehículo</option>
+                <option value="ACCESSIBILITY">Accesibilidad</option>
+                <option value="OTHER">Otro</option>
+              </select>
+            </div>
+
+            <div style={{ marginBottom: 'var(--space-4)' }}>
+              <label>
+                Descripcion
+              </label>
+
+              <textarea
+                value={form.description}
+                onChange={(event) => setForm({...form, description: event.target.value})}
+                placeholder="Describa su reclamo"
+                rows={5}
+                disabled={isSubmitting}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: 'var(--space-4)' }}>
+              <button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Enviando...' : 'Enviar reclamo'}
+              </button>
+
+              <button type="button" onClick={() => { setShowForm(false); setForm(initialForm); setError(null); }}>
+                Cancelar
+              </button>
+            </div>
+
+          </form>
+        </div>
+      )} 
+
+      {complaints.length === 0 ? (
+         <div style={{ textAlign: 'center', padding: 'var(--space-8)', }}>
+          <span style={{ fontSize: '3rem' }}>📭</span>
+          <h2 style={{ marginTop: 'var(--space-4)', fontWeight: 600, }}>
+            No tienes reclamos
+          </h2>
+
+          <p style={{ color: 'var(--color-text-secondary)', }}>
+            Tus reclamos aparecceran aqui
+          </p>
+        </div>
+      ) : (
+        <div>
+          {complaints.map((complaint) => (
+            <div key={complaint.id} style={{ padding: 'var(--space-6)', marginBottom: 'var(--space-4)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', }}>
+                <h2 style={{ fontSize: 'var(--font-size-lg)',  fontWeight: 600, }}>
+                  {complaint.title}
+                </h2>
+
+                <p style={{ marginTop: 'var(--space-2)', color: 'var(--color-text-secondary)', }}>
+                  {complaint.description}
+                </p>
+
+                <p>
+                  <strong>Categoria:</strong>{' '}
+                  {CATEGORY_LABELS[complaint.category] ?? complaint.category}
+                </p>
+
+                <p>
+                <strong>Estado:</strong>{' '}
+                {STATUS_LABELS[complaint.status] ??
+                  complaint.status}
+              </p>
+
+                {complaint.adminResponse && (
+                  <p>
+                    <strong>Respuesta del administrador:</strong>{' '}
+                    {complaint.adminResponse}
+                  </p>
+                )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
