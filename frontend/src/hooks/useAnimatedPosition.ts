@@ -10,11 +10,6 @@
 
 import { useRef, useEffect, useState, useCallback } from 'react';
 
-/** Easing ease-out cubic: desacelera suavemente al final */
-function easeOutCubic(t: number): number {
-  return 1 - Math.pow(1 - t, 3);
-}
-
 /** Interpola linealmente entre a y b con factor t (0..1) */
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
@@ -38,76 +33,86 @@ export function useAnimatedPosition(
   targetLat: number,
   targetLng: number,
   targetHeading: number,
-  durationMs = 1500,
+  durationMs = 1800,
 ): AnimatedPosition {
-  const [pos, setPos] = useState<AnimatedPosition>({
+  const initialPosition = {
     lat: targetLat,
     lng: targetLng,
     heading: targetHeading,
-  });
+  };
+  const [pos, setPos] = useState<AnimatedPosition>(initialPosition);
 
   const rafRef = useRef<number | null>(null);
-  const startRef = useRef<{
-    lat: number;
-    lng: number;
-    heading: number;
-    time: number;
+  const currentRef = useRef<AnimatedPosition>(initialPosition);
+  const targetRef = useRef<AnimatedPosition>(initialPosition);
+  const lastTargetTimeRef = useRef<number | null>(null);
+  const animationRef = useRef<{
+    from: AnimatedPosition;
+    to: AnimatedPosition;
+    startedAt: number;
+    duration: number;
   } | null>(null);
 
-  const animate = useCallback(
-    (timestamp: number) => {
-      const start = startRef.current;
-      if (!start) return;
+  const animate = useCallback((timestamp: number) => {
+    const animation = animationRef.current;
+    if (!animation) {
+      rafRef.current = null;
+      return;
+    }
 
-      const elapsed = timestamp - start.time;
-      const progress = Math.min(elapsed / durationMs, 1);
-      const eased = easeOutCubic(progress);
+    const progress = Math.min((timestamp - animation.startedAt) / animation.duration, 1);
+    const nextPosition = {
+      lat: lerp(animation.from.lat, animation.to.lat, progress),
+      lng: lerp(animation.from.lng, animation.to.lng, progress),
+      heading: interpolateHeading(animation.from.heading, animation.to.heading, progress),
+    };
 
-      const newLat = lerp(start.lat, targetLat, eased);
-      const newLng = lerp(start.lng, targetLng, eased);
+    currentRef.current = nextPosition;
+    setPos(nextPosition);
 
-      // Interpolar heading (manejo de wrap-around 0-360)
-      let dHeading = targetHeading - start.heading;
-      if (dHeading > 180) dHeading -= 360;
-      if (dHeading < -180) dHeading += 360;
-      const newHeading = start.heading + dHeading * eased;
-
-      setPos({
-        lat: newLat,
-        lng: newLng,
-        heading: ((newHeading % 360) + 360) % 360,
-      });
-
-      if (progress < 1) {
-        rafRef.current = requestAnimationFrame(animate);
-      }
-    },
-    [targetLat, targetLng, targetHeading, durationMs],
-  );
+    if (progress < 1) {
+      rafRef.current = requestAnimationFrame(animate);
+    } else {
+      animationRef.current = null;
+      rafRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
-    // Cancelar animación anterior
-    if (rafRef.current) {
+    const now = performance.now();
+    const target = { lat: targetLat, lng: targetLng, heading: targetHeading };
+    const previousTargetTime = lastTargetTimeRef.current;
+    const updateInterval = previousTargetTime === null ? durationMs : now - previousTargetTime;
+    const animationDuration = Math.min(Math.max(updateInterval * 1.08, 700), durationMs + 500);
+
+    targetRef.current = target;
+    lastTargetTimeRef.current = now;
+
+    if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current);
     }
 
-    // Guardar posición actual como inicio de la nueva animación
-    startRef.current = {
-      lat: pos.lat,
-      lng: pos.lng,
-      heading: pos.heading,
-      time: performance.now(),
+    animationRef.current = {
+      from: currentRef.current,
+      to: targetRef.current,
+      startedAt: now,
+      duration: animationDuration,
     };
-
     rafRef.current = requestAnimationFrame(animate);
 
     return () => {
-      if (rafRef.current) {
+      if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetLat, targetLng, targetHeading, animate]);
+  }, [animate, durationMs, targetHeading, targetLat, targetLng]);
 
   return pos;
+}
+
+function interpolateHeading(from: number, to: number, progress: number): number {
+  let delta = to - from;
+  if (delta > 180) delta -= 360;
+  if (delta < -180) delta += 360;
+  return ((from + delta * progress) % 360 + 360) % 360;
 }

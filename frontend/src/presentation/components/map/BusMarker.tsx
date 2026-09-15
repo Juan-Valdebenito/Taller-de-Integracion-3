@@ -194,8 +194,8 @@ export function BusMarker({ bus, isSelected, onSelect }: BusMarkerProps) {
     : false;
 
   const icon = useMemo(
-    () => createBusIcon(color, animated.heading, isSelected, isRecent),
-    [color, animated.heading, isSelected, isRecent],
+    () => createBusIcon(color, bus.heading, isSelected, isRecent),
+    [bus.heading, color, isSelected, isRecent],
   );
 
   return (

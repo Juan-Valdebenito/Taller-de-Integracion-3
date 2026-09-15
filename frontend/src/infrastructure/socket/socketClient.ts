@@ -100,7 +100,14 @@ function getWSUrl(): string {
   // Configurable via VITE_WS_URL en .env del frontend
   const customUrl = import.meta.env.VITE_WS_URL;
   if (customUrl) {
-    return customUrl.endsWith('/ws') ? customUrl : `${customUrl}/ws`;
+    const url = new URL(customUrl, window.location.origin);
+    if (window.location.protocol === 'https:' && url.protocol === 'ws:') {
+      url.protocol = 'wss:';
+    }
+    if (!url.pathname.endsWith('/ws')) {
+      url.pathname = `${url.pathname.replace(/\/$/, '')}/ws`;
+    }
+    return url.toString();
   }
   return `${protocol}//${window.location.hostname}:3001/ws`;
 }
