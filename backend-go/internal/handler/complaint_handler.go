@@ -45,7 +45,7 @@ func (h *ComplaintHandler) GetAll(c *gin.Context) {
 		complaints = []domain.Complaint{}
 	}
 
-	c.JSON(http.Status.OK, complaints)
+	c.JSON(http.StatusOK, complaints)
 }
 
 // GetByID godoc
