@@ -97,13 +97,12 @@ let pendingSubscriptions: SubscribeMessage[] = [];
  */
 function getWSUrl(): string {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  // En desarrollo con Vite proxy, conectar al backend directamente.
-  // Se puede configurar con una variable de entorno VITE_WS_URL en .env del frontend.
-  const meta = import.meta as unknown as Record<string, unknown>;
-  const env = (meta.env as Record<string, string> | undefined) ?? {};
-  const customUrl = env['VITE_WS_URL'];
-  const host = customUrl || `${protocol}//${window.location.hostname}:3001`;
-  return `${host}/ws`;
+  // Configurable via VITE_WS_URL en .env del frontend
+  const customUrl = import.meta.env.VITE_WS_URL;
+  if (customUrl) {
+    return customUrl.endsWith('/ws') ? customUrl : `${customUrl}/ws`;
+  }
+  return `${protocol}//${window.location.hostname}:3001/ws`;
 }
 
 /**

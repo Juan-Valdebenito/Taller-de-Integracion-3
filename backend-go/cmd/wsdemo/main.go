@@ -50,6 +50,8 @@ func main() {
 	wsHandler := ws.NewWSHandler(hub, demoJWTSecret, []string{
 		"http://localhost:" + demoPort,
 		"http://127.0.0.1:" + demoPort,
+		"http://localhost:5173",  // Vite dev server
+		"http://127.0.0.1:5173",
 		"null", // Para archivos locales
 	})
 

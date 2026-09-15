@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import type { OccupancyInfo } from '../infrastructure/socket/socketClient';
 
 export type OccupancyLevel = 'low' | 'medium' | 'high' | 'full';
 
@@ -22,6 +23,10 @@ export interface BusState {
   capacity: number;
   status: 'ACTIVE' | 'STOPPED' | 'DELAYED';
   lastUpdate: Date;
+  /** Datos de predicción de ocupación del WebSocket (backend Go). */
+  wsOccupancy?: OccupancyInfo;
+  /** Timestamp del último update recibido vía WebSocket. */
+  lastWsUpdate?: Date;
 }
 
 // ─── Rutas simuladas en Temuco ────────────────────────────────────────────────

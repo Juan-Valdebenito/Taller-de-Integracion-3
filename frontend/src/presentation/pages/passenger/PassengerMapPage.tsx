@@ -2,17 +2,17 @@
  * PassengerMapPage.tsx
  *
  * Vista principal del mapa interactivo para pasajeros.
- * Muestra micros simuladas en tiempo real sobre un mapa de Leaflet
- * centrado en Temuco, Chile.
+ * Muestra micros en tiempo real sobre un mapa Leaflet centrado en Temuco.
  *
  * Features:
- *  - 5 micros simuladas moviéndose por coordenadas reales de Temuco
- *  - Marcadores SVG con color según nivel de ocupación
- *  - Panel lateral con lista de micros activas
- *  - Selector de ruta (filtro)
- *  - Barra de estado con modo simulación / tiempo real
- *  - Popup al hacer click con datos detallados
- *  - Se integra automáticamente con Socket.io si el backend está corriendo
+ *  - WebSocket como fuente primaria de datos (backend Go)
+ *  - Simulación local como fallback cuando el WS no está conectado
+ *  - Marcadores SVG con animación de movimiento suave (interpolación rAF)
+ *  - Halo de ocupación con color del OccupancyService
+ *  - Popup con datos de predicción de aforo del backend
+ *  - Panel lateral ordenado por ocupación con badges de predicción
+ *  - Barra de estado con latencia WS y mensajes/segundo
+ *  - Overlay de reconexión cuando se pierde la conexión
  */
 
 import { useCallback, useState } from 'react';
@@ -26,6 +26,7 @@ import { BusMarker } from '../../components/map/BusMarker';
 import { BusSidePanel } from '../../components/map/BusSidePanel';
 import { RouteFilter } from '../../components/map/RouteFilter';
 import { MapStatusBar } from '../../components/map/MapStatusBar';
+import { ConnectionOverlay } from '../../components/map/ConnectionOverlay';
 
 // Centro del mapa: Plaza de Armas de Temuco
 const TEMUCO_CENTER: [number, number] = [-38.7359, -72.5904];
@@ -36,27 +37,26 @@ export function PassengerMapPage() {
   const [selectedBusId, setSelectedBusId] = useState<string | null>(null);
   const [routeFilter, setRouteFilter] = useState<string>('all');
 
-  // ── Buses simulados (fuente principal) ────────────────────────
+  // ── Buses simulados (fallback cuando WS no está conectado) ────
   const simulatedBuses = useSimulatedBuses(2000);
   const [buses, setBuses] = useState<BusState[]>(simulatedBuses);
 
   // Sincronizar estado local con la simulación
-  // (useSocketBuses puede sobrescribir posiciones individuales)
   useState(() => {
     setBuses(simulatedBuses);
   });
 
-  // ── Socket.io (override opcional cuando el backend está activo) ─
+  // ── WebSocket (fuente primaria) ────────────────────────────────
   const setBusesCallback = useCallback(
     (updater: (prev: BusState[]) => BusState[]) => {
       setBuses(updater);
     },
     [],
   );
-  const isSocketConnected = useSocketBuses(setBusesCallback, true);
+  const wsState = useSocketBuses(setBusesCallback, true);
 
-  // Usar buses simulados actualizados cuando el socket no está conectado
-  const activeBuses = isSocketConnected ? buses : simulatedBuses;
+  // WebSocket es la fuente primaria; simulación es fallback
+  const activeBuses = wsState.status === 'connected' ? buses : simulatedBuses;
 
   // ── Filtro de ruta ────────────────────────────────────────────
   const visibleBuses =
@@ -74,7 +74,7 @@ export function PassengerMapPage() {
       {/* Barra de estado superior */}
       <MapStatusBar
         buses={activeBuses}
-        isSocketConnected={isSocketConnected}
+        wsState={wsState}
         routeFilter={routeFilter}
       />
 
@@ -98,14 +98,14 @@ export function PassengerMapPage() {
             style={{ height: '100%', width: '100%' }}
             zoomControl={true}
           >
-            {/* Tiles de OpenStreetMap — sin API key */}
+            {/* Tiles de OpenStreetMap */}
             <TileLayer
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               maxZoom={19}
             />
 
-            {/* Marcadores de micros */}
+            {/* Marcadores de micros con animación */}
             {visibleBuses.map((bus) => (
               <BusMarker
                 key={bus.id}
@@ -115,6 +115,9 @@ export function PassengerMapPage() {
               />
             ))}
           </MapContainer>
+
+          {/* Overlay de conexión */}
+          <ConnectionOverlay status={wsState.status} />
         </div>
 
         {/* Panel lateral */}
