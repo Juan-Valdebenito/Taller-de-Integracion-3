@@ -44,6 +44,8 @@ const ROUTE_NAMES: Record<string, string> = {
   'route-3': 'Ruta 3 — Amanecer / Costanera',
 };
 
+const DEFAULT_ROUTE_IDS = ['route-1', 'route-3'];
+
 // ── Hook ──────────────────────────────────────────────────────────────────
 
 /**
@@ -57,7 +59,7 @@ const ROUTE_NAMES: Record<string, string> = {
 export function useSocketBuses(
   setBuses: BusUpdater,
   enabled = true,
-  routeIds: string[] = ['route-1', 'route-3'],
+  routeIds: string[] = DEFAULT_ROUTE_IDS,
 ): SocketBusesState {
   const [status, setStatus] = useState<ConnectionStatus>('disconnected');
   const [latencyMs, setLatencyMs] = useState(0);
