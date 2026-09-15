@@ -69,7 +69,7 @@ func (r *ComplaintRepository) FindAll(
 
 	if filters.BusID != "" {
 		args = append(args, filters.BusID)
-		conditions = append(conditions, fmt.Sprintf(`busId = $%d`, len(args)))
+		conditions = append(conditions, fmt.Sprintf(`"busId" = $%d`, len(args)))
 	}
 
 	if len(conditions) > 0 {
