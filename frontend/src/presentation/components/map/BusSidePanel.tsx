@@ -8,12 +8,14 @@
 
 import { useRef, useEffect } from 'react';
 import { BusState, getOccupancyColor, getOccupancyLevel } from '../../../hooks/useSimulatedBuses';
+import { BusListSkeleton } from '../feedback/LoadingSkeleton';
 
 interface BusSidePanelProps {
   buses: BusState[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   routeFilter: string;
+  loading?: boolean;
 }
 
 /** Barra de ocupación compacta con gradiente */
@@ -170,7 +172,7 @@ function BusRow({ bus, isSelected, onSelect }: {
   );
 }
 
-export function BusSidePanel({ buses, selectedId, onSelect, routeFilter }: BusSidePanelProps) {
+export function BusSidePanel({ buses, selectedId, onSelect, routeFilter, loading = false }: BusSidePanelProps) {
   const filtered = routeFilter === 'all'
     ? buses
     : buses.filter((b) => b.routeId === routeFilter);
@@ -209,16 +211,20 @@ export function BusSidePanel({ buses, selectedId, onSelect, routeFilter }: BusSi
         overflowY: 'auto',
         padding: '4px 0',
       }}>
-        {sorted.map((bus) => (
-          <BusRow
-            key={bus.id}
-            bus={bus}
-            isSelected={bus.id === selectedId}
-            onSelect={onSelect}
-          />
-        ))}
+        {loading ? (
+          <BusListSkeleton />
+        ) : (
+          sorted.map((bus) => (
+            <BusRow
+              key={bus.id}
+              bus={bus}
+              isSelected={bus.id === selectedId}
+              onSelect={onSelect}
+            />
+          ))
+        )}
 
-        {sorted.length === 0 && (
+        {!loading && sorted.length === 0 && (
           <div style={{ padding: '20px 16px', textAlign: 'center', color: '#475569', fontSize: '12px' }}>
             No hay micros en esta ruta
           </div>

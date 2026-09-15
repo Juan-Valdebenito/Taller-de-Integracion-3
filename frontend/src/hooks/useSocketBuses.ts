@@ -19,6 +19,7 @@ import {
   type BusUpdatePayload,
   type OccupancyInfo,
 } from '../infrastructure/socket/socketClient';
+import { useWebSocketStatus } from '../presentation/context/WebSocketStatusContext';
 
 // ── Tipos exportados ──────────────────────────────────────────────────────
 
@@ -65,6 +66,7 @@ export function useSocketBuses(
   const [latencyMs, setLatencyMs] = useState(0);
   const [messagesPerSecond, setMessagesPerSecond] = useState(0);
   const [totalMessages, setTotalMessages] = useState(0);
+  const { setStatus: setGlobalStatus } = useWebSocketStatus();
 
   // Counters para calcular msg/s
   const msgCountRef = useRef(0);
@@ -149,6 +151,7 @@ export function useSocketBuses(
     if (!enabled) return;
 
     setStatus('connecting');
+    setGlobalStatus('connecting');
 
     try {
       // Registrar handler de mensajes
@@ -173,7 +176,7 @@ export function useSocketBuses(
         const connected = isConnected();
         setStatus((prev) => {
           if (connected && prev !== 'connected') return 'connected';
-          if (!connected && prev === 'connected') return 'connecting'; // reconectando
+          if (!connected && prev !== 'disconnected') return 'disconnected';
           return prev;
         });
       }, 500);
@@ -191,6 +194,7 @@ export function useSocketBuses(
         try {
           disconnectWS();
           setStatus('disconnected');
+          setGlobalStatus('idle');
         } catch {
           // silencioso
         }
@@ -199,7 +203,11 @@ export function useSocketBuses(
       setStatus('disconnected');
       return undefined;
     }
-  }, [enabled, handleBusUpdate, routeIds]);
+  }, [enabled, handleBusUpdate, routeIds, setGlobalStatus]);
+
+  useEffect(() => {
+    setGlobalStatus(status);
+  }, [setGlobalStatus, status]);
 
   return { status, latencyMs, messagesPerSecond, totalMessages };
 }

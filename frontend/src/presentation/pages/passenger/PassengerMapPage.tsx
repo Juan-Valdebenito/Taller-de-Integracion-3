@@ -57,6 +57,7 @@ export function PassengerMapPage() {
 
   // WebSocket es la fuente primaria; simulación es fallback
   const activeBuses = wsState.status === 'connected' ? buses : simulatedBuses;
+  const isInitialLoading = wsState.status === 'connecting' && wsState.totalMessages === 0;
 
   // ── Filtro de ruta ────────────────────────────────────────────
   const visibleBuses =
@@ -127,6 +128,7 @@ export function PassengerMapPage() {
             selectedId={selectedBusId}
             onSelect={handleSelectBus}
             routeFilter={routeFilter}
+            loading={isInitialLoading}
           />
         </aside>
       </div>
