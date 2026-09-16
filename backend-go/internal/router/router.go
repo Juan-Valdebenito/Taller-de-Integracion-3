@@ -49,7 +49,7 @@ func Setup(
 		defer cancel()
 		return pool.Ping(ctx)
 	}))
-	r.GET("/metrics", metrics.Prometheus)
+	r.GET("/metrics", metrics.Prometheus())
 
 	// ── API v1 ────────────────────────────────────────────────
 	api := r.Group("/api/v1")

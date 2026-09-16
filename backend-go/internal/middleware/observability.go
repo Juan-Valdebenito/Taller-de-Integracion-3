@@ -1,44 +1,67 @@
 package middleware
 
 import (
-	"fmt"
 	"net/http"
-	"runtime"
-	"sort"
 	"strconv"
-	"strings"
-	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // ReadinessCheck comprueba las dependencias requeridas para atender trafico.
 type ReadinessCheck func() error
 
-// Metrics mantiene metricas HTTP minimas en memoria y las expone a Prometheus.
+// Metrics agrupa las metricas HTTP expuestas a Prometheus vía prometheus/client_golang.
 type Metrics struct {
-	startedAt time.Time
-	mu        sync.RWMutex
-	requests  map[string]uint64
+	registry        *prometheus.Registry
+	requestsTotal   *prometheus.CounterVec
+	requestDuration *prometheus.HistogramVec
 }
 
 func NewMetrics() *Metrics {
-	return &Metrics{startedAt: time.Now(), requests: make(map[string]uint64)}
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(
+		collectors.NewGoCollector(),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+	)
+
+	requestsTotal := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "app_http_requests_total",
+			Help: "Total de respuestas HTTP atendidas.",
+		},
+		[]string{"method", "path", "status"},
+	)
+	requestDuration := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "app_http_request_duration_seconds",
+			Help:    "Duracion de las peticiones HTTP en segundos.",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"method", "path", "status"},
+	)
+	registry.MustRegister(requestsTotal, requestDuration)
+
+	return &Metrics{registry: registry, requestsTotal: requestsTotal, requestDuration: requestDuration}
 }
 
 // CollectHTTP registra cada respuesta HTTP. Debe instalarse antes de las rutas.
 func (m *Metrics) CollectHTTP() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		start := time.Now()
 		c.Next()
+
 		path := c.FullPath()
 		if path == "" {
 			path = "unknown"
 		}
-		key := c.Request.Method + "\x00" + path + "\x00" + strconv.Itoa(c.Writer.Status())
-		m.mu.Lock()
-		m.requests[key]++
-		m.mu.Unlock()
+		status := strconv.Itoa(c.Writer.Status())
+
+		m.requestsTotal.WithLabelValues(c.Request.Method, path, status).Inc()
+		m.requestDuration.WithLabelValues(c.Request.Method, path, status).Observe(time.Since(start).Seconds())
 	}
 }
 
@@ -60,29 +83,7 @@ func Readyz(check ReadinessCheck) gin.HandlerFunc {
 	}
 }
 
-// Prometheus expone las metricas basicas en el formato de texto de Prometheus.
-func (m *Metrics) Prometheus(c *gin.Context) {
-	m.mu.RLock()
-	keys := make([]string, 0, len(m.requests))
-	for key := range m.requests {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	values := make(map[string]uint64, len(keys))
-	for _, key := range keys {
-		values[key] = m.requests[key]
-	}
-	m.mu.RUnlock()
-
-	var out strings.Builder
-	out.WriteString("# HELP app_http_requests_total Total de respuestas HTTP atendidas.\n# TYPE app_http_requests_total counter\n")
-	for _, key := range keys {
-		parts := strings.Split(key, "\x00")
-		fmt.Fprintf(&out, "app_http_requests_total{method=%q,path=%q,status=%q} %d\n", parts[0], parts[1], parts[2], values[key])
-	}
-	out.WriteString("# HELP app_uptime_seconds Tiempo desde el inicio del proceso.\n# TYPE app_uptime_seconds gauge\n")
-	fmt.Fprintf(&out, "app_uptime_seconds %.3f\n", time.Since(m.startedAt).Seconds())
-	out.WriteString("# HELP app_goroutines Cantidad actual de goroutines.\n# TYPE app_goroutines gauge\n")
-	fmt.Fprintf(&out, "app_goroutines %d\n", runtime.NumGoroutine())
-	c.Data(http.StatusOK, "text/plain; version=0.0.4; charset=utf-8", []byte(out.String()))
+// Prometheus expone las metricas en el formato de texto que espera un scraper de Prometheus.
+func (m *Metrics) Prometheus() gin.HandlerFunc {
+	return gin.WrapH(promhttp.HandlerFor(m.registry, promhttp.HandlerOpts{}))
 }
