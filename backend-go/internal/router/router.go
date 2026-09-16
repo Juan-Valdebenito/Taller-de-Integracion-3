@@ -23,6 +23,7 @@ func Setup(
 	userH *handler.UserHandler,
 	busH *handler.BusHandler,
 	routeH *handler.RouteHandler,
+	stopH *handler.StopHandler,
 	complaintH *handler.ComplaintHandler,
 	occupancyH *handler.OccupancyHandler,
 ) *gin.Engine {
@@ -98,6 +99,15 @@ func Setup(
 		routes.POST("/", middleware.Authorize("ADMIN"), routeH.Create)
 		routes.PUT("/:id", middleware.Authorize("ADMIN", "COMPANY"), routeH.Update)
 		routes.DELETE("/:id", middleware.Authorize("ADMIN"), routeH.Delete)
+	}
+
+	// Paraderos (solo administración)
+	stops := api.Group("/stops", auth())
+	{
+		stops.GET("/:id", stopH.GetByID)
+		stops.POST("/", middleware.Authorize("ADMIN"), stopH.Create)
+		stops.PUT("/:id", middleware.Authorize("ADMIN"), stopH.Update)
+		stops.DELETE("/:id", middleware.Authorize("ADMIN"), stopH.Delete)
 	}
 
 	// Reclamos

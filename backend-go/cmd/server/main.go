@@ -30,6 +30,7 @@ func main() {
 	userRepo := repository.NewUserRepository(pool)
 	busRepo := repository.NewBusRepository(pool)
 	routeRepo := repository.NewRouteRepository(pool)
+	stopRepo := repository.NewStopRepository(pool)
 	complaintRepo := repository.NewComplaintRepository(pool)
 
 	// ── Handlers ──────────────────────────────────────────────
@@ -37,6 +38,7 @@ func main() {
 	userH := handler.NewUserHandler(userRepo)
 	busH := handler.NewBusHandler(busRepo)
 	routeH := handler.NewRouteHandler(routeRepo, busRepo)
+	stopH := handler.NewStopHandler(stopRepo)
 	complaintH := handler.NewComplaintHandler(complaintRepo)
 
 	// ── Servicio de ocupación ──────────────────────────────────
@@ -78,7 +80,7 @@ func main() {
 	occupancyH := handler.NewOccupancyHandler(occupancySvc)
 
 	// ── Router ────────────────────────────────────────────────
-	r := router.Setup(cfg.CORSOrigin, cfg.JWTSecret, pool, blacklist, authH, userH, busH, routeH, complaintH, occupancyH)
+	r := router.Setup(cfg.CORSOrigin, cfg.JWTSecret, pool, blacklist, authH, userH, busH, routeH, stopH, complaintH, occupancyH)
 
 	// ── Iniciar servidor ──────────────────────────────────────
 	addr := fmt.Sprintf(":%s", cfg.Port)
