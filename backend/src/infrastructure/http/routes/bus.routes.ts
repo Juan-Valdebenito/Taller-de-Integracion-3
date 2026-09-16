@@ -23,8 +23,8 @@ router.get('/:id', (req, res) => {
   });
 });
 
-// POST /api/v1/buses/simulate-event - Fallback REST para inyectar eventos de simulación
-router.post('/simulate-event', (req, res) => {
+// POST /api/v1/buses/simulate-event & /api/v1/buses/event - Fallback REST para inyectar eventos de simulación
+const handleSimulateEvent = (req: any, res: any) => {
   const { busId, eventType } = req.body as { busId: string; eventType: SimulationEventType };
   if (!busId || !eventType) {
     return res.status(400).json({ message: 'busId y eventType son requeridos' });
@@ -40,7 +40,10 @@ router.post('/simulate-event', (req, res) => {
     message: `Evento ${eventType} procesado con éxito`,
     data: updated,
   });
-});
+};
+
+router.post('/simulate-event', handleSimulateEvent);
+router.post('/event', handleSimulateEvent);
 
 export default router;
 

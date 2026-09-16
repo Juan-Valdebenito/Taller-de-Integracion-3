@@ -3,7 +3,7 @@ import axios from 'axios';
 import { ComplaintModal } from '../../components/passenger/ComplaintModal';
 import { LiveMap, BusData, HazardData } from '../../components/passenger/LiveMap';
 import { HazardModal } from '../../components/passenger/HazardModal';
-import { SimulationDevTools } from '../../components/passenger/SimulationDevTools';
+import { DevToolsSimulationPanel } from '../../components/passenger/DevToolsSimulationPanel';
 import { io, Socket } from 'socket.io-client';
 
 const SOCKET_URL = 'http://localhost:3001';
@@ -121,7 +121,7 @@ export function PassengerMapPage() {
       />
 
       {/* Panel Flotante DevTools para Simulación de Sensores y Pagos (Líneas 7A, 7B, 1C) */}
-      <SimulationDevTools
+      <DevToolsSimulationPanel
         socket={socket}
         buses={buses as any}
         selectedBusId={selectedBus.busId}

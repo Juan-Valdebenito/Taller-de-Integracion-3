@@ -113,8 +113,10 @@ export type SimulationEventType =
   | 'tap_in_normal'    // Validación tarjeta normal (+1)
   | 'tap_in_student'   // Validación pase escolar (+1)
   | 'sensor_alight'    // Detección cámara descenso (-1)
-  | 'fill_capacity'    // Forzar aforo máximo (35)
-  | 'empty_capacity';  // Forzar vaciado (0)
+  | 'fill_max'         // Forzar aforo máximo (35)
+  | 'reset_empty'      // Reiniciar aforo (0)
+  | 'fill_capacity'    // Alias compatibilidad
+  | 'empty_capacity';  // Alias compatibilidad
 
 export function processSimulationEvent(busId: string, eventType: SimulationEventType): SimulatedBus | null {
   const bus = buses.find((b) => b.id === busId);
@@ -127,12 +129,16 @@ export function processSimulationEvent(busId: string, eventType: SimulationEvent
       if (bus.currentPassengers < bus.capacity) {
         bus.currentPassengers++;
         bus.boardings++;
+        if (bus.currentPassengers >= bus.capacity) {
+          bus.isFull = true;
+        }
         bus.lastEvent = {
           type: 'CARD_TAP_NORMAL',
           description: '💳 Validación Bip Normal ($700 CLP) - Puerta delantera',
           timestamp: nowIso,
         };
       } else {
+        bus.isFull = true;
         bus.lastEvent = {
           type: 'OVERCROWD_REJECTED',
           description: '⚠️ Intento de ingreso RECHAZADO: Capacidad máxima (35) alcanzada',
@@ -146,12 +152,16 @@ export function processSimulationEvent(busId: string, eventType: SimulationEvent
       if (bus.currentPassengers < bus.capacity) {
         bus.currentPassengers++;
         bus.schoolBoardings++;
+        if (bus.currentPassengers >= bus.capacity) {
+          bus.isFull = true;
+        }
         bus.lastEvent = {
           type: 'CARD_TAP_STUDENT',
           description: '🎓 Validación Pase Escolar TNE ($240 CLP) - Puerta delantera',
           timestamp: nowIso,
         };
       } else {
+        bus.isFull = true;
         bus.lastEvent = {
           type: 'OVERCROWD_REJECTED',
           description: '⚠️ Intento de ingreso RECHAZADO: Capacidad máxima (35) alcanzada',
@@ -165,6 +175,9 @@ export function processSimulationEvent(busId: string, eventType: SimulationEvent
       if (bus.currentPassengers > 0) {
         bus.currentPassengers--;
         bus.alightings++;
+        if (bus.currentPassengers < bus.capacity) {
+          bus.isFull = false;
+        }
         bus.lastEvent = {
           type: 'CAMERA_ALIGHT_DETECTED',
           description: '📷 Sensor Cámara: Descenso detectado en puerta trasera (-1)',
@@ -180,9 +193,12 @@ export function processSimulationEvent(busId: string, eventType: SimulationEvent
       break;
     }
 
+    case 'fill_max':
     case 'fill_capacity': {
+      const added = Math.max(0, bus.capacity - bus.currentPassengers);
+      bus.boardings += added;
       bus.currentPassengers = bus.capacity;
-      bus.boardings += (bus.capacity - bus.currentPassengers);
+      bus.isFull = true;
       bus.lastEvent = {
         type: 'FORCE_FILL',
         description: '⚡ Simulación DevTools: Aforo llevado al límite (35 pasajeros)',
@@ -191,9 +207,11 @@ export function processSimulationEvent(busId: string, eventType: SimulationEvent
       break;
     }
 
+    case 'reset_empty':
     case 'empty_capacity': {
       bus.alightings += bus.currentPassengers;
       bus.currentPassengers = 0;
+      bus.isFull = false;
       bus.lastEvent = {
         type: 'FORCE_EMPTY',
         description: '🧹 Simulación DevTools: Bus vaciado (0 pasajeros)',
@@ -215,10 +233,12 @@ export function processSimulationEvent(busId: string, eventType: SimulationEvent
 
   // Si Socket.IO está activo, emitir actualización inmediata
   if (socketIoInstance) {
-    socketIoInstance.emit('bus:status:broadcast', {
+    const payload = {
       ...bus,
       timestamp: new Date().toISOString(),
-    });
+    };
+    socketIoInstance.emit('bus:status:broadcast', payload);
+    socketIoInstance.emit('bus:location:broadcast', payload);
   }
 
   return bus;

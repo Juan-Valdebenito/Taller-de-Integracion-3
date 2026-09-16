@@ -56,15 +56,47 @@ interface LiveMapProps {
 // Centro de Temuco
 const DEFAULT_CENTER: [number, number] = [-38.7359, -72.5904];
 
-// Helper para crear un icono dinámico con badge de aforo
-const createBusIcon = (line: string, passengers: number = 0, capacity: number = 35) => {
+// Helper para crear un icono dinámico con badge de aforo sincronizado
+const createBusIcon = (
+  line: string,
+  passengers: number = 0,
+  capacity: number = 35,
+  isFull: boolean = false,
+  isSelected: boolean = false
+) => {
   const percentage = capacity > 0 ? (passengers / capacity) * 100 : 0;
-  let statusColor = '#22c55e'; // Verde
-  if (percentage >= 95 || passengers >= capacity) {
-    statusColor = '#ef4444'; // Rojo (Lleno)
-  } else if (percentage >= 70) {
-    statusColor = '#eab308'; // Amarillo (Medio-Alto)
+  const isOvercrowded = isFull || passengers >= capacity;
+
+  // Umbrales requeridos:
+  // Verde: < 60%
+  // Amarillo: 60% - 89%
+  // Rojo crítico: >= 90%
+  let statusColor = '#22c55e'; // Verde (< 60%)
+  if (percentage >= 90 || isOvercrowded) {
+    statusColor = '#ef4444'; // Rojo crítico (>= 90%)
+  } else if (percentage >= 60) {
+    statusColor = '#eab308'; // Amarillo (60% - 89%)
   }
+
+  const fullBadgeHtml = isOvercrowded
+    ? `<div style="
+        background: #dc2626;
+        color: #ffffff;
+        font-weight: 900;
+        font-size: 8px;
+        padding: 2px 6px;
+        border-radius: 9999px;
+        box-shadow: 0 0 10px rgba(239, 68, 68, 0.7);
+        border: 1px solid #fca5a5;
+        margin-bottom: 2px;
+        white-space: nowrap;
+        text-transform: uppercase;
+      ">⚠️ LLENO / ALERTA DE SOBRECUPO</div>`
+    : '';
+
+  const selectedRingStyle = isSelected
+    ? `box-shadow: 0 0 0 3px #38bdf8, 0 0 14px rgba(56, 189, 248, 0.7); transform: scale(1.1);`
+    : `box-shadow: 0 4px 10px rgba(0,0,0,0.35);`;
 
   const html = `
     <div style="
@@ -73,16 +105,18 @@ const createBusIcon = (line: string, passengers: number = 0, capacity: number = 
       flex-direction: column;
       align-items: center;
       cursor: pointer;
+      z-index: ${isSelected ? 50 : 10};
     ">
+      ${fullBadgeHtml}
       <div style="
         background: #1e293b;
         color: #ffffff;
         font-weight: 800;
         font-size: 11px;
-        padding: 2px 6px;
+        padding: 2px 7px;
         border-radius: 9999px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.4);
-        border: 1px solid #475569;
+        border: 1px solid ${isSelected ? '#38bdf8' : '#475569'};
         margin-bottom: -4px;
         z-index: 2;
         white-space: nowrap;
@@ -95,12 +129,12 @@ const createBusIcon = (line: string, passengers: number = 0, capacity: number = 
         height: 38px;
         background-color: #ffffff;
         border-radius: 50%;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         display: flex;
         align-items: center;
         justify-content: center;
         border: 3px solid ${statusColor};
-        transition: transform 0.2s ease;
+        ${selectedRingStyle}
+        transition: all 0.2s ease;
       ">
         🚍
       </div>
@@ -110,13 +144,21 @@ const createBusIcon = (line: string, passengers: number = 0, capacity: number = 
   return new L.DivIcon({
     html,
     className: 'custom-bus-icon-container',
-    iconSize: [50, 50],
-    iconAnchor: [25, 35],
-    popupAnchor: [0, -35],
+    iconSize: [60, 60],
+    iconAnchor: [30, 42],
+    popupAnchor: [0, -42],
   });
 };
 
-export const LiveMap: React.FC<LiveMapProps> = ({ buses, hazards, onBusClick, onMapClick, onHazardUseful, onHazardResolve }) => {
+export const LiveMap: React.FC<LiveMapProps> = ({
+  buses,
+  hazards,
+  onBusClick,
+  onMapClick,
+  onHazardUseful,
+  onHazardResolve,
+  selectedBusId,
+}) => {
   const MapClickHandler = () => {
     useMapEvents({
       click(e) {
@@ -144,7 +186,9 @@ export const LiveMap: React.FC<LiveMapProps> = ({ buses, hazards, onBusClick, on
         {buses.map((bus) => {
           const pass = bus.currentPassengers ?? 0;
           const cap = bus.capacity ?? 35;
-          const icon = createBusIcon(bus.line, pass, cap);
+          const isFull = Boolean(bus.isFull || pass >= cap);
+          const isSelected = bus.id === selectedBusId;
+          const icon = createBusIcon(bus.line, pass, cap, isFull, isSelected);
 
           return (
             <Marker 
@@ -163,8 +207,8 @@ export const LiveMap: React.FC<LiveMapProps> = ({ buses, hazards, onBusClick, on
                   <p style={{ margin: '2px 0', fontWeight: 'bold' }}>
                     Aforo: {pass} / {cap} ({bus.occupancyPercentage ?? Math.round((pass/cap)*100)}%)
                   </p>
-                  <p style={{ margin: '2px 0', color: bus.isFull ? '#dc2626' : '#16a34a', fontWeight: 600 }}>
-                    {bus.isFull ? '⚠️ BUS COMPLETO (35 Pasajeros)' : '🟢 Asientos Disponibles'}
+                  <p style={{ margin: '2px 0', color: isFull ? '#dc2626' : '#16a34a', fontWeight: 700 }}>
+                    {isFull ? '⚠️ LLENO / ALERTA DE SOBRECUPO' : '🟢 Asientos Disponibles'}
                   </p>
                   {bus.lastEvent && (
                     <p style={{ fontSize: '11px', color: '#64748b', fontStyle: 'italic', margin: '4px 0' }}>
