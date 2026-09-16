@@ -18,9 +18,10 @@ type ComplaintRepository struct {
 }
 
 type ComplaintFilters struct {
-	Status string
-	Category string
-	BusID string
+	Status      string
+	Category    string
+	BusID       string
+	PassengerID string
 }
 
 func NewComplaintRepository(pool *pgxpool.Pool) *ComplaintRepository {
@@ -70,6 +71,11 @@ func (r *ComplaintRepository) FindAll(
 	if filters.BusID != "" {
 		args = append(args, filters.BusID)
 		conditions = append(conditions, fmt.Sprintf(`"busId" = $%d`, len(args)))
+	}
+
+	if filters.PassengerID != "" {
+		args = append(args, filters.PassengerID)
+		conditions = append(conditions, fmt.Sprintf(`"passengerId" = $%d`, len(args)))
 	}
 
 	if len(conditions) > 0 {

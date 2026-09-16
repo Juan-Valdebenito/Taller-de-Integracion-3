@@ -114,6 +114,7 @@ func Setup(
 	complaints := api.Group("/complaints", auth())
 	{
 		complaints.GET("/", middleware.Authorize("ADMIN", "COMPANY"), complaintH.GetAll)
+		complaints.GET("/my", middleware.Authorize("PASSENGER"), complaintH.GetMine)
 		complaints.GET("/:id", complaintH.GetByID)
 		complaints.POST("/", middleware.Authorize("PASSENGER"), complaintH.Create)
 		complaints.PUT("/:id/status", middleware.Authorize("ADMIN", "COMPANY"), complaintH.UpdateStatus)

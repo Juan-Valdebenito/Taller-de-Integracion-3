@@ -48,6 +48,31 @@ func (h *ComplaintHandler) GetAll(c *gin.Context) {
 	c.JSON(http.StatusOK, complaints)
 }
 
+// GetMine godoc
+// GET /api/v1/complaints/my — reclamos del pasajero autenticado
+func (h *ComplaintHandler) GetMine(c *gin.Context) {
+	passengerID, _ := c.Get(middleware.ContextUserID)
+
+	filters := repository.ComplaintFilters{
+		Status:      c.Query("status"),
+		Category:    c.Query("category"),
+		BusID:       c.Query("busId"),
+		PassengerID: passengerID.(string),
+	}
+
+	complaints, err := h.complaintRepo.FindAll(c.Request.Context(), filters)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener reclamos"})
+		return
+	}
+
+	if complaints == nil {
+		complaints = []domain.Complaint{}
+	}
+
+	c.JSON(http.StatusOK, complaints)
+}
+
 // GetByID godoc
 // GET /api/v1/complaints/:id
 func (h *ComplaintHandler) GetByID(c *gin.Context) {

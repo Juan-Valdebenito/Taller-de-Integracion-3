@@ -19,10 +19,6 @@ interface Complaint {
   updatedAt: string;
 }
 
-interface ComplaintsResponse {
-  data: Complaint[];
-}
-
 interface RouteOption {
   id: string;
   name: string;
@@ -90,10 +86,9 @@ export function PassengerComplaintsPage() {
       setIsLoading(true);
       setError(null);
 
-      const response = 
-        await apiClient.get<ComplaintsResponse>('/complaints/my',);
+      const response = await apiClient.get<Complaint[]>('/complaints/my');
 
-      setComplaints(response.data.data);
+      setComplaints(response.data);
     } catch (err) {
       console.error('Error al cargar los reclamos:', err);
       setError('Error al cargar los reclamos');
