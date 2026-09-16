@@ -224,6 +224,12 @@ BEGIN
   END LOOP;
 END $$;
 
+-- ── Seed: company de prueba para testing manual (Postman, etc.) ──
+
+INSERT INTO companies (id, name, rut, email)
+VALUES ('company-demo', 'Empresa Demo', '76000000-0', 'demo@empresa.cl')
+ON CONFLICT (id) DO NOTHING;
+
 -- ============================================================
 -- Script completado exitosamente
 -- ============================================================
