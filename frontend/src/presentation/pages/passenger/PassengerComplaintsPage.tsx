@@ -30,7 +30,9 @@ interface ComplaintResponse {
 const initialForm = {
   title: '',
   description: '',
-  category: ''
+  category: '',
+  busId: '',
+  routeId: '',
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -99,6 +101,8 @@ export function PassengerComplaintsPage() {
           description: form.description.trim(),
           category: form.category,
           companyId: 'company-demo',
+          busId: form.busId.trim() || undefined,
+          routeId: form.routeId.trim() || undefined,
         },
       );
 
@@ -212,6 +216,32 @@ export function PassengerComplaintsPage() {
                 <option value="ACCESSIBILITY">Accesibilidad</option>
                 <option value="OTHER">Otro</option>
               </select>
+            </div>
+
+            <div style={{ marginBottom: 'var(--space-4)' }}>
+              <label>
+                Bus (opcional):
+              </label>
+              <input
+                type="text"
+                value={form.busId}
+                onChange={(event) => setForm({...form, busId: event.target.value})}
+                placeholder="ID del bus"
+                disabled={isSubmitting}
+              />
+            </div>
+
+            <div style={{ marginBottom: 'var(--space-4)' }}>
+              <label>
+                Ruta (opcional):
+              </label>
+              <input
+                type="text"
+                value={form.routeId}
+                onChange={(event) => setForm({...form, routeId: event.target.value})}
+                placeholder="ID de la ruta"
+                disabled={isSubmitting}
+              />
             </div>
 
             <div style={{ marginBottom: 'var(--space-4)' }}>
