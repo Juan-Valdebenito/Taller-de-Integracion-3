@@ -23,8 +23,18 @@ interface ComplaintsResponse {
   data: Complaint[];
 }
 
-interface ComplaintResponse {
-  data: Complaint;
+interface RouteOption {
+  id: string;
+  name: string;
+  code: string;
+  companyId: string;
+}
+
+interface BusOption {
+  id: string;
+  patente: string;
+  companyId: string;
+  routeId: string | null;
 }
 
 const initialForm = {
@@ -59,6 +69,21 @@ export function PassengerComplaintsPage() {
   const [form, setForm] = useState(initialForm);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [routes, setRoutes] = useState<RouteOption[]>([]);
+  const [buses, setBuses] = useState<BusOption[]>([]);
+
+  const loadOptions = async () => {
+    try {
+      const [routesRes, busesRes] = await Promise.all([
+        apiClient.get<RouteOption[]>('/routes'),
+        apiClient.get<BusOption[]>('/buses'),
+      ]);
+      setRoutes(routesRes.data);
+      setBuses(busesRes.data);
+    } catch (err) {
+      console.error('Error al cargar rutas/buses:', err);
+    }
+  };
 
   const loadComplaints = async () => {
     try {
@@ -79,6 +104,7 @@ export function PassengerComplaintsPage() {
 
   useEffect(() => {
     loadComplaints();
+    loadOptions();
   }, []);
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -89,24 +115,33 @@ export function PassengerComplaintsPage() {
       return;
     }
 
+    const selectedBus = buses.find((bus) => bus.id === form.busId);
+    const selectedRoute = routes.find((route) => route.id === form.routeId);
+    const companyId = selectedBus?.companyId ?? selectedRoute?.companyId;
+
+    if (!companyId) {
+      setError('Selecciona un bus o una ruta para identificar la empresa responsable');
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       setError(null);
       setSuccess(null);
 
-      const response = await apiClient.post<ComplaintResponse>(
+      const response = await apiClient.post<Complaint>(
         '/complaints',
         {
           title: form.title.trim(),
           description: form.description.trim(),
           category: form.category,
-          companyId: 'company-demo',
-          busId: form.busId.trim() || undefined,
-          routeId: form.routeId.trim() || undefined,
+          companyId,
+          busId: form.busId || undefined,
+          routeId: form.routeId || undefined,
         },
       );
 
-      const newComplaint = response.data.data;
+      const newComplaint = response.data;
 
       setComplaints((current) => [
         newComplaint, 
@@ -222,27 +257,37 @@ export function PassengerComplaintsPage() {
               <label>
                 Bus (opcional):
               </label>
-              <input
-                type="text"
+              <select
                 value={form.busId}
                 onChange={(event) => setForm({...form, busId: event.target.value})}
-                placeholder="ID del bus"
                 disabled={isSubmitting}
-              />
+              >
+                <option value="">Sin especificar</option>
+                {buses.map((bus) => (
+                  <option key={bus.id} value={bus.id}>{bus.patente}</option>
+                ))}
+              </select>
             </div>
 
             <div style={{ marginBottom: 'var(--space-4)' }}>
               <label>
                 Ruta (opcional):
               </label>
-              <input
-                type="text"
+              <select
                 value={form.routeId}
                 onChange={(event) => setForm({...form, routeId: event.target.value})}
-                placeholder="ID de la ruta"
                 disabled={isSubmitting}
-              />
+              >
+                <option value="">Sin especificar</option>
+                {routes.map((route) => (
+                  <option key={route.id} value={route.id}>{route.code} - {route.name}</option>
+                ))}
+              </select>
             </div>
+
+            <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)', marginBottom: 'var(--space-4)' }}>
+              Selecciona al menos un bus o una ruta: así identificamos a la empresa responsable del reclamo.
+            </p>
 
             <div style={{ marginBottom: 'var(--space-4)' }}>
               <label>
