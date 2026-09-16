@@ -113,6 +113,42 @@ func (r *ComplaintRepository) FindAll(
 	return complaints, nil
 }
 
+// FindByPassengerID retorna todos los reclamos pertenecientes a un pasajero específico.
+func (r *ComplaintRepository) FindByPassengerID(ctx context.Context, passengerID string) ([]domain.Complaint, error) {
+	query := `
+		SELECT ` + complaintSelectColumns + `
+		FROM complaints
+		WHERE "passengerId" = $1
+		ORDER BY "createdAt" DESC
+	`
+
+	rows, err := r.pool.Query(ctx, query, passengerID)
+	if err != nil {
+		return nil, fmt.Errorf("ComplaintRepository.FindByPassengerID: %w", err)
+	}
+	defer rows.Close()
+
+	// Inicializar como slice vacío (evita retornar null en el JSON si no hay reclamos)
+	complaints := []domain.Complaint{}
+
+	for rows.Next() {
+		var c domain.Complaint
+		if err := rows.Scan(
+			&c.ID, &c.Title, &c.Description, &c.Category, &c.Status, &c.AdminResponse,
+			&c.PassengerID, &c.BusID, &c.RouteID, &c.CompanyID, &c.TripID, &c.CreatedAt, &c.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("ComplaintRepository.FindByPassengerID scan: %w", err)
+		}
+		complaints = append(complaints, c)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("ComplaintRepository.FindByPassengerID rows: %w", err)
+	}
+
+	return complaints, nil
+}
+
 // FindByID retorna un reclamo por ID o nil si no existe.
 func (r *ComplaintRepository) FindByID(ctx context.Context, id string) (*domain.Complaint, error) {
 	row := r.pool.QueryRow(ctx, `

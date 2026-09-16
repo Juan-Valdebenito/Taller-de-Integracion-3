@@ -106,6 +106,7 @@ func Setup(
 		complaints.GET("/", middleware.Authorize("ADMIN", "COMPANY"), complaintH.GetAll)
 		complaints.GET("/:id", complaintH.GetByID)
 		complaints.POST("/", middleware.Authorize("PASSENGER"), complaintH.Create)
+		complaints.GET("/my-complaints", middleware.Authorize("PASSENGER"), complaintH.FindByPassengerID)
 		complaints.PUT("/:id/status", middleware.Authorize("ADMIN", "COMPANY"), complaintH.UpdateStatus)
 		complaints.DELETE("/:id", middleware.Authorize("ADMIN"), complaintH.Delete)
 	}

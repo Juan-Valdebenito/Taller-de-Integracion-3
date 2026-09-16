@@ -101,6 +101,25 @@ func (h *ComplaintHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, complaint)
 }
 
+func (h *ComplaintHandler) FindByPassengerID(c *gin.Context) {
+    // 1. Obtener el ID del pasajero desde el contexto (inyectado por el middleware Auth)
+    passengerID, exists := c.Get("userID")
+    if !exists {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuario no autenticado"})
+        return
+    }
+
+    // 2. Consultar la base de datos a través del repositorio/servicio
+    complaints, err := h.complaintRepo.FindByPassengerID(c.Request.Context(), passengerID.(string))
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener reclamos"})
+        return
+    }
+
+    // 3. Responder con la lista de reclamos del usuario
+    c.JSON(http.StatusOK, complaints)
+}
+
 // UpdateStatus godoc
 // PUT /api/v1/complaints/:id/status — empresa o admin
 func (h *ComplaintHandler) UpdateStatus(c *gin.Context) {
