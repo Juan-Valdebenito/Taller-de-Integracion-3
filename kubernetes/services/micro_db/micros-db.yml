@@ -36,7 +36,7 @@ spec:
             - containerPort: 5432
           envFrom:
             - configMapRef:
-                name: micros-config # Carga DB_NAME, DB_USER, etc.
+              name: micros-configmap # Carga DB_NAME, DB_USER, etc.
             - secretRef:
                 name: micros-secrets # Carga DB_PASSWORD
           env:

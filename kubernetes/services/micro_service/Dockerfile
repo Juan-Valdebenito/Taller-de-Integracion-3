@@ -20,6 +20,6 @@ WORKDIR /app
 COPY --from=builder /app/transit-service .
 
 # Puerto por defecto donde escucha la app
-EXPOSE 8080
+EXPOSE 3001
 
 CMD ["./transit-service"]
