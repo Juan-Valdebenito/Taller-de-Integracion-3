@@ -23,7 +23,7 @@ export function LoginPage() {
         password,
       });
 
-      const { token, user } = res.data.data;  // en backend-gp res.data, en el viejo res.data.data
+      const { token, user } = res.data;
       login(token, user);
 
       if (user.role === 'ADMIN') {
@@ -151,7 +151,7 @@ export function LoginPage() {
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
           <button
             type="button"
-            onClick={() => handleFillDemo('admin@transporte.cl', 'Admin1234!')}
+            onClick={() => handleFillDemo('admin@transporte.cl', 'admin12345')}
             style={{
               padding: '4px 8px',
               fontSize: '11px',

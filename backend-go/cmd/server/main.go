@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/handler"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/repository"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/router"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/seed"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/token"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/transport"
 )
@@ -22,6 +24,13 @@ func main() {
 	// ── Base de datos ─────────────────────────────────────────
 	pool := db.NewPool(cfg.DatabaseURL)
 	defer pool.Close()
+
+	// ── Datos de prueba (solo fuera de producción) ─────────────
+	if cfg.Env != "production" {
+		if err := seed.Run(context.Background(), pool); err != nil {
+			log.Printf("⚠️  No se pudieron crear los datos de prueba: %v\n", err)
+		}
+	}
 
 	// ── Token blacklist (logout seguro) ───────────────────────
 	blacklist := token.NewBlacklist()
