@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: transporte-db-configmap
+  namespace: student-jvaldebenito
+data:
+  DB_HOST: "transporte-db-svc.student-jvaldebenito.svc.cluster.local"
+  DB_PORT: "5432"
+  DB_NAME: "transporte_db"
+  DB_USER: "transporte_user"  # Asegurarse de configurar usuario y contraseña
+
+  PORT: "3001"    # puerto del servidor
+  NODE_ENV: "development"  # entorno de desarrollo
+  JWT_EXPIRES_IN: "7d"  # tiempo de expiración del token JWT
+  CORS_ORIGIN: "http://localhost:5173"  # origen permitido para CORS, esto debe ser la URL del frontend
