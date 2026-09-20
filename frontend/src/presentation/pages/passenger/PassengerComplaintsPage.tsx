@@ -15,16 +15,9 @@ interface Complaint {
   routeId: string | null;
   companyId: string;
   adminResponse: string | null;
+  tripId: string | null;
   createdAt: string;
   updatedAt: string;
-}
-
-interface ComplaintsResponse {
-  data: Complaint[];
-}
-
-interface ComplaintResponse {
-  data: Complaint;
 }
 
 const initialForm = {
@@ -63,10 +56,9 @@ export function PassengerComplaintsPage() {
       setIsLoading(true);
       setError(null);
 
-      const response = 
-        await apiClient.get<ComplaintsResponse>('/complaints/my',);
+      const response = await apiClient.get<Complaint[]>('/complaints/my-complaints');
 
-      setComplaints(response.data.data);
+      setComplaints(response.data);
     } catch (err) {
       console.error('Error al cargar los reclamos:', err);
       setError('Error al cargar los reclamos');
@@ -92,7 +84,7 @@ export function PassengerComplaintsPage() {
       setError(null);
       setSuccess(null);
 
-      const response = await apiClient.post<ComplaintResponse>(
+      const response = await apiClient.post<Complaint>(
         '/complaints',
         {
           title: form.title.trim(),
@@ -102,7 +94,7 @@ export function PassengerComplaintsPage() {
         },
       );
 
-      const newComplaint = response.data.data;
+      const newComplaint = response.data;
 
       setComplaints((current) => [
         newComplaint, 
