@@ -1,13 +1,17 @@
 package router
 
 import (
+	"context"
 	"net/http"
+	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/handler"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/middleware"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/token"
 	ws "github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/websocket"
 )
 
@@ -15,15 +19,20 @@ import (
 func Setup(
 	corsOrigin string,
 	jwtSecret string,
+	pool *pgxpool.Pool,
+	bl *token.Blacklist,
 	authH *handler.AuthHandler,
 	userH *handler.UserHandler,
 	busH *handler.BusHandler,
 	routeH *handler.RouteHandler,
+	stopH *handler.StopHandler,
 	complaintH *handler.ComplaintHandler,
 	occupancyH *handler.OccupancyHandler,
 	wsHandler *ws.WSHandler,
 ) *gin.Engine {
 	r := gin.Default()
+	metrics := middleware.NewMetrics()
+	r.Use(metrics.CollectHTTP())
 
 	// ── CORS ──────────────────────────────────────────────────
 	r.Use(cors.New(cors.Config{
@@ -34,9 +43,16 @@ func Setup(
 	}))
 
 	// ── Health check ──────────────────────────────────────────
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok", "lang": "go"})
-	})
+	// Endpoints de infraestructura: sin autenticacion para probes de Kubernetes.
+	// /health se conserva como alias por compatibilidad con clientes existentes.
+	r.GET("/health", middleware.Healthz)
+	r.GET("/healthz", middleware.Healthz)
+	r.GET("/readyz", middleware.Readyz(func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		return pool.Ping(ctx)
+	}))
+	r.GET("/metrics", metrics.Prometheus())
 
 	// ── WebSocket (Pub/Sub — ubicación y aforo de buses) ──────
 	r.GET("/ws", gin.WrapH(http.Handler(wsHandler)))
@@ -47,17 +63,20 @@ func Setup(
 	// Ocupación (público — sin auth para facilitar integración con dispositivos)
 	api.POST("/occupancy", occupancyH.Predict)
 
-	// Auth (público)
-	auth := api.Group("/auth")
+	// Alias del middleware para mayor legibilidad
+	auth := func() gin.HandlerFunc { return middleware.Authenticate(jwtSecret, bl) }
+
+	// Auth (público excepto /logout y /me que requieren token válido)
+	authGroup := api.Group("/auth")
 	{
-		auth.POST("/register", authH.Register)
-		auth.POST("/login", authH.Login)
-		auth.POST("/logout", authH.Logout)
-		auth.GET("/me", middleware.Authenticate(jwtSecret), authH.Me)
+		authGroup.POST("/register", authH.Register)
+		authGroup.POST("/login", authH.Login)
+		authGroup.POST("/logout", auth(), authH.Logout)
+		authGroup.GET("/me", auth(), authH.Me)
 	}
 
 	// Usuarios (requiere autenticación; operaciones de admin requieren rol)
-	users := api.Group("/users", middleware.Authenticate(jwtSecret))
+	users := api.Group("/users", auth())
 	{
 		users.GET("/", middleware.Authorize("ADMIN"), userH.GetAll)
 		users.GET("/:id", userH.GetByID)
@@ -66,7 +85,7 @@ func Setup(
 	}
 
 	// Buses
-	buses := api.Group("/buses", middleware.Authenticate(jwtSecret))
+	buses := api.Group("/buses", auth())
 	{
 		buses.GET("/", busH.GetAll)
 		buses.GET("/:id", busH.GetByID)
@@ -77,7 +96,7 @@ func Setup(
 	}
 
 	// Rutas de transporte
-	routes := api.Group("/routes", middleware.Authenticate(jwtSecret))
+	routes := api.Group("/routes", auth())
 	{
 		routes.GET("/", routeH.GetAll)
 		routes.GET("/:id", routeH.GetByID)
@@ -88,10 +107,20 @@ func Setup(
 		routes.DELETE("/:id", middleware.Authorize("ADMIN"), routeH.Delete)
 	}
 
+	// Paraderos (solo administración)
+	stops := api.Group("/stops", auth())
+	{
+		stops.GET("/:id", stopH.GetByID)
+		stops.POST("/", middleware.Authorize("ADMIN"), stopH.Create)
+		stops.PUT("/:id", middleware.Authorize("ADMIN"), stopH.Update)
+		stops.DELETE("/:id", middleware.Authorize("ADMIN"), stopH.Delete)
+	}
+
 	// Reclamos
-	complaints := api.Group("/complaints", middleware.Authenticate(jwtSecret))
+	complaints := api.Group("/complaints", auth())
 	{
 		complaints.GET("/", middleware.Authorize("ADMIN", "COMPANY"), complaintH.GetAll)
+		complaints.GET("/my", middleware.Authorize("PASSENGER"), complaintH.GetMine)
 		complaints.GET("/:id", complaintH.GetByID)
 		complaints.POST("/", middleware.Authorize("PASSENGER"), complaintH.Create)
 		complaints.PUT("/:id/status", middleware.Authorize("ADMIN", "COMPANY"), complaintH.UpdateStatus)

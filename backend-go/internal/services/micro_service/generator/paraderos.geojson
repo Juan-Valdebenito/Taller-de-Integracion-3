@@ -1,0 +1,7191 @@
+{
+  "type": "FeatureCollection",
+  "generator": "overpass-turbo",
+  "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.",
+  "timestamp": "2026-09-09T03:20:02Z",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/409810494",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6179569,
+          -38.7524363
+        ]
+      },
+      "id": "node/409810494"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/474049910",
+        "bench": "no",
+        "bin": "no",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6128513,
+          -38.7344761
+        ]
+      },
+      "id": "node/474049910"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/474202530",
+        "bench": "no",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6163883,
+          -38.7329008
+        ]
+      },
+      "id": "node/474202530"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/474205723",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6133109,
+          -38.7340286
+        ]
+      },
+      "id": "node/474205723"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/704736881",
+        "bench": "yes",
+        "check_date:shelter": "2026-03-20",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6034836,
+          -38.7411477
+        ]
+      },
+      "id": "node/704736881"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/943207384",
+        "bench": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes",
+        "toilets:wheelchair": "no",
+        "wheelchair": "no"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.611813,
+          -38.7345051
+        ]
+      },
+      "id": "node/943207384"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1044276709",
+        "bench": "yes",
+        "highway": "bus_stop",
+        "shelter": "yes",
+        "wheelchair": "no"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6174454,
+          -38.7466482
+        ]
+      },
+      "id": "node/1044276709"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1044276740",
+        "bench": "yes",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6162582,
+          -38.7433042
+        ]
+      },
+      "id": "node/1044276740"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1044276752",
+        "bench": "yes",
+        "bin": "no",
+        "check_date:shelter": "2026-04-02",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6306475,
+          -38.7379276
+        ]
+      },
+      "id": "node/1044276752"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1053017970",
+        "bench": "yes",
+        "highway": "bus_stop",
+        "shelter": "yes",
+        "tactile_paving": "no"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.626495,
+          -38.7401482
+        ]
+      },
+      "id": "node/1053017970"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1070054446",
+        "bench": "yes",
+        "check_date:shelter": "2026-06-06",
+        "highway": "bus_stop",
+        "shelter": "yes",
+        "tactile_paving": "no"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6338984,
+          -38.7368478
+        ]
+      },
+      "id": "node/1070054446"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1070054462",
+        "bench": "yes",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.62309,
+          -38.7360381
+        ]
+      },
+      "id": "node/1070054462"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1070054465",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6235009,
+          -38.736115
+        ]
+      },
+      "id": "node/1070054465"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1070054471",
+        "bench": "yes",
+        "bin": "no",
+        "check_date:bench": "2025-11-09",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6325355,
+          -38.7341011
+        ]
+      },
+      "id": "node/1070054471"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1070054476",
+        "bench": "no",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6281581,
+          -38.7346107
+        ]
+      },
+      "id": "node/1070054476"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1070128852",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6181823,
+          -38.7390138
+        ]
+      },
+      "id": "node/1070128852"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1070128872",
+        "bench": "yes",
+        "bin": "no",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6199829,
+          -38.7381776
+        ]
+      },
+      "id": "node/1070128872"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1070128894",
+        "bench": "yes",
+        "bin": "no",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6186167,
+          -38.7371775
+        ]
+      },
+      "id": "node/1070128894"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1095184133",
+        "bench": "no",
+        "bin": "no",
+        "bus": "yes",
+        "description": "Paradero de las líneas de transporte desde el sector Sur y Oeste de la ciudad además de Padre Las Casas. Sirve también de parada informal para los buses interprovinciales, sólo de bajada, sin equipaje.",
+        "highway": "bus_stop",
+        "name": "Parada Capupolicán",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5966531,
+          -38.7376317
+        ]
+      },
+      "id": "node/1095184133"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1095184204",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6013031,
+          -38.7369371
+        ]
+      },
+      "id": "node/1095184204"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1095184277",
+        "bench": "yes",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5973593,
+          -38.7373343
+        ]
+      },
+      "id": "node/1095184277"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1095184299",
+        "bench": "yes",
+        "bin": "no",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5982002,
+          -38.7369817
+        ]
+      },
+      "id": "node/1095184299"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1095184344",
+        "bench": "yes",
+        "bin": "yes",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5993295,
+          -38.7381301
+        ]
+      },
+      "id": "node/1095184344"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1095184413",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.600716,
+          -38.7368265
+        ]
+      },
+      "id": "node/1095184413"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1095184422",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6031744,
+          -38.7410711
+        ]
+      },
+      "id": "node/1095184422"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1102849782",
+        "bench": "no",
+        "highway": "bus_stop",
+        "shelter": "yes",
+        "tactile_paving": "no"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5690945,
+          -38.716153
+        ]
+      },
+      "id": "node/1102849782"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1175026605",
+        "highway": "bus_stop",
+        "shelter": "yes",
+        "toilets:wheelchair": "no",
+        "wheelchair": "no"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6171503,
+          -38.7464615
+        ]
+      },
+      "id": "node/1175026605"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1175027035",
+        "bench": "yes",
+        "check_date:shelter": "2022-08-02",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6141725,
+          -38.7414041
+        ]
+      },
+      "id": "node/1175027035"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1175027064",
+        "bench": "yes",
+        "bin": "no",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.604693,
+          -38.7416261
+        ]
+      },
+      "id": "node/1175027064"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1175027588",
+        "highway": "bus_stop",
+        "name": "Colectivos"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.591153,
+          -38.7382704
+        ]
+      },
+      "id": "node/1175027588"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1175027784",
+        "bus": "yes",
+        "check_date:shelter": "2026-02-24",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6152991,
+          -38.744605
+        ]
+      },
+      "id": "node/1175027784"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1175027953",
+        "bench": "yes",
+        "bin": "no",
+        "check_date:shelter": "2026-04-18",
+        "highway": "bus_stop",
+        "shelter": "yes",
+        "tactile_paving": "no"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6297533,
+          -38.7384601
+        ]
+      },
+      "id": "node/1175027953"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1197691657",
+        "bench": "yes",
+        "check_date:shelter": "2026-05-20",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6080499,
+          -38.744498
+        ]
+      },
+      "id": "node/1197691657"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1225240323",
+        "bench": "yes",
+        "bin": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5894868,
+          -38.7363281
+        ]
+      },
+      "id": "node/1225240323"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1225240329",
+        "bench": "yes",
+        "bin": "no",
+        "check_date:shelter": "2023-03-18",
+        "highway": "bus_stop",
+        "operator": "línea 2",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5930622,
+          -38.7381144
+        ]
+      },
+      "id": "node/1225240329"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1225240352",
+        "bench": "yes",
+        "bin": "no",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5879826,
+          -38.7365543
+        ]
+      },
+      "id": "node/1225240352"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1225240369",
+        "bench": "no",
+        "bin": "yes",
+        "check_date:shelter": "2026-02-24",
+        "highway": "bus_stop",
+        "shelter": "yes",
+        "tactile_paving": "no"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6146027,
+          -38.7426048
+        ]
+      },
+      "id": "node/1225240369"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1225240372",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.590831,
+          -38.7360893
+        ]
+      },
+      "id": "node/1225240372"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1225240379",
+        "bench": "yes",
+        "bin": "no",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5854208,
+          -38.7369503
+        ]
+      },
+      "id": "node/1225240379"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1225245976",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5548945,
+          -38.7225853
+        ]
+      },
+      "id": "node/1225245976"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1431439190",
+        "bench": "no",
+        "check_date:shelter": "2026-05-13",
+        "highway": "bus_stop",
+        "shelter": "yes",
+        "tactile_paving": "no"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5750891,
+          -38.7230961
+        ]
+      },
+      "id": "node/1431439190"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1509449668",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6632509,
+          -38.7100414
+        ]
+      },
+      "id": "node/1509449668"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1509449669",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6626301,
+          -38.708547
+        ]
+      },
+      "id": "node/1509449669"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1509449670",
+        "bench": "no",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6523882,
+          -38.7163171
+        ]
+      },
+      "id": "node/1509449670"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1509449672",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6519495,
+          -38.7173968
+        ]
+      },
+      "id": "node/1509449672"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1509449673",
+        "bench": "no",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6540485,
+          -38.7115785
+        ]
+      },
+      "id": "node/1509449673"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1509449674",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6607685,
+          -38.7087899
+        ]
+      },
+      "id": "node/1509449674"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1593693118",
+        "highway": "bus_stop",
+        "toilets:wheelchair": "no",
+        "wheelchair": "no"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6113577,
+          -38.7348739
+        ]
+      },
+      "id": "node/1593693118"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1593698903",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "name": "Hospital Regional",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6008455,
+          -38.7367573
+        ]
+      },
+      "id": "node/1593698903"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1593752499",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6075381,
+          -38.7442944
+        ]
+      },
+      "id": "node/1593752499"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1641520884",
+        "highway": "bus_stop",
+        "name": "Paradero",
+        "operator": "5A - 2B - 2C"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7598848,
+          -38.7632977
+        ]
+      },
+      "id": "node/1641520884"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1744986737",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes",
+        "wheelchair": "yes",
+        "wheelchair:description": "[En: Step-free crossings at nearby road junctions and to westbound buses in Manuel Rodríguez.]"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5892781,
+          -38.7375055
+        ]
+      },
+      "id": "node/1744986737"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1744986739",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6297613,
+          -38.7549514
+        ]
+      },
+      "id": "node/1744986739"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1744986740",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.626542,
+          -38.7545077
+        ]
+      },
+      "id": "node/1744986740"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/1759204201",
+        "highway": "bus_stop",
+        "name": "Parada Hotel Holliday Inn"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5621346,
+          -38.7138208
+        ]
+      },
+      "id": "node/1759204201"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/2367667670",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7424708,
+          -38.7648643
+        ]
+      },
+      "id": "node/2367667670"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/2367685242",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7233835,
+          -38.7609709
+        ]
+      },
+      "id": "node/2367685242"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/2367685256",
+        "bench": "yes",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6966131,
+          -38.7608237
+        ]
+      },
+      "id": "node/2367685256"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/2367685275",
+        "check_date:shelter": "2026-06-06",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7031282,
+          -38.7610077
+        ]
+      },
+      "id": "node/2367685275"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/2367685276",
+        "check_date:shelter": "2026-06-06",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7031858,
+          -38.7607012
+        ]
+      },
+      "id": "node/2367685276"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/2367691878",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6749033,
+          -38.7604722
+        ]
+      },
+      "id": "node/2367691878"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/2367691883",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6925871,
+          -38.761907
+        ]
+      },
+      "id": "node/2367691883"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/2367691884",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.691596,
+          -38.7617868
+        ]
+      },
+      "id": "node/2367691884"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/2367691885",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6732417,
+          -38.760021
+        ]
+      },
+      "id": "node/2367691885"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/2367691886",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6749489,
+          -38.7602338
+        ]
+      },
+      "id": "node/2367691886"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/2367691887",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6856134,
+          -38.7618443
+        ]
+      },
+      "id": "node/2367691887"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/2371511085",
+        "bench": "yes",
+        "bin": "no",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6094987,
+          -38.7396474
+        ]
+      },
+      "id": "node/2371511085"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/2371511089",
+        "bench": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.611321,
+          -38.7417574
+        ]
+      },
+      "id": "node/2371511089"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/2371511090",
+        "bench": "yes",
+        "bin": "yes",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6082541,
+          -38.7398274
+        ]
+      },
+      "id": "node/2371511090"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/2383738357",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6102617,
+          -38.7464342
+        ]
+      },
+      "id": "node/2383738357"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/2383738358",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6104279,
+          -38.7463467
+        ]
+      },
+      "id": "node/2383738358"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/2412647238",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7559636,
+          -38.7630292
+        ]
+      },
+      "id": "node/2412647238"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/3049421792",
+        "bench": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6233333,
+          -38.7396442
+        ]
+      },
+      "id": "node/3049421792"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/3111779418",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6418033,
+          -38.7564604
+        ]
+      },
+      "id": "node/3111779418"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/3228601236",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6195014,
+          -38.7536505
+        ]
+      },
+      "id": "node/3228601236"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/3228601237",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6196876,
+          -38.7536417
+        ]
+      },
+      "id": "node/3228601237"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/3228601238",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6182594,
+          -38.7525553
+        ]
+      },
+      "id": "node/3228601238"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/3228601239",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6166882,
+          -38.7515091
+        ]
+      },
+      "id": "node/3228601239"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/3228601240",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6138739,
+          -38.7492904
+        ]
+      },
+      "id": "node/3228601240"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/3228601241",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6126059,
+          -38.7483198
+        ]
+      },
+      "id": "node/3228601241"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/3249422542",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6395919,
+          -38.7564463
+        ]
+      },
+      "id": "node/3249422542"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/3430093332",
+        "bench": "yes",
+        "bin": "yes",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6089148,
+          -38.7460695
+        ]
+      },
+      "id": "node/3430093332"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/3430093335",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6092175,
+          -38.746711
+        ]
+      },
+      "id": "node/3430093335"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/3430594701",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5737337,
+          -38.7249168
+        ]
+      },
+      "id": "node/3430594701"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/3445228527",
+        "highway": "bus_stop",
+        "wheelchair": "no"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6163248,
+          -38.7509451
+        ]
+      },
+      "id": "node/3445228527"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/3445253434",
+        "bench": "yes",
+        "bin": "no",
+        "bus": "yes",
+        "check_date:shelter": "2026-07-08",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes",
+        "tactile_paving": "no",
+        "toilets:wheelchair": "no",
+        "wheelchair": "no"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6204943,
+          -38.7406507
+        ]
+      },
+      "id": "node/3445253434"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/3445253435",
+        "bench": "no",
+        "bin": "no",
+        "bus": "yes",
+        "check_date:shelter": "2026-07-08",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes",
+        "tactile_paving": "no"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6247598,
+          -38.7395917
+        ]
+      },
+      "id": "node/3445253435"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/4171928992",
+        "bench": "yes",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5680062,
+          -38.7196184
+        ]
+      },
+      "id": "node/4171928992"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/4224745390",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6239096,
+          -38.7406231
+        ]
+      },
+      "id": "node/4224745390"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/4224773090",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6327948,
+          -38.7550466
+        ]
+      },
+      "id": "node/4224773090"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/4224775789",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6278587,
+          -38.7545491
+        ]
+      },
+      "id": "node/4224775789"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/4224776289",
+        "bench": "yes",
+        "bin": "yes",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5992991,
+          -38.7387876
+        ]
+      },
+      "id": "node/4224776289"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/4231136193",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "network": "Bus Línea 7, Colectivos 17",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5594074,
+          -38.7147948
+        ]
+      },
+      "id": "node/4231136193"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/4231154690",
+        "highway": "bus_stop",
+        "name": "Terminal Colectivos 17"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.559062,
+          -38.7147979
+        ]
+      },
+      "id": "node/4231154690"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/4257153208",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6599196,
+          -38.7102666
+        ]
+      },
+      "id": "node/4257153208"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/4257153209",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6504929,
+          -38.7183085
+        ]
+      },
+      "id": "node/4257153209"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/4257153210",
+        "bench": "yes",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "lit": "yes",
+        "public_transport": "platform",
+        "shelter": "yes",
+        "wheelchair": "no"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6312811,
+          -38.7252898
+        ]
+      },
+      "id": "node/4257153210"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/4266761190",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "lit": "yes",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6073263,
+          -38.7358506
+        ]
+      },
+      "id": "node/4266761190"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/4266770790",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6098807,
+          -38.735245
+        ]
+      },
+      "id": "node/4266770790"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/4292145791",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6320941,
+          -38.754624
+        ]
+      },
+      "id": "node/4292145791"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/4337894284",
+        "highway": "bus_stop",
+        "name": "Avenida Javiera Carrera"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6391262,
+          -38.7556918
+        ]
+      },
+      "id": "node/4337894284"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/4338993442",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6783094,
+          -38.7194621
+        ]
+      },
+      "id": "node/4338993442"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/4338993443",
+        "bench": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6549524,
+          -38.7174374
+        ]
+      },
+      "id": "node/4338993443"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/4346272792",
+        "highway": "bus_stop",
+        "name": "Paradero",
+        "operator": "5A - 2B - 2C"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7610203,
+          -38.7633281
+        ]
+      },
+      "id": "node/4346272792"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/4346279095",
+        "highway": "bus_stop",
+        "name": "Paradero"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7626812,
+          -38.7633269
+        ]
+      },
+      "id": "node/4346279095"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/4346280992",
+        "highway": "bus_stop",
+        "name": "Paradero",
+        "operator": "5A - 2B - 2C"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7639872,
+          -38.7633701
+        ]
+      },
+      "id": "node/4346280992"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/4346316090",
+        "highway": "bus_stop",
+        "name": "Paradero",
+        "operator": "5A - 2B - 2C"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7662813,
+          -38.7633189
+        ]
+      },
+      "id": "node/4346316090"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/4635448632",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6102749,
+          -38.7407899
+        ]
+      },
+      "id": "node/4635448632"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/4768385824",
+        "bench": "yes",
+        "bin": "yes",
+        "highway": "bus_stop",
+        "name": "Parada",
+        "name:es": "Parada",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5954221,
+          -38.7363547
+        ]
+      },
+      "id": "node/4768385824"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/4799971321",
+        "bench": "yes",
+        "bin": "no",
+        "highway": "bus_stop",
+        "name": "Parada",
+        "name:es": "Parada",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6044942,
+          -38.7363948
+        ]
+      },
+      "id": "node/4799971321"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/4799971322",
+        "bench": "yes",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "name": "Parada",
+        "name:es": "Parada",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6041033,
+          -38.7362635
+        ]
+      },
+      "id": "node/4799971322"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/4799971421",
+        "bench": "yes",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "name": "Parada",
+        "name:es": "Parada",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6050416,
+          -38.7361066
+        ]
+      },
+      "id": "node/4799971421"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5128384321",
+        "highway": "bus_stop",
+        "name": "Paradero autobús",
+        "name:es": "Paradero autobús"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7138249,
+          -38.6600284
+        ]
+      },
+      "id": "node/5128384321"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5172315134",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6190414,
+          -38.7212341
+        ]
+      },
+      "id": "node/5172315134"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5215244423",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "name": "Parada",
+        "name:es": "Parada",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6021297,
+          -38.734407
+        ]
+      },
+      "id": "node/5215244423"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5215244424",
+        "bench": "no",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "name": "Parada",
+        "name:es": "Parada",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6002773,
+          -38.7347262
+        ]
+      },
+      "id": "node/5215244424"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5218837121",
+        "bench": "no",
+        "bin": "no",
+        "highway": "bus_stop",
+        "name": "Parada",
+        "shelter": "no"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5980897,
+          -38.735023
+        ]
+      },
+      "id": "node/5218837121"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5223499721",
+        "bench": "yes",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "name": "Parada",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5914546,
+          -38.7360493
+        ]
+      },
+      "id": "node/5223499721"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5304925649",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6335455,
+          -38.7372819
+        ]
+      },
+      "id": "node/5304925649"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5329320421",
+        "bench": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "name": "Javiera Carrera",
+        "operator": "Terminal de microbuses y colectivos",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.630477,
+          -38.7413669
+        ]
+      },
+      "id": "node/5329320421"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5448673022",
+        "highway": "bus_stop",
+        "name": "Javiera Carrera - Pablo Neruda",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6292561,
+          -38.7380891
+        ]
+      },
+      "id": "node/5448673022"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5591028537",
+        "bench": "no",
+        "check_date:shelter": "2026-03-04",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.4969715,
+          -38.6677666
+        ]
+      },
+      "id": "node/5591028537"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5629141606",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5855254,
+          -38.7380925
+        ]
+      },
+      "id": "node/5629141606"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5629142525",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5824394,
+          -38.7385209
+        ]
+      },
+      "id": "node/5629142525"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5629142532",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5796826,
+          -38.7289086
+        ]
+      },
+      "id": "node/5629142532"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5630025713",
+        "bench": "yes",
+        "check_date:shelter": "2026-06-06",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7176498,
+          -38.7606536
+        ]
+      },
+      "id": "node/5630025713"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5630025714",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7177227,
+          -38.7610044
+        ]
+      },
+      "id": "node/5630025714"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5630025715",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7187419,
+          -38.7609981
+        ]
+      },
+      "id": "node/5630025715"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5630025716",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7210164,
+          -38.760722
+        ]
+      },
+      "id": "node/5630025716"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5630025717",
+        "check_date:shelter": "2026-06-06",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.720433,
+          -38.7609981
+        ]
+      },
+      "id": "node/5630025717"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5630025718",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7233298,
+          -38.7607199
+        ]
+      },
+      "id": "node/5630025718"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5630025719",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7359657,
+          -38.7645493
+        ]
+      },
+      "id": "node/5630025719"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5630025720",
+        "check_date:shelter": "2026-06-06",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7364458,
+          -38.7649227
+        ]
+      },
+      "id": "node/5630025720"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5630027121",
+        "bench": "yes",
+        "check_date:shelter": "2026-06-06",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7322723,
+          -38.7642283
+        ]
+      },
+      "id": "node/5630027121"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5630027122",
+        "bench": "yes",
+        "check_date:shelter": "2026-06-06",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7289785,
+          -38.7617071
+        ]
+      },
+      "id": "node/5630027122"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5630027123",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7286889,
+          -38.7619528
+        ]
+      },
+      "id": "node/5630027123"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5630027130",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6621057,
+          -38.7573431
+        ]
+      },
+      "id": "node/5630027130"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5699315822",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6717127,
+          -38.7593311
+        ]
+      },
+      "id": "node/5699315822"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5744366082",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.65917,
+          -38.7571371
+        ]
+      },
+      "id": "node/5744366082"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5820721987",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "lit": "no",
+        "name": "caseta amarilla",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5983839,
+          -38.7261102
+        ]
+      },
+      "id": "node/5820721987"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5849666578",
+        "bench": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "lit": "yes",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5505094,
+          -38.7039587
+        ]
+      },
+      "id": "node/5849666578"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5897261087",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5276846,
+          -38.6951492
+        ]
+      },
+      "id": "node/5897261087"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5994145447",
+        "bench": "yes",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6201639,
+          -38.7315945
+        ]
+      },
+      "id": "node/5994145447"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5994145448",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6214406,
+          -38.7316731
+        ]
+      },
+      "id": "node/5994145448"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5994145449",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6209516,
+          -38.7315082
+        ]
+      },
+      "id": "node/5994145449"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5994145450",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6219238,
+          -38.7323552
+        ]
+      },
+      "id": "node/5994145450"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5994145457",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6205159,
+          -38.7300263
+        ]
+      },
+      "id": "node/5994145457"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/5994145458",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6202916,
+          -38.729223
+        ]
+      },
+      "id": "node/5994145458"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/6231252710",
+        "bench": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6035153,
+          -38.7511155
+        ]
+      },
+      "id": "node/6231252710"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/6231252711",
+        "bench": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6033211,
+          -38.7516179
+        ]
+      },
+      "id": "node/6231252711"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/6512371987",
+        "highway": "bus_stop",
+        "name": "A.Jobet",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6055136,
+          -38.750077
+        ]
+      },
+      "id": "node/6512371987"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/6720135134",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5901293,
+          -38.7352906
+        ]
+      },
+      "id": "node/6720135134"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/6842479054",
+        "bench": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5943034,
+          -38.7367803
+        ]
+      },
+      "id": "node/6842479054"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/7118760278",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "network": "6B, 3C, 13A",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6007429,
+          -38.7275145
+        ]
+      },
+      "id": "node/7118760278"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/7278862810",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5803081,
+          -38.7371024
+        ]
+      },
+      "id": "node/7278862810"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/7278862811",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5797479,
+          -38.7366724
+        ]
+      },
+      "id": "node/7278862811"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/7278862812",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5795011,
+          -38.7364437
+        ]
+      },
+      "id": "node/7278862812"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/8007376783",
+        "bench": "yes",
+        "bin": "no",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.4817375,
+          -38.6588489
+        ]
+      },
+      "id": "node/8007376783"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/8433359417",
+        "bench": "yes",
+        "bin": "yes",
+        "highway": "bus_stop",
+        "name": "Para de buses urbanos Javiera Carrera - Pablo Neruda",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6294289,
+          -38.7385661
+        ]
+      },
+      "id": "node/8433359417"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/8476075200",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6127222,
+          -38.7268128
+        ]
+      },
+      "id": "node/8476075200"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/8476326681",
+        "bench": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6081866,
+          -38.7293761
+        ]
+      },
+      "id": "node/8476326681"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/8476326682",
+        "bench": "no",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6087606,
+          -38.7289388
+        ]
+      },
+      "id": "node/8476326682"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/8491447674",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6387584,
+          -38.7546972
+        ]
+      },
+      "id": "node/8491447674"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/8528816566",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.525529,
+          -38.6942923
+        ]
+      },
+      "id": "node/8528816566"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/8529604366",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5345238,
+          -38.6987763
+        ]
+      },
+      "id": "node/8529604366"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/8546146768",
+        "bench": "yes",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.608774,
+          -38.7502188
+        ]
+      },
+      "id": "node/8546146768"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/8623245979",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6650977,
+          -38.7576119
+        ]
+      },
+      "id": "node/8623245979"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/8623372996",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6330346,
+          -38.7354439
+        ]
+      },
+      "id": "node/8623372996"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/8623411962",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6336837,
+          -38.7362891
+        ]
+      },
+      "id": "node/8623411962"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/9348913723",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "network": "Bus Línea 2B, Colectivo 17",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5611278,
+          -38.7158488
+        ]
+      },
+      "id": "node/9348913723"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/9348913724",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "network": "Bus Línea 7B, Colectivo 17A",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5587537,
+          -38.7165754
+        ]
+      },
+      "id": "node/9348913724"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/9348913725",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "network": "Bus Línea 7B, Colectivo 17A",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5582971,
+          -38.7178083
+        ]
+      },
+      "id": "node/9348913725"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/9404930827",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5840936,
+          -38.7306968
+        ]
+      },
+      "id": "node/9404930827"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/9404930828",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5852846,
+          -38.7313356
+        ]
+      },
+      "id": "node/9404930828"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/9709129691",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5509268,
+          -38.7034872
+        ]
+      },
+      "id": "node/9709129691"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/9869566512",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5984398,
+          -38.7462768
+        ]
+      },
+      "id": "node/9869566512"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/9869596334",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5976108,
+          -38.7464675
+        ]
+      },
+      "id": "node/9869596334"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/9939662700",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5916681,
+          -38.7423922
+        ]
+      },
+      "id": "node/9939662700"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10001343764",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.62176,
+          -38.7541215
+        ]
+      },
+      "id": "node/10001343764"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10087629307",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "no",
+        "source": "Wikimedia Commons"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.591224,
+          -38.735855
+        ]
+      },
+      "id": "node/10087629307"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10110800881",
+        "highway": "bus_stop",
+        "name": "Parada Nahuelbuta/1 Norte",
+        "shelter": "yes",
+        "shelter_type": "public_transport"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.564615,
+          -38.7185985
+        ]
+      },
+      "id": "node/10110800881"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10122761383",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5698712,
+          -38.72958
+        ]
+      },
+      "id": "node/10122761383"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10129214278",
+        "bench": "no",
+        "bin": "no",
+        "bus": "yes",
+        "departures_board": "no",
+        "highway": "bus_stop",
+        "name": "Parada Pedro de Valdivia/Santa Laura",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6011071,
+          -38.7325676
+        ]
+      },
+      "id": "node/10129214278"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10129233915",
+        "bus": "yes",
+        "departures_board": "no",
+        "highway": "bus_stop",
+        "name": "Parada Rudecindo Ortega/Ecuador",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5709227,
+          -38.7223315
+        ]
+      },
+      "id": "node/10129233915"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10130464092",
+        "bench": "no",
+        "bin": "no",
+        "bus": "yes",
+        "departures_board": "no",
+        "highway": "bus_stop",
+        "name": "Parada Rudecindo Ortega/Ecuador",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5707953,
+          -38.7218734
+        ]
+      },
+      "id": "node/10130464092"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10185584152",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "departures_board": "no",
+        "description": "Paradero de autobuses, cercano a la estación de ferrocarriles y la feria Pinto.",
+        "highway": "bus_stop",
+        "name": "Parada Barros Arana/Lautaro",
+        "public_transport": "platform",
+        "shelter": "yes",
+        "source": "local knowledge",
+        "tactile_paving": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5799518,
+          -38.7370924
+        ]
+      },
+      "id": "node/10185584152"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10236816458",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "name": "Avenida Caupolicán con pasaje Caupolicán",
+        "public_transport": "platform",
+        "shelter": "yes",
+        "source": "local knowledge",
+        "tactile_paving": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5784491,
+          -38.7276715
+        ]
+      },
+      "id": "node/10236816458"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10683717717",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7516002,
+          -38.7667649
+        ]
+      },
+      "id": "node/10683717717"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10683717718",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.753418,
+          -38.7673415
+        ]
+      },
+      "id": "node/10683717718"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10683717720",
+        "bench": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7572233,
+          -38.7680803
+        ]
+      },
+      "id": "node/10683717720"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10683717721",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.760982,
+          -38.7669235
+        ]
+      },
+      "id": "node/10683717721"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10683717722",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7642263,
+          -38.7676274
+        ]
+      },
+      "id": "node/10683717722"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10683717723",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7632714,
+          -38.7671893
+        ]
+      },
+      "id": "node/10683717723"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10683717724",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7692333,
+          -38.7680589
+        ]
+      },
+      "id": "node/10683717724"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10683717725",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7692764,
+          -38.7682583
+        ]
+      },
+      "id": "node/10683717725"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10683717726",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.778658,
+          -38.7666782
+        ]
+      },
+      "id": "node/10683717726"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10683717727",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.778557,
+          -38.7665551
+        ]
+      },
+      "id": "node/10683717727"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10683717728",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7750334,
+          -38.7626058
+        ]
+      },
+      "id": "node/10683717728"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10683717729",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7476248,
+          -38.7657548
+        ]
+      },
+      "id": "node/10683717729"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10683717730",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7495611,
+          -38.7652429
+        ]
+      },
+      "id": "node/10683717730"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10683717731",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.753655,
+          -38.7661653
+        ]
+      },
+      "id": "node/10683717731"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10683717732",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7576473,
+          -38.7667296
+        ]
+      },
+      "id": "node/10683717732"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10683717733",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7590173,
+          -38.7667518
+        ]
+      },
+      "id": "node/10683717733"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10913376684",
+        "bench": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5444694,
+          -38.6982799
+        ]
+      },
+      "id": "node/10913376684"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10923293135",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6364354,
+          -38.7096794
+        ]
+      },
+      "id": "node/10923293135"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10923293136",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6356468,
+          -38.7107678
+        ]
+      },
+      "id": "node/10923293136"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10923293139",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6333804,
+          -38.712553
+        ]
+      },
+      "id": "node/10923293139"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10923293140",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6330022,
+          -38.7131767
+        ]
+      },
+      "id": "node/10923293140"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10923293141",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6311944,
+          -38.7143424
+        ]
+      },
+      "id": "node/10923293141"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10923293142",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6298372,
+          -38.7155563
+        ]
+      },
+      "id": "node/10923293142"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10923293148",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6274285,
+          -38.7164478
+        ]
+      },
+      "id": "node/10923293148"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10923293149",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6275278,
+          -38.7167178
+        ]
+      },
+      "id": "node/10923293149"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10923293150",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6239926,
+          -38.71758
+        ]
+      },
+      "id": "node/10923293150"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10923293151",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.624226,
+          -38.717737
+        ]
+      },
+      "id": "node/10923293151"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10923293152",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6214794,
+          -38.7185552
+        ]
+      },
+      "id": "node/10923293152"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10923293153",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6196314,
+          -38.7191391
+        ]
+      },
+      "id": "node/10923293153"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10923293155",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6187489,
+          -38.7211502
+        ]
+      },
+      "id": "node/10923293155"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10923293156",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6120095,
+          -38.727138
+        ]
+      },
+      "id": "node/10923293156"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10923293157",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6179807,
+          -38.7238455
+        ]
+      },
+      "id": "node/10923293157"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10923293158",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6151671,
+          -38.7250597
+        ]
+      },
+      "id": "node/10923293158"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/10923293159",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.616934,
+          -38.7241864
+        ]
+      },
+      "id": "node/10923293159"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/11057481086",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6198961,
+          -38.7536287
+        ]
+      },
+      "id": "node/11057481086"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/11283717973",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "name": "Parada Aldunate/Manuel Montt",
+        "public_transport": "platform",
+        "shelter": "yes",
+        "source": "local knowledge",
+        "tactile_paving": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5878522,
+          -38.7389471
+        ]
+      },
+      "id": "node/11283717973"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/12615168824",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6927352,
+          -38.7180573
+        ]
+      },
+      "id": "node/12615168824"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13002746022",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5619649,
+          -38.7140897
+        ]
+      },
+      "id": "node/13002746022"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13002746037",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.564716,
+          -38.7163109
+        ]
+      },
+      "id": "node/13002746037"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13002746043",
+        "bench": "yes",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5645685,
+          -38.716516
+        ]
+      },
+      "id": "node/13002746043"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13236477178",
+        "bench": "yes",
+        "bin": "yes",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5494637,
+          -38.7023914
+        ]
+      },
+      "id": "node/13236477178"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13236477179",
+        "bench": "yes",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.549241,
+          -38.7025976
+        ]
+      },
+      "id": "node/13236477179"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13286152569",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7108227,
+          -38.7167682
+        ]
+      },
+      "id": "node/13286152569"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13376897460",
+        "highway": "bus_stop",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7387914,
+          -38.5666229
+        ]
+      },
+      "id": "node/13376897460"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13448801576",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6502834,
+          -38.7181686
+        ]
+      },
+      "id": "node/13448801576"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13448807068",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "lit": "yes",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6258281,
+          -38.7266126
+        ]
+      },
+      "id": "node/13448807068"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13448847851",
+        "bench": "no",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6480052,
+          -38.7191638
+        ]
+      },
+      "id": "node/13448847851"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13456177991",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6199207,
+          -38.7385938
+        ]
+      },
+      "id": "node/13456177991"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13456193439",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6233502,
+          -38.735666
+        ]
+      },
+      "id": "node/13456193439"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13456203157",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5915218,
+          -38.7370043
+        ]
+      },
+      "id": "node/13456203157"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13456220975",
+        "bench": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5926623,
+          -38.7379992
+        ]
+      },
+      "id": "node/13456220975"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13456237265",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5935667,
+          -38.740156
+        ]
+      },
+      "id": "node/13456237265"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13456254107",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5984332,
+          -38.7425695
+        ]
+      },
+      "id": "node/13456254107"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13456254469",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6227657,
+          -38.7374915
+        ]
+      },
+      "id": "node/13456254469"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13456444963",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.58722,
+          -38.7364233
+        ]
+      },
+      "id": "node/13456444963"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13456452806",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5882816,
+          -38.7406067
+        ]
+      },
+      "id": "node/13456452806"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13457904628",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.60243,
+          -38.7407257
+        ]
+      },
+      "id": "node/13457904628"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13457904788",
+        "bench": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5922893,
+          -38.7400797
+        ]
+      },
+      "id": "node/13457904788"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13457904790",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6133263,
+          -38.7390522
+        ]
+      },
+      "id": "node/13457904790"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13457926244",
+        "bench": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6266445,
+          -38.7296957
+        ]
+      },
+      "id": "node/13457926244"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13457926347",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6004178,
+          -38.7410543
+        ]
+      },
+      "id": "node/13457926347"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13457932730",
+        "bench": "no",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.626377,
+          -38.7305236
+        ]
+      },
+      "id": "node/13457932730"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13457933061",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6273842,
+          -38.7332069
+        ]
+      },
+      "id": "node/13457933061"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13457936498",
+        "bench": "yes",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.592784,
+          -38.7420659
+        ]
+      },
+      "id": "node/13457936498"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13457940843",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6283798,
+          -38.7349427
+        ]
+      },
+      "id": "node/13457940843"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13457943747",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "lit": "yes",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.631201,
+          -38.7251418
+        ]
+      },
+      "id": "node/13457943747"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13457948817",
+        "bench": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6057004,
+          -38.740242
+        ]
+      },
+      "id": "node/13457948817"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13457949409",
+        "bench": "yes",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5989411,
+          -38.7412702
+        ]
+      },
+      "id": "node/13457949409"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13457949411",
+        "bench": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6216854,
+          -38.7364089
+        ]
+      },
+      "id": "node/13457949411"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13457951570",
+        "bench": "no",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6197885,
+          -38.7368695
+        ]
+      },
+      "id": "node/13457951570"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13458542108",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.585469,
+          -38.7359693
+        ]
+      },
+      "id": "node/13458542108"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13458543094",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5849605,
+          -38.733954
+        ]
+      },
+      "id": "node/13458543094"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13458544417",
+        "bench": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5834778,
+          -38.7337776
+        ]
+      },
+      "id": "node/13458544417"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13458545279",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5854333,
+          -38.7334748
+        ]
+      },
+      "id": "node/13458545279"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13461272591",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6462481,
+          -38.7504729
+        ]
+      },
+      "id": "node/13461272591"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13461438582",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "lit": "yes",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6256448,
+          -38.726455
+        ]
+      },
+      "id": "node/13461438582"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13461454565",
+        "bench": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5993226,
+          -38.7317259
+        ]
+      },
+      "id": "node/13461454565"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13461476977",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "lit": "no",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6336617,
+          -38.723783
+        ]
+      },
+      "id": "node/13461476977"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13461479486",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6230825,
+          -38.7270214
+        ]
+      },
+      "id": "node/13461479486"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13463097041",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.580994,
+          -38.7339062
+        ]
+      },
+      "id": "node/13463097041"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13463103529",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5806005,
+          -38.7322071
+        ]
+      },
+      "id": "node/13463103529"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13463103531",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5615898,
+          -38.7133966
+        ]
+      },
+      "id": "node/13463103531"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13463110946",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5611292,
+          -38.7182737
+        ]
+      },
+      "id": "node/13463110946"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13463112655",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5623387,
+          -38.718383
+        ]
+      },
+      "id": "node/13463112655"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13463127356",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6102863,
+          -38.7353219
+        ]
+      },
+      "id": "node/13463127356"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13463127357",
+        "bench": "no",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5800995,
+          -38.7302679
+        ]
+      },
+      "id": "node/13463127357"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13463127601",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5918428,
+          -38.7371237
+        ]
+      },
+      "id": "node/13463127601"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13465212745",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5666532,
+          -38.7187994
+        ]
+      },
+      "id": "node/13465212745"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13474890652",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5869736,
+          -38.741193
+        ]
+      },
+      "id": "node/13474890652"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13474976788",
+        "bench": "no",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6486477,
+          -38.7190724
+        ]
+      },
+      "id": "node/13474976788"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13474981262",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6384369,
+          -38.7227243
+        ]
+      },
+      "id": "node/13474981262"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13474983041",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "lit": "no",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.628237,
+          -38.726151
+        ]
+      },
+      "id": "node/13474983041"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13474983191",
+        "bench": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6172093,
+          -38.7328218
+        ]
+      },
+      "id": "node/13474983191"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13474983194",
+        "bench": "yes",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5920293,
+          -38.7390402
+        ]
+      },
+      "id": "node/13474983194"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13475001804",
+        "bench": "yes",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "lit": "no",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6337753,
+          -38.7239125
+        ]
+      },
+      "id": "node/13475001804"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13475023600",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "lit": "yes",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6260719,
+          -38.7267793
+        ]
+      },
+      "id": "node/13475023600"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13475029207",
+        "bench": "no",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6115082,
+          -38.7393236
+        ]
+      },
+      "id": "node/13475029207"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13510939384",
+        "bench": "no",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6531681,
+          -38.7145729
+        ]
+      },
+      "id": "node/13510939384"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13510975330",
+        "bench": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6528671,
+          -38.7145138
+        ]
+      },
+      "id": "node/13510975330"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13516831957",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5994017,
+          -38.72885
+        ]
+      },
+      "id": "node/13516831957"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13516841488",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5962054,
+          -38.7352883
+        ]
+      },
+      "id": "node/13516841488"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13516845164",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5991522,
+          -38.7294518
+        ]
+      },
+      "id": "node/13516845164"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13519895931",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6044159,
+          -38.7340389
+        ]
+      },
+      "id": "node/13519895931"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13525033493",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5602277,
+          -38.7202881
+        ]
+      },
+      "id": "node/13525033493"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13525041881",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5675322,
+          -38.7239354
+        ]
+      },
+      "id": "node/13525041881"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13525041882",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5734492,
+          -38.7251796
+        ]
+      },
+      "id": "node/13525041882"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13525044875",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5387515,
+          -38.7008698
+        ]
+      },
+      "id": "node/13525044875"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13525044876",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5478903,
+          -38.7055258
+        ]
+      },
+      "id": "node/13525044876"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13525046925",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5375894,
+          -38.6927009
+        ]
+      },
+      "id": "node/13525046925"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13525047472",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5423228,
+          -38.7026503
+        ]
+      },
+      "id": "node/13525047472"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13525052425",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5614805,
+          -38.7216227
+        ]
+      },
+      "id": "node/13525052425"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13525053544",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5660744,
+          -38.7235965
+        ]
+      },
+      "id": "node/13525053544"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13525059112",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5326073,
+          -38.6887875
+        ]
+      },
+      "id": "node/13525059112"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13525059113",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5374978,
+          -38.7000178
+        ]
+      },
+      "id": "node/13525059113"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13525059616",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5505467,
+          -38.7086895
+        ]
+      },
+      "id": "node/13525059616"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13525064533",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5262165,
+          -38.6944615
+        ]
+      },
+      "id": "node/13525064533"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13526094547",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6153095,
+          -38.7286685
+        ]
+      },
+      "id": "node/13526094547"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13526129292",
+        "bench": "yes",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "lit": "no",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6213653,
+          -38.7309985
+        ]
+      },
+      "id": "node/13526129292"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13526136797",
+        "bench": "yes",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "lit": "no",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6211415,
+          -38.7310596
+        ]
+      },
+      "id": "node/13526136797"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13526138884",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6298276,
+          -38.7346259
+        ]
+      },
+      "id": "node/13526138884"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13529419676",
+        "bench": "no",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6259317,
+          -38.7390046
+        ]
+      },
+      "id": "node/13529419676"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13529441667",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6242126,
+          -38.730351
+        ]
+      },
+      "id": "node/13529441667"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13529468269",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6304546,
+          -38.7406495
+        ]
+      },
+      "id": "node/13529468269"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13529579146",
+        "bench": "yes",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6350744,
+          -38.7409191
+        ]
+      },
+      "id": "node/13529579146"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13529584632",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.633355,
+          -38.7446466
+        ]
+      },
+      "id": "node/13529584632"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13529585976",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.633124,
+          -38.7447469
+        ]
+      },
+      "id": "node/13529585976"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13529596625",
+        "bench": "yes",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6345727,
+          -38.7395825
+        ]
+      },
+      "id": "node/13529596625"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13529601760",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6314508,
+          -38.7432504
+        ]
+      },
+      "id": "node/13529601760"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13543827825",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6067132,
+          -38.7357902
+        ]
+      },
+      "id": "node/13543827825"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13543828751",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.605866,
+          -38.7361272
+        ]
+      },
+      "id": "node/13543828751"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13543830113",
+        "bench": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6205147,
+          -38.7293826
+        ]
+      },
+      "id": "node/13543830113"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13543833751",
+        "bench": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6198166,
+          -38.7318996
+        ]
+      },
+      "id": "node/13543833751"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13563142276",
+        "bench": "no",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6151269,
+          -38.7388038
+        ]
+      },
+      "id": "node/13563142276"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13563236675",
+        "bench": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6269175,
+          -38.7351405
+        ]
+      },
+      "id": "node/13563236675"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13564372912",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6178537,
+          -38.7323561
+        ]
+      },
+      "id": "node/13564372912"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13570177501",
+        "highway": "bus_stop",
+        "name": "Aldunate Bello"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5883878,
+          -38.7411824
+        ]
+      },
+      "id": "node/13570177501"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13571484539",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5924298,
+          -38.7349143
+        ]
+      },
+      "id": "node/13571484539"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13571522033",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5536514,
+          -38.706642
+        ]
+      },
+      "id": "node/13571522033"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13571522258",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.597689,
+          -38.7340959
+        ]
+      },
+      "id": "node/13571522258"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13578158885",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6496382,
+          -38.712663
+        ]
+      },
+      "id": "node/13578158885"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13578205542",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6470761,
+          -38.7133398
+        ]
+      },
+      "id": "node/13578205542"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13578216275",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6509633,
+          -38.7116713
+        ]
+      },
+      "id": "node/13578216275"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13578227267",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6506263,
+          -38.7105262
+        ]
+      },
+      "id": "node/13578227267"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13582769297",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5990224,
+          -38.7339019
+        ]
+      },
+      "id": "node/13582769297"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13608250946",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6208522,
+          -38.728703
+        ]
+      },
+      "id": "node/13608250946"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13608251716",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6052442,
+          -38.7362564
+        ]
+      },
+      "id": "node/13608251716"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13619099569",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5394167,
+          -38.6935692
+        ]
+      },
+      "id": "node/13619099569"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13619104646",
+        "bench": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5452117,
+          -38.6985138
+        ]
+      },
+      "id": "node/13619104646"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13619108738",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5657673,
+          -38.7326703
+        ]
+      },
+      "id": "node/13619108738"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13619111606",
+        "bench": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5576609,
+          -38.710175
+        ]
+      },
+      "id": "node/13619111606"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13619118724",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.557854,
+          -38.7100205
+        ]
+      },
+      "id": "node/13619118724"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13619123311",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5618334,
+          -38.7317309
+        ]
+      },
+      "id": "node/13619123311"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13619126620",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5770206,
+          -38.7391595
+        ]
+      },
+      "id": "node/13619126620"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13619127465",
+        "bench": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.533099,
+          -38.6891931
+        ]
+      },
+      "id": "node/13619127465"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13625791344",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "lit": "yes",
+        "name": "Porvenir",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6187249,
+          -38.7339825
+        ]
+      },
+      "id": "node/13625791344"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13645928685",
+        "bench": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6153807,
+          -38.7400432
+        ]
+      },
+      "id": "node/13645928685"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13645973433",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6075324,
+          -38.7412087
+        ]
+      },
+      "id": "node/13645973433"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13648215489",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.645447,
+          -38.7207847
+        ]
+      },
+      "id": "node/13648215489"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13648230647",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6453671,
+          -38.7206089
+        ]
+      },
+      "id": "node/13648230647"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13648263000",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6024757,
+          -38.7428647
+        ]
+      },
+      "id": "node/13648263000"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13648263739",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6161836,
+          -38.7332268
+        ]
+      },
+      "id": "node/13648263739"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13672849879",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5966109,
+          -38.7416555
+        ]
+      },
+      "id": "node/13672849879"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13678511847",
+        "bench": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5516118,
+          -38.7040613
+        ]
+      },
+      "id": "node/13678511847"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13678550123",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5675502,
+          -38.7188899
+        ]
+      },
+      "id": "node/13678550123"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13678560245",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5409031,
+          -38.694652
+        ]
+      },
+      "id": "node/13678560245"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13678567352",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.4775256,
+          -38.6540678
+        ]
+      },
+      "id": "node/13678567352"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13679521264",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5624564,
+          -38.7184897
+        ]
+      },
+      "id": "node/13679521264"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13684960862",
+        "bench": "yes",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "lit": "yes",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6230971,
+          -38.7271539
+        ]
+      },
+      "id": "node/13684960862"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13687192749",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6366703,
+          -38.7486875
+        ]
+      },
+      "id": "node/13687192749"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13702720669",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6290456,
+          -38.7375812
+        ]
+      },
+      "id": "node/13702720669"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13702761572",
+        "bench": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6288247,
+          -38.7363115
+        ]
+      },
+      "id": "node/13702761572"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13702769016",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6292523,
+          -38.7375972
+        ]
+      },
+      "id": "node/13702769016"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13712488694",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5770797,
+          -38.7304329
+        ]
+      },
+      "id": "node/13712488694"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13712514029",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.580625,
+          -38.7342244
+        ]
+      },
+      "id": "node/13712514029"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13716423183",
+        "bench": "yes",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5879733,
+          -38.7395297
+        ]
+      },
+      "id": "node/13716423183"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13717339457",
+        "bench": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.620431,
+          -38.7287788
+        ]
+      },
+      "id": "node/13717339457"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13721163434",
+        "bench": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6239197,
+          -38.7409491
+        ]
+      },
+      "id": "node/13721163434"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13721170562",
+        "bench": "no",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.624768,
+          -38.7432622
+        ]
+      },
+      "id": "node/13721170562"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13721957486",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6297732,
+          -38.7473604
+        ]
+      },
+      "id": "node/13721957486"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13721985551",
+        "bench": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6286997,
+          -38.7476412
+        ]
+      },
+      "id": "node/13721985551"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13722001213",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6405516,
+          -38.7455586
+        ]
+      },
+      "id": "node/13722001213"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13750008781",
+        "bench": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5333979,
+          -38.6889826
+        ]
+      },
+      "id": "node/13750008781"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13750042936",
+        "bench": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.538122,
+          -38.6924229
+        ]
+      },
+      "id": "node/13750042936"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13819910502",
+        "bench": "no",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6011651,
+          -38.7332378
+        ]
+      },
+      "id": "node/13819910502"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13819921473",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6053343,
+          -38.7303533
+        ]
+      },
+      "id": "node/13819921473"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13822552120",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5848561,
+          -38.7383838
+        ]
+      },
+      "id": "node/13822552120"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13822553322",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5845713,
+          -38.7373538
+        ]
+      },
+      "id": "node/13822553322"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13825627201",
+        "bench": "no",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5420019,
+          -38.6959733
+        ]
+      },
+      "id": "node/13825627201"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13825748434",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5723831,
+          -38.7213571
+        ]
+      },
+      "id": "node/13825748434"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13861038578",
+        "bench": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5951118,
+          -38.7344774
+        ]
+      },
+      "id": "node/13861038578"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13899497438",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5704573,
+          -38.7298307
+        ]
+      },
+      "id": "node/13899497438"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13915084991",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.7392024,
+          -38.764733
+        ]
+      },
+      "id": "node/13915084991"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13915441276",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.74145,
+          -38.7650698
+        ]
+      },
+      "id": "node/13915441276"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13976488365",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6311458,
+          -38.7425915
+        ]
+      },
+      "id": "node/13976488365"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13983723679",
+        "bench": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6214774,
+          -38.7275468
+        ]
+      },
+      "id": "node/13983723679"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13983723680",
+        "bench": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6209738,
+          -38.7278519
+        ]
+      },
+      "id": "node/13983723680"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13983982784",
+        "bench": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.628204,
+          -38.7259926
+        ]
+      },
+      "id": "node/13983982784"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13986779636",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6416544,
+          -38.7222761
+        ]
+      },
+      "id": "node/13986779636"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13988641563",
+        "bench": "no",
+        "bin": "yes",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "name": "Diego Portales - Arturo Prat",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.590476,
+          -38.7373296
+        ]
+      },
+      "id": "node/13988641563"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/13998247902",
+        "bench": "no",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6266148,
+          -38.7305264
+        ]
+      },
+      "id": "node/13998247902"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/14001101092",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6183085,
+          -38.7290031
+        ]
+      },
+      "id": "node/14001101092"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/14022946220",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5869607,
+          -38.73363
+        ]
+      },
+      "id": "node/14022946220"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/14040608250",
+        "bench": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6184095,
+          -38.7324007
+        ]
+      },
+      "id": "node/14040608250"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/14058925539",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5815923,
+          -38.6861009
+        ]
+      },
+      "id": "node/14058925539"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/14058932491",
+        "bin": "no",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5890345,
+          -38.6925371
+        ]
+      },
+      "id": "node/14058932491"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/14123227771",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5836398,
+          -38.7383396
+        ]
+      },
+      "id": "node/14123227771"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/14133971309",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5687784,
+          -38.716775
+        ]
+      },
+      "id": "node/14133971309"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/14150132454",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6230173,
+          -38.7349456
+        ]
+      },
+      "id": "node/14150132454"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/14150179729",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.6020328,
+          -38.7420118
+        ]
+      },
+      "id": "node/14150179729"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/14162867139",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5971137,
+          -38.7316852
+        ]
+      },
+      "id": "node/14162867139"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/14163187004",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5820591,
+          -38.7339986
+        ]
+      },
+      "id": "node/14163187004"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/14163211668",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.5749711,
+          -38.7265183
+        ]
+      },
+      "id": "node/14163211668"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "@id": "node/14164756166",
+        "bus": "yes",
+        "highway": "bus_stop",
+        "public_transport": "platform",
+        "shelter": "yes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.595779,
+          -38.742952
+        ]
+      },
+      "id": "node/14164756166"
+    }
+  ]
+}

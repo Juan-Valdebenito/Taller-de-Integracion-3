@@ -1,0 +1,195 @@
+.live-map-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-border);
+}
+
+.leaflet-map {
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+}
+
+/* Custom Bus Marker */
+.bus-marker {
+  font-size: 32px;
+  text-align: center;
+  line-height: 40px;
+  width: 40px;
+  height: 40px;
+  background-color: white;
+  border-radius: 50%;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+  transition: transform 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--color-primary-500);
+  cursor: pointer;
+}
+
+.bus-marker:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 12px rgba(0,0,0,0.4);
+}
+
+/* Custom Popup */
+.bus-popup {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  text-align: center;
+}
+
+.bus-popup strong {
+  font-size: 16px;
+  color: var(--color-primary-700);
+  border-bottom: 1px solid #eee;
+  padding-bottom: 5px;
+}
+
+.bus-popup p {
+  margin: 0;
+  color: #555;
+}
+
+.popup-btn {
+  margin-top: 8px;
+  background-color: var(--color-primary-500);
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background-color 0.2s;
+}
+
+.popup-btn:hover {
+  background-color: var(--color-primary-600);
+}
+
+/* ── Hazard Marker ─────────────────────────────────────────────── */
+.hazard-marker-container {
+  background: transparent;
+  border: none;
+}
+
+.hazard-marker-icon {
+  width: 38px;
+  height: 38px;
+  background: hsl(38, 92%, 50%);
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45);
+  border: 2px solid #fff;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.hazard-marker-icon:hover {
+  transform: rotate(-45deg) scale(1.08);
+}
+
+.hazard-marker-icon span {
+  transform: rotate(45deg);
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* Popup de hazard */
+.hazard-popup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.hazard-popup-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #f1f5f9;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  padding-bottom: 6px;
+}
+
+.hazard-popup-date {
+  margin: 0;
+  font-size: 12px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.hazard-popup-desc {
+  margin: 0;
+  font-size: 13px;
+  color: #cbd5e1;
+}
+
+.hazard-popup-votes {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.hazard-vote-count {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-warning);
+}
+
+.hazard-vote-hint {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.hazard-popup-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.hazard-btn {
+  flex: 1;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.hazard-btn.useful {
+  background: hsla(215, 85%, 55%, 0.15);
+  color: var(--color-primary-300);
+  border: 1px solid hsla(215, 85%, 55%, 0.4);
+}
+
+.hazard-btn.useful:hover {
+  background: hsla(215, 85%, 55%, 0.3);
+}
+
+.hazard-btn.useful.voted {
+  background: hsla(142, 71%, 45%, 0.2);
+  color: var(--color-success);
+  border: 1px solid hsla(142, 71%, 45%, 0.4);
+  cursor: default;
+}
+
+.hazard-btn.resolve {
+  background: hsla(0, 84%, 60%, 0.15);
+  color: #fca5a5;
+  border: 1px solid hsla(0, 84%, 60%, 0.4);
+}
+
+.hazard-btn.resolve:hover {
+  background: hsla(0, 84%, 60%, 0.3);
+  color: #fecaca;
+}

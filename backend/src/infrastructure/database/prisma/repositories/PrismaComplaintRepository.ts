@@ -1,24 +1,12 @@
 import { prisma } from '../client';
+import type { Complaint as PrismaComplaint } from '@prisma/client';
 import { Complaint, ComplaintCategory } from '../../../../domain/entities/Complaint';
 import { IComplaintRepository, CreateComplaintData } from '../../../../domain/repositories/IComplaintRepository';
 import { ComplaintStatus } from '../../../../shared/enums';
 
 
 // ── Mapper: Prisma record → Entidad de dominio ─────────────────
-function toEntity(raw: {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  status: string;
-  adminResponse: string | null;
-  passengerId: string;
-  busId: string | null;
-  routeId: string | null;
-  companyId: string;
-  createdAt: Date;
-  updatedAt: Date;
-}): Complaint {
+function toEntity(raw: PrismaComplaint): Complaint {
   return new Complaint(
     raw.id,
     raw.title,

@@ -1,0 +1,30 @@
+[
+  {
+    "station_id": "STATION-UFRO-BELLO-01",
+    "sector": "Campus Andrés Bello (UFRO)",
+    "latitude": -38.7481,
+    "longitude": -72.6164,
+    "interval_seconds": 10
+  },
+  {
+    "station_id": "STATION-PADRE-LAS-CASAS-01",
+    "sector": "Padre Las Casas Centro",
+    "latitude": -38.7523,
+    "longitude": -72.5981,
+    "interval_seconds": 10
+  },
+  {
+    "station_id": "STATION-PEDRO-DE-VALDIVIA-01",
+    "sector": "Pedro de Valdivia",
+    "latitude": -38.7295,
+    "longitude": -72.6210,
+    "interval_seconds": 15
+  },
+  {
+    "station_id": "STATION-FUNDO-EL-CARMEN-01",
+    "sector": "Fundo El Carmen",
+    "latitude": -38.7180,
+    "longitude": -72.6420,
+    "interval_seconds": 15
+  }
+]

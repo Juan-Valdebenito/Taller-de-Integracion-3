@@ -1,5 +1,6 @@
 # ── Dependencias ─────────────────────────────────────────────
 node_modules/
+.gocache/
 .pnp
 .pnp.js
 

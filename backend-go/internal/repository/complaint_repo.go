@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -14,6 +15,13 @@ import (
 // ComplaintRepository gestiona las operaciones de base de datos para reclamos.
 type ComplaintRepository struct {
 	pool *pgxpool.Pool
+}
+
+type ComplaintFilters struct {
+	Status      string
+	Category    string
+	BusID       string
+	PassengerID string
 }
 
 func NewComplaintRepository(pool *pgxpool.Pool) *ComplaintRepository {
@@ -37,29 +45,77 @@ func scanComplaint(row pgx.Row) (*domain.Complaint, error) {
 	return &c, nil
 }
 
-// FindAll retorna todos los reclamos ordenados por fecha de creación (más reciente primero).
-func (r *ComplaintRepository) FindAll(ctx context.Context) ([]domain.Complaint, error) {
-	rows, err := r.pool.Query(ctx, `
-		SELECT `+complaintSelectColumns+`
+// FindAll retorna todos los reclamos aplicando filtros opcionales de estado, categoría y busId. Si no hay reclamos, retorna un slice vacío.
+func (r *ComplaintRepository) FindAll(
+	ctx context.Context,
+	filters ComplaintFilters, 
+) ([]domain.Complaint, error) {
+
+	query := `
+		SELECT ` + complaintSelectColumns + `
 		FROM complaints
-		ORDER BY "createdAt" DESC
-	`)
+	`
+	var conditions []string
+	var args []interface{}
+	
+	if filters.Status != "" {
+		args = append(args, filters.Status)
+		conditions = append(conditions, fmt.Sprintf(`status = $%d`, len(args)))
+	}
+
+	if filters.Category != "" {
+		args = append(args, filters.Category)
+		conditions = append(conditions, fmt.Sprintf(`category = $%d`, len(args)))
+	}
+
+	if filters.BusID != "" {
+		args = append(args, filters.BusID)
+		conditions = append(conditions, fmt.Sprintf(`"busId" = $%d`, len(args)))
+	}
+
+	if filters.PassengerID != "" {
+		args = append(args, filters.PassengerID)
+		conditions = append(conditions, fmt.Sprintf(`"passengerId" = $%d`, len(args)))
+	}
+
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	query += ` ORDER BY "createdAt" DESC`
+
+	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("ComplaintRepository.FindAll: %w", err)
 	}
 	defer rows.Close()
 
 	var complaints []domain.Complaint
+
 	for rows.Next() {
 		var c domain.Complaint
+
 		if err := rows.Scan(
-			&c.ID, &c.Title, &c.Description, &c.Category, &c.Status, &c.AdminResponse,
-			&c.PassengerID, &c.BusID, &c.RouteID, &c.CompanyID, &c.TripID, &c.CreatedAt, &c.UpdatedAt,
+			&c.ID,
+			&c.Title,
+			&c.Description,
+			&c.Category,
+			&c.Status,
+			&c.AdminResponse,
+			&c.PassengerID,
+			&c.BusID,
+			&c.RouteID,
+			&c.CompanyID,
+			&c.TripID,
+			&c.CreatedAt,
+			&c.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
+
 		complaints = append(complaints, c)
 	}
+
 	return complaints, nil
 }
 

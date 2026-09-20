@@ -1,35 +1,46 @@
 import { Router } from 'express';
+import { buses, processSimulationEvent, SimulationEventType } from '../../socket/simulation';
 
 const router = Router();
 
-// GET /api/v1/buses - Listar todas las micros (con filtro por ruta)
+// GET /api/v1/buses - Listar todas las micros simuladas y su aforo actual
 router.get('/', (_req, res) => {
-  res.status(501).json({ message: 'Por implementar: listar micros' });
+  res.json({
+    status: 'success',
+    data: buses,
+  });
 });
 
 // GET /api/v1/buses/:id - Obtener micro por ID
-router.get('/:id', (_req, res) => {
-  res.status(501).json({ message: 'Por implementar: obtener micro por ID' });
+router.get('/:id', (req, res) => {
+  const bus = buses.find((b) => b.id === req.params.id);
+  if (!bus) {
+    return res.status(404).json({ message: 'Microbús no encontrado' });
+  }
+  res.json({
+    status: 'success',
+    data: bus,
+  });
 });
 
-// GET /api/v1/buses/:id/location - Ubicación en tiempo real (fallback REST)
-router.get('/:id/location', (_req, res) => {
-  res.status(501).json({ message: 'Por implementar: ubicación de micro (usar Socket.io)' });
-});
+// POST /api/v1/buses/simulate-event - Fallback REST para inyectar eventos de simulación
+router.post('/simulate-event', (req, res) => {
+  const { busId, eventType } = req.body as { busId: string; eventType: SimulationEventType };
+  if (!busId || !eventType) {
+    return res.status(400).json({ message: 'busId y eventType son requeridos' });
+  }
 
-// POST /api/v1/buses - Crear micro (empresa/admin)
-router.post('/', (_req, res) => {
-  res.status(501).json({ message: 'Por implementar: crear micro' });
-});
+  const updated = processSimulationEvent(busId, eventType);
+  if (!updated) {
+    return res.status(404).json({ message: `Microbús ${busId} no encontrado` });
+  }
 
-// PUT /api/v1/buses/:id - Actualizar micro
-router.put('/:id', (_req, res) => {
-  res.status(501).json({ message: 'Por implementar: actualizar micro' });
-});
-
-// DELETE /api/v1/buses/:id - Eliminar micro
-router.delete('/:id', (_req, res) => {
-  res.status(501).json({ message: 'Por implementar: eliminar micro' });
+  res.json({
+    status: 'success',
+    message: `Evento ${eventType} procesado con éxito`,
+    data: updated,
+  });
 });
 
 export default router;
+
