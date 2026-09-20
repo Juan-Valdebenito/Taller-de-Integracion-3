@@ -25,7 +25,7 @@ var Routes = []RouteDefinition{
 		ID:       "route-7A",
 		Name:     "7A Hualpén – Centro – Las Américas",
 		Capacity: 45,
-		BusCount: 3,
+		BusCount: 1,
 		// Trazado: Sector Hualpén (oeste) → Av. Alemania → Centro → Av. Las Américas (sureste)
 		Waypoints: []Waypoint{
 			{-38.7278, -72.6175}, // Terminal Hualpén / Villa Presidente
@@ -61,7 +61,7 @@ var Routes = []RouteDefinition{
 		ID:       "route-7B",
 		Name:     "7B Pedro de Valdivia – Centro – Amanecer",
 		Capacity: 45,
-		BusCount: 3,
+		BusCount: 1,
 		// Trazado: Sector Pedro de Valdivia Norte → Av. Balmaceda → Centro → Sector Amanecer Sur
 		Waypoints: []Waypoint{
 			{-38.7085, -72.5820}, // Terminal Pedro de Valdivia Norte
@@ -102,7 +102,7 @@ var Routes = []RouteDefinition{
 		ID:       "route-1C",
 		Name:     "1C Padre Las Casas – Centro – Labranza",
 		Capacity: 40,
-		BusCount: 2,
+		BusCount: 1,
 		// Trazado: Padre Las Casas (sur, cruce Puente Cautín) → Centro → Labranza (oeste)
 		Waypoints: []Waypoint{
 			{-38.7775, -72.5692}, // Terminal Padre Las Casas

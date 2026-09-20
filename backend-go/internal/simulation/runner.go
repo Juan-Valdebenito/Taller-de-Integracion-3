@@ -26,6 +26,10 @@ type Runner struct {
 
 // NewRunner crea un Runner configurado listo para iniciar la simulación.
 func NewRunner(hub *ws.Hub, config RunnerConfig) *Runner {
+	if config.TickDuration <= 0 {
+		config.TickDuration = defaultTickDuration
+	}
+
 	return &Runner{
 		hub:    hub,
 		config: config,
@@ -57,7 +61,14 @@ func (r *Runner) Start(ctx context.Context) {
 			delay := time.Duration(i*200) * time.Millisecond
 
 			go func() {
-				time.Sleep(delay)
+				timer := time.NewTimer(delay)
+				defer timer.Stop()
+				select {
+				case <-ctx.Done():
+					return
+				case <-timer.C:
+				}
+
 				log.Printf("[Simulation] Bus %s iniciado en ruta %s (waypoint %d/%d)",
 					busID, route.Name, startIndex+1, n)
 				sim.Run(ctx)

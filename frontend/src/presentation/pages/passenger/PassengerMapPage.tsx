@@ -27,6 +27,7 @@ import { BusSidePanel } from '../../components/map/BusSidePanel';
 import { RouteFilter } from '../../components/map/RouteFilter';
 import { MapStatusBar } from '../../components/map/MapStatusBar';
 import { ConnectionOverlay } from '../../components/map/ConnectionOverlay';
+import { RouteNodesLayer } from '../../components/map/RouteNodesLayer';
 
 // Centro del mapa: Plaza de Armas de Temuco
 const TEMUCO_CENTER: [number, number] = [-38.7359, -72.5904];
@@ -105,6 +106,8 @@ export function PassengerMapPage() {
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               maxZoom={19}
             />
+
+            <RouteNodesLayer routeFilter={routeFilter} />
 
             {/* Marcadores de micros con animación */}
             {visibleBuses.map((bus) => (

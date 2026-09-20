@@ -15,8 +15,9 @@ interface RouteFilterProps {
 
 const ROUTE_OPTIONS = [
   { id: 'all',     label: 'Todas las rutas' },
-  { id: 'route-1', label: 'Ruta 1 — Centro/Hospital' },
-  { id: 'route-3', label: 'Ruta 3 — Amanecer/Costanera' },
+  { id: 'route-7A', label: 'Línea 7A' },
+  { id: 'route-7B', label: 'Línea 7B' },
+  { id: 'route-1C', label: 'Línea 1C' },
 ];
 
 export function RouteFilter({ buses, value, onChange }: RouteFilterProps) {

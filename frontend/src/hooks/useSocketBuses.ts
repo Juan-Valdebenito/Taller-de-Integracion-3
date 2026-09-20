@@ -41,11 +41,12 @@ type BusUpdater = (updater: (prev: BusState[]) => BusState[]) => void;
 // ── Nombres de ruta (para buses nuevos del WS) ───────────────────────────
 
 const ROUTE_NAMES: Record<string, string> = {
-  'route-1': 'Ruta 1 — Centro / Hospital',
-  'route-3': 'Ruta 3 — Amanecer / Costanera',
+  'route-7A': 'Línea 7A — Hualpén / Centro / Las Américas',
+  'route-7B': 'Línea 7B — Pedro de Valdivia / Centro / Amanecer',
+  'route-1C': 'Línea 1C — Padre Las Casas / Centro / Labranza',
 };
 
-const DEFAULT_ROUTE_IDS = ['route-1', 'route-3'];
+const DEFAULT_ROUTE_IDS = ['route-7A', 'route-7B', 'route-1C'];
 
 // ── Hook ──────────────────────────────────────────────────────────────────
 

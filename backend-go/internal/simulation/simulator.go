@@ -19,7 +19,10 @@ type BusSimulator struct {
 	hub        *ws.Hub
 	tickDur    time.Duration
 	rng        *rand.Rand
+	publish    func(ws.BusLocationData)
 }
+
+const defaultTickDuration = 2 * time.Second
 
 // NewBusSimulator crea un simulador para un bus individual.
 // startIndex permite escalonar los buses en distintas posiciones iniciales
@@ -30,6 +33,9 @@ func NewBusSimulator(busID string, route *RouteDefinition, startIndex int, hub *
 
 	// Pasajeros iniciales aleatorios entre 8 y 28
 	initialPassengers := 8 + rng.Intn(20)
+	if tickDur <= 0 {
+		tickDur = defaultTickDuration
+	}
 
 	return &BusSimulator{
 		busID:      busID,
@@ -39,6 +45,7 @@ func NewBusSimulator(busID string, route *RouteDefinition, startIndex int, hub *
 		hub:        hub,
 		tickDur:    tickDur,
 		rng:        rng,
+		publish:    hub.PublishInternal,
 	}
 }
 
@@ -96,7 +103,7 @@ func (s *BusSimulator) tick() {
 		Capacity:          s.routeDef.Capacity,
 	}
 
-	s.hub.PublishInternal(data)
+	s.publish(data)
 
 	// Avanzar al siguiente waypoint (circular)
 	s.index = (s.index + 1) % n
