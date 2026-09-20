@@ -13,6 +13,7 @@ import (
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/repository"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/router"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/seed"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/simulation"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/token"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/transport"
 	ws "github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/websocket"
@@ -22,13 +23,17 @@ func main() {
 	// ── Configuración ─────────────────────────────────────────
 	cfg := config.Load()
 
+	// ── Contexto global (para shutdown ordenado) ──────────────
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// ── Base de datos ─────────────────────────────────────────
 	pool := db.NewPool(cfg.DatabaseURL)
 	defer pool.Close()
 
 	// ── Datos de prueba (solo fuera de producción) ─────────────
 	if cfg.Env != "production" {
-		if err := seed.Run(context.Background(), pool); err != nil {
+		if err := seed.Run(ctx, pool); err != nil {
 			log.Printf("⚠️  No se pudieron crear los datos de prueba: %v\n", err)
 		}
 	}
@@ -94,6 +99,18 @@ func main() {
 
 	wsHandler := ws.NewWSHandler(hub, cfg.JWTSecret, []string{cfg.CORSOrigin})
 	fmt.Println("📡  WebSocket Pub/Sub activo en /ws")
+
+	// ── Simulación GPS (buses virtuales rutas 7A, 7B, 1C) ─────
+	if cfg.SimulationEnabled {
+		simRunner := simulation.NewRunner(hub, simulation.RunnerConfig{
+			TickDuration: time.Duration(cfg.SimulationTickMs) * time.Millisecond,
+		})
+		go simRunner.Start(ctx)
+		fmt.Printf("🎮  Motor de simulación GPS activo — tick: %dms, rutas: 7A, 7B, 1C\n",
+			cfg.SimulationTickMs)
+	} else {
+		fmt.Println("⏸️   Simulación GPS desactivada (SIMULATION_ENABLED=false)")
+	}
 
 	// ── Router ────────────────────────────────────────────────
 	r := router.Setup(cfg.CORSOrigin, cfg.JWTSecret, pool, blacklist, authH, userH, busH, routeH, stopH, complaintH, occupancyH, wsHandler)

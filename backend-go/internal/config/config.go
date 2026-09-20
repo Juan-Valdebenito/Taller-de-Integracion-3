@@ -30,6 +30,15 @@ type Config struct {
 
 	// PredictionTimeoutSec es el timeout en segundos para cada llamada al ML.
 	PredictionTimeoutSec int
+
+	// ── Simulación GPS ────────────────────────────────────────────────────────
+	// SimulationEnabled activa el motor de simulación circular de buses.
+	// En producción (con datos reales del cluster) dejar en false.
+	SimulationEnabled bool
+
+	// SimulationTickMs es el intervalo en milisegundos entre actualizaciones
+	// de posición de cada bus simulado.
+	SimulationTickMs int
 }
 
 // Load carga las variables desde el archivo .env y el entorno del sistema.
@@ -52,6 +61,10 @@ func Load() *Config {
 		PredictionGRPCAddr:   getEnv("PREDICTION_GRPC_ADDR", "localhost:50051"),
 		PredictionHTTPURL:    getEnv("PREDICTION_HTTP_URL", "http://localhost:8000"),
 		PredictionTimeoutSec: getEnvInt("PREDICTION_TIMEOUT_SEC", 5),
+
+		// Simulación GPS
+		SimulationEnabled: getEnvBool("SIMULATION_ENABLED", false),
+		SimulationTickMs:  getEnvInt("SIMULATION_TICK_MS", 2000),
 	}
 }
 
@@ -67,6 +80,13 @@ func getEnvInt(key string, fallback int) int {
 		if n, err := strconv.Atoi(val); err == nil {
 			return n
 		}
+	}
+	return fallback
+}
+
+func getEnvBool(key string, fallback bool) bool {
+	if val := os.Getenv(key); val != "" {
+		return val == "true" || val == "1" || val == "yes"
 	}
 	return fallback
 }

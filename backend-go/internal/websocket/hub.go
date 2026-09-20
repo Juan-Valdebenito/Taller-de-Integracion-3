@@ -185,3 +185,13 @@ func (h *Hub) removeFromTopic(client *Client, topicKey string) {
 func (h *Hub) Publish(msg *PublishMessage) {
 	h.publish <- msg
 }
+
+// PublishInternal encola un mensaje desde código interno de confianza
+// (ej: el motor de simulación GPS) sin requerir autenticación JWT.
+// Es seguro llamarlo desde múltiples goroutines.
+func (h *Hub) PublishInternal(data BusLocationData) {
+	h.publish <- &PublishMessage{
+		Type: "publish",
+		Data: data,
+	}
+}
