@@ -48,6 +48,9 @@ func Setup(
 	r.GET("/health", middleware.Healthz)
 	r.GET("/healthz", middleware.Healthz)
 	r.GET("/readyz", middleware.Readyz(func() error {
+		if pool == nil {
+			return nil // sin BD, siempre listo (solo simulación)
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		return pool.Ping(ctx)
