@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clima-db-init-scripts
+  namespace: student-jvaldebenito
+data:
+  01_schema.sql: |
+    CREATE EXTENSION IF NOT EXISTS timescaledb;
+    CREATE EXTENSION IF NOT EXISTS postgis;
+
+    CREATE TABLE IF NOT EXISTS weather_telemetry (
+        time TIMESTAMPTZ NOT NULL,
+        station_id VARCHAR(64) NOT NULL,
+        sector VARCHAR(64) NOT NULL,
+        temperature_c DOUBLE PRECISION NOT NULL,
+        humidity_pct DOUBLE PRECISION NOT NULL CHECK (humidity_pct BETWEEN 0 AND 100),
+        wind_speed_kmh DOUBLE PRECISION NOT NULL CHECK (wind_speed_kmh >= 0),
+        pm25 DOUBLE PRECISION NOT NULL CHECK (pm25 >= 0),
+        pm10 DOUBLE PRECISION NOT NULL CHECK (pm10 >= 0),
+        status VARCHAR(32) NOT NULL,
+        location GEOMETRY(Point, 4326) NOT NULL
+    );
+
+    SELECT create_hypertable('weather_telemetry', 'time', if_not_exists => TRUE);
+
+    CREATE INDEX IF NOT EXISTS idx_weather_telemetry_station_time
+        ON weather_telemetry (station_id, time DESC);
+    CREATE INDEX IF NOT EXISTS idx_weather_telemetry_location
+        ON weather_telemetry USING GIST (location);

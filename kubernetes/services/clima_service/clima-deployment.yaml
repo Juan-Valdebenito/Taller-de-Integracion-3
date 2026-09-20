@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clima-service
+  namespace: student-jvaldebenito
+  labels:
+    app: clima-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: clima-service
+  template:
+    metadata:
+      labels:
+        app: clima-service
+    spec:
+      containers:
+        - name: clima-service
+          image: ignaciogsm/clima_service:v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: clima-configmap
+            - secretRef:
+                name: clima-secrets
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "300m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: clima-service-svc
+  namespace: student-jvaldebenito
+spec:
+  type: ClusterIP
+  selector:
+    app: clima-service
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

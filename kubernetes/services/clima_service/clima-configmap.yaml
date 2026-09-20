@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clima-configmap
+  namespace: student-jvaldebenito
+data:
+  PORT: "8080"
+  DB_HOST: clima-db-svc.student-jvaldebenito.svc.cluster.local
+  DB_PORT: "5432"
+  DB_NAME: climate_db
+  DB_USER: climate_user
+  DB_SSLMODE: disable
+  MAX_BODY_BYTES: "1048576"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: clima-secrets
+  namespace: student-jvaldebenito
+type: Opaque
+stringData:
+  DB_PASSWORD: climate_pass
+  WEATHER_API_KEY: temuco_weather_secret_key

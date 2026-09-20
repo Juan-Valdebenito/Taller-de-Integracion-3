@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+
 	//"fmt"
 	"log"
 	"math/rand"
@@ -71,6 +72,11 @@ func NewWeatherManager(endpoint, apiKey string) *WeatherManager {
 
 // StartStation ejecuta la simulación continua de una estación
 func (m *WeatherManager) StartStation(config StationConfig, stopChan <-chan struct{}) {
+	if config.IntervalSeconds <= 0 {
+		log.Printf("[MANAGER] Intervalo inválido para %s: %d", config.StationID, config.IntervalSeconds)
+		return
+	}
+
 	ticker := time.NewTicker(time.Duration(config.IntervalSeconds) * time.Second)
 	defer ticker.Stop()
 
@@ -128,32 +134,40 @@ func (m *WeatherManager) sendTelemetry(payload WeatherPayload) {
 		return
 	}
 
-	req, err := http.NewRequest("POST", m.apiEndpoint, bytes.NewBuffer(jsonData))
-	if err != nil {
-		log.Printf("[ERROR] Creando request: %v", err)
-		return
-	}
+	for attempt := 1; attempt <= 3; attempt++ {
+		req, err := http.NewRequest(http.MethodPost, m.apiEndpoint, bytes.NewReader(jsonData))
+		if err != nil {
+			log.Printf("[ERROR] Creando request: %v", err)
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-API-Key", m.apiKey)
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-API-Key", m.apiKey)
+		resp, err := m.httpClient.Do(req)
+		if err == nil {
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusAccepted || resp.StatusCode == http.StatusOK {
+				log.Printf("[HTTP %d] Telemetría enviada -> %s (PM2.5: %.1f)", resp.StatusCode, payload.StationID, payload.Readings.PM25)
+				return
+			}
+			if resp.StatusCode < http.StatusInternalServerError {
+				log.Printf("[HTTP %d] Error permanente para %s", resp.StatusCode, payload.StationID)
+				return
+			}
+			log.Printf("[HTTP %d] Error temporal para %s, intento %d/3", resp.StatusCode, payload.StationID, attempt)
+		} else {
+			log.Printf("[HTTP ERROR] %s: intento %d/3: %v", payload.StationID, attempt, err)
+		}
 
-	resp, err := m.httpClient.Do(req)
-	if err != nil {
-		log.Printf("[HTTP ERROR] %s: No se pudo conectar con el backend (%v)", payload.StationID, err)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusAccepted || resp.StatusCode == http.StatusOK {
-		log.Printf("[HTTP %d] Telemetría enviada -> %s (MP2.5: %.1f µg/m³)", resp.StatusCode, payload.StationID, payload.Readings.PM25)
-	} else {
-		log.Printf("[HTTP %d] Error en respuesta del servidor para %s", resp.StatusCode, payload.StationID)
+		if attempt < 3 {
+			time.Sleep(time.Duration(attempt) * 500 * time.Millisecond)
+		}
 	}
 }
 
 func main() {
-	// Cargar archivo de configuración
-	configFile, err := os.ReadFile("config.json")
+	configPath := env("STATIONS_CONFIG", "config.json")
+	configFile, err := os.ReadFile(configPath)
 	if err != nil {
 		log.Fatalf("No se pudo leer config.json: %v", err)
 	}
@@ -162,10 +176,12 @@ func main() {
 	if err := json.Unmarshal(configFile, &stations); err != nil {
 		log.Fatalf("Error al parsear config.json: %v", err)
 	}
+	if len(stations) == 0 {
+		log.Fatal("La configuración no contiene estaciones")
+	}
 
-	// Inicializar Manager
-	apiURL := "http://localhost:8080/api/v1/telemetry/weather"
-	apiKey := "temuco_weather_secret_key"
+	apiURL := env("WEATHER_API_URL", "http://localhost:8080/api/v1/telemetry/weather")
+	apiKey := env("WEATHER_API_KEY", "temuco_weather_secret_key")
 	manager := NewWeatherManager(apiURL, apiKey)
 
 	stopChan := make(chan struct{})
@@ -182,5 +198,12 @@ func main() {
 
 	log.Println("[MANAGER] Cerrando simulador de estaciones climáticas...")
 	close(stopChan)
-	time.Sleep(1 * time.Second) // Tiempo para limpiar goroutines
+	time.Sleep(1 * time.Second)
+}
+
+func env(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
 }
