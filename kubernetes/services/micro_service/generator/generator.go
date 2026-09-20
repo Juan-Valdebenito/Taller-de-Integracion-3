@@ -1,5 +1,7 @@
 package main
 
+// Este script lee un archivo GeoJSON local llamado "paraderos.geojson", consulta a Nominatim para obtener nombres de paraderos y genera un archivo SQL llamado "02_seed_stops.sql" con las instrucciones para insertar los datos en la base de datos.
+
 import (
 	"encoding/json"
 	"fmt"

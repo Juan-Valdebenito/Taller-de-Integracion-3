@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: micros-configmap
+  namespace: student-jvaldebenito
+data:
+  DB_HOST: "micros-db-svc.student-jvaldebenito.svc.cluster.local"
+  DB_PORT: "5432"
+  DB_NAME: "micros_db"
+  DB_USER: "micros_user"  # Asegurarse de configurar usuario y contraseña
+
+  PORT: "3001"    # puerto del microservicio
+  NODE_ENV: "development"  # entorno de desarrollo
