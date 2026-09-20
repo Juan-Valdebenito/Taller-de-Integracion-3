@@ -17,8 +17,15 @@ spec:
     spec:
       containers:
         - name: micros-service
-          image: transit-microservice:latest
+          image: ignaciogsm/micro_service:v1
           imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"
           ports:
             - name: http
               containerPort: 3001
