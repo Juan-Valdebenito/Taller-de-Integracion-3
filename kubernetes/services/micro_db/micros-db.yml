@@ -1,15 +1,15 @@
-# 1. SOLICITUD DE ALMACENAMIENTO PERSISTENTE (PVC)
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: micros-db-pvc
-  namespace: student-jvaldebenito
-spec:
-  accessModes:
-    - ReadWriteOnce # El disco se monta en un solo Pod a la vez
-  resources:
-    requests:
-      storage: 5Gi # 5 Gigabytes de espacio para datos de tránsito
+# 1. SOLICITUD DE ALMACENAMIENTO PERSISTENTE (PVC) por ahora no se puede por permisos del cluster
+# apiVersion: v1
+# kind: PersistentVolumeClaim
+# metadata:
+#   name: micros-db-pvc
+#   namespace: student-jvaldebenito
+# spec:
+#   accessModes:
+#     - ReadWriteOnce # El disco se monta en un solo Pod a la vez
+#   resources:
+#     requests:
+#       storage: 5Gi # 5 Gigabytes de espacio para datos de tránsito
 ---
 # 2. DESPLIEGUE DE POSTGIS (DEPLOYMENT)
 apiVersion: apps/v1
@@ -34,9 +34,16 @@ spec:
           image: postgis/postgis:16-3.4-alpine
           ports:
             - containerPort: 5432
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
           envFrom:
             - configMapRef:
-              name: micros-configmap # Carga DB_NAME, DB_USER, etc.
+                name: micros-configmap # Carga DB_NAME, DB_USER, etc.
             - secretRef:
                 name: micros-secrets # Carga DB_PASSWORD
           env:
@@ -49,26 +56,27 @@ spec:
             - name: POSTGRES_DB
               valueFrom:
                 configMapKeyRef:
-                  name: micros-config
+                  name: micros-configmap
                   key: DB_NAME
             - name: POSTGRES_USER
               valueFrom:
                 configMapKeyRef:
-                  name: micros-config
+                  name: micros-configmap
                   key: DB_USER
           volumeMounts:
             - name: micros-db-data
-              mountPath: /var/lib/postgresql/data # Carpeta interna donde Postgres guarda todo
+              mountPath: /var/lib/postgresql/data # Directorio de datos de PostgreSQL
             # Scripts de inicialización de la base de datos
             - name: init-scripts-volume
               mountPath: /docker-entrypoint-initdb.d
       volumes:
         - name: micros-db-data
-          persistentVolumeClaim:
-            claimName: micros-db-pvc
+          emptyDir: {} # No hay permisos para montar PVC en el cluster
+          #persistentVolumeClaim:
+          #  claimName: micros-db-pvc
         - name: init-scripts-volume
           configMap:
-            name: micros-init-scripts
+            name: micros-db-init-scripts
 ---
 # 3. SERVICIO INTERNO (SERVICE)
 apiVersion: v1

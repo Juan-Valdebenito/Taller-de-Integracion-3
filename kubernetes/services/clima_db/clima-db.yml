@@ -1,0 +1,90 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clima-db-configmap
+  namespace: student-jvaldebenito
+data:
+  POSTGRES_DB: climate_db
+  POSTGRES_USER: climate_user
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: clima-db-secrets
+  namespace: student-jvaldebenito
+type: Opaque
+stringData:
+  POSTGRES_PASSWORD: climate_pass
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clima-db
+  namespace: student-jvaldebenito
+  labels:
+    app: clima-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: clima-db
+  template:
+    metadata:
+      labels:
+        app: clima-db
+    spec:
+      containers:
+        - name: timescaledb
+          image: timescale/timescaledb-ha:pg16
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgres
+              containerPort: 5432
+          envFrom:
+            - configMapRef:
+                name: clima-db-configmap
+            - secretRef:
+                name: clima-db-secrets
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "768Mi"
+              cpu: "750m"
+          volumeMounts:
+            - name: clima-db-data
+              mountPath: /var/lib/postgresql/data
+            - name: init-scripts
+              mountPath: /docker-entrypoint-initdb.d
+      volumes:
+        # Temporary laboratory storage. Replace with a PVC before production.
+        - name: clima-db-data
+          emptyDir: {}
+        - name: init-scripts
+          configMap:
+            name: clima-db-init-scripts
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: clima-db-svc
+  namespace: student-jvaldebenito
+spec:
+  type: ClusterIP
+  selector:
+    app: clima-db
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres

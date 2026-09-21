@@ -1,54 +1,49 @@
-# Como funcionará la parte del clima de la API
+# Servicio de clima
 
-Por ahora se tiene un solo endpoint, el que usará el simulador para enviar la información al backend
+El servicio recibe telemetría de estaciones climáticas y la almacena en TimescaleDB. La publicación en un bus pub/sub queda reservada para una futura integración.
 
-## Endpoint
+## Telemetría
 
-**Método**: POST
-**Ruta**: /api/v1/telemetry/weather
-**Headers**:
-    - Content-Type: application/json
-    - X-API-Key: <token_de_estacion_autorizada>
-**Código de respuesta esperado**: 202 Accepted (procesamiento asíncrono para no bloquear al simulador)
+`POST /api/v1/telemetry/weather`
 
+Headers:
 
-Se admitirá el envío de tanto un objeto como de una lista de estos (batch), siguiendo este formato:
-```
-[
-  {
-    "station_id": "STATION-PADRE-LAS-CASAS-01",
-    "location": {
-      "latitude": -38.7523,
-      "longitude": -72.5981,
-      "sector": "Padre Las Casas"
-    },
-    "readings": {
-      "temperature_c": 7.5,
-      "humidity_pct": 91.2,
-      "wind_speed_kmh": 12.4,
-      "pm25_ug_m3": 85.3,   <-- quizas
-      "pm10_ug_m3": 120.1   <-- quizas
-    },
-    "status": "OPERATIONAL",
-    "timestamp": 1724628000
-  }
-]
-```
+- `Content-Type: application/json`
+- `X-API-Key: <clave configurada>`
 
-## Almacenamiento de datos históricos
+El cuerpo puede ser una lectura o un arreglo no vacío de lecturas. Los campos de la lectura son `station_id`, `location`, `sensor_readings`, `status` y `timestamp`.
 
-Los datos se guardarán en una base de datos TimescaleDB con los siguientes atributos:
-    time TIMESTAMPTZ NOT NULL,
-    station_id VARCHAR(64) NOT NULL,
-    sector VARCHAR(64),
-    temperature_c REAL,
-    humidity_pct REAL,
-    wind_speed_kmh REAL,
-    pm25 REAL,
-    pm10 REAL,
-    location GEOMETRY(Point, 4326)
+Respuestas:
 
-## Envió de datos en tiempo real
+- `202 Accepted`: lecturas validadas y guardadas.
+- `400 Bad Request`: JSON, batch, timestamp, coordenadas o métricas inválidas.
+- `401 Unauthorized`: API key ausente o incorrecta.
+- `413 Request Entity Too Large`: cuerpo mayor a `MAX_BODY_BYTES`.
+- `503 Service Unavailable`: la base de datos no está disponible o falló la transacción.
 
-Al recibir datos meteorológicos, el servicio de clima los guarda y además los publica en el bus de datos para que puedan
-ser considerados por el motor de predicción.
+La inserción de un batch es transaccional: si una lectura falla, no se guarda ninguna lectura del batch.
+
+## Salud
+
+- `GET /health`: confirma que el proceso está vivo.
+- `GET /ready`: confirma que el proceso puede alcanzar la base de datos.
+
+## Configuración
+
+| Variable | Predeterminado | Descripción |
+| --- | --- | --- |
+| `PORT` | `8080` | Puerto HTTP |
+| `WEATHER_API_KEY` | `temuco_weather_secret_key` | Clave del header `X-API-Key` |
+| `DB_HOST` | `localhost` | Host PostgreSQL/TimescaleDB |
+| `DB_PORT` | `5432` | Puerto PostgreSQL |
+| `DB_NAME` | `climate_db` | Base de datos |
+| `DB_USER` | `climate_user` | Usuario |
+| `DB_PASSWORD` | `climate_pass` | Contraseña |
+| `DB_SSLMODE` | `disable` | Modo SSL de PostgreSQL |
+| `MAX_BODY_BYTES` | `1048576` | Tamaño máximo del cuerpo |
+
+## Persistencia
+
+La tabla `weather_telemetry` es una hypertable TimescaleDB y almacena la ubicación como `GEOMETRY(Point, 4326)`. El timestamp recibido se guarda como `TIMESTAMPTZ`; no se aceptan timestamps futuros más de cinco minutos.
+
+El despliegue de laboratorio usa `emptyDir` para la base de datos. Esto significa que el histórico se pierde al recrear el Pod. Antes de producción debe reemplazarse por un PVC o almacenamiento administrado.
