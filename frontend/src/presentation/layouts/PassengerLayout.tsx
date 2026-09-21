@@ -1,7 +1,16 @@
-import { Outlet, NavLink } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import styles from './PassengerLayout.module.css';
 
 export function PassengerLayout() {
+  const { isAuthenticated, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/auth/login');
+  };
+
   return (
     <div className={styles.layout}>
       <nav className={styles.nav}>
@@ -27,9 +36,15 @@ export function PassengerLayout() {
             📋 Reclamos
           </NavLink>
         </div>
-        <NavLink to="/auth/login" className={styles.navAuth}>
-          Iniciar sesión
-        </NavLink>
+        {isAuthenticated ? (
+          <button type="button" className={styles.navLogoutBtn} onClick={handleLogout}>
+            Cerrar sesión
+          </button>
+        ) : (
+          <NavLink to="/auth/login" className={styles.navAuth}>
+            Iniciar sesión
+          </NavLink>
+        )}
       </nav>
       <main className={styles.main}>
         <Outlet />

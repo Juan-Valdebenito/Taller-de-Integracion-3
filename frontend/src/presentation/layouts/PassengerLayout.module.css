@@ -84,6 +84,23 @@
   box-shadow: 0 4px 12px hsla(215, 80%, 46%, 0.4);
 }
 
+.navLogoutBtn {
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-full);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.navLogoutBtn:hover {
+  color: var(--color-danger, #ef4444);
+  border-color: var(--color-danger, #ef4444);
+}
+
 .main {
   flex: 1;
   overflow: hidden;

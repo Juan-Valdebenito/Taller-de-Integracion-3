@@ -5,6 +5,7 @@ import {
   useCallback,
   type ReactNode,
 } from 'react';
+import { apiClient } from '../../infrastructure/api/apiClient';
 
 // ── Tipos ─────────────────────────────────────────────────────
 
@@ -24,7 +25,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (token: string, user: AuthUser) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 // ── Contexto ──────────────────────────────────────────────────
@@ -65,11 +66,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setUser(newUser);
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setToken(null);
-    setUser(null);
+  const logout = useCallback(async () => {
+    try {
+      // Revoca el token en el servidor (blacklist por jti) para que no
+      // pueda seguir usándose aunque alguien lo haya interceptado.
+      await apiClient.post('/auth/logout');
+    } catch (error) {
+      console.error('Error al revocar el token en el servidor:', error);
+    } finally {
+      // Se limpia localmente aunque falle la llamada al servidor
+      // (p. ej. sin conexión), para no dejar al usuario atrapado en la sesión.
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      setToken(null);
+      setUser(null);
+    }
   }, []);
 
   return (
