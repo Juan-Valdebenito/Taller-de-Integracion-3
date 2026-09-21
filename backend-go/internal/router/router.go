@@ -45,6 +45,16 @@ func Setup(
 	// ── Health check ──────────────────────────────────────────
 	// Endpoints de infraestructura: sin autenticacion para probes de Kubernetes.
 	// /health se conserva como alias por compatibilidad con clientes existentes.
+	r.GET("/", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"service":  "TransitHub API",
+			"status":   "ok",
+			"version":  "1.0.0",
+			"docs":     "/health",
+			"api_base": "/api/v1",
+			"message":  "Backend operativo. Usa /health o /api/v1 para consultar la API.",
+		})
+	})
 	r.GET("/health", middleware.Healthz)
 	r.GET("/healthz", middleware.Healthz)
 	r.GET("/readyz", middleware.Readyz(func() error {
