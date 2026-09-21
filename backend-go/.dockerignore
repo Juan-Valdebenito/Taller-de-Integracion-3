@@ -1,0 +1,6 @@
+.gocache
+.env
+.env.*
+!.env.example
+server.exe
+*.exe
