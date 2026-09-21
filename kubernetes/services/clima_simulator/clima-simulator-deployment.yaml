@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clima-simulator-configmap
+  namespace: student-jvaldebenito
+data:
+  STATIONS_CONFIG: /config/config.json
+  WEATHER_API_URL: http://clima-service-svc.student-jvaldebenito.svc.cluster.local:8080/api/v1/telemetry/weather
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: clima-simulator-secrets
+  namespace: student-jvaldebenito
+type: Opaque
+stringData:
+  WEATHER_API_KEY: temuco_weather_secret_key
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clima-simulator
+  namespace: student-jvaldebenito
+  labels:
+    app: clima-simulator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: clima-simulator
+  template:
+    metadata:
+      labels:
+        app: clima-simulator
+    spec:
+      containers:
+        - name: clima-simulator
+          image: ignaciogsm/clima_simulator:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: clima-simulator-configmap
+            - secretRef:
+                name: clima-simulator-secrets
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "25m"
+            limits:
+              memory: "128Mi"
+              cpu: "150m"
