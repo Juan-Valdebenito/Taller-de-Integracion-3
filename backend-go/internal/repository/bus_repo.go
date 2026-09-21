@@ -142,6 +142,26 @@ func (r *BusRepository) Update(ctx context.Context, id, patente string, capacity
 	return b, nil
 }
 
+// UpdateOccupancyCounters persiste los contadores de aforo (pasajeros a bordo,
+// subidas, subidas escolares y bajadas) tras procesar un evento de simulación.
+func (r *BusRepository) UpdateOccupancyCounters(ctx context.Context, id string, currentPassengers, boardings, schoolBoardings, alightings int) (*domain.Bus, error) {
+	row := r.pool.QueryRow(ctx, `
+		UPDATE buses
+		SET "currentPassengers" = $1, boardings = $2, "schoolBoardings" = $3, alightings = $4, "updatedAt" = NOW()
+		WHERE id = $5
+		RETURNING `+busSelectColumns,
+		currentPassengers, boardings, schoolBoardings, alightings, id,
+	)
+	b, err := scanBus(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("BusRepository.UpdateOccupancyCounters: %w", err)
+	}
+	return b, nil
+}
+
 // UpdateLocation actualiza la posición GPS de un bus.
 func (r *BusRepository) UpdateLocation(ctx context.Context, id string, lat, lng float64, heading, speed *float64) error {
 	_, err := r.pool.Exec(ctx, `

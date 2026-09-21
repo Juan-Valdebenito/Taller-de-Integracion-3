@@ -57,6 +57,10 @@ func Setup(
 	// Ocupación (público — sin auth para facilitar integración con dispositivos)
 	api.POST("/occupancy", occupancyH.Predict)
 
+	// Simulación de sensores/pagos (público — fallback REST del panel DevTools
+	// cuando el socket de tiempo real no está disponible; misma razón que /occupancy)
+	api.POST("/buses/simulate-event", busH.SimulateEvent)
+
 	// Alias del middleware para mayor legibilidad
 	auth := func() gin.HandlerFunc { return middleware.Authenticate(jwtSecret, bl) }
 

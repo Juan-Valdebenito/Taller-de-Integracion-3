@@ -79,8 +79,8 @@ export const SimulationDevTools: React.FC<SimulationDevToolsProps> = ({
           busId: currentBus.id,
           eventType,
         });
-        if (res.data?.data?.lastEvent?.description) {
-          setLocalLog(res.data.data.lastEvent.description);
+        if (res.data?.lastEvent?.description) {
+          setLocalLog(res.data.lastEvent.description);
         } else {
           setLocalLog(`✓ REST OK: ${eventNames[eventType]}`);
         }
