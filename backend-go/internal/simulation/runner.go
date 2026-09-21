@@ -15,6 +15,9 @@ type RunnerConfig struct {
 	// Un valor menor produce movimiento más fluido pero mayor carga de CPU/red.
 	// Recomendado: 2s para desarrollo, 5s para staging.
 	TickDuration time.Duration
+	// SpeedMultiplier acelera o ralentiza el reloj del recorrido sin cambiar
+	// los tiempos base del grafo. Es útil para visualizar la simulación local.
+	SpeedMultiplier float64
 }
 
 // Runner orquesta todos los buses simulados de todas las rutas.
@@ -28,6 +31,9 @@ type Runner struct {
 func NewRunner(hub *ws.Hub, config RunnerConfig) *Runner {
 	if config.TickDuration <= 0 {
 		config.TickDuration = defaultTickDuration
+	}
+	if config.SpeedMultiplier <= 0 {
+		config.SpeedMultiplier = 1
 	}
 
 	return &Runner{
@@ -55,6 +61,7 @@ func (r *Runner) Start(ctx context.Context) {
 			startIndex := (i * n) / route.BusCount
 
 			sim := NewBusSimulator(busID, &route, startIndex, r.hub, r.config.TickDuration)
+			sim.speedMultiplier = r.config.SpeedMultiplier
 
 			// Añadir pequeño delay entre buses de la misma ruta para evitar
 			// que todos hagan su primer tick exactamente al mismo tiempo.

@@ -1,5 +1,5 @@
 import { CircleMarker, Popup } from 'react-leaflet';
-import { ROUTE_NODES, ROUTE_NODE_COLORS } from './routeNodes';
+import { ROUTE_NODES, ROUTE_NODE_COLORS, type RouteNode } from './routeNodes';
 
 interface RouteNodesLayerProps {
   routeFilter: string;
@@ -14,12 +14,12 @@ const ROUTE_LABELS: Record<string, string> = {
 export function RouteNodesLayer({ routeFilter }: RouteNodesLayerProps) {
   const visibleNodes = routeFilter === 'all'
     ? ROUTE_NODES
-    : ROUTE_NODES.filter((node) => node.routeId === routeFilter);
+    : ROUTE_NODES.filter((node) => node.routeIds.includes(routeFilter as RouteNode['routeIds'][number]));
 
   return (
     <>
       {visibleNodes.map((node) => {
-        const color = ROUTE_NODE_COLORS[node.routeId];
+        const color = ROUTE_NODE_COLORS[node.routeIds[0]];
         return (
           <CircleMarker
             key={node.id}
@@ -35,7 +35,7 @@ export function RouteNodesLayer({ routeFilter }: RouteNodesLayerProps) {
             <Popup>
               <strong>{node.name}</strong>
               <br />
-              <span>{ROUTE_LABELS[node.routeId]}</span>
+              <span>{node.routeIds.map((routeId) => ROUTE_LABELS[routeId]).join(' · ')}</span>
             </Popup>
           </CircleMarker>
         );

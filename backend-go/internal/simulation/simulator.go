@@ -12,14 +12,16 @@ import (
 // BusSimulator mueve un bus virtual a lo largo de los waypoints de su ruta
 // en ciclo infinito, publicando actualizaciones al Hub WebSocket.
 type BusSimulator struct {
-	busID      string
-	routeDef   *RouteDefinition
-	index      int // índice del waypoint actual
-	passengers int // pasajeros actuales
-	hub        *ws.Hub
-	tickDur    time.Duration
-	rng        *rand.Rand
-	publish    func(ws.BusLocationData)
+	busID           string
+	routeDef        *RouteDefinition
+	index           int // índice del waypoint actual
+	segmentElapsed  float64
+	passengers      int // pasajeros actuales
+	hub             *ws.Hub
+	tickDur         time.Duration
+	speedMultiplier float64
+	rng             *rand.Rand
+	publish         func(ws.BusLocationData)
 }
 
 const defaultTickDuration = 2 * time.Second
@@ -31,21 +33,22 @@ func NewBusSimulator(busID string, route *RouteDefinition, startIndex int, hub *
 	src := rand.NewSource(time.Now().UnixNano() + int64(len(busID)))
 	rng := rand.New(src)
 
-	// Pasajeros iniciales aleatorios entre 8 y 28
+	// Pasajeros iniciales aleatorios entre 8 y 28.
 	initialPassengers := 8 + rng.Intn(20)
 	if tickDur <= 0 {
 		tickDur = defaultTickDuration
 	}
 
 	return &BusSimulator{
-		busID:      busID,
-		routeDef:   route,
-		index:      startIndex % len(route.Waypoints),
-		passengers: initialPassengers,
-		hub:        hub,
-		tickDur:    tickDur,
-		rng:        rng,
-		publish:    hub.PublishInternal,
+		busID:           busID,
+		routeDef:        route,
+		index:           startIndex % len(route.Waypoints),
+		passengers:      initialPassengers,
+		hub:             hub,
+		tickDur:         tickDur,
+		speedMultiplier: 1,
+		rng:             rng,
+		publish:         hub.PublishInternal,
 	}
 }
 
@@ -68,19 +71,24 @@ func (s *BusSimulator) Run(ctx context.Context) {
 	}
 }
 
-// tick avanza el bus al siguiente waypoint y publica su nueva posición.
+// tick publica la posición interpolada y avanza el bus según el tiempo del tick.
 func (s *BusSimulator) tick() {
 	wps := s.routeDef.Waypoints
 	n := len(wps)
 
 	curr := wps[s.index]
 	next := wps[(s.index+1)%n]
+	segmentDuration := s.segmentDurationSeconds(s.index)
+	progress := s.segmentElapsed / segmentDuration
+	latitude := curr.Lat + (next.Lat-curr.Lat)*progress
+	longitude := curr.Lng + (next.Lng-curr.Lng)*progress
 
 	// Calcular heading real entre waypoints
 	heading := calcHeading(curr.Lat, curr.Lng, next.Lat, next.Lng)
 
-	// Velocidad: 20–45 km/h con variación aleatoria por tramo
-	speed := 20.0 + s.rng.Float64()*25.0
+	// La velocidad se deriva del tramo, como en route_stops.distance_meters /
+	// base_travel_time_seconds del esquema de nodos.
+	speed := haversineMeters(curr.Lat, curr.Lng, next.Lat, next.Lng) / segmentDuration * 3.6
 
 	// Fluctuación de pasajeros: ±3 por tick, respetando límites
 	delta := s.rng.Intn(7) - 3 // -3 a +3
@@ -95,8 +103,8 @@ func (s *BusSimulator) tick() {
 	data := ws.BusLocationData{
 		BusID:             s.busID,
 		RouteID:           s.routeDef.ID,
-		Latitude:          curr.Lat,
-		Longitude:         curr.Lng,
+		Latitude:          latitude,
+		Longitude:         longitude,
 		Heading:           heading,
 		Speed:             math.Round(speed*10) / 10,
 		CurrentPassengers: s.passengers,
@@ -105,8 +113,13 @@ func (s *BusSimulator) tick() {
 
 	s.publish(data)
 
-	// Avanzar al siguiente waypoint (circular)
-	s.index = (s.index + 1) % n
+	// Avanzar por el tramo; un tick largo puede atravesar más de un nodo.
+	s.segmentElapsed += s.tickDur.Seconds() * s.speedMultiplier
+	for s.segmentElapsed >= segmentDuration {
+		s.segmentElapsed -= segmentDuration
+		s.index = (s.index + 1) % n
+		segmentDuration = s.segmentDurationSeconds(s.index)
+	}
 }
 
 // ── Funciones auxiliares ──────────────────────────────────────────────────────
@@ -140,4 +153,71 @@ func clampInt(v, min, max int) int {
 		return max
 	}
 	return v
+}
+
+func (s *BusSimulator) segmentDurationSeconds(index int) float64 {
+	if len(s.routeDef.Segments) == len(s.routeDef.Waypoints) {
+		if duration := s.routeDef.Segments[index].TravelSeconds; duration > 0 {
+			return float64(duration)
+		}
+	}
+
+	if len(s.routeDef.SegmentTravelSeconds) == len(s.routeDef.Waypoints) {
+		if duration := s.routeDef.SegmentTravelSeconds[index]; duration > 0 {
+			return float64(duration)
+		}
+	}
+
+	if len(s.routeDef.Segments) > 0 {
+		return s.graphProfileDuration(index)
+	}
+
+	// Fallback coherente con una velocidad urbana media de 30 km/h.
+	start := s.routeDef.Waypoints[index]
+	end := s.routeDef.Waypoints[(index+1)%len(s.routeDef.Waypoints)]
+	distance := haversineMeters(start.Lat, start.Lng, end.Lat, end.Lng)
+	return math.Max(1, distance/30_000*3600)
+}
+
+func (s *BusSimulator) graphProfileDuration(index int) float64 {
+	totalGraphSeconds := 0
+	for _, segment := range s.routeDef.Segments {
+		totalGraphSeconds += segment.TravelSeconds
+	}
+	if totalGraphSeconds <= 0 {
+		return s.distanceProfileDuration(index)
+	}
+
+	totalDistance := 0.0
+	for waypointIndex := range s.routeDef.Waypoints {
+		start := s.routeDef.Waypoints[waypointIndex]
+		end := s.routeDef.Waypoints[(waypointIndex+1)%len(s.routeDef.Waypoints)]
+		totalDistance += haversineMeters(start.Lat, start.Lng, end.Lat, end.Lng)
+	}
+	if totalDistance <= 0 {
+		return 1
+	}
+
+	start := s.routeDef.Waypoints[index]
+	end := s.routeDef.Waypoints[(index+1)%len(s.routeDef.Waypoints)]
+	segmentDistance := haversineMeters(start.Lat, start.Lng, end.Lat, end.Lng)
+	return math.Max(1, float64(totalGraphSeconds)*segmentDistance/totalDistance)
+}
+
+func (s *BusSimulator) distanceProfileDuration(index int) float64 {
+	start := s.routeDef.Waypoints[index]
+	end := s.routeDef.Waypoints[(index+1)%len(s.routeDef.Waypoints)]
+	distance := haversineMeters(start.Lat, start.Lng, end.Lat, end.Lng)
+	return math.Max(1, distance/30_000*3600)
+}
+
+func haversineMeters(lat1, lng1, lat2, lng2 float64) float64 {
+	const earthRadiusMeters = 6_371_000.0
+	lat1Rad := lat1 * math.Pi / 180
+	lat2Rad := lat2 * math.Pi / 180
+	dLat := (lat2 - lat1) * math.Pi / 180
+	dLng := (lng2 - lng1) * math.Pi / 180
+	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
+		math.Cos(lat1Rad)*math.Cos(lat2Rad)*math.Sin(dLng/2)*math.Sin(dLng/2)
+	return 2 * earthRadiusMeters * math.Asin(math.Sqrt(a))
 }

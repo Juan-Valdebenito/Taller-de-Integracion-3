@@ -32,6 +32,9 @@ func TestRoutesHaveCircularSimulationData(t *testing.T) {
 		if len(route.Waypoints) < 2 || route.BusCount != expected.buses || route.Capacity != expected.capacity {
 			t.Fatalf("invalid definition for %s: %+v", expected.name, route)
 		}
+		if len(route.Nodes) != 7 || len(route.Segments) == 0 {
+			t.Fatalf("route %s is missing seeded graph data", route.ID)
+		}
 	}
 }
 
@@ -41,7 +44,8 @@ func TestBusSimulatorPublishesAndWrapsWaypoints(t *testing.T) {
 		Capacity:  20,
 		Waypoints: []Waypoint{{Lat: 1, Lng: 2}, {Lat: 3, Lng: 4}},
 	}
-	simulator := NewBusSimulator("test-bus", route, 0, nil, time.Millisecond)
+	route.SegmentTravelSeconds = []int{10, 10}
+	simulator := NewBusSimulator("test-bus", route, 0, nil, time.Second)
 	var updates []ws.BusLocationData
 	simulator.publish = func(data ws.BusLocationData) {
 		updates = append(updates, data)
@@ -54,12 +58,65 @@ func TestBusSimulatorPublishesAndWrapsWaypoints(t *testing.T) {
 	if len(updates) != 3 {
 		t.Fatalf("expected 3 updates, got %d", len(updates))
 	}
-	if updates[0].Latitude != 1 || updates[1].Latitude != 3 || updates[2].Latitude != 1 {
-		t.Fatalf("expected circular positions 1, 3, 1; got %.0f, %.0f, %.0f",
+	if updates[0].Latitude != 1 || updates[1].Latitude != 1.2 || updates[2].Latitude != 1.4 {
+		t.Fatalf("expected interpolated positions 1, 1.2, 1.4; got %.2f, %.2f, %.2f",
 			updates[0].Latitude, updates[1].Latitude, updates[2].Latitude)
 	}
 	if updates[0].RouteID != route.ID || updates[0].BusID != "test-bus" {
 		t.Fatalf("update identity mismatch: %+v", updates[0])
+	}
+}
+
+func TestBusSimulatorUsesConfiguredSegmentDuration(t *testing.T) {
+	route := &RouteDefinition{
+		ID:                   "timed-route",
+		Capacity:             20,
+		Waypoints:            []Waypoint{{Lat: 0, Lng: 0}, {Lat: 0, Lng: 1}},
+		SegmentTravelSeconds: []int{100, 100},
+	}
+	simulator := NewBusSimulator("timed-bus", route, 0, nil, 10*time.Second)
+	if got := simulator.segmentDurationSeconds(0); got != 100 {
+		t.Fatalf("expected configured segment duration 100s, got %.0fs", got)
+	}
+	if got := simulator.segmentDurationSeconds(1); got != 100 {
+		t.Fatalf("expected configured return duration 100s, got %.0fs", got)
+	}
+}
+
+func TestBusSimulatorUsesGraphSegmentDuration(t *testing.T) {
+	route := &RouteDefinition{
+		ID:        "graph-route",
+		Capacity:  20,
+		Waypoints: []Waypoint{{Lat: 0, Lng: 0}, {Lat: 0, Lng: 1}},
+		Segments: []RouteSegment{
+			{FromStopID: "A", ToStopID: "B", TravelSeconds: 37, DistanceMeters: 1000},
+			{FromStopID: "B", ToStopID: "A", TravelSeconds: 41, DistanceMeters: 1000},
+		},
+	}
+	simulator := NewBusSimulator("graph-bus", route, 0, nil, time.Second)
+	if got := simulator.segmentDurationSeconds(0); got != 37 {
+		t.Fatalf("expected graph segment duration 37s, got %.0fs", got)
+	}
+	if got := simulator.segmentDurationSeconds(1); got != 41 {
+		t.Fatalf("expected graph return duration 41s, got %.0fs", got)
+	}
+}
+
+func TestBusSimulatorProfilesPartialGraphAcrossDetailedWaypoints(t *testing.T) {
+	route := &RouteDefinition{
+		ID:        "profile-route",
+		Capacity:  20,
+		Waypoints: []Waypoint{{Lat: 0, Lng: 0}, {Lat: 0, Lng: 1}, {Lat: 0, Lng: 3}},
+		Segments: []RouteSegment{
+			{TravelSeconds: 60},
+			{TravelSeconds: 60},
+		},
+	}
+	simulator := NewBusSimulator("profile-bus", route, 0, nil, time.Second)
+	first := simulator.segmentDurationSeconds(0)
+	second := simulator.segmentDurationSeconds(1)
+	if first <= 0 || second <= 0 || first == second {
+		t.Fatalf("expected distance-weighted durations, got %.2fs and %.2fs", first, second)
 	}
 }
 

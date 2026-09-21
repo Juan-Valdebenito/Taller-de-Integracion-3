@@ -39,6 +39,10 @@ type Config struct {
 	// SimulationTickMs es el intervalo en milisegundos entre actualizaciones
 	// de posición de cada bus simulado.
 	SimulationTickMs int
+
+	// SimulationSpeedMultiplier acelera el reloj del recorrido para que el
+	// movimiento sea visible en desarrollo sin alterar los tiempos base.
+	SimulationSpeedMultiplier float64
 }
 
 // Load carga las variables desde el archivo .env y el entorno del sistema.
@@ -63,8 +67,9 @@ func Load() *Config {
 		PredictionTimeoutSec: getEnvInt("PREDICTION_TIMEOUT_SEC", 5),
 
 		// Simulación GPS
-		SimulationEnabled: getEnvBool("SIMULATION_ENABLED", false),
-		SimulationTickMs:  getEnvInt("SIMULATION_TICK_MS", 2000),
+		SimulationEnabled:         getEnvBool("SIMULATION_ENABLED", false),
+		SimulationTickMs:          getEnvInt("SIMULATION_TICK_MS", 2000),
+		SimulationSpeedMultiplier: getEnvFloat("SIMULATION_SPEED_MULTIPLIER", 1),
 	}
 }
 
@@ -78,6 +83,15 @@ func getEnv(key, fallback string) string {
 func getEnvInt(key string, fallback int) int {
 	if val := os.Getenv(key); val != "" {
 		if n, err := strconv.Atoi(val); err == nil {
+			return n
+		}
+	}
+	return fallback
+}
+
+func getEnvFloat(key string, fallback float64) float64 {
+	if val := os.Getenv(key); val != "" {
+		if n, err := strconv.ParseFloat(val, 64); err == nil {
 			return n
 		}
 	}

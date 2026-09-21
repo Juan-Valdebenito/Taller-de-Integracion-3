@@ -9,13 +9,34 @@ type Waypoint struct {
 	Lng float64
 }
 
+// RouteNode representa un nodo/paradero del grafo de transporte.
+// Los IDs coinciden con los seeds de micros-db-init-scripts.yaml.
+type RouteNode struct {
+	ID       string
+	Name     string
+	Position Waypoint
+}
+
+// RouteSegment representa una arista del grafo entre dos nodos.
+type RouteSegment struct {
+	FromStopID     string
+	ToStopID       string
+	TravelSeconds  int
+	DistanceMeters int
+}
+
 // RouteDefinition define una ruta de simulación con sus waypoints y parámetros.
 type RouteDefinition struct {
 	ID        string
 	Name      string
 	Waypoints []Waypoint
-	Capacity  int // Capacidad máxima del bus
-	BusCount  int // Cantidad de buses simulados en esta ruta
+	// SegmentTravelSeconds contiene el tiempo base desde cada waypoint hasta
+	// el siguiente. Si se omite, se estima usando una velocidad urbana media.
+	SegmentTravelSeconds []int
+	Nodes                []RouteNode
+	Segments             []RouteSegment
+	Capacity             int // Capacidad máxima del bus
+	BusCount             int // Cantidad de buses simulados en esta ruta
 }
 
 // Routes contiene las definiciones de las rutas 7A, 7B y 1C de Temuco.

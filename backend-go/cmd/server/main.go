@@ -120,7 +120,8 @@ func main() {
 	// ── Simulación GPS (buses virtuales rutas 7A, 7B, 1C) ─────
 	if cfg.SimulationEnabled {
 		simRunner := simulation.NewRunner(hub, simulation.RunnerConfig{
-			TickDuration: time.Duration(cfg.SimulationTickMs) * time.Millisecond,
+			TickDuration:    time.Duration(cfg.SimulationTickMs) * time.Millisecond,
+			SpeedMultiplier: cfg.SimulationSpeedMultiplier,
 		})
 		go simRunner.Start(ctx)
 		fmt.Printf("🎮  Motor de simulación GPS activo — tick: %dms, rutas: 7A, 7B, 1C\n",
