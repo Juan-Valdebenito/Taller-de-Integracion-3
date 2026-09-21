@@ -8,31 +8,132 @@ import { io, Socket } from 'socket.io-client';
 
 const SOCKET_URL = 'http://localhost:3001';
 
+// Micros iniciales en Temuco para garantizar visualización inmediata
+const INITIAL_BUSES: BusData[] = [
+  {
+    id: 'B-7A-01',
+    line: '7A',
+    lat: -38.7359 + 0.004,
+    lng: -72.5904 + 0.005,
+    status: 'En ruta',
+    capacity: 35,
+    currentPassengers: 14,
+    boardings: 18,
+    schoolBoardings: 6,
+    alightings: 4,
+    occupancyPercentage: 40,
+    isFull: false,
+    lastEvent: {
+      type: 'tap_in_normal',
+      description: 'Pasajero ingresó (Pago estándar $700 CLP)',
+      timestamp: new Date().toLocaleTimeString(),
+    },
+  },
+  {
+    id: 'B-7A-02',
+    line: '7A',
+    lat: -38.7359 - 0.004,
+    lng: -72.5904 + 0.003,
+    status: 'En ruta',
+    capacity: 35,
+    currentPassengers: 28,
+    boardings: 32,
+    schoolBoardings: 10,
+    alightings: 4,
+    occupancyPercentage: 80,
+    isFull: false,
+  },
+  {
+    id: 'B-7B-01',
+    line: '7B',
+    lat: -38.7359 + 0.002,
+    lng: -72.5904 - 0.006,
+    status: 'En ruta',
+    capacity: 35,
+    currentPassengers: 35,
+    boardings: 40,
+    schoolBoardings: 8,
+    alightings: 5,
+    occupancyPercentage: 100,
+    isFull: true,
+  },
+  {
+    id: 'B-1C-01',
+    line: '1C',
+    lat: -38.7359 - 0.006,
+    lng: -72.5904 - 0.003,
+    status: 'En ruta',
+    capacity: 35,
+    currentPassengers: 8,
+    boardings: 12,
+    schoolBoardings: 3,
+    alightings: 4,
+    occupancyPercentage: 23,
+    isFull: false,
+  },
+];
+
 export function PassengerMapPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedBus, setSelectedBus] = useState({ busId: 'B-7A-01', lineName: '7A' });
-  const [buses, setBuses] = useState<BusData[]>([]);
+  const [buses, setBuses] = useState<BusData[]>(INITIAL_BUSES);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [hazards, setHazards] = useState<HazardData[]>([]);
   const [isHazardModalOpen, setIsHazardModalOpen] = useState(false);
   const [pendingLocation, setPendingLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
-    // Carga inicial inmediata vía REST para que aparezcan de inmediato en el mapa
+    // Carga inicial vía REST (compatible con Go y Node)
     axios.get(`${SOCKET_URL}/api/v1/buses`)
       .then((res) => {
-        if (res.data?.data && Array.isArray(res.data.data)) {
-          setBuses(res.data.data);
+        const rawList = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+        if (Array.isArray(rawList) && rawList.length > 0) {
+          const mapped: BusData[] = rawList.map((raw: any, index: number) => {
+            const def = INITIAL_BUSES[index % INITIAL_BUSES.length];
+            let line = raw.line || raw.routeCode;
+            if (!line && raw.routeId) {
+              line = raw.routeId.replace('route-', '').toUpperCase();
+            }
+            line = line || def.line;
+
+            const lat = (typeof raw.lat === 'number' && !isNaN(raw.lat)) 
+              ? raw.lat 
+              : (raw.lastLatitude || def.lat);
+            const lng = (typeof raw.lng === 'number' && !isNaN(raw.lng)) 
+              ? raw.lng 
+              : (raw.lastLongitude || def.lng);
+            const capacity = raw.capacity || 35;
+            const currentPassengers = raw.currentPassengers ?? def.currentPassengers;
+            const occupancyPercentage = Math.round((currentPassengers / capacity) * 100);
+
+            return {
+              id: raw.id || def.id,
+              line,
+              lat,
+              lng,
+              status: raw.status || 'En ruta',
+              capacity,
+              currentPassengers,
+              occupancyPercentage,
+              boardings: raw.boardings ?? def.boardings,
+              schoolBoardings: raw.schoolBoardings ?? def.schoolBoardings,
+              alightings: raw.alightings ?? def.alightings,
+              isFull: currentPassengers >= capacity,
+              lastEvent: raw.lastEvent || def.lastEvent,
+            };
+          });
+          setBuses(mapped);
         }
       })
       .catch((err) => console.warn('Carga inicial REST:', err.message));
 
-    // Conectar a Socket.io
+    // Conectar a Socket.io si está disponible
     const socketInstance = io(SOCKET_URL, {
       transports: ['websocket', 'polling'],
+      reconnectionAttempts: 2,
+      timeout: 3000,
     });
     setSocket(socketInstance);
-
 
     const updateBusState = (data: BusData) => {
       setBuses((prevBuses) => {
@@ -50,14 +151,83 @@ export function PassengerMapPage() {
       });
     };
 
-    // Escuchar actualizaciones de ubicación y estado de aforo en tiempo real
     socketInstance.on('bus:location:broadcast', updateBusState);
     socketInstance.on('bus:status:broadcast', updateBusState);
 
+    // Simulación de movimiento local suave si el backend no tiene WebSockets (ej: Go)
+    const movementInterval = setInterval(() => {
+      if (socketInstance.connected) return;
+      setBuses((prev) =>
+        prev.map((bus, idx) => {
+          const angle = (Date.now() / 4000) + (idx * (Math.PI / 2));
+          const deltaLat = Math.sin(angle) * 0.00015;
+          const deltaLng = Math.cos(angle) * 0.00015;
+          return {
+            ...bus,
+            lat: bus.lat + deltaLat,
+            lng: bus.lng + deltaLng,
+          };
+        })
+      );
+    }, 2000);
+
     return () => {
+      clearInterval(movementInterval);
       socketInstance.disconnect();
     };
   }, []);
+
+  // Manejador reactivo para los botones de DevTools (subir/bajar pasajero, aforo)
+  const handleLocalSimulationEvent = (busId: string, eventType: string) => {
+    setBuses((prev) =>
+      prev.map((b) => {
+        if (b.id !== busId) return b;
+        let pass = b.currentPassengers ?? 0;
+        let boardings = b.boardings ?? 0;
+        let school = b.schoolBoardings ?? 0;
+        let alight = b.alightings ?? 0;
+        let desc = '';
+
+        if (eventType === 'tap_in_normal') {
+          pass = Math.min(b.capacity || 35, pass + 1);
+          boardings += 1;
+          desc = 'Pasajero ingresó (Tarjeta Normal +$700)';
+        } else if (eventType === 'tap_in_student') {
+          pass = Math.min(b.capacity || 35, pass + 1);
+          boardings += 1;
+          school += 1;
+          desc = 'Estudiante ingresó (TNE +$240)';
+        } else if (eventType === 'sensor_alight') {
+          pass = Math.max(0, pass - 1);
+          alight += 1;
+          desc = 'Pasajero descendió por puerta trasera (-1)';
+        } else if (eventType === 'fill_max' || eventType === 'fill_capacity') {
+          pass = b.capacity || 35;
+          desc = 'Micro completó su capacidad máxima (35)';
+        } else if (eventType === 'reset_empty' || eventType === 'empty_capacity') {
+          pass = 0;
+          desc = 'Microbús vaciado (0 pasajeros)';
+        }
+
+        const cap = b.capacity || 35;
+        const occ = Math.round((pass / cap) * 100);
+        return {
+          ...b,
+          currentPassengers: pass,
+          boardings,
+          schoolBoardings: school,
+          alightings: alight,
+          occupancyPercentage: occ,
+          isFull: pass >= cap,
+          lastEvent: {
+            type: eventType,
+            description: desc,
+            timestamp: new Date().toLocaleTimeString(),
+          },
+        };
+      })
+    );
+  };
 
   const handleBusClick = (busId: string, lineName: string) => {
     setSelectedBus({ busId, lineName });
@@ -131,6 +301,7 @@ export function PassengerMapPage() {
             setSelectedBus({ busId: found.id, lineName: found.line });
           }
         }}
+        onLocalEvent={handleLocalSimulationEvent as any}
       />
 
       {/* Modal Flotante Contextual de Reclamo */}

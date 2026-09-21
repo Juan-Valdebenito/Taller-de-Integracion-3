@@ -12,10 +12,10 @@ function toEntity(raw: {
   category: string;
   status: string;
   adminResponse: string | null;
-  passengerId: string;
+  passengerId: string | null;
   busId: string | null;
   routeId: string | null;
-  companyId: string;
+  companyId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }): Complaint {
@@ -25,10 +25,10 @@ function toEntity(raw: {
     raw.description,
     raw.category as ComplaintCategory,
     raw.status as ComplaintStatus,
-    raw.passengerId,
+    raw.passengerId ?? '',
     raw.busId,
     raw.routeId,
-    raw.companyId,
+    raw.companyId ?? '',
     raw.adminResponse,
     raw.createdAt,
     raw.updatedAt,

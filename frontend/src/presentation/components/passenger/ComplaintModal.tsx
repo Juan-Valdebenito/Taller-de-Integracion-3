@@ -51,20 +51,25 @@ export const ComplaintModal: React.FC<ComplaintModalProps> = ({
     setError(null);
 
     try {
+      const token = localStorage.getItem('token');
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
       await axios.post('http://localhost:3001/api/v1/complaints', {
         busId,
         lineName,
+        companyId: 'comp-temuco-01',
         title: `Reporte Línea ${lineName || busId}`,
         description: comment || 'Sin comentarios adicionales',
         category: category,
         rating: rating,
-      });
+      }, { headers });
+
       setSuccess(true);
       setTimeout(() => {
         handleClose();
       }, 2000);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Ocurrió un error al enviar el reclamo.');
+      setError(err.response?.data?.error || err.response?.data?.message || 'Ocurrió un error al enviar el reclamo.');
     } finally {
       setIsLoading(false);
     }

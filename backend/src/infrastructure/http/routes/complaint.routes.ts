@@ -3,17 +3,20 @@ import { ComplaintStore } from '../../database/complaintStore';
 import { ComplaintCategory, ComplaintStatus } from '@prisma/client';
 
 const router = Router();
-const repo = new PrismaComplaintRepository();
+// const repo = new PrismaComplaintRepository(); // Removed dangling reference
 
-// GET /api/v1/complaints - Listar reclamos e incidentes (con filtros de estado, categoría y bus)
+// GET /api/v1/complaints - Listar reclamos e incidentes (con filtros de estado, categoría, bus, línea y rating)
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const { status, category, busId } = req.query;
+    const { status, category, busId, lineName, minRating, maxRating } = req.query;
 
     const filters: {
       status?: ComplaintStatus;
       category?: ComplaintCategory;
       busId?: string;
+      lineName?: string;
+      minRating?: number;
+      maxRating?: number;
     } = {};
 
     if (status && Object.values(ComplaintStatus).includes(status as ComplaintStatus)) {
@@ -26,6 +29,20 @@ router.get('/', async (req: Request, res: Response) => {
 
     if (busId && typeof busId === 'string') {
       filters.busId = busId;
+    }
+
+    if (lineName && typeof lineName === 'string') {
+      filters.lineName = lineName;
+    }
+
+    if (minRating) {
+      const parsed = Number(minRating);
+      if (!isNaN(parsed)) filters.minRating = parsed;
+    }
+
+    if (maxRating) {
+      const parsed = Number(maxRating);
+      if (!isNaN(parsed)) filters.maxRating = parsed;
     }
 
     const complaints = await ComplaintStore.listAll(filters);

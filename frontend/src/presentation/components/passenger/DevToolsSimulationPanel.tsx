@@ -47,6 +47,7 @@ interface DevToolsSimulationPanelProps {
   buses: BusSimulationState[];
   selectedBusId?: string;
   onSelectBus?: (busId: string) => void;
+  onLocalEvent?: (busId: string, eventType: SimulationEventType) => void;
 }
 
 export const DevToolsSimulationPanel: React.FC<DevToolsSimulationPanelProps> = ({
@@ -54,6 +55,7 @@ export const DevToolsSimulationPanel: React.FC<DevToolsSimulationPanelProps> = (
   buses,
   selectedBusId,
   onSelectBus,
+  onLocalEvent,
 }) => {
   const [isOpen, setIsOpen] = useState(true);
   const [activeBusId, setActiveBusId] = useState<string>('B-7A-01');
@@ -116,8 +118,12 @@ export const DevToolsSimulationPanel: React.FC<DevToolsSimulationPanelProps> = (
           eventType,
         });
         setLocalLog(`✓ WebSocket: ${eventNames[eventType] || eventType}`);
+      } else if (onLocalEvent) {
+        // 2. Simulación local reactiva (cuando se corre Go sin WebSocket)
+        onLocalEvent(currentBus.id, eventType);
+        setLocalLog(`✓ Simulación local: ${eventNames[eventType] || eventType}`);
       } else {
-        // 2. Fallback REST
+        // 3. Fallback REST
         const res = await axios.post('http://localhost:3001/api/v1/buses/simulate-event', {
           busId: currentBus.id,
           eventType,
@@ -130,7 +136,12 @@ export const DevToolsSimulationPanel: React.FC<DevToolsSimulationPanelProps> = (
         }
       }
     } catch (err: any) {
-      setLocalLog(`❌ Error: ${err.message || 'No se pudo enviar el evento'}`);
+      if (onLocalEvent) {
+        onLocalEvent(currentBus.id, eventType);
+        setLocalLog(`✓ Simulación local: ${eventNames[eventType] || eventType}`);
+      } else {
+        setLocalLog(`❌ Error: ${err.message || 'No se pudo enviar el evento'}`);
+      }
     } finally {
       setIsSending(false);
     }

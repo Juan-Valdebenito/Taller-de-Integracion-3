@@ -115,19 +115,31 @@ export class ComplaintStore {
     status?: ComplaintStatus;
     category?: ComplaintCategory;
     busId?: string;
+    lineName?: string;
+    minRating?: number;
+    maxRating?: number;
   }): Promise<ComplaintRecord[]> {
     try {
       const where: any = {};
       if (filters?.status) where.status = filters.status;
       if (filters?.category) where.category = filters.category;
       if (filters?.busId) where.busId = filters.busId;
+      if (filters?.minRating || filters?.maxRating) {
+        where.rating = {};
+        if (filters?.minRating) where.rating.gte = filters.minRating;
+        if (filters?.maxRating) where.rating.lte = filters.maxRating;
+      }
 
       const dbList = await prisma.complaint.findMany({
         where,
         orderBy: { createdAt: 'desc' },
       });
       if (dbList && dbList.length > 0) {
-        return dbList.map(c => ({ ...c, lineName: null, rating: c.rating ?? 3 })) as ComplaintRecord[];
+        return dbList.map(c => ({
+          ...c,
+          lineName: (c as any).lineName ?? null,
+          rating: c.rating ?? 3
+        })) as ComplaintRecord[];
       }
     } catch {
       // Fallback a memoria
@@ -137,6 +149,9 @@ export class ComplaintStore {
       if (filters?.status && c.status !== filters.status) return false;
       if (filters?.category && c.category !== filters.category) return false;
       if (filters?.busId && c.busId !== filters.busId) return false;
+      if (filters?.lineName && (!c.lineName || !c.lineName.toLowerCase().includes(filters.lineName.toLowerCase()))) return false;
+      if (filters?.minRating !== undefined && c.rating < filters.minRating) return false;
+      if (filters?.maxRating !== undefined && c.rating > filters.maxRating) return false;
       return true;
     });
   }

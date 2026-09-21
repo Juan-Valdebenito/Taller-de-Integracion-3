@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 
@@ -20,6 +21,11 @@ func main() {
 	// ── Base de datos ─────────────────────────────────────────
 	pool := db.NewPool(cfg.DatabaseURL)
 	defer pool.Close()
+
+	// ── Auto-migración y Seeder en entorno de desarrollo ───────
+	if err := db.AutoMigrateAndSeed(context.Background(), pool, cfg.Env); err != nil {
+		log.Printf("⚠️  Error durante auto-migración/seeder: %v", err)
+	}
 
 	// ── Token blacklist (logout seguro) ───────────────────────
 	blacklist := token.NewBlacklist()

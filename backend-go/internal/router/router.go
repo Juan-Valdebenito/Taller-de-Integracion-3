@@ -44,6 +44,7 @@ func Setup(
 
 	// Alias del middleware para mayor legibilidad
 	auth := func() gin.HandlerFunc { return middleware.Authenticate(jwtSecret, bl) }
+	optionalAuth := func() gin.HandlerFunc { return middleware.OptionalAuthenticate(jwtSecret, bl) }
 
 	// Auth (público excepto /logout y /me que requieren token válido)
 	authGroup := api.Group("/auth")
@@ -86,12 +87,15 @@ func Setup(
 		routes.DELETE("/:id", middleware.Authorize("ADMIN"), routeH.Delete)
 	}
 
-	// Reclamos
+	// Reclamos (creación pública o con token opcional para pasajeros)
+	api.POST("/complaints", optionalAuth(), complaintH.Create)
+	api.POST("/complaints/", optionalAuth(), complaintH.Create)
+
 	complaints := api.Group("/complaints", auth())
 	{
+		complaints.GET("", middleware.Authorize("ADMIN", "COMPANY"), complaintH.GetAll)
 		complaints.GET("/", middleware.Authorize("ADMIN", "COMPANY"), complaintH.GetAll)
 		complaints.GET("/:id", complaintH.GetByID)
-		complaints.POST("/", middleware.Authorize("PASSENGER"), complaintH.Create)
 		complaints.PUT("/:id/status", middleware.Authorize("ADMIN", "COMPANY"), complaintH.UpdateStatus)
 		complaints.DELETE("/:id", middleware.Authorize("ADMIN"), complaintH.Delete)
 	}

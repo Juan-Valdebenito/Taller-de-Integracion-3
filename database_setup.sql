@@ -151,6 +151,8 @@ CREATE TABLE IF NOT EXISTS complaints (
   description     TEXT                 NOT NULL,
   category        "ComplaintCategory"  NOT NULL DEFAULT 'OTHER',
   status          "ComplaintStatus"    NOT NULL DEFAULT 'PENDING',
+  rating          INT                  CHECK (rating >= 1 AND rating <= 5),
+  "lineName"      TEXT,
   "adminResponse" TEXT,
   "createdAt"     TIMESTAMPTZ          NOT NULL DEFAULT NOW(),
   "updatedAt"     TIMESTAMPTZ          NOT NULL DEFAULT NOW(),
@@ -194,6 +196,8 @@ CREATE INDEX IF NOT EXISTS idx_passlogs_time   ON passenger_logs("recordedAt");
 CREATE INDEX IF NOT EXISTS idx_complaints_passenger ON complaints("passengerId");
 CREATE INDEX IF NOT EXISTS idx_complaints_company   ON complaints("companyId");
 CREATE INDEX IF NOT EXISTS idx_complaints_status    ON complaints(status);
+CREATE INDEX IF NOT EXISTS idx_complaints_rating    ON complaints(rating);
+CREATE INDEX IF NOT EXISTS idx_complaints_linename  ON complaints("lineName");
 CREATE INDEX IF NOT EXISTS idx_complaints_created   ON complaints("createdAt" DESC);
 CREATE INDEX IF NOT EXISTS idx_complaints_trip      ON complaints("tripId");
 

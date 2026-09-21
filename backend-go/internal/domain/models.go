@@ -105,11 +105,13 @@ type Complaint struct {
 	Description   string            `json:"description" db:"description"`
 	Category      ComplaintCategory `json:"category" db:"category"`
 	Status        ComplaintStatus   `json:"status" db:"status"`
+	Rating        *int              `json:"rating" db:"rating"`
+	LineName      *string           `json:"lineName" db:"lineName"`
 	AdminResponse *string           `json:"adminResponse" db:"adminResponse"`
-	PassengerID   string            `json:"passengerId" db:"passengerId"`
+	PassengerID   *string           `json:"passengerId" db:"passengerId"`
 	BusID         *string           `json:"busId" db:"busId"`
 	RouteID       *string           `json:"routeId" db:"routeId"`
-	CompanyID     string            `json:"companyId" db:"companyId"`
+	CompanyID     *string           `json:"companyId" db:"companyId"`
 	TripID        *string           `json:"tripId" db:"tripId"`
 	CreatedAt     time.Time         `json:"createdAt" db:"createdAt"`
 	UpdatedAt     time.Time         `json:"updatedAt" db:"updatedAt"`

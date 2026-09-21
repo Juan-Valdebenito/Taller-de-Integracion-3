@@ -23,7 +23,8 @@ export function LoginPage() {
         password,
       });
 
-      const { token, user } = res.data.data;  // en backend-gp res.data, en el viejo res.data.data
+      const payload = res.data?.data || res.data;
+      const { token, user } = payload;
       login(token, user);
 
       if (user.role === 'ADMIN') {
