@@ -50,6 +50,13 @@ export interface BusUpdatePayload {
   speed: number;
   currentPassengers: number;
   capacity: number;
+  boardings?: number;
+  alightings?: number;
+  studentBoardings?: number;
+  rejectedBoardings?: number;
+  totalBoardings?: number;
+  totalAlightings?: number;
+  totalStudents?: number;
   occupancy?: OccupancyInfo;
   timestamp: string;
 }

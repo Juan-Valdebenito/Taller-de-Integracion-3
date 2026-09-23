@@ -229,6 +229,21 @@ export function BusMarker({ bus, isSelected, onSelect }: BusMarkerProps) {
 
           <OccupancyBar current={bus.currentPassengers} capacity={bus.capacity} color={color} />
 
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginTop: '8px' }}>
+            <div style={{ background: 'rgba(34,197,94,0.08)', borderRadius: '8px', padding: '7px 9px' }}>
+              <div style={{ fontSize: '10px', color: '#64748b' }}>Subidas</div>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: '#4ade80' }}>
+                {bus.totalBoardings ?? 0}
+              </div>
+            </div>
+            <div style={{ background: 'rgba(245,158,11,0.08)', borderRadius: '8px', padding: '7px 9px' }}>
+              <div style={{ fontSize: '10px', color: '#64748b' }}>Bajadas</div>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: '#fbbf24' }}>
+                {bus.totalAlightings ?? 0}
+              </div>
+            </div>
+          </div>
+
           {/* Predicción del WS */}
           {bus.wsOccupancy && (
             <PredictionBadge occupancy={bus.wsOccupancy} />

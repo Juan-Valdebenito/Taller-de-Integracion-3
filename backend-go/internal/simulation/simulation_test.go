@@ -102,6 +102,35 @@ func TestBusSimulatorUsesGraphSegmentDuration(t *testing.T) {
 	}
 }
 
+func TestBusSimulatorPublishesPassengerFlowAfterStop(t *testing.T) {
+	route := &RouteDefinition{
+		ID:                   "flow-route",
+		Capacity:             20,
+		Waypoints:            []Waypoint{{Lat: 0, Lng: 0}, {Lat: 0, Lng: 1}},
+		SegmentTravelSeconds: []int{1, 1},
+	}
+	simulator := NewBusSimulator("flow-bus", route, 0, nil, time.Second)
+	simulator.passengerFlow = service.NewPassengerFlowService()
+	updates := make([]ws.BusLocationData, 0, 3)
+	simulator.publish = func(data ws.BusLocationData) {
+		updates = append(updates, data)
+	}
+
+	simulator.tick()
+	simulator.tick()
+	simulator.tick()
+
+	if len(updates) != 3 {
+		t.Fatalf("expected 3 updates, got %d", len(updates))
+	}
+	if updates[2].Boardings == 0 || updates[2].Alightings == 0 {
+		t.Fatalf("expected passenger flow after stop, got %+v", updates[2])
+	}
+	if updates[2].TotalBoardings < updates[2].Boardings || updates[2].TotalAlightings < updates[2].Alightings {
+		t.Fatalf("expected accumulated totals to include the latest event, got %+v", updates[2])
+	}
+}
+
 func TestBusSimulatorProfilesPartialGraphAcrossDetailedWaypoints(t *testing.T) {
 	route := &RouteDefinition{
 		ID:        "profile-route",

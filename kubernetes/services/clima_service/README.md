@@ -9,6 +9,7 @@ Construir y publicar las imagenes para el servicio y el simulador
 ## Kubernetes
 
 ```bash
+kubectl apply -f kubernetes/services/clima_service/clima-resource-limits.yaml
 kubectl apply -f kubernetes/services/clima_db/clima-db-init-scripts.yaml
 kubectl apply -f kubernetes/services/clima_db/clima-db.yml
 kubectl apply -f kubernetes/services/clima_service/clima-configmap.yaml

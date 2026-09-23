@@ -49,6 +49,13 @@ type BusLocationData struct {
 	Speed             float64 `json:"speed"`
 	CurrentPassengers int     `json:"currentPassengers"`
 	Capacity          int     `json:"capacity"`
+	Boardings         int     `json:"boardings"`
+	Alightings        int     `json:"alightings"`
+	StudentBoardings  int     `json:"studentBoardings"`
+	RejectedBoardings int     `json:"rejectedBoardings"`
+	TotalBoardings    int     `json:"totalBoardings"`
+	TotalAlightings   int     `json:"totalAlightings"`
+	TotalStudents     int     `json:"totalStudents"`
 }
 
 // ── Broadcast (servidor → suscriptores) ────────────────────────────────────
@@ -70,6 +77,13 @@ type BusUpdatePayload struct {
 	Speed             float64        `json:"speed"`
 	CurrentPassengers int            `json:"currentPassengers"`
 	Capacity          int            `json:"capacity"`
+	Boardings         int            `json:"boardings"`
+	Alightings        int            `json:"alightings"`
+	StudentBoardings  int            `json:"studentBoardings"`
+	RejectedBoardings int            `json:"rejectedBoardings"`
+	TotalBoardings    int            `json:"totalBoardings"`
+	TotalAlightings   int            `json:"totalAlightings"`
+	TotalStudents     int            `json:"totalStudents"`
 	Occupancy         *OccupancyInfo `json:"occupancy,omitempty"`
 	Timestamp         string         `json:"timestamp"`
 }
@@ -92,7 +106,7 @@ type OccupancyInfo struct {
 // ErrorMessage se envía al cliente cuando ocurre un error de protocolo
 // o de autenticación.
 type ErrorMessage struct {
-	Type    string `json:"type"`    // "error"
+	Type    string `json:"type"` // "error"
 	Message string `json:"message"`
 	Code    string `json:"code"` // "AUTH_REQUIRED" | "INVALID_MESSAGE" | "INVALID_TOPIC"
 }

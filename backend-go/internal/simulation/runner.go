@@ -6,6 +6,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain/service"
 	ws "github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/websocket"
 )
 
@@ -23,8 +24,9 @@ type RunnerConfig struct {
 // Runner orquesta todos los buses simulados de todas las rutas.
 // Cada bus corre en su propia goroutine con un ticker independiente.
 type Runner struct {
-	hub    *ws.Hub
-	config RunnerConfig
+	hub           *ws.Hub
+	config        RunnerConfig
+	passengerFlow *service.PassengerFlowService
 }
 
 // NewRunner crea un Runner configurado listo para iniciar la simulación.
@@ -37,8 +39,9 @@ func NewRunner(hub *ws.Hub, config RunnerConfig) *Runner {
 	}
 
 	return &Runner{
-		hub:    hub,
-		config: config,
+		hub:           hub,
+		config:        config,
+		passengerFlow: service.NewPassengerFlowService(),
 	}
 }
 
@@ -61,6 +64,7 @@ func (r *Runner) Start(ctx context.Context) {
 			startIndex := (i * n) / route.BusCount
 
 			sim := NewBusSimulator(busID, &route, startIndex, r.hub, r.config.TickDuration)
+			sim.passengerFlow = r.passengerFlow
 			sim.speedMultiplier = r.config.SpeedMultiplier
 
 			// Añadir pequeño delay entre buses de la misma ruta para evitar

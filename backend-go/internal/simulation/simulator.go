@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain/service"
 	ws "github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/websocket"
 )
 
@@ -22,6 +23,8 @@ type BusSimulator struct {
 	speedMultiplier float64
 	rng             *rand.Rand
 	publish         func(ws.BusLocationData)
+	passengerFlow   *service.PassengerFlowService
+	lastFlow        service.PassengerFlowResult
 }
 
 const defaultTickDuration = 2 * time.Second
@@ -109,6 +112,13 @@ func (s *BusSimulator) tick() {
 		Speed:             math.Round(speed*10) / 10,
 		CurrentPassengers: s.passengers,
 		Capacity:          s.routeDef.Capacity,
+		Boardings:         s.lastFlow.Boardings,
+		Alightings:        s.lastFlow.Alightings,
+		StudentBoardings:  s.lastFlow.StudentBoardings,
+		RejectedBoardings: s.lastFlow.RejectedBoardings,
+		TotalBoardings:    s.lastFlow.TotalBoardings,
+		TotalAlightings:   s.lastFlow.TotalAlightings,
+		TotalStudents:     s.lastFlow.TotalStudents,
 	}
 
 	s.publish(data)
@@ -118,6 +128,16 @@ func (s *BusSimulator) tick() {
 	for s.segmentElapsed >= segmentDuration {
 		s.segmentElapsed -= segmentDuration
 		s.index = (s.index + 1) % n
+		if s.passengerFlow != nil {
+			s.lastFlow = s.passengerFlow.ProcessStop(service.PassengerFlowInput{
+				BusID:             s.busID,
+				RouteID:           s.routeDef.ID,
+				StopIndex:         s.index,
+				CurrentPassengers: s.passengers,
+				Capacity:          s.routeDef.Capacity,
+			})
+			s.passengers = s.lastFlow.CurrentPassengers
+		}
 		segmentDuration = s.segmentDurationSeconds(s.index)
 	}
 }

@@ -21,6 +21,13 @@ export interface BusState {
   speed: number;
   currentPassengers: number;
   capacity: number;
+  boardings?: number;
+  alightings?: number;
+  studentBoardings?: number;
+  rejectedBoardings?: number;
+  totalBoardings?: number;
+  totalAlightings?: number;
+  totalStudents?: number;
   status: 'ACTIVE' | 'STOPPED' | 'DELAYED';
   lastUpdate: Date;
   /** Datos de predicción de ocupación del WebSocket (backend Go). */
