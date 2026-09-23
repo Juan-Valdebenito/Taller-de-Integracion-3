@@ -32,8 +32,19 @@ func main() {
 		}
 	}
 
-	// ── Token blacklist (logout seguro) ───────────────────────
-	blacklist := token.NewBlacklist()
+	// ── Token revocation store (logout seguro / revocación dinámica) ──
+	// Si cfg.RedisAddr está vacío (aún no hay Redis en el cluster), cae a un
+	// almacén en memoria; una vez que exista el servicio compartido basta con
+	// setear REDIS_ADDR para que la revocación sea consistente entre réplicas.
+	revStore, err := token.NewStore(token.StoreOptions{
+		RedisAddr:     cfg.RedisAddr,
+		RedisPassword: cfg.RedisPassword,
+		RedisDB:       cfg.RedisDB,
+	})
+	if err != nil {
+		log.Fatalf("❌ Error al inicializar el almacén de revocación de tokens: %v", err)
+	}
+	defer revStore.Close()
 
 	// ── Repositorios ─────────────────────────────────────────
 	userRepo := repository.NewUserRepository(pool)
@@ -43,7 +54,7 @@ func main() {
 	complaintRepo := repository.NewComplaintRepository(pool)
 
 	// ── Handlers ──────────────────────────────────────────────
-	authH := handler.NewAuthHandler(userRepo, cfg.JWTSecret, blacklist)
+	authH := handler.NewAuthHandler(userRepo, cfg.JWTSecret, revStore)
 	userH := handler.NewUserHandler(userRepo)
 	busH := handler.NewBusHandler(busRepo)
 	routeH := handler.NewRouteHandler(routeRepo, busRepo)
@@ -89,7 +100,7 @@ func main() {
 	occupancyH := handler.NewOccupancyHandler(occupancySvc)
 
 	// ── Router ────────────────────────────────────────────────
-	r := router.Setup(cfg.CORSOrigin, cfg.JWTSecret, pool, blacklist, authH, userH, busH, routeH, stopH, complaintH, occupancyH)
+	r := router.Setup(cfg.CORSOrigin, cfg.JWTSecret, pool, revStore, authH, userH, busH, routeH, stopH, complaintH, occupancyH)
 
 	// ── Iniciar servidor ──────────────────────────────────────
 	addr := fmt.Sprintf(":%s", cfg.Port)

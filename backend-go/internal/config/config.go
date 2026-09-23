@@ -30,6 +30,16 @@ type Config struct {
 
 	// PredictionTimeoutSec es el timeout en segundos para cada llamada al ML.
 	PredictionTimeoutSec int
+
+	// ── Revocación de tokens (RevocationStore) ─────────────────────────────
+	// RedisAddr es la ruta host:port del Redis compartido del cluster
+	// (ej. "redis-svc.student-jvaldebenito.svc.cluster.local:6379").
+	// Vacío por defecto: mientras el equipo de cluster no aprovisione el
+	// servicio de Redis, el backend cae a un almacén en memoria por proceso
+	// (válido solo con una réplica). Ver internal/token.NewStore.
+	RedisAddr     string
+	RedisPassword string
+	RedisDB       int
 }
 
 // Load carga las variables desde el archivo .env y el entorno del sistema.
@@ -52,6 +62,11 @@ func Load() *Config {
 		PredictionGRPCAddr:   getEnv("PREDICTION_GRPC_ADDR", "localhost:50051"),
 		PredictionHTTPURL:    getEnv("PREDICTION_HTTP_URL", "http://localhost:8000"),
 		PredictionTimeoutSec: getEnvInt("PREDICTION_TIMEOUT_SEC", 5),
+
+		// Revocación de tokens
+		RedisAddr:     getEnv("REDIS_ADDR", ""),
+		RedisPassword: getEnv("REDIS_PASSWORD", ""),
+		RedisDB:       getEnvInt("REDIS_DB", 0),
 	}
 }
 

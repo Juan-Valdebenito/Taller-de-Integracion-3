@@ -18,7 +18,7 @@ func Setup(
 	corsOrigin string,
 	jwtSecret string,
 	pool *pgxpool.Pool,
-	bl *token.Blacklist,
+	revStore token.RevocationStore,
 	authH *handler.AuthHandler,
 	userH *handler.UserHandler,
 	busH *handler.BusHandler,
@@ -62,15 +62,20 @@ func Setup(
 	api.POST("/buses/simulate-event", busH.SimulateEvent)
 
 	// Alias del middleware para mayor legibilidad
-	auth := func() gin.HandlerFunc { return middleware.Authenticate(jwtSecret, bl) }
+	auth := func() gin.HandlerFunc { return middleware.Authenticate(jwtSecret, revStore) }
 
-	// Auth (público excepto /logout y /me que requieren token válido)
+	// Auth (público excepto /logout, /me y /revoke que requieren token válido)
 	authGroup := api.Group("/auth")
 	{
 		authGroup.POST("/register", authH.Register)
 		authGroup.POST("/login", authH.Login)
 		authGroup.POST("/logout", auth(), authH.Logout)
 		authGroup.GET("/me", auth(), authH.Me)
+		// Revocación dinámica: un admin puede invalidar cualquier token antes
+		// de que expire (cuenta comprometida, cambio de rol, etc.). Propaga
+		// de inmediato a todas las réplicas del cluster vía el RevocationStore
+		// compartido (Redis).
+		authGroup.POST("/revoke", auth(), middleware.Authorize("ADMIN"), authH.Revoke)
 	}
 
 	// Usuarios (requiere autenticación; operaciones de admin requieren rol)

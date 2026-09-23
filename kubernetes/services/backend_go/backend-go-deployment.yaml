@@ -46,6 +46,18 @@ spec:
             # se compone a partir de lo cargado por envFrom.
             - name: DATABASE_URL
               value: "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)"
+            # TODO(cluster): sin REDIS_ADDR, la revocación de tokens (logout /
+            # POST /api/v1/auth/revoke) solo es consistente con replicas: 1.
+            # Cuando exista el Service de Redis del cluster, descomentar y
+            # apuntar a su ruta interna, ej:
+            #   redis-svc.student-jvaldebenito.svc.cluster.local:6379
+            # - name: REDIS_ADDR
+            #   value: "redis-svc.student-jvaldebenito.svc.cluster.local:6379"
+            # - name: REDIS_PASSWORD
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: redis-secret
+            #       key: REDIS_PASSWORD
           readinessProbe:
             httpGet:
               path: /readyz

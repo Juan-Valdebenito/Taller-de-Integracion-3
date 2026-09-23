@@ -22,11 +22,11 @@ import (
 type AuthHandler struct {
 	userRepo  *repository.UserRepository
 	jwtSecret string
-	blacklist *token.Blacklist
+	revStore  token.RevocationStore
 }
 
-func NewAuthHandler(userRepo *repository.UserRepository, jwtSecret string, bl *token.Blacklist) *AuthHandler {
-	return &AuthHandler{userRepo: userRepo, jwtSecret: jwtSecret, blacklist: bl}
+func NewAuthHandler(userRepo *repository.UserRepository, jwtSecret string, revStore token.RevocationStore) *AuthHandler {
+	return &AuthHandler{userRepo: userRepo, jwtSecret: jwtSecret, revStore: revStore}
 }
 
 // generateJTI crea un identificador único para el token (JWT ID).
@@ -164,7 +164,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 // Logout godoc
 // POST /api/v1/auth/logout — requiere middleware Authenticate
-// Revoca el token actual agregándolo al blacklist hasta su expiración.
+// Revoca el token actual en el RevocationStore hasta su expiración.
 func (h *AuthHandler) Logout(c *gin.Context) {
 	authHeader := c.GetHeader("Authorization")
 	if !strings.HasPrefix(authHeader, "Bearer ") {
@@ -175,20 +175,65 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
 
 	// Parsear sin verificar nuevamente (el middleware ya lo hizo)
-	p := jwt.NewParser()
-	parsed, _, err := p.ParseUnverified(tokenStr, jwt.MapClaims{})
+	jti, exp, err := parseJTIAndExp(tokenStr)
 	if err == nil {
-		if claims, ok := parsed.Claims.(jwt.MapClaims); ok {
-			jti, _ := claims["jti"].(string)
-			expFloat, _ := claims["exp"].(float64)
-			if jti != "" && expFloat > 0 {
-				exp := time.Unix(int64(expFloat), 0)
-				h.blacklist.Revoke(jti, exp)
-			}
+		if revokeErr := h.revStore.Revoke(jti, exp); revokeErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "No se pudo cerrar la sesión, intenta nuevamente"})
+			return
 		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Sesión cerrada correctamente"})
+}
+
+// Revoke godoc
+// POST /api/v1/auth/revoke — requiere rol ADMIN
+// Revoca dinámicamente el token entregado en el body, sin esperar a que el
+// propio usuario cierre sesión (p.ej. cuenta comprometida, cambio de rol).
+// Al apoyarse en el RevocationStore compartido (Redis en el cluster), la
+// revocación es visible de inmediato en todas las réplicas del backend.
+func (h *AuthHandler) Revoke(c *gin.Context) {
+	var body struct {
+		Token string `json:"token" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	jti, exp, err := parseJTIAndExp(body.Token)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Token inválido o sin los claims requeridos"})
+		return
+	}
+
+	if err := h.revStore.Revoke(jti, exp); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "No se pudo revocar el token, intenta nuevamente"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Token revocado correctamente"})
+}
+
+// parseJTIAndExp extrae los claims "jti" y "exp" de un JWT sin verificar su
+// firma (solo se usa para identificar qué revocar; la validez del token ya
+// fue o será comprobada por separado en el middleware Authenticate).
+func parseJTIAndExp(tokenStr string) (jti string, exp time.Time, err error) {
+	p := jwt.NewParser()
+	parsed, _, err := p.ParseUnverified(tokenStr, jwt.MapClaims{})
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	claims, ok := parsed.Claims.(jwt.MapClaims)
+	if !ok {
+		return "", time.Time{}, fmt.Errorf("token malformado")
+	}
+	jti, _ = claims["jti"].(string)
+	expFloat, _ := claims["exp"].(float64)
+	if jti == "" || expFloat <= 0 {
+		return "", time.Time{}, fmt.Errorf("token sin claims jti/exp válidos")
+	}
+	return jti, time.Unix(int64(expFloat), 0), nil
 }
 
 // Me godoc

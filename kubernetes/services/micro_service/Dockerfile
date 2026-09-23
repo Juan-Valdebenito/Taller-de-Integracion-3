@@ -23,3 +23,4 @@ COPY --from=builder /app/transit-service .
 EXPOSE 3001
 
 CMD ["./transit-service"]
+
