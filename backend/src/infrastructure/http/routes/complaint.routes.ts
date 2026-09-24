@@ -1,6 +1,10 @@
 import { Router, Request, Response } from 'express';
 import { ComplaintStore } from '../../database/complaintStore';
 import { ComplaintCategory, ComplaintStatus } from '@prisma/client';
+import {
+  validateComplaintInput,
+  handleValidationErrors,
+} from '../middlewares/userValidation.middleware';
 
 const router = Router();
 // const repo = new PrismaComplaintRepository(); // Removed dangling reference
@@ -76,7 +80,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/v1/complaints - Crear nuevo reclamo (pasajero o reporte contextual)
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', ...validateComplaintInput, handleValidationErrors, async (req: Request, res: Response) => {
   try {
     const { busId, lineName, title, description, category, rating, passengerId } = req.body;
 

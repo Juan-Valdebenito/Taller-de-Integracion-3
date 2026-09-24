@@ -91,3 +91,33 @@ export const validateUserUpdate: ValidationChain[] = [
     .matches(/^(?=.*[A-Za-z])(?=.*\d)/)
     .withMessage('La contraseña debe contener al menos una letra y un número'),
 ];
+
+/**
+ * Reglas de validación y sanitización estricta para Creación de Reclamos.
+ * - rating entero en el rango [1, 5]
+ * - lineName permitido ('7A', '7B', '1C')
+ * - motivo / descripción no vacío y sanitizado contra XSS
+ */
+export const validateComplaintInput: ValidationChain[] = [
+  body('rating')
+    .notEmpty().withMessage('La calificación (rating) es obligatoria')
+    .isInt({ min: 1, max: 5 }).withMessage('El rating debe ser un número entero en el rango [1, 5]'),
+
+  body('lineName')
+    .trim()
+    .notEmpty().withMessage('El nombre de línea es obligatorio')
+    .toUpperCase()
+    .isIn(['7A', '7B', '1C']).withMessage("La línea debe pertenecer a los valores permitidos: '7A', '7B', '1C'"),
+
+  body(['motivo', 'description'])
+    .custom((val, { req }) => {
+      const motivo = req.body.motivo || req.body.description;
+      if (!motivo || typeof motivo !== 'string' || motivo.trim().length === 0) {
+        throw new Error('El motivo o descripción del reclamo no puede estar vacío');
+      }
+      return true;
+    })
+    .trim()
+    .escape(),
+];
+
