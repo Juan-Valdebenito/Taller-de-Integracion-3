@@ -20,6 +20,8 @@ func Setup(
 	routeH *handler.RouteHandler,
 	complaintH *handler.ComplaintHandler,
 	occupancyH *handler.OccupancyHandler,
+	aforoH *handler.AforoHandler,
+	recaudoH *handler.RecaudoHandler,
 ) *gin.Engine {
 	r := gin.Default()
 
@@ -39,29 +41,75 @@ func Setup(
 	// ── API v1 ────────────────────────────────────────────────
 	api := r.Group("/api/v1")
 
-	// Ocupación (público — sin auth para facilitar integración con dispositivos)
-	api.POST("/occupancy", occupancyH.Predict)
-
 	// Alias del middleware para mayor legibilidad
 	auth := func() gin.HandlerFunc { return middleware.Authenticate(jwtSecret, bl) }
 	optionalAuth := func() gin.HandlerFunc { return middleware.OptionalAuthenticate(jwtSecret, bl) }
 
-	// Auth (público excepto /logout y /me que requieren token válido)
+	// Ocupación heurística / ML (público)
+	api.POST("/occupancy", occupancyH.Predict)
+
+	// Control y cálculo estricto de aforo vehicular
+	aforo := api.Group("/aforo")
+	{
+		aforo.POST("/calculate", aforoH.CalculateStrict)
+		aforo.GET("/bus/:id", aforoH.GetBusAforo)
+		aforo.POST("/bus/:id/flow", aforoH.ProcessFlow)
+	}
+
+	// Transacciones de recaudo (Bipay / Escolar / Adulto Mayor)
+	recaudo := api.Group("/recaudo", middleware.SensitiveDataMasker())
+	{
+		recaudo.POST("/transactions", recaudoH.CreateTransaction)
+		recaudo.GET("/transactions", recaudoH.ListTransactions)
+		recaudo.GET("/summary", recaudoH.GetSummary)
+	}
+
+	// Auth (con validación estricta y sanitización de entrada)
 	authGroup := api.Group("/auth")
 	{
-		authGroup.POST("/register", authH.Register)
+		authGroup.POST("/register", middleware.ValidateUserPayload(), authH.Register)
 		authGroup.POST("/login", authH.Login)
 		authGroup.POST("/logout", auth(), authH.Logout)
 		authGroup.GET("/me", auth(), authH.Me)
 	}
 
-	// Usuarios (requiere autenticación; operaciones de admin requieren rol)
-	users := api.Group("/users", auth())
+	// Usuarios (con soporte de máscara ?mask=true para privacidad y validación en updates)
+	users := api.Group("/users", auth(), middleware.SensitiveDataMasker())
 	{
+		users.GET("", middleware.Authorize("ADMIN"), userH.GetAll)
 		users.GET("/", middleware.Authorize("ADMIN"), userH.GetAll)
 		users.GET("/:id", userH.GetByID)
-		users.PUT("/:id", middleware.Authorize("ADMIN"), userH.Update)
+		users.PUT("/:id", middleware.Authorize("ADMIN"), middleware.ValidateUserUpdatePayload(), userH.Update)
 		users.DELETE("/:id", middleware.Authorize("ADMIN"), userH.Delete)
+	}
+
+	// Auditoría administrativa con enmascaramiento de datos sensibles (?mask=true)
+	admin := api.Group("/admin", auth(), middleware.Authorize("ADMIN"), middleware.SensitiveDataMasker())
+	{
+		admin.GET("/audit", func(c *gin.Context) {
+			// Retorna eventos de auditoría administrativa con campos sensibles protegidos
+			c.JSON(200, gin.H{
+				"success": true,
+				"auditTrail": []gin.H{
+					{
+						"id":        "aud-001",
+						"action":    "USER_UPDATE",
+						"adminUser": "admin@transporte.cl",
+						"targetUser": "juan.perez@transporte.cl",
+						"phone":     "+56912345678",
+						"rut":       "12.345.678-9",
+						"timestamp": "2026-09-24T12:00:00Z",
+					},
+					{
+						"id":        "aud-002",
+						"action":    "FARE_TRANSACTION_RECONCILE",
+						"adminUser": "admin@transporte.cl",
+						"cardUid":   "BIP-99887766",
+						"timestamp": "2026-09-24T13:30:00Z",
+					},
+				},
+			})
+		})
 	}
 
 	// Buses
@@ -87,9 +135,9 @@ func Setup(
 		routes.DELETE("/:id", middleware.Authorize("ADMIN"), routeH.Delete)
 	}
 
-	// Reclamos (creación pública o con token opcional para pasajeros)
-	api.POST("/complaints", optionalAuth(), complaintH.Create)
-	api.POST("/complaints/", optionalAuth(), complaintH.Create)
+	// Reclamos con validación y sanitización estricta XSS
+	api.POST("/complaints", optionalAuth(), middleware.ValidateComplaintPayload(), complaintH.Create)
+	api.POST("/complaints/", optionalAuth(), middleware.ValidateComplaintPayload(), complaintH.Create)
 
 	complaints := api.Group("/complaints", auth())
 	{

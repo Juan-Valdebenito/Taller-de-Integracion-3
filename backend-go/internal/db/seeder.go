@@ -6,7 +6,7 @@ import (
 	"log"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"golang.org/x/crypto/bcrypt"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/security"
 )
 
 // AutoMigrateAndSeed asegura que las columnas necesarias existan en PostgreSQL
@@ -23,11 +23,28 @@ func AutoMigrateAndSeed(ctx context.Context, pool *pgxpool.Pool, env string) err
 		ALTER TABLE complaints ADD COLUMN IF NOT EXISTS "companyId" TEXT;
 		CREATE INDEX IF NOT EXISTS idx_complaints_rating ON complaints(rating);
 		CREATE INDEX IF NOT EXISTS idx_complaints_linename ON complaints("lineName");
+
+		CREATE TABLE IF NOT EXISTS recaudo_transactions (
+			id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+			"busId" TEXT NOT NULL REFERENCES buses(id) ON DELETE CASCADE,
+			"cardUid" TEXT NOT NULL,
+			"fareType" TEXT NOT NULL,
+			amount INTEGER NOT NULL,
+			status TEXT NOT NULL DEFAULT 'APPROVED',
+			"routeId" TEXT REFERENCES routes(id) ON DELETE SET NULL,
+			"tripId" TEXT REFERENCES trips(id) ON DELETE SET NULL,
+			latitude FLOAT8,
+			longitude FLOAT8,
+			"createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);
+		CREATE INDEX IF NOT EXISTS idx_recaudo_bus ON recaudo_transactions("busId");
+		CREATE INDEX IF NOT EXISTS idx_recaudo_faretype ON recaudo_transactions("fareType");
+		CREATE INDEX IF NOT EXISTS idx_recaudo_created ON recaudo_transactions("createdAt" DESC);
 	`
 	if _, err := pool.Exec(ctx, migrationSQL); err != nil {
-		log.Printf("⚠️  Aviso en auto-migración de complaints: %v", err)
+		log.Printf("⚠️  Aviso en auto-migración de tablas: %v", err)
 	} else {
-		fmt.Println("✅ Migración verificada: columnas 'rating' y 'lineName' listas en complaints")
+		fmt.Println("✅ Migración verificada: tablas 'complaints' y 'recaudo_transactions' listas en PostgreSQL")
 	}
 
 	// ── 2. Solo ejecutar seeder en entorno de desarrollo ────────────────────────
@@ -66,7 +83,7 @@ func AutoMigrateAndSeed(ctx context.Context, pool *pgxpool.Pool, env string) err
 
 	hashes := make(map[string]string)
 	for email, pass := range passwords {
-		hash, err := bcrypt.GenerateFromPassword([]byte(pass), bcrypt.DefaultCost)
+		hash, err := security.HashPassword(pass)
 		if err != nil {
 			return fmt.Errorf("error generando hash bcrypt para %s: %w", email, err)
 		}
@@ -212,7 +229,7 @@ func AutoMigrateAndSeed(ctx context.Context, pool *pgxpool.Pool, env string) err
 		}
 	}
 	fmt.Println("   ✅ Reclamos de prueba creados con calificación de estrellas y líneas")
-	fmt.Println("🎉 Seeder en Go completado exitosamente.\n")
+	fmt.Println("🎉 Seeder en Go completado exitosamente.")
 
 	return nil
 }

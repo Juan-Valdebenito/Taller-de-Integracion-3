@@ -35,6 +35,11 @@ func main() {
 	busRepo := repository.NewBusRepository(pool)
 	routeRepo := repository.NewRouteRepository(pool)
 	complaintRepo := repository.NewComplaintRepository(pool)
+	recaudoRepo := repository.NewRecaudoRepository(pool)
+
+	// ── Servicios ─────────────────────────────────────────────
+	occupancySvc := service.NewOccupancyService()
+	aforoSvc := service.NewAforoService(pool)
 
 	// ── Handlers ──────────────────────────────────────────────
 	authH := handler.NewAuthHandler(userRepo, cfg.JWTSecret, blacklist)
@@ -42,15 +47,24 @@ func main() {
 	busH := handler.NewBusHandler(busRepo)
 	routeH := handler.NewRouteHandler(routeRepo, busRepo)
 	complaintH := handler.NewComplaintHandler(complaintRepo)
-
-	// ── Servicio y handler de ocupación (sin BD — lógica pura) ──────────────
-	// Para conectar el clúster ML en el futuro:
-	//   occupancySvc.SetPredictor(service.NewMLClusterPredictor(clusterURL, apiKey))
-	occupancySvc := service.NewOccupancyService()
 	occupancyH := handler.NewOccupancyHandler(occupancySvc)
+	aforoH := handler.NewAforoHandler(aforoSvc)
+	recaudoH := handler.NewRecaudoHandler(recaudoRepo, aforoSvc)
 
 	// ── Router ────────────────────────────────────────────────
-	r := router.Setup(cfg.CORSOrigin, cfg.JWTSecret, blacklist, authH, userH, busH, routeH, complaintH, occupancyH)
+	r := router.Setup(
+		cfg.CORSOrigin,
+		cfg.JWTSecret,
+		blacklist,
+		authH,
+		userH,
+		busH,
+		routeH,
+		complaintH,
+		occupancyH,
+		aforoH,
+		recaudoH,
+	)
 
 	// ── Iniciar servidor ──────────────────────────────────────
 	addr := fmt.Sprintf(":%s", cfg.Port)

@@ -40,6 +40,14 @@ const (
 	ComplaintCategoryOther            ComplaintCategory = "OTHER"
 )
 
+type FareType string
+
+const (
+	FareTypeBipayNormal      FareType = "BIPAY_NORMAL"       // Tarifa general ($700 CLP)
+	FareTypeBipayEscolar     FareType = "BIPAY_ESCOLAR"      // Pase escolar TNE ($240 CLP)
+	FareTypeBipayAdultoMayor FareType = "BIPAY_ADULTO_MAYOR" // Adulto mayor ($350 CLP)
+)
+
 // ── Modelos ────────────────────────────────────────────────────────────────
 
 // User representa a un pasajero, operador de empresa o administrador.
@@ -115,6 +123,21 @@ type Complaint struct {
 	TripID        *string           `json:"tripId" db:"tripId"`
 	CreatedAt     time.Time         `json:"createdAt" db:"createdAt"`
 	UpdatedAt     time.Time         `json:"updatedAt" db:"updatedAt"`
+}
+
+// RecaudoTransaction registra una validación y cobro de tarifa en microbuses (Bipay / Escolar / Adulto Mayor).
+type RecaudoTransaction struct {
+	ID        string    `json:"id" db:"id"`
+	BusID     string    `json:"busId" db:"busId"`
+	CardUID   string    `json:"cardUid" db:"cardUid"`
+	FareType  FareType  `json:"fareType" db:"fareType"`
+	Amount    int       `json:"amount" db:"amount"` // CLP
+	Status    string    `json:"status" db:"status"` // APPROVED | REJECTED_AFORO_FULL
+	RouteID   *string   `json:"routeId,omitempty" db:"routeId"`
+	TripID    *string   `json:"tripId,omitempty" db:"tripId"`
+	Latitude  *float64  `json:"latitude,omitempty" db:"latitude"`
+	Longitude *float64  `json:"longitude,omitempty" db:"longitude"`
+	CreatedAt time.Time `json:"createdAt" db:"createdAt"`
 }
 
 // ── Claims JWT ──────────────────────────────────────────────────────────────
