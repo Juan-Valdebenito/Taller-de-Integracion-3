@@ -10,11 +10,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
-	"golang.org/x/crypto/bcrypt"
 
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/middleware"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/repository"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/security"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/token"
 )
 
@@ -90,10 +90,10 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// Hash de contraseña
-	hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
+	// Hash de contraseña con bcrypt (cost 12)
+	hash, err := security.HashPassword(body.Password)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al procesar contraseña"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -148,7 +148,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(body.Password)); err != nil {
+	if !security.ComparePassword(body.Password, user.PasswordHash) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Credenciales inválidas"})
 		return
 	}
