@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/nats-io/nats.go"
 )
 
 type Location struct {
@@ -40,6 +41,23 @@ type WeatherPayload struct {
 
 type TelemetryRepository interface {
 	Insert(ctx context.Context, payloads []WeatherPayload) error
+}
+
+type TelemetryPublisher interface {
+	Publish(payload WeatherPayload) error
+}
+
+type NATSPublisher struct {
+	connection *nats.Conn
+	subject    string
+}
+
+func (p *NATSPublisher) Publish(payload WeatherPayload) error {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	return p.connection.Publish(p.subject, data)
 }
 
 type PostgresRepository struct {
@@ -85,6 +103,7 @@ func (r *PostgresRepository) Insert(ctx context.Context, payloads []WeatherPaylo
 type Server struct {
 	apiKey     string
 	repository TelemetryRepository
+	publisher  TelemetryPublisher
 	maxBody    int64
 }
 
@@ -147,6 +166,13 @@ func (s *Server) weatherTelemetry(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[DB ERROR] storing telemetry: %v", err)
 		http.Error(w, "No se pudo guardar la telemetría", http.StatusServiceUnavailable)
 		return
+	}
+	for _, payload := range payloads {
+		if err := s.publisher.Publish(payload); err != nil {
+			log.Printf("[NATS ERROR] publishing telemetry: %v", err)
+			http.Error(w, "No se pudo publicar la telemetría", http.StatusServiceUnavailable)
+			return
+		}
 	}
 
 	writeJSON(w, http.StatusAccepted, map[string]interface{}{
@@ -226,6 +252,14 @@ func databaseURL() string {
 	)
 }
 
+func natsURL() string {
+	value := env("NATS_URL", "nats://localhost:4222")
+	if !strings.Contains(value, "://") {
+		return "nats://" + value
+	}
+	return value
+}
+
 func main() {
 	ctx := context.Background()
 	dbConfig, err := pgxpool.ParseConfig(databaseURL())
@@ -240,15 +274,23 @@ func main() {
 	}
 	defer pool.Close()
 
+	natsConnection, err := nats.Connect(natsURL())
+	if err != nil {
+		log.Fatalf("could not connect to NATS: %v", err)
+	}
+	defer natsConnection.Drain()
+
 	server := &Server{
 		apiKey:     env("WEATHER_API_KEY", "temuco_weather_secret_key"),
 		repository: &PostgresRepository{pool: pool},
+		publisher:  &NATSPublisher{connection: natsConnection, subject: "weather.telemetry"},
 		maxBody:    parseBodyLimit(),
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", server.health)
 	mux.HandleFunc("/ready", server.ready)
 	mux.HandleFunc("/telemetry/weather", server.weatherTelemetry)
+	mux.HandleFunc("/api/v1/telemetry/weather", server.weatherTelemetry)
 
 	httpServer := &http.Server{
 		Addr:         ":" + env("PORT", "8080"),

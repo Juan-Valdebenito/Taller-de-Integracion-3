@@ -17,8 +17,8 @@ spec:
     spec:
       containers:
         - name: clima-service
-          image: ignaciogsm/clima_service:v1
-          imagePullPolicy: IfNotPresent
+          image: ignaciogsm/clima_service:v1.1
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 8080
