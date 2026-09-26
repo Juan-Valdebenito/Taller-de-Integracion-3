@@ -25,6 +25,7 @@ func Setup(
 	routeH *handler.RouteHandler,
 	complaintH *handler.ComplaintHandler,
 	occupancyH *handler.OccupancyHandler,
+	grpcH *handler.GRPCProxyHandler,
 ) *gin.Engine {
 	r := gin.Default()
 	metrics := middleware.NewMetrics()
@@ -53,11 +54,20 @@ func Setup(
 	// ── API v1 ────────────────────────────────────────────────
 	api := r.Group("/api/v1")
 
+	// Alias del middleware para mayor legibilidad
+	auth := func() gin.HandlerFunc { return middleware.Authenticate(jwtSecret, bl) }
+
 	// Ocupación (público — sin auth para facilitar integración con dispositivos)
 	api.POST("/occupancy", occupancyH.Predict)
 
-	// Alias del middleware para mayor legibilidad
-	auth := func() gin.HandlerFunc { return middleware.Authenticate(jwtSecret, bl) }
+	grpcGroup := api.Group("/integrations", auth())
+	{
+		grpcGroup.GET("/climate/telemetry", grpcH.ListTelemetry)
+		grpcGroup.GET("/micro/stops", grpcH.ListStops)
+		grpcGroup.GET("/micro/stops/:id", grpcH.GetStop)
+		grpcGroup.GET("/micro/routes", grpcH.ListRoutes)
+		grpcGroup.GET("/micro/routes/plan", grpcH.PlanRoute)
+	}
 
 	// Auth (público excepto /logout y /me que requieren token válido)
 	authGroup := api.Group("/auth")
@@ -88,7 +98,7 @@ func Setup(
 		buses.DELETE("/:id", middleware.Authorize("ADMIN"), busH.Delete)
 	}
 
-	// Rutas de transporte
+	// Rutas de transporte existentes, todavía respaldadas por transporte_db
 	routes := api.Group("/routes", auth())
 	{
 		routes.GET("/", routeH.GetAll)

@@ -9,6 +9,7 @@ import (
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/db"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain/service"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/handler"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/infrastructure/grpcclient"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/repository"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/router"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/token"
@@ -77,8 +78,20 @@ func main() {
 
 	occupancyH := handler.NewOccupancyHandler(occupancySvc)
 
+	climateClient, err := grpcclient.NewClimateClient(cfg.ClimateGRPCTarget, cfg.ClimateAPIKey, cfg.GRPCTimeout)
+	if err != nil {
+		log.Fatalf("❌ Error al conectar con clima_service por gRPC: %v", err)
+	}
+	defer climateClient.Close()
+	microClient, err := grpcclient.NewMicroClient(cfg.MicroGRPCTarget, cfg.MicroAPIKey, cfg.GRPCTimeout)
+	if err != nil {
+		log.Fatalf("❌ Error al conectar con micro_service por gRPC: %v", err)
+	}
+	defer microClient.Close()
+	grpcProxyH := handler.NewGRPCProxyHandler(climateClient, microClient)
+
 	// ── Router ────────────────────────────────────────────────
-	r := router.Setup(cfg.CORSOrigin, cfg.JWTSecret, pool, blacklist, authH, userH, busH, routeH, complaintH, occupancyH)
+	r := router.Setup(cfg.CORSOrigin, cfg.JWTSecret, blacklist, authH, userH, busH, routeH, complaintH, occupancyH, grpcProxyH)
 
 	// ── Iniciar servidor ──────────────────────────────────────
 	addr := fmt.Sprintf(":%s", cfg.Port)

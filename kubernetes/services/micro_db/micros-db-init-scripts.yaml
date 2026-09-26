@@ -57,6 +57,7 @@ data:
         from_stop_id VARCHAR(50) NOT NULL REFERENCES stops(stop_id) ON DELETE CASCADE,
         to_stop_id VARCHAR(50) NOT NULL REFERENCES stops(stop_id) ON DELETE CASCADE,
         walk_time_seconds INT NOT NULL,
+        distance_meters INT NOT NULL,
         PRIMARY KEY (from_stop_id, to_stop_id)
     );
 
@@ -91,26 +92,77 @@ data:
 
     -- Insertar Tramos/Conexiones
     INSERT INTO route_stops (trip_id, from_stop_id, to_stop_id, stop_sequence, base_travel_time_seconds, distance_meters) VALUES
-    ('L7A-IDA', 'PAR-CJP-01', 'PAR-CJP-02', 1, 120, 250),
-    ('L7A-IDA', 'PAR-CJP-02', 'PAR-BARROS-01', 2, 180, 700),
-    ('L7A-IDA', 'PAR-BARROS-01', 'PAR-MRODRI-01', 3, 480, 3200),
-    ('L7A-IDA', 'PAR-MRODRI-01', 'PAR-DPORT-01', 4, 120, 500),
-    ('L7A-IDA', 'PAR-DPORT-01', 'PAR-CSF-01', 5, 300, 1400),
-    ('L7A-IDA', 'PAR-CSF-01', 'PAR-PORTAL-01', 6, 420, 1000),
-    ('L7A-VTA', 'PAR-PORTAL-01', 'PAR-CSF-01', 1, 420, 1000),
-    ('L7A-VTA', 'PAR-CSF-01', 'PAR-DPORT-01', 2, 300, 1400),
-    ('L7A-VTA', 'PAR-DPORT-01', 'PAR-MRODRI-01', 3, 120, 500),
-    ('L7A-VTA', 'PAR-MRODRI-01', 'PAR-BARROS-01', 4, 480, 3200),
-    ('L7A-VTA', 'PAR-BARROS-01', 'PAR-CJP-02', 5, 180, 700),
-    ('L7A-VTA', 'PAR-CJP-02', 'PAR-CJP-01', 6, 120, 250),
-    ('L7B-IDA', 'PAR-CJP-01', 'PAR-MRODRI-01', 1, 600, 3900),
-    ('L7B-IDA', 'PAR-MRODRI-01', 'PAR-CSF-01', 2, 420, 1900),
-    ('L7B-IDA', 'PAR-CSF-01', 'PAR-PORTAL-01', 3, 420, 1000),
-    ('L7B-VTA', 'PAR-PORTAL-01', 'PAR-CSF-01', 1, 420, 1000),
-    ('L7B-VTA', 'PAR-CSF-01', 'PAR-MRODRI-01', 2, 420, 1900),
-    ('L7B-VTA', 'PAR-MRODRI-01', 'PAR-CJP-01', 3, 600, 3900),
-    ('L1C-IDA', 'PAR-BARROS-01', 'PAR-DPORT-01', 1, 360, 2400),
-    ('L1C-IDA', 'PAR-DPORT-01', 'PAR-PORTAL-01', 2, 480, 2400),
-    ('L1C-VTA', 'PAR-PORTAL-01', 'PAR-DPORT-01', 1, 480, 2400),
-    ('L1C-VTA', 'PAR-DPORT-01', 'PAR-BARROS-01', 2, 360, 2400)
+    ('L7A-IDA', 'PAR-CSF-01', 'PAR-DPORT-01', 1, 300, 1200),
+    ('L7A-IDA', 'PAR-DPORT-01', 'PAR-CJP-02', 2, 1500, 6800),
+
+    ('L7A-VTA', 'PAR-CJP-02', 'PAR-MRODRI-01', 1, 1980, 6000),
+
+    ('L7B-IDA', 'PAR-PORTAL-01', 'PAR-CSF-01', 1, 240, 950),
+    ('L7B-IDA', 'PAR-CSF-01', 'PAR-DPORT-01', 2, 300, 1200),
+    ('L7B-IDA', 'PAR-DPORT-01', 'PAR-CJP-01', 3, 1320, 6300),
+
+    ('L7B-VTA', 'PAR-CJP-01', 'PAR-MRODRI-01', 1, 1320, 6000),
+    ('L7B-VTA', 'PAR-MRODRI-01', 'PAR-PORTAL-01', 2, 420, 2300),
+
+    ('L1C-IDA', 'PAR-PORTAL-01', 'PAR-CSF-01', 1, 240, 950),
+    ('L1C-IDA', 'PAR-CSF-01', 'PAR-DPORT-01', 2, 300, 1200),
+    ('L1C-IDA', 'PAR-DPORT-01', 'PAR-BARROS-01', 3, 1800, 5000),
+
+    ('L1C-VTA', 'PAR-BARROS-01', 'PAR-MRODRI-01', 1, 1800, 4900),
+    ('L1C-VTA', 'PAR-MRODRI-01', 'PAR-PORTAL-01', 2, 420, 2300)
     ON CONFLICT (trip_id, from_stop_id, to_stop_id) DO NOTHING;
+
+    --- Insertar Transbordos a Pie
+    INSERT INTO transfers (from_stop_id, to_stop_id, walk_time_seconds, distance_meters) VALUES
+
+    ('PAR-CJP-01', 'PAR-CJP-02', 240, 200),
+    ('PAR-CJP-01', 'PAR-BARROS-01', 480, 600),
+    ('PAR-CJP-01', 'PAR-MRODRI-01', 4200, 5100),
+    ('PAR-CJP-01', 'PAR-DPORT-01', 4320, 5300),
+    ('PAR-CJP-01', 'PAR-CSF-01', 4860, 6000),
+    ('PAR-CJP-01', 'PAR-PORTAL-01', 5700, 7000),
+
+    ('PAR-CJP-02', 'PAR-CJP-01', 240, 200),
+    ('PAR-CJP-02', 'PAR-BARROS-01', 780, 900),
+    ('PAR-CJP-02', 'PAR-MRODRI-01', 4260, 5200),
+    ('PAR-CJP-02', 'PAR-DPORT-01', 7380, 5400),
+    ('PAR-CJP-02', 'PAR-CSF-01', 4980, 6100),
+    ('PAR-CJP-02', 'PAR-PORTAL-01', 5760, 7100),
+
+    ('PAR-BARROS-01', 'PAR-CJP-01', 480, 600),
+    ('PAR-BARROS-01', 'PAR-CJP-02', 780, 900),
+    ('PAR-BARROS-01', 'PAR-MRODRI-01', 4020, 5000),
+    ('PAR-BARROS-01', 'PAR-DPORT-01', 4140, 5200),
+    ('PAR-BARROS-01', 'PAR-CSF-01', 4680, 5900),
+    ('PAR-BARROS-01', 'PAR-PORTAL-01', 5580, 6700),
+
+    ('PAR-MRODRI-01', 'PAR-CJP-01', 4200, 5100),
+    ('PAR-MRODRI-01', 'PAR-CJP-02', 4260, 5200),
+    ('PAR-MRODRI-01', 'PAR-BARROS-01', 4020, 5000),
+    ('PAR-MRODRI-01', 'PAR-DPORT-01', 120, 180),
+    ('PAR-MRODRI-01', 'PAR-CSF-01', 1140, 1300),
+    ('PAR-MRODRI-01', 'PAR-PORTAL-01', 1800, 2200),
+
+    ('PAR-DPORT-01', 'PAR-CJP-01', 4320, 5300),
+    ('PAR-DPORT-01', 'PAR-CJP-02', 7380, 5400),
+    ('PAR-DPORT-01', 'PAR-BARROS-01', 4140, 5200),
+    ('PAR-DPORT-01', 'PAR-MRODRI-01', 120, 180),
+    ('PAR-DPORT-01', 'PAR-CSF-01', 900, 1100),
+    ('PAR-DPORT-01', 'PAR-PORTAL-01', 1740, 2000),
+
+    ('PAR-CSF-01', 'PAR-CJP-01', 4860, 6000),
+    ('PAR-CSF-01', 'PAR-CJP-02', 4980, 6100),
+    ('PAR-CSF-01', 'PAR-BARROS-01', 4680, 5900),
+    ('PAR-CSF-01', 'PAR-MRODRI-01', 1140, 1300),
+    ('PAR-CSF-01', 'PAR-DPORT-01', 900, 1100),
+    ('PAR-CSF-01', 'PAR-PORTAL-01', 780, 950),
+
+    ('PAR-PORTAL-01', 'PAR-CJP-01', 5700, 7000),
+    ('PAR-PORTAL-01', 'PAR-CJP-02', 5760, 7100),
+    ('PAR-PORTAL-01', 'PAR-BARROS-01', 5580, 6700),
+    ('PAR-PORTAL-01', 'PAR-MRODRI-01', 1800, 2200),
+    ('PAR-PORTAL-01', 'PAR-DPORT-01', 1740, 2000),
+    ('PAR-PORTAL-01', 'PAR-CSF-01', 780, 950)
+    ON CONFLICT (from_stop_id, to_stop_id) DO NOTHING;
+
+    

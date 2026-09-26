@@ -3,33 +3,24 @@ package config
 import (
 	"log"
 	"os"
-	"strconv"
+	"time"
 
 	"github.com/joho/godotenv"
 )
 
 // Config contiene todas las variables de entorno de la aplicación.
 type Config struct {
-	Port        string
-	DatabaseURL string
-	JWTSecret   string
-	JWTExpires  string
-	CORSOrigin  string
-	Env         string
-
-	// ── Predicción ML (microservicio externo) ─────────────────────────────────
-	// PredictionTransport es el protocolo de comunicación: "grpc" | "http".
-	// Si está vacío, el servidor ML no se conecta y se usa el predictor heurístico.
-	PredictionTransport string
-
-	// PredictionGRPCAddr es la dirección del servidor gRPC (ej: "localhost:50051").
-	PredictionGRPCAddr string
-
-	// PredictionHTTPURL es la URL base del servidor HTTP (ej: "http://localhost:8000").
-	PredictionHTTPURL string
-
-	// PredictionTimeoutSec es el timeout en segundos para cada llamada al ML.
-	PredictionTimeoutSec int
+	Port              string
+	DatabaseURL       string
+	JWTSecret         string
+	JWTExpires        string
+	CORSOrigin        string
+	Env               string
+	ClimateGRPCTarget string
+	ClimateAPIKey     string
+	MicroGRPCTarget   string
+	MicroAPIKey       string
+	GRPCTimeout       time.Duration
 }
 
 // Load carga las variables desde el archivo .env y el entorno del sistema.
@@ -39,19 +30,23 @@ func Load() *Config {
 		log.Println("⚠️  No se encontró archivo .env, usando variables de entorno del sistema")
 	}
 
+	timeout := getEnv("GRPC_TIMEOUT", "5s")
+	grpcTimeout, err := time.ParseDuration(timeout)
+	if err != nil || grpcTimeout <= 0 {
+		grpcTimeout = 5 * time.Second
+	}
 	return &Config{
-		Port:        getEnv("PORT", "3001"),
-		DatabaseURL: getEnv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/transporte_db"),
-		JWTSecret:   getEnv("JWT_SECRET", "dev_secret_cambiarlo_en_produccion_123"),
-		JWTExpires:  getEnv("JWT_EXPIRES_IN", "7d"),
-		CORSOrigin:  getEnv("CORS_ORIGIN", "http://localhost:5173"),
-		Env:         getEnv("NODE_ENV", "development"),
-
-		// Predicción ML
-		PredictionTransport:  getEnv("PREDICTION_TRANSPORT", ""),
-		PredictionGRPCAddr:   getEnv("PREDICTION_GRPC_ADDR", "localhost:50051"),
-		PredictionHTTPURL:    getEnv("PREDICTION_HTTP_URL", "http://localhost:8000"),
-		PredictionTimeoutSec: getEnvInt("PREDICTION_TIMEOUT_SEC", 5),
+		Port:              getEnv("PORT", "3001"),
+		DatabaseURL:       getEnv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/transporte_db"),
+		JWTSecret:         getEnv("JWT_SECRET", "dev_secret_cambiarlo_en_produccion_123"),
+		JWTExpires:        getEnv("JWT_EXPIRES_IN", "7d"),
+		CORSOrigin:        getEnv("CORS_ORIGIN", "http://localhost:5173"),
+		Env:               getEnv("NODE_ENV", "development"),
+		ClimateGRPCTarget: getEnv("CLIMATE_GRPC_TARGET", "localhost:9090"),
+		ClimateAPIKey:     getEnv("CLIMATE_API_KEY", "temuco_weather_secret_key"),
+		MicroGRPCTarget:   getEnv("MICRO_GRPC_TARGET", "localhost:9091"),
+		MicroAPIKey:       getEnv("MICRO_API_KEY", ""),
+		GRPCTimeout:       grpcTimeout,
 	}
 }
 

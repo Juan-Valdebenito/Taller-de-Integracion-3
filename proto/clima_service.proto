@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package transporte.clima.v1;
+
+option go_package = "github.com/Juan-Valdebenito/Taller-de-Integracion-3/proto/gen/go/clima/v1;climav1";
+
+import "google/protobuf/timestamp.proto";
+
+service ClimateService {
+	rpc Health(HealthRequest) returns (HealthResponse);
+	rpc ListTelemetry(ListTelemetryRequest) returns (ListTelemetryResponse);
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+	string status = 1;
+}
+
+message ListTelemetryRequest {
+	google.protobuf.Timestamp from = 1;
+	google.protobuf.Timestamp to = 2;
+	string station_id = 3;
+	uint32 limit = 4;
+}
+
+message ListTelemetryResponse {
+	repeated TelemetryRecord records = 1;
+}
+
+message TelemetryRecord {
+	google.protobuf.Timestamp time = 1;
+	string station_id = 2;
+	string sector = 3;
+	double temperature_c = 4;
+	double humidity_pct = 5;
+	double wind_speed_kmh = 6;
+	double pm25_ug_m3 = 7;
+	double pm10_ug_m3 = 8;
+	string status = 9;
+	double latitude = 10;
+	double longitude = 11;
+}
