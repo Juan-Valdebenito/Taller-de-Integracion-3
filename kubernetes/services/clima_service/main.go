@@ -43,6 +43,31 @@ type TelemetryRepository interface {
 	Insert(ctx context.Context, payloads []WeatherPayload) error
 }
 
+type TelemetryQuery struct {
+	From      time.Time
+	To        time.Time
+	StationID string
+	Limit     int
+}
+
+type TelemetryRecord struct {
+	Time         time.Time `json:"time"`
+	StationID    string    `json:"station_id"`
+	Sector       string    `json:"sector"`
+	TemperatureC float64   `json:"temperature_c"`
+	HumidityPct  float64   `json:"humidity_pct"`
+	WindSpeedKMH float64   `json:"wind_speed_kmh"`
+	PM25         float64   `json:"pm25_ug_m3"`
+	PM10         float64   `json:"pm10_ug_m3"`
+	Status       string    `json:"status"`
+	Latitude     float64   `json:"latitude"`
+	Longitude    float64   `json:"longitude"`
+}
+
+type TelemetryReader interface {
+	Read(ctx context.Context, query TelemetryQuery) ([]TelemetryRecord, error)
+}
+
 type TelemetryPublisher interface {
 	Publish(payload WeatherPayload) error
 }
@@ -100,9 +125,51 @@ func (r *PostgresRepository) Insert(ctx context.Context, payloads []WeatherPaylo
 	return tx.Commit(ctx)
 }
 
+func (r *PostgresRepository) Read(ctx context.Context, query TelemetryQuery) ([]TelemetryRecord, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT time, station_id, sector, temperature_c, humidity_pct,
+			wind_speed_kmh, pm25, pm10, status, ST_Y(location), ST_X(location)
+		FROM weather_telemetry
+		WHERE time >= $1 AND time < $2
+			AND ($3 = '' OR station_id = $3)
+		ORDER BY time DESC, station_id DESC
+		LIMIT $4`, query.From, query.To, query.StationID, query.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	records := make([]TelemetryRecord, 0)
+	for rows.Next() {
+		var record TelemetryRecord
+		if err := rows.Scan(
+			&record.Time,
+			&record.StationID,
+			&record.Sector,
+			&record.TemperatureC,
+			&record.HumidityPct,
+			&record.WindSpeedKMH,
+			&record.PM25,
+			&record.PM10,
+			&record.Status,
+			&record.Latitude,
+			&record.Longitude,
+		); err != nil {
+			return nil, err
+		}
+		record.Time = record.Time.UTC()
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
 type Server struct {
 	apiKey     string
 	repository TelemetryRepository
+	reader     TelemetryReader
 	publisher  TelemetryPublisher
 	maxBody    int64
 }
@@ -122,6 +189,10 @@ func (s *Server) ready(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) weatherTelemetry(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		s.weatherTelemetryRead(w, r)
+		return
+	}
 	if r.Method != http.MethodPost {
 		http.Error(w, "Método no permitido", http.StatusMethodNotAllowed)
 		return
@@ -179,6 +250,75 @@ func (s *Server) weatherTelemetry(w http.ResponseWriter, r *http.Request) {
 		"status":  "success",
 		"message": "Telemetría guardada correctamente",
 		"count":   len(payloads),
+	})
+}
+
+const (
+	defaultTelemetryReadLimit = 500
+	maxTelemetryReadLimit     = 1000
+)
+
+func (s *Server) weatherTelemetryRead(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("X-API-Key") != s.apiKey {
+		log.Printf("[AUTH ERROR] unauthorized request from %s", r.RemoteAddr)
+		http.Error(w, "No autorizado", http.StatusUnauthorized)
+		return
+	}
+
+	from, err := time.Parse(time.RFC3339, r.URL.Query().Get("from"))
+	if err != nil {
+		http.Error(w, "from debe ser una fecha RFC3339 válida", http.StatusBadRequest)
+		return
+	}
+	to, err := time.Parse(time.RFC3339, r.URL.Query().Get("to"))
+	if err != nil {
+		http.Error(w, "to debe ser una fecha RFC3339 válida", http.StatusBadRequest)
+		return
+	}
+	if !from.Before(to) {
+		http.Error(w, "from debe ser anterior a to", http.StatusBadRequest)
+		return
+	}
+
+	stationID := strings.TrimSpace(r.URL.Query().Get("station_id"))
+	if len(stationID) > 64 {
+		http.Error(w, "station_id debe tener como máximo 64 caracteres", http.StatusBadRequest)
+		return
+	}
+
+	limit := defaultTelemetryReadLimit
+	if rawLimit := r.URL.Query().Get("limit"); rawLimit != "" {
+		limit, err = strconv.Atoi(rawLimit)
+		if err != nil || limit <= 0 || limit > maxTelemetryReadLimit {
+			http.Error(w, fmt.Sprintf("limit debe estar entre 1 y %d", maxTelemetryReadLimit), http.StatusBadRequest)
+			return
+		}
+	}
+
+	reader := s.reader
+	if reader == nil {
+		reader, _ = s.repository.(TelemetryReader)
+	}
+	if reader == nil {
+		http.Error(w, "lectura de telemetría no disponible", http.StatusServiceUnavailable)
+		return
+	}
+	records, err := reader.Read(r.Context(), TelemetryQuery{
+		From:      from.UTC(),
+		To:        to.UTC(),
+		StationID: stationID,
+		Limit:     limit,
+	})
+	if err != nil {
+		log.Printf("[DB ERROR] reading telemetry: %v", err)
+		http.Error(w, "No se pudo consultar la telemetría", http.StatusServiceUnavailable)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"data":        records,
+		"limit":       limit,
+		"next_cursor": nil,
 	})
 }
 
@@ -283,6 +423,7 @@ func main() {
 	server := &Server{
 		apiKey:     env("WEATHER_API_KEY", "temuco_weather_secret_key"),
 		repository: &PostgresRepository{pool: pool},
+		reader:     &PostgresRepository{pool: pool},
 		publisher:  &NATSPublisher{connection: natsConnection, subject: "weather.telemetry"},
 		maxBody:    parseBodyLimit(),
 	}

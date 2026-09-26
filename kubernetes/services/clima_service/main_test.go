@@ -26,6 +26,17 @@ type fakeTelemetryPublisher struct {
 	err       error
 }
 
+type fakeTelemetryReader struct {
+	query   TelemetryQuery
+	records []TelemetryRecord
+	err     error
+}
+
+func (f *fakeTelemetryReader) Read(_ context.Context, query TelemetryQuery) ([]TelemetryRecord, error) {
+	f.query = query
+	return f.records, f.err
+}
+
 func (f *fakeTelemetryPublisher) Publish(payload WeatherPayload) error {
 	f.published = append(f.published, payload)
 	return f.err
@@ -120,6 +131,75 @@ func TestWeatherTelemetryReturnsErrorWhenPublishingFails(t *testing.T) {
 	}
 	if len(repository.inserted) != 1 || len(publisher.published) != 1 {
 		t.Fatalf("expected persistence and one publish attempt, got %d and %d", len(repository.inserted), len(publisher.published))
+	}
+}
+
+func TestWeatherTelemetryReadReturnsRecords(t *testing.T) {
+	reader := &fakeTelemetryReader{records: []TelemetryRecord{{
+		Time:      time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC),
+		StationID: "station-1",
+		Latitude:  -38.7397,
+		Longitude: -72.5984,
+	}}}
+	server := &Server{apiKey: "test-key", reader: reader}
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/telemetry/weather?from=2026-09-26T00:00:00Z&to=2026-09-27T00:00:00Z&station_id=station-1&limit=20", nil)
+	request.Header.Set("X-API-Key", "test-key")
+	response := httptest.NewRecorder()
+
+	server.weatherTelemetry(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, response.Code)
+	}
+	var body struct {
+		Data  []TelemetryRecord `json:"data"`
+		Limit int               `json:"limit"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(body.Data) != 1 || body.Data[0].StationID != "station-1" || body.Limit != 20 {
+		t.Fatalf("unexpected response: %#v", body)
+	}
+	if reader.query.StationID != "station-1" || reader.query.Limit != 20 {
+		t.Fatalf("unexpected query: %#v", reader.query)
+	}
+}
+
+func TestWeatherTelemetryReadValidatesRequest(t *testing.T) {
+	reader := &fakeTelemetryReader{}
+	server := &Server{apiKey: "test-key", reader: reader}
+	tests := []struct {
+		name string
+		path string
+		code int
+	}{
+		{name: "missing from", path: "/api/v1/telemetry/weather?to=2026-09-27T00:00:00Z", code: http.StatusBadRequest},
+		{name: "reversed range", path: "/api/v1/telemetry/weather?from=2026-09-27T00:00:00Z&to=2026-09-26T00:00:00Z", code: http.StatusBadRequest},
+		{name: "invalid limit", path: "/api/v1/telemetry/weather?from=2026-09-26T00:00:00Z&to=2026-09-27T00:00:00Z&limit=1001", code: http.StatusBadRequest},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, test.path, nil)
+			request.Header.Set("X-API-Key", "test-key")
+			response := httptest.NewRecorder()
+			server.weatherTelemetry(response, request)
+			if response.Code != test.code {
+				t.Fatalf("expected status %d, got %d", test.code, response.Code)
+			}
+		})
+	}
+}
+
+func TestWeatherTelemetryReadRequiresAPIKey(t *testing.T) {
+	server := &Server{apiKey: "test-key", reader: &fakeTelemetryReader{}}
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/telemetry/weather?from=2026-09-26T00:00:00Z&to=2026-09-27T00:00:00Z", nil)
+	response := httptest.NewRecorder()
+
+	server.weatherTelemetry(response, request)
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, response.Code)
 	}
 }
 
