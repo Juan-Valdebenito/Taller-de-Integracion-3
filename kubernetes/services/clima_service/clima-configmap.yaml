@@ -5,6 +5,7 @@ metadata:
   namespace: student-jvaldebenito
 data:
   PORT: "8080"
+  GRPC_PORT: "9090"
   DB_HOST: clima-db-svc.student-jvaldebenito.svc.cluster.local
   DB_PORT: "5432"
   DB_NAME: climate_db

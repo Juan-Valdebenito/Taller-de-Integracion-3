@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package transporte.micro.v1;
+
+option go_package = "github.com/Juan-Valdebenito/Taller-de-Integracion-3/proto/gen/go/micro/v1;microv1";
+
+service MicroService {
+	rpc Health(HealthRequest) returns (HealthResponse);
+	rpc ListStops(ListStopsRequest) returns (ListStopsResponse);
+	rpc GetStop(GetStopRequest) returns (Stop);
+	rpc ListRoutes(ListRoutesRequest) returns (ListRoutesResponse);
+	rpc PlanRoute(PlanRouteRequest) returns (RoutePlan);
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+	string status = 1;
+	bool graph_loaded = 2;
+	int32 total_stops = 3;
+	int32 total_edges = 4;
+}
+
+message ListStopsRequest {
+	int32 limit = 1;
+	optional double latitude = 2;
+	optional double longitude = 3;
+	optional double radius_meters = 4;
+}
+
+message ListStopsResponse {
+	repeated Stop stops = 1;
+	int32 total = 2;
+}
+
+message GetStopRequest {
+	string stop_id = 1;
+}
+
+message Stop {
+	string id = 1;
+	string name = 2;
+	double latitude = 3;
+	double longitude = 4;
+}
+
+message ListRoutesRequest {}
+
+message ListRoutesResponse {
+	repeated Route routes = 1;
+	int32 total = 2;
+}
+
+message Route {
+	string id = 1;
+	string short_name = 2;
+	string long_name = 3;
+	string color_hex = 4;
+}
+
+message PlanRouteRequest {
+	string origin_stop_id = 1;
+	string destination_stop_id = 2;
+	string mode = 3;
+}
+
+message RoutePlan {
+	string origin_stop_id = 1;
+	string destination_stop_id = 2;
+	int32 total_time_seconds = 3;
+	int32 total_distance_meters = 4;
+	int32 transfers = 5;
+	repeated Movement movements = 6;
+}
+
+message Movement {
+	string from_stop_id = 1;
+	string to_stop_id = 2;
+	string mode = 3;
+	string route_id = 4;
+	string trip_id = 5;
+	int32 time_seconds = 6;
+	int32 distance_meters = 7;
+}

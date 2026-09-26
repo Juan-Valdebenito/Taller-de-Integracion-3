@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -13,8 +14,10 @@ import (
 	"strings"
 	"time"
 
+	climav1 "github.com/Juan-Valdebenito/Taller-de-Integracion-3/proto/gen/go/clima/v1"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nats-io/nats.go"
+	"google.golang.org/grpc"
 )
 
 type Location struct {
@@ -440,6 +443,19 @@ func main() {
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  120 * time.Second,
 	}
+	grpcListener, err := net.Listen("tcp", ":"+env("GRPC_PORT", "9090"))
+	if err != nil {
+		log.Fatalf("could not listen for gRPC: %v", err)
+	}
+	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(climateAuthInterceptor(server.apiKey)))
+	climav1.RegisterClimateServiceServer(grpcServer, &climateGRPCServer{service: server})
+	go func() {
+		log.Printf("[BACKEND] climate gRPC service listening on %s", grpcListener.Addr())
+		if err := grpcServer.Serve(grpcListener); err != nil {
+			log.Printf("climate gRPC server stopped: %v", err)
+		}
+	}()
+	defer grpcServer.GracefulStop()
 
 	log.Printf("[BACKEND] climate service listening on %s", httpServer.Addr)
 
