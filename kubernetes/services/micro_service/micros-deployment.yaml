@@ -29,6 +29,8 @@ spec:
           ports:
             - name: http
               containerPort: 3001
+            - name: grpc
+              containerPort: 9091
           envFrom:
             - configMapRef:
                 name: micros-configmap
@@ -60,3 +62,6 @@ spec:
     - name: http
       port: 3001
       targetPort: http
+    - name: grpc
+      port: 9091
+      targetPort: grpc

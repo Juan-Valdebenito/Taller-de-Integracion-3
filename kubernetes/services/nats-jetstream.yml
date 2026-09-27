@@ -1,0 +1,63 @@
+# 1. DEPLOYMENT DE NATS CON JETSTREAM
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nats-jetstream
+  namespace: student-jvaldebenito
+  labels:
+    app: nats-jetstream
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nats-jetstream
+  template:
+    metadata:
+      labels:
+        app: nats-jetstream
+    spec:
+      containers:
+        - name: nats
+          image: nats:2.10-alpine
+          # Habilitamos JetStream y el puerto de monitoreo/métricas HTTP
+          args: ["-js", "-m", "8222"]
+          ports:
+            - containerPort: 4222 # Puerto principal de clientes NATS
+              name: client
+            - containerPort: 8222 # Puerto de monitoreo HTTP
+              name: monitor
+          
+          # RECURSOS EXIGIDOS POR EL LimitRange DEL CLÚSTER
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+
+          volumeMounts:
+            - name: nats-data
+              mountPath: /data
+      volumes:
+        - name: nats-data
+          emptyDir: {} # Evita bloqueos por cuotas de PVC
+
+---
+# 2. SERVICIO INTERNO (SERVICE)
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats-svc
+  namespace: student-jvaldebenito
+spec:
+  type: ClusterIP
+  selector:
+    app: nats-jetstream
+  ports:
+    - port: 4222
+      targetPort: 4222
+      name: client
+    - port: 8222
+      targetPort: 8222
+      name: monitor

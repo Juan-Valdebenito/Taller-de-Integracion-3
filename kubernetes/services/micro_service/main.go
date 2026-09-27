@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"net"
 	"net/http"
 	"os"
 	"sort"
@@ -17,7 +18,9 @@ import (
 	"sync"
 	"time"
 
+	microv1 "github.com/Juan-Valdebenito/Taller-de-Integracion-3/proto/gen/go/micro/v1"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"google.golang.org/grpc"
 )
 
 const walkRouteID = "WALK"
@@ -580,7 +583,21 @@ func main() {
 		store.Replace(graph)
 		log.Printf("graph loaded: %d stops, %d edges", len(graph.Stops), graph.EdgeCount())
 	}
-	server := &http.Server{Addr: ":" + config.Port, Handler: (&Server{pool: pool, store: store, admin: config.AdminKey}).routes(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second}
+	service := &Server{pool: pool, store: store, admin: config.AdminKey}
+	server := &http.Server{Addr: ":" + config.Port, Handler: service.routes(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second}
+	grpcListener, err := net.Listen("tcp", ":"+env("GRPC_PORT", "9091"))
+	if err != nil {
+		log.Fatalf("could not listen for gRPC: %v", err)
+	}
+	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(microAuthInterceptor(config.AdminKey)))
+	microv1.RegisterMicroServiceServer(grpcServer, &microGRPCServer{service: service})
+	go func() {
+		log.Printf("transit gRPC service listening on %s", grpcListener.Addr())
+		if err := grpcServer.Serve(grpcListener); err != nil {
+			log.Printf("transit gRPC server stopped: %v", err)
+		}
+	}()
+	defer grpcServer.GracefulStop()
 	log.Printf("transit service listening on port %s", config.Port)
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)

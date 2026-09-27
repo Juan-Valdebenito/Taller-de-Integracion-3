@@ -3,6 +3,7 @@ module github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go
 go 1.25.0
 
 require (
+	github.com/Juan-Valdebenito/Taller-de-Integracion-3/proto v0.0.0
 	github.com/gin-contrib/cors v1.7.2
 	github.com/gin-gonic/gin v1.10.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
@@ -14,6 +15,8 @@ require (
 	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.12
 )
+
+replace github.com/Juan-Valdebenito/Taller-de-Integracion-3/proto => ../proto
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect

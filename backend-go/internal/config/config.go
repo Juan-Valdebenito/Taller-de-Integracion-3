@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -40,6 +41,13 @@ type Config struct {
 	RedisAddr     string
 	RedisPassword string
 	RedisDB       int
+
+	// ── Proxies gRPC (microservicios clima / micro) ────────────────────────
+	ClimateGRPCTarget string
+	ClimateAPIKey     string
+	MicroGRPCTarget   string
+	MicroAPIKey       string
+	GRPCTimeout       time.Duration
 }
 
 // Load carga las variables desde el archivo .env y el entorno del sistema.
@@ -49,6 +57,11 @@ func Load() *Config {
 		log.Println("⚠️  No se encontró archivo .env, usando variables de entorno del sistema")
 	}
 
+	timeout := getEnv("GRPC_TIMEOUT", "5s")
+	grpcTimeout, err := time.ParseDuration(timeout)
+	if err != nil || grpcTimeout <= 0 {
+		grpcTimeout = 5 * time.Second
+	}
 	return &Config{
 		Port:        getEnv("PORT", "3001"),
 		DatabaseURL: getEnv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/transporte_db"),
@@ -67,6 +80,13 @@ func Load() *Config {
 		RedisAddr:     getEnv("REDIS_ADDR", ""),
 		RedisPassword: getEnv("REDIS_PASSWORD", ""),
 		RedisDB:       getEnvInt("REDIS_DB", 0),
+
+		// Proxies gRPC
+		ClimateGRPCTarget: getEnv("CLIMATE_GRPC_TARGET", "localhost:9090"),
+		ClimateAPIKey:     getEnv("CLIMATE_API_KEY", "temuco_weather_secret_key"),
+		MicroGRPCTarget:   getEnv("MICRO_GRPC_TARGET", "localhost:9091"),
+		MicroAPIKey:       getEnv("MICRO_API_KEY", ""),
+		GRPCTimeout:       grpcTimeout,
 	}
 }
 
