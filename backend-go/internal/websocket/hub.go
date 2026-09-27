@@ -2,10 +2,10 @@ package websocket
 
 import (
 	"encoding/json"
-	"log"
 	"time"
 
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain/service"
+	"github.com/rs/zerolog/log"
 )
 
 // Hub es el motor central del patrón Pub/Sub.
@@ -51,7 +51,7 @@ func (h *Hub) Run() {
 		select {
 		case client := <-h.register:
 			h.clients[client] = true
-			log.Printf("[WS Hub] Cliente conectado — total: %d", len(h.clients))
+			log.Debug().Str("event", "websocket_client_connected").Int("clients", len(h.clients)).Msg("WebSocket client connected")
 
 		case client := <-h.unregister:
 			if _, ok := h.clients[client]; ok {
@@ -61,7 +61,7 @@ func (h *Hub) Run() {
 				}
 				delete(h.clients, client)
 				close(client.send)
-				log.Printf("[WS Hub] Cliente desconectado — total: %d", len(h.clients))
+				log.Debug().Str("event", "websocket_client_disconnected").Int("clients", len(h.clients)).Msg("WebSocket client disconnected")
 			}
 
 		case msg := <-h.publish:
@@ -77,14 +77,14 @@ func (h *Hub) Subscribe(client *Client, topicKey string) {
 	}
 	h.topics[topicKey][client] = true
 	client.topics[topicKey] = true
-	log.Printf("[WS Hub] Cliente suscrito a %s — suscriptores: %d", topicKey, len(h.topics[topicKey]))
+	log.Debug().Str("event", "websocket_subscribed").Str("topic", topicKey).Int("subscribers", len(h.topics[topicKey])).Msg("WebSocket client subscribed")
 }
 
 // Unsubscribe remueve un cliente de un topic.
 func (h *Hub) Unsubscribe(client *Client, topicKey string) {
 	h.removeFromTopic(client, topicKey)
 	delete(client.topics, topicKey)
-	log.Printf("[WS Hub] Cliente desuscrito de %s", topicKey)
+	log.Debug().Str("event", "websocket_unsubscribed").Str("topic", topicKey).Msg("WebSocket client unsubscribed")
 }
 
 // handlePublish procesa un mensaje de publicación: enriquece con predicción
@@ -102,7 +102,7 @@ func (h *Hub) handlePublish(msg *PublishMessage) {
 		}
 		result, err := h.occupancySvc.Predict(input)
 		if err != nil {
-			log.Printf("[WS Hub] Error al predecir ocupación: %v", err)
+			log.Warn().Err(err).Str("event", "websocket_occupancy_prediction_failed").Msg("Could not predict occupancy")
 		} else {
 			occupancy = &OccupancyInfo{
 				CurrentRatio:   result.CurrentRatio,
@@ -143,7 +143,7 @@ func (h *Hub) handlePublish(msg *PublishMessage) {
 
 	payload, err := json.Marshal(broadcast)
 	if err != nil {
-		log.Printf("[WS Hub] Error al serializar broadcast: %v", err)
+		log.Error().Err(err).Str("event", "websocket_broadcast_marshal_failed").Msg("Could not serialize WebSocket broadcast")
 		return
 	}
 
@@ -171,7 +171,7 @@ func (h *Hub) broadcastToTopic(topicKey string, payload []byte) {
 			h.removeFromTopic(client, topicKey)
 			delete(h.clients, client)
 			close(client.send)
-			log.Printf("[WS Hub] Cliente removido por buffer lleno en topic %s", topicKey)
+			log.Warn().Str("event", "websocket_client_removed").Str("topic", topicKey).Msg("WebSocket client removed because its buffer is full")
 		}
 	}
 }

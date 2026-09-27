@@ -30,7 +30,8 @@ func Setup(
 	occupancyH *handler.OccupancyHandler,
 	wsHandler *ws.WSHandler,
 ) *gin.Engine {
-	r := gin.Default()
+	r := gin.New()
+	r.Use(gin.Recovery(), middleware.RequestLogger())
 	metrics := middleware.NewMetrics()
 	r.Use(metrics.CollectHTTP())
 

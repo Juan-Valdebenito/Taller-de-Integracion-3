@@ -71,6 +71,19 @@ go run ./cmd/server
 # Servidor en http://localhost:3001
 ```
 
+### Logs estructurados
+
+El backend Go usa `zerolog` y emite JSON por defecto hacia stdout. Cada request
+incluye `event`, `request_id`, método, ruta, estado y latencia; el ID también se
+devuelve en el header `X-Request-ID`.
+
+Variables opcionales:
+
+```bash
+LOG_LEVEL=debug       # trace, debug, info, warn, error, fatal, panic
+LOG_FORMAT=json       # json (por defecto) o console
+```
+
 ### 5. Ejecutar el frontend (en otra terminal)
 
 ```bash

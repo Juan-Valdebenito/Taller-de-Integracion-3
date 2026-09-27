@@ -10,6 +10,7 @@ require (
 	github.com/jackc/pgx/v5 v5.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/prometheus/client_golang v1.24.1
+	github.com/rs/zerolog v1.34.0
 	github.com/tsenart/vegeta/v12 v12.13.0
 	golang.org/x/crypto v0.55.0
 	google.golang.org/grpc v1.83.2
@@ -39,6 +40,7 @@ require (
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
+	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect

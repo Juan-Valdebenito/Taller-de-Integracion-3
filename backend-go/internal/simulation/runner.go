@@ -3,11 +3,11 @@ package simulation
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain/service"
 	ws "github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/websocket"
+	"github.com/rs/zerolog/log"
 )
 
 // RunnerConfig configura el comportamiento del runner de simulación.
@@ -80,8 +80,10 @@ func (r *Runner) Start(ctx context.Context) {
 				case <-timer.C:
 				}
 
-				log.Printf("[Simulation] Bus %s iniciado en ruta %s (waypoint %d/%d)",
-					busID, route.Name, startIndex+1, n)
+				log.Debug().Str("event", "simulation_bus_started").
+					Str("bus_id", busID).Str("route", route.Name).
+					Int("waypoint", startIndex+1).Int("waypoints", n).
+					Msg("Simulation bus started")
 				sim.Run(ctx)
 			}()
 
@@ -89,7 +91,8 @@ func (r *Runner) Start(ctx context.Context) {
 		}
 	}
 
-	log.Printf("[Simulation] %d buses simulados activos en %d rutas", totalBuses, len(Routes))
+	log.Info().Str("event", "simulation_ready").Int("buses", totalBuses).
+		Int("routes", len(Routes)).Msg("Simulation buses active")
 	<-ctx.Done()
-	log.Println("[Simulation] Motor de simulación detenido")
+	log.Info().Str("event", "simulation_stopped").Msg("Simulation stopped")
 }

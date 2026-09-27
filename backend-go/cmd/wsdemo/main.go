@@ -3,15 +3,16 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"math"
 	"math/rand"
 	"net/http"
 	"time"
 
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain/service"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/logger"
 	ws "github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/websocket"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -40,6 +41,8 @@ var demoBuses = []simBus{
 }
 
 func main() {
+	logger.Configure()
+
 	// Servicio de ocupación
 	occupancySvc := service.NewOccupancyService()
 
@@ -50,7 +53,7 @@ func main() {
 	wsHandler := ws.NewWSHandler(hub, demoJWTSecret, []string{
 		"http://localhost:" + demoPort,
 		"http://127.0.0.1:" + demoPort,
-		"http://localhost:5173",  // Vite dev server
+		"http://localhost:5173", // Vite dev server
 		"http://127.0.0.1:5173",
 		"null", // Para archivos locales
 	})
@@ -77,7 +80,7 @@ func main() {
 	fmt.Println("╚══════════════════════════════════════════════════════╝")
 
 	if err := http.ListenAndServe(":"+demoPort, mux); err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Str("event", "websocket_demo_failed").Msg("WebSocket demo stopped unexpectedly")
 	}
 }
 

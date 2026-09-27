@@ -1,11 +1,11 @@
 package config
 
 import (
-	"log"
 	"os"
 	"strconv"
 
 	"github.com/joho/godotenv"
+	"github.com/rs/zerolog/log"
 )
 
 // Config contiene todas las variables de entorno de la aplicación.
@@ -49,7 +49,7 @@ type Config struct {
 func Load() *Config {
 	// Intentar cargar .env (no falla si no existe en producción)
 	if err := godotenv.Load(); err != nil {
-		log.Println("⚠️  No se encontró archivo .env, usando variables de entorno del sistema")
+		log.Debug().Str("event", "dotenv_missing").Msg("No .env file found; using system environment")
 	}
 
 	return &Config{

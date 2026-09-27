@@ -2,11 +2,11 @@ package websocket
 
 import (
 	"encoding/json"
-	"log"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	gorillaWS "github.com/gorilla/websocket"
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -69,7 +69,7 @@ func (c *Client) readPump() {
 		_, message, err := c.conn.ReadMessage()
 		if err != nil {
 			if gorillaWS.IsUnexpectedCloseError(err, gorillaWS.CloseGoingAway, gorillaWS.CloseNormalClosure) {
-				log.Printf("[WS Client] Error de lectura: %v", err)
+				log.Warn().Err(err).Str("event", "websocket_read_failed").Msg("WebSocket read failed")
 			}
 			break
 		}

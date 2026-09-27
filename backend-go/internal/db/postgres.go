@@ -2,26 +2,25 @@ package db
 
 import (
 	"context"
-	"fmt"
-	"log"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog/log"
 )
 
 // NewPool crea y verifica un pool de conexiones a PostgreSQL.
-// Llama a log.Fatalf si la conexión falla.
+// Termina el proceso si la conexión falla.
 func NewPool(databaseURL string) *pgxpool.Pool {
 	pool, err := pgxpool.New(context.Background(), databaseURL)
 	if err != nil {
-		log.Fatalf("❌ No se pudo crear el pool de conexiones: %v", err)
+		log.Fatal().Err(err).Str("event", "database_pool_failed").Msg("Could not create database pool")
 	}
 
 	// Verificar conectividad
 	if err := pool.Ping(context.Background()); err != nil {
-		log.Fatalf("❌ No se pudo conectar a PostgreSQL: %v", err)
+		log.Fatal().Err(err).Str("event", "database_connection_failed").Msg("Could not connect to PostgreSQL")
 	}
 
-	fmt.Println("✅ Conectado a PostgreSQL")
+	log.Info().Str("event", "database_connected").Msg("Connected to PostgreSQL")
 	return pool
 }
 
@@ -31,16 +30,16 @@ func NewPool(databaseURL string) *pgxpool.Pool {
 func NewPoolOptional(databaseURL string) *pgxpool.Pool {
 	pool, err := pgxpool.New(context.Background(), databaseURL)
 	if err != nil {
-		log.Printf("⚠️  Base de datos no disponible: %v", err)
+		log.Warn().Err(err).Str("event", "database_pool_unavailable").Msg("Database unavailable")
 		return nil
 	}
 
 	if err := pool.Ping(context.Background()); err != nil {
-		log.Printf("⚠️  No se pudo conectar a PostgreSQL: %v", err)
+		log.Warn().Err(err).Str("event", "database_connection_unavailable").Msg("Could not connect to PostgreSQL")
 		pool.Close()
 		return nil
 	}
 
-	fmt.Println("✅ Conectado a PostgreSQL")
+	log.Info().Str("event", "database_connected").Msg("Connected to PostgreSQL")
 	return pool
 }

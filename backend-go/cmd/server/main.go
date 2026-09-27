@@ -3,13 +3,15 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/config"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/db"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain/service"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/handler"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/logger"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/repository"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/router"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/seed"
@@ -20,6 +22,8 @@ import (
 )
 
 func main() {
+	logger.Configure()
+
 	// ── Configuración ─────────────────────────────────────────
 	cfg := config.Load()
 
@@ -37,17 +41,16 @@ func main() {
 	if dbAvailable {
 		defer pool.Close()
 	} else {
-		fmt.Println("⚠️  Servidor en MODO SIMULACIÓN sin base de datos")
-		fmt.Println("    Los endpoints REST no estarán disponibles.")
+		log.Warn().Str("event", "degraded_mode").Msg("Database unavailable; running in simulation mode")
 		if !cfg.SimulationEnabled {
-			log.Fatal("❌ La BD no está disponible y SIMULATION_ENABLED=false. Abortando.")
+			log.Fatal().Str("event", "startup_failed").Msg("Database unavailable and simulation is disabled")
 		}
 	}
 
 	// ── Datos de prueba (solo si hay BD y no es producción) ────
 	if dbAvailable && cfg.Env != "production" {
 		if err := seed.Run(ctx, pool); err != nil {
-			log.Printf("⚠️  No se pudieron crear los datos de prueba: %v\n", err)
+			log.Warn().Err(err).Str("event", "seed_failed").Msg("Could not create seed data")
 		}
 	}
 
@@ -91,21 +94,26 @@ func main() {
 			TimeoutSec: cfg.PredictionTimeoutSec,
 		})
 		if err != nil {
-			log.Printf("⚠️  No se pudo conectar al servidor ML (%s): %v — usando predictor heurístico\n",
-				cfg.PredictionTransport, err)
+			log.Warn().Err(err).Str("event", "prediction_client_failed").
+				Str("transport", cfg.PredictionTransport).
+				Msg("Could not connect to ML server; using heuristic predictor")
 		} else {
 			defer func() {
 				if closeErr := predClient.Close(); closeErr != nil {
-					log.Printf("⚠️  Error cerrando cliente ML: %v\n", closeErr)
+					log.Warn().Err(closeErr).Str("event", "prediction_client_close_failed").
+						Msg("Could not close ML client")
 				}
 			}()
 			timeout := time.Duration(cfg.PredictionTimeoutSec) * time.Second
 			mlPredictor := service.NewMLRemotePredictor(predClient, timeout)
 			occupancySvc.SetPredictor(mlPredictor)
-			fmt.Printf("🤖  Predictor ML activo: %s (%s)\n", mlPredictor.Name(), cfg.PredictionTransport)
+			log.Info().Str("event", "prediction_client_ready").
+				Str("predictor", mlPredictor.Name()).
+				Str("transport", cfg.PredictionTransport).
+				Msg("ML predictor active")
 		}
 	} else {
-		fmt.Println("🔮  Predictor heurístico activo (PREDICTION_TRANSPORT no configurado)")
+		log.Info().Str("event", "prediction_client_disabled").Msg("Heuristic predictor active")
 	}
 
 	occupancyH := handler.NewOccupancyHandler(occupancySvc)
@@ -115,7 +123,7 @@ func main() {
 	go hub.Run()
 
 	wsHandler := ws.NewWSHandler(hub, cfg.JWTSecret, []string{cfg.CORSOrigin})
-	fmt.Println("📡  WebSocket Pub/Sub activo en /ws")
+	log.Info().Str("event", "websocket_ready").Str("path", "/ws").Msg("WebSocket Pub/Sub active")
 
 	// ── Simulación GPS (buses virtuales rutas 7A, 7B, 1C) ─────
 	if cfg.SimulationEnabled {
@@ -124,10 +132,11 @@ func main() {
 			SpeedMultiplier: cfg.SimulationSpeedMultiplier,
 		})
 		go simRunner.Start(ctx)
-		fmt.Printf("🎮  Motor de simulación GPS activo — tick: %dms, rutas: 7A, 7B, 1C\n",
-			cfg.SimulationTickMs)
+		log.Info().Str("event", "simulation_started").
+			Int("tick_ms", cfg.SimulationTickMs).
+			Msg("GPS simulation active")
 	} else {
-		fmt.Println("⏸️   Simulación GPS desactivada (SIMULATION_ENABLED=false)")
+		log.Info().Str("event", "simulation_disabled").Msg("GPS simulation disabled")
 	}
 
 	// ── Router ────────────────────────────────────────────────
@@ -136,10 +145,9 @@ func main() {
 
 	// ── Iniciar servidor ──────────────────────────────────────
 	addr := fmt.Sprintf(":%s", cfg.Port)
-	fmt.Printf("\n🚌  Servidor Go corriendo en http://localhost%s\n", addr)
-	fmt.Printf("🌍  Entorno: %s\n\n", cfg.Env)
+	log.Info().Str("event", "server_starting").Str("address", addr).Str("environment", cfg.Env).Msg("HTTP server starting")
 
 	if err := r.Run(addr); err != nil {
-		log.Fatalf("❌ Error al iniciar servidor: %v", err)
+		log.Fatal().Err(err).Str("event", "server_failed").Msg("HTTP server stopped unexpectedly")
 	}
 }

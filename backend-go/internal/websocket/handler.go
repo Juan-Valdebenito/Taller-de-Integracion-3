@@ -1,10 +1,10 @@
 package websocket
 
 import (
-	"log"
 	"net/http"
 
 	gorillaWS "github.com/gorilla/websocket"
+	"github.com/rs/zerolog/log"
 )
 
 // upgrader configura el upgrade HTTP → WebSocket.
@@ -43,7 +43,7 @@ func NewWSHandler(hub *Hub, jwtSecret string, allowedOrigins []string) *WSHandle
 				return true
 			}
 		}
-		log.Printf("[WS Handler] Origin rechazado: %s", origin)
+		log.Warn().Str("event", "websocket_origin_rejected").Str("origin", origin).Msg("WebSocket origin rejected")
 		return false
 	}
 
@@ -55,7 +55,7 @@ func NewWSHandler(hub *Hub, jwtSecret string, allowedOrigins []string) *WSHandle
 func (h *WSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("[WS Handler] Error en upgrade: %v", err)
+		log.Warn().Err(err).Str("event", "websocket_upgrade_failed").Msg("WebSocket upgrade failed")
 		return
 	}
 
