@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
 
@@ -20,6 +21,13 @@ func RequestLogger() gin.HandlerFunc {
 			requestID = newRequestID()
 		}
 		c.Header(requestIDHeader, requestID)
+		log.Debug().
+			Str("event", "http_request_started").
+			Str("request_id", requestID).
+			Str("method", c.Request.Method).
+			Str("path", c.Request.URL.Path).
+			Str("client_ip", c.ClientIP()).
+			Msg("HTTP request started")
 
 		started := time.Now()
 		c.Next()
@@ -31,12 +39,11 @@ func RequestLogger() gin.HandlerFunc {
 		}
 
 		event := log.Info()
-		if status >= http.StatusInternalServerError {
+		if status >= http.StatusBadRequest {
 			event = log.Error()
-		} else if status >= http.StatusBadRequest {
-			event = log.Warn()
 		}
 
+		event = addAuthenticatedUser(event, c)
 		event.
 			Str("event", "http_request").
 			Str("request_id", requestID).
@@ -47,6 +54,20 @@ func RequestLogger() gin.HandlerFunc {
 			Str("client_ip", c.ClientIP()).
 			Msg("HTTP request completed")
 	}
+}
+
+func addAuthenticatedUser(event *zerolog.Event, c *gin.Context) *zerolog.Event {
+	if userID, ok := c.Get(ContextUserID); ok {
+		if value, ok := userID.(string); ok && value != "" {
+			event = event.Str("user_id", value)
+		}
+	}
+	if userRole, ok := c.Get(ContextUserRole); ok {
+		if value, ok := userRole.(string); ok && value != "" {
+			event = event.Str("user_role", value)
+		}
+	}
+	return event
 }
 
 func newRequestID() string {
