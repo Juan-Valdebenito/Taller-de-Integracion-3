@@ -22,11 +22,18 @@ import (
 type AuthHandler struct {
 	userRepo  *repository.UserRepository
 	jwtSecret string
+	accessExpires time.Duration
+	refreshExpires time.Duration
 	blacklist *token.Blacklist
 }
 
-func NewAuthHandler(userRepo *repository.UserRepository, jwtSecret string, bl *token.Blacklist) *AuthHandler {
-	return &AuthHandler{userRepo: userRepo, jwtSecret: jwtSecret, blacklist: bl}
+func NewAuthHandler(userRepo *repository.UserRepository, jwtSecret string, accessExpires time.Duration, refreshExpires time.Duration, bl *token.Blacklist) *AuthHandler {
+	return &AuthHandler{
+		userRepo: userRepo, 
+		jwtSecret: jwtSecret, 
+		accessExpires: accessExpires, 
+		refreshExpires: refreshExpires,
+		blacklist: bl}
 }
 
 // generateJTI crea un identificador único para el token (JWT ID).
@@ -40,28 +47,30 @@ func generateJTI() (string, error) {
 
 // generateToken crea un JWT firmado HS256 con los datos del usuario.
 // Incluye el claim "jti" para poder revocar tokens específicos en el logout.
-func (h *AuthHandler) generateToken(user *domain.User) (string, time.Time, error) {
+func (h *AuthHandler) generateToken(user *domain.User, tokenType string, duration time.Duration,) (string, time.Time, string, error) {
 	jti, err := generateJTI()
 	if err != nil {
-		return "", time.Time{}, err
+		return "", time.Time{}, "", err
 	}
 
-	exp := time.Now().Add(7 * 24 * time.Hour)
+	now := time.Now()
+	exp := now.Add(duration)
 
 	claims := jwt.MapClaims{
 		"jti":   jti,
 		"id":    user.ID,
 		"email": user.Email,
 		"role":  string(user.Role),
+		"type":  tokenType,
 		"exp":   exp.Unix(),
 		"iat":   time.Now().Unix(),
 	}
 	t := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signed, err := t.SignedString([]byte(h.jwtSecret))
 	if err != nil {
-		return "", time.Time{}, err
+		return "", time.Time{}, "", err
 	}
-	return signed, exp, nil
+	return signed, exp, jti,nil
 }
 
 // Register godoc
@@ -115,13 +124,19 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	tokenStr, _, err := h.generateToken(user)
+	accessToken, _, _, err := h.generateToken(user, "access", h.accessExpires)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al generar token"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al generar el access token"})
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"token": tokenStr, "user": user})
+	refreshToken, _, _, err := h.generateToken(user, "refresh", h.refreshExpires)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al generar el access token"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"accessToken": accessToken, "refreshToken": refreshToken, "user": user})
 }
 
 // Login godoc
@@ -153,13 +168,132 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	tokenStr, _, err := h.generateToken(user)
+	accessToken, _, _, err := h.generateToken(user, "access", h.accessExpires)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al generar token"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al generar access token"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"token": tokenStr, "user": user})
+	refreshToken, _, _, err := h.generateToken(user, "refresh", h.refreshExpires)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al generar refresh token"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"accessToken": accessToken, "refreshToken": refreshToken, "user": user})
+}
+
+// Refresh godoc
+// POST /api/v1/auth/refresh
+//
+// Recibe un Refresh Token válido, lo revoca y genera
+// un nuevo Access Token y un nuevo Refresh Token
+
+func (h *AuthHandler) Refresh(c *gin.Context) {
+
+	var body struct {
+		RefreshToken string `json:"refreshToken" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "refreshToken es requerido"})
+		return
+	}
+
+	// Parsear y verificar firma del Refresh Token
+	token, err := jwt.Parse(
+		body.RefreshToken, func(token *jwt.Token) (interface{}, error) {
+
+			if, _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("metodo de firma invalido")
+			}
+
+			return []byte(*h.jwtSecret), nil
+		},
+	)
+
+	if err != nil || !token.Valid {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Refresh token inválido o expirado"})
+		return
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims inválidos"})
+		return
+	}
+
+	// Verificar que sea realmente un Refresh Token
+	tokenType, ok := claims["type"].(string)
+	if !ok || tokenType != "refresh" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "El token no es un refresh token"})
+		return
+	}
+
+	// Obtener JTI
+	jti, ok := claims["jti"].(string)
+	if !ok || jti == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Refresh token sin JTI"})
+		return
+	}
+
+	// Verificar si ya fue utilizado/revocado
+	if h.blacklist.IsRevoked(jti) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Refresh token ya utilizado o revocado"})
+		return
+	}
+
+	// obtener user id
+	userID, ok := claims["id"].(string)
+	if !ok || userID == "" {
+		 c.JSON(http.StatusUnauthorized, gin.H{"error": "Refresh token sin usuario",})
+		 return
+	}
+
+	// Buscar user nuevamente
+	user, err := h.userRepo.FindByID(
+        c.Request.Context(),
+        userID,
+    )
+
+	if err != nil || user == nil {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuario no encontrado",})
+        return
+    }
+
+	// No permitir refrescar una cuenta desactivada
+	if !user.IsActive {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Cuenta desactivada"})
+		return
+	}
+
+	// Obtener expiración del Refresh Token
+	expFloat, ok := claims["exp"].(float64)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Refresh token sin expiración"})
+		return
+	}
+
+	exp := time.Unix(int64(expFloat), 0)
+
+	// ROTACIÓN:
+    // el Refresh Token que acaba de utilizarse queda invalidado
+	h.blacklist.Revoke(jti, exp)
+
+	//generar nuevo access token
+	 accessToken, _, _, err := h.generateToken(user,"access",h.accessExpires,)
+	 if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al generar access token"})
+		return
+	 }
+
+	 // Generar nuevo Refresh Token
+	 refreshToken, _, _, err := h.generateToken(user,"refresh",h.refreshExpires,)
+	  if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al generar refresh token"})
+		return
+	 }
+
+	 c.JSON(http.StatusOK, gin.H{"accessToken": accessToken, "refreshToken": refreshToken, "user": user})
 }
 
 // Logout godoc

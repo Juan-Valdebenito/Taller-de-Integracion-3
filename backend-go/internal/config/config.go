@@ -13,7 +13,8 @@ type Config struct {
 	Port              string
 	DatabaseURL       string
 	JWTSecret         string
-	JWTExpires        string
+	JWTAccessExpires  time.Duration       
+	JWTRefreshExpires time.Duration
 	CORSOrigin        string
 	Env               string
 	ClimateGRPCTarget string
@@ -30,6 +31,19 @@ func Load() *Config {
 		log.Println("⚠️  No se encontró archivo .env, usando variables de entorno del sistema")
 	}
 
+	accessExpires := getEnv("JWT_ACCESS_EXPIRES_IN", "15m")
+	refreshExpires := getEnv("JWT_REFRESH_EXPIRES_IN", "168h")
+
+	accessDuration, err := time.ParseDuration(accessExpires)
+	if err != nil {
+		accessDuration = 15 * time.Minute
+	}
+
+	refreshDuration, err := time.ParseDuration(refreshExpires)
+	if err != nil {
+		refreshDuration = 7 * 24 * time.Hour
+	}
+
 	timeout := getEnv("GRPC_TIMEOUT", "5s")
 	grpcTimeout, err := time.ParseDuration(timeout)
 	if err != nil || grpcTimeout <= 0 {
@@ -39,7 +53,8 @@ func Load() *Config {
 		Port:              getEnv("PORT", "3001"),
 		DatabaseURL:       getEnv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/transporte_db"),
 		JWTSecret:         getEnv("JWT_SECRET", "dev_secret_cambiarlo_en_produccion_123"),
-		JWTExpires:        getEnv("JWT_EXPIRES_IN", "7d"),
+		JWTAccessExpires:  accessDuration,
+		JWTRefreshExpires: refreshDuration,      
 		CORSOrigin:        getEnv("CORS_ORIGIN", "http://localhost:5173"),
 		Env:               getEnv("NODE_ENV", "development"),
 		ClimateGRPCTarget: getEnv("CLIMATE_GRPC_TARGET", "localhost:9090"),

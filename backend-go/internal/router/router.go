@@ -74,6 +74,7 @@ func Setup(
 	{
 		authGroup.POST("/register", authH.Register)
 		authGroup.POST("/login", authH.Login)
+		authGroup.POST("/refresh", authH.Refresh)
 		authGroup.POST("/logout", auth(), authH.Logout)
 		authGroup.GET("/me", auth(), authH.Me)
 	}
