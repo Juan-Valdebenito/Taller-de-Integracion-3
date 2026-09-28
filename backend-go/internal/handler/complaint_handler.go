@@ -24,9 +24,9 @@ func NewComplaintHandler(complaintRepo *repository.ComplaintRepository) *Complai
 // GET /api/v1/complaints
 func (h *ComplaintHandler) GetAll(c *gin.Context) {
 	filters := repository.ComplaintFilters{
-		Status: c.Query("status"),
+		Status:   c.Query("status"),
 		Category: c.Query("category"),
-		BusID: c.Query("busId"),
+		BusID:    c.Query("busId"),
 	}
 
 	complaints, err := h.complaintRepo.FindAll(

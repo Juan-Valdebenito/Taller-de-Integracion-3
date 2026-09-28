@@ -87,6 +87,17 @@ func (r *RouteRepository) FindStopsByRouteID(ctx context.Context, routeID string
 	return stops, nil
 }
 
+// CreateStop crea un paradero asociado a una ruta específica.
+func (r *RouteRepository) CreateStop(ctx context.Context, routeID, name string, latitude, longitude float64, order int) (*domain.Stop, error) {
+	row := r.pool.QueryRow(ctx, `
+		INSERT INTO stops (id, name, latitude, longitude, "order", "routeId")
+		VALUES (gen_random_uuid()::TEXT, $1, $2, $3, $4, $5)
+		RETURNING id, name, latitude, longitude, "order", "routeId"
+	`, name, latitude, longitude, order, routeID)
+
+	return scanStop(row)
+}
+
 // Create inserta una nueva ruta.
 func (r *RouteRepository) Create(ctx context.Context, name, code string, description *string, companyID string) (*domain.Route, error) {
 	row := r.pool.QueryRow(ctx, `

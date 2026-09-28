@@ -62,11 +62,11 @@ func (h *BusHandler) GetLocation(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"busId":         bus.ID,
-		"lastLatitude":  bus.LastLatitude,
-		"lastLongitude": bus.LastLongitude,
-		"lastHeading":   bus.LastHeading,
-		"lastSpeed":     bus.LastSpeed,
+		"busId":          bus.ID,
+		"lastLatitude":   bus.LastLatitude,
+		"lastLongitude":  bus.LastLongitude,
+		"lastHeading":    bus.LastHeading,
+		"lastSpeed":      bus.LastSpeed,
 		"lastLocationAt": bus.LastLocationAt,
 	})
 }
@@ -97,9 +97,9 @@ func (h *BusHandler) Create(c *gin.Context) {
 // PUT /api/v1/buses/:id
 func (h *BusHandler) Update(c *gin.Context) {
 	var body struct {
-		Patente  string `json:"patente" binding:"required"`
-		Capacity int    `json:"capacity" binding:"required,min=1"`
-		Status   string `json:"status" binding:"required"`
+		Patente  string  `json:"patente" binding:"required"`
+		Capacity int     `json:"capacity" binding:"required,min=1"`
+		Status   string  `json:"status" binding:"required"`
 		RouteID  *string `json:"routeId"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {

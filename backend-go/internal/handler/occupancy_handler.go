@@ -19,11 +19,11 @@ func NewOccupancyHandler(svc *service.OccupancyService) *OccupancyHandler {
 
 // occupancyRequest es el cuerpo JSON esperado en POST /api/v1/occupancy.
 type occupancyRequest struct {
-	CurrentPassengers int     `json:"currentPassengers" binding:"required,min=0"`
-	Capacity          int     `json:"capacity"          binding:"required,min=1"`
-	RouteID           string  `json:"routeId"`
-	Hour              *int    `json:"hour"`      // 0–23 (nil → hora actual)
-	DayOfWeek         *int    `json:"dayOfWeek"` // 0=Dom…6=Sáb (nil → hoy)
+	CurrentPassengers int    `json:"currentPassengers" binding:"required,min=0"`
+	Capacity          int    `json:"capacity"          binding:"required,min=1"`
+	RouteID           string `json:"routeId"`
+	Hour              *int   `json:"hour"`      // 0–23 (nil → hora actual)
+	DayOfWeek         *int   `json:"dayOfWeek"` // 0=Dom…6=Sáb (nil → hoy)
 }
 
 // Predict godoc
@@ -34,7 +34,9 @@ type occupancyRequest struct {
 // o un modelo ML real (false).
 //
 // Punto de migración: para conectar el clúster ML basta con llamar a
-//   handler.svc.SetPredictor(mlPredictor)
+//
+//	handler.svc.SetPredictor(mlPredictor)
+//
 // al arrancar el servidor. Este handler no cambia.
 func (h *OccupancyHandler) Predict(c *gin.Context) {
 	var req occupancyRequest

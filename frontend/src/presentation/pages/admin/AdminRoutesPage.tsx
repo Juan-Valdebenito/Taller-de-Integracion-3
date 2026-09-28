@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { apiClient } from '../../../infrastructure/api/apiClient';
 
 // ── Tipos ─────────────────────────────────────────────────────
 interface Stop {
@@ -181,6 +182,71 @@ function DeleteConfirm({ route, onClose, onConfirm }: { route: Route; onClose: (
   );
 }
 
+function StopModal({ route, onClose, onSave }: { route: Route; onClose: () => void; onSave: (stop: Omit<Stop, 'id'>) => Promise<void> }) {
+  const [form, setForm] = useState({
+    name: '',
+    latitude: '',
+    longitude: '',
+    order: String(route.stops.length + 1),
+  });
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    if (!form.name.trim() || !form.latitude || !form.longitude) {
+      setError('Completa el nombre y las coordenadas del paradero.');
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+    try {
+      await onSave({
+        name: form.name.trim(),
+        latitude: Number(form.latitude),
+        longitude: Number(form.longitude),
+        order: Number(form.order) || route.stops.length + 1,
+      });
+      onClose();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'No se pudo conectar el paradero.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+      onClick={(e) => { if (e.target === e.currentTarget && !saving) onClose(); }}>
+      <div style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-xl)', padding: 'var(--space-8)', width: '480px', maxWidth: '90vw', boxShadow: 'var(--shadow-lg)' }}>
+        <h2 style={{ fontSize: 'var(--font-size-xl)', fontWeight: 800, marginBottom: 'var(--space-2)' }}>➕ Nuevo paradero</h2>
+        <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)', marginBottom: 'var(--space-6)' }}>
+          Se agregará a la ruta <strong>{route.code} · {route.name}</strong>.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+          <input placeholder="Nombre del paradero" value={form.name} onChange={(e) => setForm((current) => ({ ...current, name: e.target.value }))}
+            style={{ width: '100%', padding: 'var(--space-3)', background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text-primary)' }} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+            <input type="number" step="any" placeholder="Latitud" value={form.latitude} onChange={(e) => setForm((current) => ({ ...current, latitude: e.target.value }))}
+              style={{ width: '100%', padding: 'var(--space-3)', background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text-primary)' }} />
+            <input type="number" step="any" placeholder="Longitud" value={form.longitude} onChange={(e) => setForm((current) => ({ ...current, longitude: e.target.value }))}
+              style={{ width: '100%', padding: 'var(--space-3)', background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text-primary)' }} />
+          </div>
+          <input type="number" min="1" placeholder="Orden" value={form.order} onChange={(e) => setForm((current) => ({ ...current, order: e.target.value }))}
+            style={{ width: '100%', padding: 'var(--space-3)', background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text-primary)' }} />
+          {error && <p style={{ color: 'hsl(0,84%,60%)', fontSize: 'var(--font-size-sm)' }}>{error}</p>}
+        </div>
+        <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-6)' }}>
+          <button onClick={onClose} disabled={saving} style={{ flex: 1, padding: 'var(--space-3)', background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text-secondary)', cursor: saving ? 'wait' : 'pointer' }}>Cancelar</button>
+          <button onClick={submit} disabled={saving} style={{ flex: 2, padding: 'var(--space-3)', background: 'var(--color-primary-500)', border: 'none', borderRadius: 'var(--radius-md)', color: 'white', fontWeight: 700, cursor: saving ? 'wait' : 'pointer' }}>
+            {saving ? 'Conectando...' : 'Conectar paradero'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Página ────────────────────────────────────────────────────
 export function AdminRoutesPage() {
   const [routes, setRoutes] = useState<Route[]>(MOCK_ROUTES);
@@ -190,6 +256,48 @@ export function AdminRoutesPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [modal, setModal] = useState<'new' | Route | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Route | null>(null);
+  const [stopRoute, setStopRoute] = useState<Route | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadRoutes = async () => {
+      try {
+        const response = await apiClient.get<Array<{
+          id: string;
+          code: string;
+          name: string;
+          description?: string;
+          isActive: boolean;
+          companyId: string;
+          createdAt: string;
+        }>>('/routes');
+        const loadedRoutes = await Promise.all(response.data.map(async (route) => {
+          const stopsResponse = await apiClient.get<Stop[]>(`/routes/${route.id}/stops`);
+          return {
+            id: route.id,
+            code: route.code,
+            name: route.name,
+            company: route.companyId,
+            description: route.description ?? '',
+            isActive: route.isActive,
+            stops: stopsResponse.data,
+            busesAssigned: 0,
+            createdAt: route.createdAt?.split('T')[0] ?? '',
+          };
+        }));
+
+        if (active && loadedRoutes.length > 0) {
+          setRoutes(loadedRoutes);
+        }
+      } catch {
+        // Mantener datos de demostración si la API no está disponible.
+      }
+    };
+
+    void loadRoutes();
+    return () => { active = false; };
+  }, []);
 
   const filtered = useMemo(() => routes.filter((r) => {
     const matchSearch = r.name.toLowerCase().includes(search.toLowerCase()) || r.code.includes(search);
@@ -208,6 +316,13 @@ export function AdminRoutesPage() {
     } else if (modal && typeof modal === 'object') {
       setRoutes((prev) => prev.map((r) => r.id === modal.id ? { ...r, ...data } : r));
     }
+  };
+
+  const handleStopSave = async (routeId: string, stop: Omit<Stop, 'id'>) => {
+    const response = await apiClient.post<Stop>(`/routes/${routeId}/stops`, stop);
+    setRoutes((prev) => prev.map((route) => route.id === routeId
+      ? { ...route, stops: [...route.stops, response.data].sort((a, b) => a.order - b.order) }
+      : route));
   };
 
   return (
@@ -326,6 +441,9 @@ export function AdminRoutesPage() {
                         <p style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 'var(--space-2)', marginTop: 'var(--space-3)' }}>
                           Paraderos del recorrido
                         </p>
+                        <button onClick={() => setStopRoute(route)} style={{ padding: 'var(--space-2) var(--space-3)', marginBottom: 'var(--space-3)', background: 'var(--color-primary-500)', border: 'none', borderRadius: 'var(--radius-sm)', color: 'white', fontSize: 'var(--font-size-xs)', fontWeight: 700, cursor: 'pointer' }}>
+                          ➕ Conectar paradero
+                        </button>
                         <div style={{ display: 'flex', gap: 0, flexDirection: 'column' }}>
                           {route.stops.map((stop, idx) => (
                             <div key={stop.id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-2) 0', position: 'relative' }}>
@@ -360,6 +478,7 @@ export function AdminRoutesPage() {
       {/* Modals */}
       {modal !== null && <RouteModal onClose={() => setModal(null)} onSave={handleSave} initial={modal === 'new' ? undefined : modal} />}
       {deleteTarget !== null && <DeleteConfirm route={deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={() => handleDelete(deleteTarget.id)} />}
+      {stopRoute !== null && <StopModal route={stopRoute} onClose={() => setStopRoute(null)} onSave={(stop) => handleStopSave(stopRoute.id, stop)} />}
     </div>
   );
 }

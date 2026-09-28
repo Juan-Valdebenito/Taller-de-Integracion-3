@@ -48,7 +48,7 @@ func scanComplaint(row pgx.Row) (*domain.Complaint, error) {
 // FindAll retorna todos los reclamos aplicando filtros opcionales de estado, categoría y busId. Si no hay reclamos, retorna un slice vacío.
 func (r *ComplaintRepository) FindAll(
 	ctx context.Context,
-	filters ComplaintFilters, 
+	filters ComplaintFilters,
 ) ([]domain.Complaint, error) {
 
 	query := `
@@ -57,7 +57,7 @@ func (r *ComplaintRepository) FindAll(
 	`
 	var conditions []string
 	var args []interface{}
-	
+
 	if filters.Status != "" {
 		args = append(args, filters.Status)
 		conditions = append(conditions, fmt.Sprintf(`status = $%d`, len(args)))

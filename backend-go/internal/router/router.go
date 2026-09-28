@@ -115,6 +115,7 @@ func Setup(
 		routes.GET("/", routeH.GetAll)
 		routes.GET("/:id", routeH.GetByID)
 		routes.GET("/:id/stops", routeH.GetStops)
+		routes.POST("/:id/stops", middleware.Authorize("ADMIN"), routeH.CreateStop)
 		routes.GET("/:id/buses", routeH.GetBuses)
 		routes.POST("/", middleware.Authorize("ADMIN"), routeH.Create)
 		routes.PUT("/:id", middleware.Authorize("ADMIN", "COMPANY"), routeH.Update)
