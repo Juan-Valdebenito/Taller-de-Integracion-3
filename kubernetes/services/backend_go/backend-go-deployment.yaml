@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
         - name: backend-go
-          # TODO: reemplazar por la imagen publicada (docker build -t <usuario>/backend-go:v1 backend-go/ && docker push ...)
+          # TODO: reemplazar por la imagen publicada (desde la raíz del repo: docker build -f backend-go/Dockerfile -t <usuario>/backend-go:v1 . && docker push ...)
           image: <DOCKERHUB_USER>/backend-go:v1
           imagePullPolicy: IfNotPresent
           resources:

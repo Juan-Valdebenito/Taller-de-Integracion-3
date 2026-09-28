@@ -188,11 +188,12 @@ protoc -I proto -I /path/to/protoc/include \
 
 Variables de `backend-go`: `CLIMATE_GRPC_TARGET`, `CLIMATE_API_KEY`, `MICRO_GRPC_TARGET`, `MICRO_API_KEY` y `GRPC_TIMEOUT`. Las rutas existentes `/api/v1/routes` continúan usando `transporte_db` y no fueron migradas.
 
-Los Dockerfiles de los microservicios requieren contexto de build en la raíz:
+Los Dockerfiles de los microservicios y de `backend-go` requieren contexto de build en la raíz (dependen del módulo local `proto/`):
 
 ```bash
 docker build -f kubernetes/services/clima_service/Dockerfile .
 docker build -f kubernetes/services/micro_service/Dockerfile .
+docker build -f backend-go/Dockerfile .
 ```
 
 ---
