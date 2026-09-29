@@ -110,11 +110,8 @@ export function PassengerComplaintsPage() {
       return;
     }
 
-    const selectedBus = buses.find((bus) => bus.id === form.busId);
-    const selectedRoute = routes.find((route) => route.id === form.routeId);
-    const companyId = selectedBus?.companyId ?? selectedRoute?.companyId;
-
-    if (!companyId) {
+    // El backend deriva la empresa responsable a partir del bus o la ruta
+    if (!form.busId && !form.routeId) {
       setError('Selecciona un bus o una ruta para identificar la empresa responsable');
       return;
     }
@@ -130,7 +127,6 @@ export function PassengerComplaintsPage() {
           title: form.title.trim(),
           description: form.description.trim(),
           category: form.category,
-          companyId,
           busId: form.busId || undefined,
           routeId: form.routeId || undefined,
         },
@@ -148,7 +144,8 @@ export function PassengerComplaintsPage() {
       setSuccess('Reclamo creado exitosamente');
     } catch (err) {
       console.error('Error al crear el reclamo:', err);
-      setError('No se puede crear el reclamo');
+      const apiMessage = (err as { response?: { data?: { error?: string } } }).response?.data?.error;
+      setError(apiMessage ?? 'No se puede crear el reclamo');
     } finally {
       setIsSubmitting(false);
     }

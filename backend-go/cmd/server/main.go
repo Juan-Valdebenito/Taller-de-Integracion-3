@@ -60,7 +60,7 @@ func main() {
 	busH := handler.NewBusHandler(busRepo)
 	routeH := handler.NewRouteHandler(routeRepo, busRepo)
 	stopH := handler.NewStopHandler(stopRepo)
-	complaintH := handler.NewComplaintHandler(complaintRepo)
+	complaintH := handler.NewComplaintHandler(complaintRepo, busRepo, routeRepo)
 
 	// ── Servicio de ocupación ──────────────────────────────────
 	occupancySvc := service.NewOccupancyService()
