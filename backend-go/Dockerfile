@@ -2,7 +2,7 @@
 #   docker build -f backend-go/Dockerfile -t <usuario>/backend-go:v1 .
 
 # ETAPA 1: Compilación de Go
-FROM golang:1.25-alpine AS builder
+FROM golang:1.27-alpine AS builder
 
 WORKDIR /src/backend-go
 
@@ -15,17 +15,17 @@ RUN go mod download
 # Copiar código fuente y compilar
 COPY backend-go/cmd ./cmd
 COPY backend-go/internal ./internal
-RUN CGO_ENABLED=0 GOOS=linux go build -o /out/backend-go ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/backend-go ./cmd/server
 
 # ETAPA 2: Imagen de ejecución ligera
-FROM alpine:latest
+FROM alpine:3.22
 
-WORKDIR /app
+RUN adduser -D -H -u 10001 appuser
+USER appuser
 
-# Copiar el binario compilado desde la etapa anterior
-COPY --from=builder /out/backend-go .
+COPY --from=builder /out/backend-go /backend-go
 
 # Puerto por defecto donde escucha la app (ver internal/config/config.go)
 EXPOSE 3001
 
-CMD ["./backend-go"]
+ENTRYPOINT ["/backend-go"]
