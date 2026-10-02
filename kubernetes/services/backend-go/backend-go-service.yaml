@@ -4,11 +4,10 @@ metadata:
   name: backend-go-svc
   namespace: student-jvaldebenito
 spec:
-  type: ClusterIP
   selector:
     app: backend-go
   ports:
     - name: http
-      protocol: TCP
       port: 3001
-      targetPort: http
+      targetPort: 3001
+  type: ClusterIP
