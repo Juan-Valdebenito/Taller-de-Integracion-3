@@ -33,7 +33,7 @@ export function RegisterPage() {
         role,
       });
 
-      const { token, user } = res.data.data;
+      const { token, user } = res.data;
       login(token, user);
 
       if (user.role === 'COMPANY') {

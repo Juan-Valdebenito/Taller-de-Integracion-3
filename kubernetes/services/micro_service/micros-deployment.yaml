@@ -17,8 +17,8 @@ spec:
     spec:
       containers:
         - name: micros-service
-          image: ignaciogsm/micro_service:v1
-          imagePullPolicy: IfNotPresent
+          image: ignaciogsm/micro_service:v1.1
+          imagePullPolicy: Always
           resources:
             requests:
               memory: "64Mi"
