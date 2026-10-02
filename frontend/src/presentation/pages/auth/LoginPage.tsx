@@ -37,7 +37,9 @@ export function LoginPage() {
     } catch (err: any) {
       console.error('Error al iniciar sesión:', err);
       setErrorMessage(
-        err.response?.data?.message || 'Error al iniciar sesión. Verifica tus credenciales.'
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        'Error al iniciar sesión. Verifica tus credenciales.'
       );
     } finally {
       setIsLoading(false);

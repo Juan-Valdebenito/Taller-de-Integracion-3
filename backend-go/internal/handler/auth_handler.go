@@ -121,7 +121,14 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"token": tokenStr, "user": user})
+	c.JSON(http.StatusCreated, gin.H{
+		"token": tokenStr,
+		"user":  user,
+		"data": gin.H{
+			"token": tokenStr,
+			"user":  user,
+		},
+	})
 }
 
 // Login godoc
@@ -159,7 +166,14 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"token": tokenStr, "user": user})
+	c.JSON(http.StatusOK, gin.H{
+		"token": tokenStr,
+		"user":  user,
+		"data": gin.H{
+			"token": tokenStr,
+			"user":  user,
+		},
+	})
 }
 
 // Logout godoc

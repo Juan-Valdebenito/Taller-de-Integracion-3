@@ -33,7 +33,8 @@ export function RegisterPage() {
         role,
       });
 
-      const { token, user } = res.data.data;
+      const payload = res.data?.data || res.data;
+      const { token, user } = payload;
       login(token, user);
 
       if (user.role === 'COMPANY') {
@@ -42,12 +43,16 @@ export function RegisterPage() {
         navigate('/passenger/map');
       }
     } catch (err: any) {
+      console.error('Error al registrar usuario:', err);
       const fieldErrors = err.response?.data?.errors;
       if (fieldErrors && Array.isArray(fieldErrors) && fieldErrors.length > 0) {
         setErrorMessage(fieldErrors.map((fe: any) => fe.message).join('. '));
       } else {
         setErrorMessage(
-          err.response?.data?.message || 'Ocurrió un error al registrar la cuenta.'
+          err.response?.data?.error ||
+          err.response?.data?.message ||
+          err.message ||
+          'Ocurrió un error al registrar la cuenta.'
         );
       }
     } finally {

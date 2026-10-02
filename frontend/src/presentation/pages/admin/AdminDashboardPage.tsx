@@ -42,9 +42,8 @@ export function AdminDashboardPage() {
     setIsLoading(true);
     try {
       const res = await axios.get('http://localhost:3001/api/v1/complaints');
-      if (res.data?.data) {
-        setComplaints(res.data.data);
-      }
+      const list = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      setComplaints(list);
     } catch (err) {
       console.error('Error al cargar reclamos:', err);
     } finally {
