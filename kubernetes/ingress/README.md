@@ -60,12 +60,19 @@ kubectl apply -f kubernetes/ingress/transithub-ingress.yaml
 ## Comprobar que el WebSocket funciona
 
 ```bash
-# Debe responder 101 Switching Protocols
-curl -i -N --http1.1 \
-  -H "Connection: Upgrade" -H "Upgrade: websocket" \
-  -H "Sec-WebSocket-Version: 13" -H "Sec-WebSocket-Key: dGVzdGtleTEyMzQ1Njc4OQ==" \
-  "https://<HOST>/socket.io/?EIO=4&transport=websocket"
+bash kubernetes/ingress/check-websocket.sh <HOST>          # agregar -k si el certificado es autofirmado
+bash kubernetes/ingress/check-websocket.sh http://localhost:5173   # en local, vía proxy de Vite
 ```
+
+El script solo hace peticiones HTTP (no cambia nada en el cluster) y comprueba en orden:
+
+1. `/` responde 200 → el Ingress llega al **frontend**.
+2. `/api/v1/auth/me` responde 401 → el Ingress llega a **backend-go** (pide token, como corresponde).
+3. Handshake de Socket.io por *polling* con `sid`, y la cookie de afinidad `transithub-rt`.
+4. Upgrade a WebSocket → **`101 Switching Protocols`**.
+
+Al final indica qué estado verá el mapa (🟢/🟠/🔴) y qué revisar si algo falla.
+Sale con código `0` si todo pasa y `1` si algo falla, así que también sirve en un pipeline de CI.
 En el navegador: DevTools → Network → filtro **WS** → la conexión `socket.io` debe
 quedar en estado `101` y mostrar mensajes `bus:location:broadcast`.
 
