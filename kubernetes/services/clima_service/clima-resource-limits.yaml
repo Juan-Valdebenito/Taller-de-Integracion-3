@@ -1,33 +1,105 @@
+# ==============================================================================
+# Resource Quotas y Limit Ranges – Namespace: student-jvaldebenito
+# Microservicio de Clima (clima-service + clima-db + clima-simulator)
+#
+# Inventario de pods en el namespace:
+#   - clima-service   (Go API)       → cpu: 50m/300m   mem: 64Mi/256Mi
+#   - clima-db        (TimescaleDB)  → cpu: 100m/750m  mem: 256Mi/768Mi
+#   - clima-simulator (Go sender)    → cpu: 25m/150m   mem: 32Mi/128Mi
+#
+# Totales consumidos actualmente:
+#   requests → cpu: 175m  / memory: 352Mi
+#   limits   → cpu: 1200m / memory: 1152Mi
+#
+# Los valores de la quota incluyen ~40 % de margen sobre los totales actuales
+# para permitir reinicios, rolling updates y futuras réplicas de lectura.
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# ResourceQuota – límites agregados para todo el namespace
+# ------------------------------------------------------------------------------
 apiVersion: v1
 kind: ResourceQuota
 metadata:
   name: clima-resource-quota
   namespace: student-jvaldebenito
+  labels:
+    app.kubernetes.io/part-of: clima
+    app.kubernetes.io/managed-by: kubectl
 spec:
   hard:
-    requests.cpu: "1"
-    requests.memory: 1Gi
+    # ── Cómputo ──────────────────────────────────────────────────────────────
+    # Margen ≈ 175m × 1.4 ≈ 250m → redondeado a 300m
+    requests.cpu: "300m"
+    # Margen ≈ 1200m × 1.4 ≈ 1680m → redondeado a 2 cores
     limits.cpu: "2"
-    limits.memory: 2Gi
-    pods: "10"
+
+    # ── Memoria ──────────────────────────────────────────────────────────────
+    # Margen ≈ 352Mi × 1.4 ≈ 493Mi → redondeado a 512Mi
+    requests.memory: "512Mi"
+    # Margen ≈ 1152Mi × 1.4 ≈ 1613Mi → redondeado a 2Gi
+    limits.memory: "2Gi"
+
+    # ── Objetos Kubernetes ───────────────────────────────────────────────────
+    pods: "10"                  # máximo de pods simultáneos en el namespace
+    services: "6"               # clima-service-svc, clima-db-svc + margen
+    secrets: "10"               # secrets de app, TLS, imagen, etc.
+    configmaps: "10"
+    persistentvolumeclaims: "4" # PVCs actuales (emptyDir) + margen para prod
+
 ---
+# ------------------------------------------------------------------------------
+# LimitRange – valores por defecto y rangos permitidos por contenedor/pod/PVC
+# ------------------------------------------------------------------------------
 apiVersion: v1
 kind: LimitRange
 metadata:
   name: clima-limit-range
   namespace: student-jvaldebenito
+  labels:
+    app.kubernetes.io/part-of: clima
+    app.kubernetes.io/managed-by: kubectl
 spec:
   limits:
+    # ── Por Contenedor ────────────────────────────────────────────────────────
+    # Se inyectan automáticamente en contenedores que no declaran resources.
     - type: Container
-      defaultRequest:
-        cpu: 100m
-        memory: 128Mi
-      default:
-        cpu: 500m
-        memory: 512Mi
+      # Valores mínimos aceptados (evita contenedores sin restricciones)
       min:
-        cpu: 10m
-        memory: 16Mi
+        cpu: "10m"
+        memory: "16Mi"
+      # Valores máximos permitidos por contenedor individual
+      # (ningún contenedor puede superar el componente más pesado:
+      #  clima-db con cpu 750m / mem 768Mi → redondeamos al techo siguiente)
       max:
-        cpu: "1"
-        memory: 1Gi
+        cpu: "1"       # 1 CPU core como techo por contenedor
+        memory: "1Gi"
+      # Requests inyectadas por defecto (contenedores sin spec.resources)
+      defaultRequest:
+        cpu: "50m"
+        memory: "64Mi"
+      # Limits inyectados por defecto
+      default:
+        cpu: "300m"
+        memory: "256Mi"
+      # Ratio máximo limit/request (evita over-commit excesivo)
+      maxLimitRequestRatio:
+        cpu: "10"
+        memory: "8"
+
+    # ── Por Pod ───────────────────────────────────────────────────────────────
+    # Suma de todos los contenedores del pod (incluye init containers).
+    - type: Pod
+      min:
+        cpu: "10m"
+        memory: "16Mi"
+      max:
+        cpu: "1500m"     # un pod con DB + sidecar no debería pasar de 1.5 cores
+        memory: "1536Mi" # ni de 1.5 Gi en total
+
+    # ── Por PersistentVolumeClaim ─────────────────────────────────────────────
+    - type: PersistentVolumeClaim
+      min:
+        storage: "100Mi"
+      max:
+        storage: "10Gi"
