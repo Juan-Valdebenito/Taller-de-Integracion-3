@@ -41,7 +41,7 @@ export function AdminDashboardPage() {
   const fetchComplaints = async () => {
     setIsLoading(true);
     try {
-      const res = await axios.get('http://localhost:3001/api/v1/complaints');
+      const res = await axios.get('/api/v1/complaints');
       if (res.data?.data) {
         setComplaints(res.data.data);
       }
@@ -59,7 +59,7 @@ export function AdminDashboardPage() {
   const handleUpdateStatus = async (complaintId: string, newStatus: string, replyMessage?: string) => {
     setIsUpdating(true);
     try {
-      await axios.patch(`http://localhost:3001/api/v1/complaints/${complaintId}/status`, {
+      await axios.patch(`/api/v1/complaints/${complaintId}/status`, {
         status: newStatus,
         adminResponse: replyMessage !== undefined ? replyMessage : activeComplaint?.adminResponse,
       });

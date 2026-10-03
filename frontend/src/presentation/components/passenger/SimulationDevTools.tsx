@@ -75,7 +75,7 @@ export const SimulationDevTools: React.FC<SimulationDevToolsProps> = ({
     } else {
       // Fallback REST si Socket no está disponible
       try {
-        const res = await axios.post('http://localhost:3001/api/v1/buses/simulate-event', {
+        const res = await axios.post('/api/v1/buses/simulate-event', {
           busId: currentBus.id,
           eventType,
         });

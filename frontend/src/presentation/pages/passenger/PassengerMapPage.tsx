@@ -1,12 +1,9 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import { ComplaintModal } from '../../components/passenger/ComplaintModal';
 import { LiveMap, BusData, HazardData } from '../../components/passenger/LiveMap';
 import { HazardModal } from '../../components/passenger/HazardModal';
 import { SimulationDevTools } from '../../components/passenger/SimulationDevTools';
 import { io, Socket } from 'socket.io-client';
-
-const SOCKET_URL = 'http://localhost:3001';
 
 export function PassengerMapPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -18,17 +15,12 @@ export function PassengerMapPage() {
   const [pendingLocation, setPendingLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
-    // Carga inicial inmediata vía REST para que aparezcan de inmediato en el mapa
-    axios.get(`${SOCKET_URL}/api/v1/buses`)
-      .then((res) => {
-        if (res.data?.data && Array.isArray(res.data.data)) {
-          setBuses(res.data.data);
-        }
-      })
-      .catch((err) => console.warn('Carga inicial REST:', err.message));
-
-    // Conectar a Socket.io
-    const socketInstance = io(SOCKET_URL, {
+    // Conectar a Socket.io en el MISMO origen de la página: en el cluster el
+    // Ingress enruta /socket.io al servidor realtime y, si la página se cargó
+    // por https://, el cliente usa wss:// automáticamente. En desarrollo lo
+    // reenvía el proxy de Vite (vite.config.ts). Al conectar, el servidor
+    // emite el estado de todos los buses, así que no hace falta carga REST.
+    const socketInstance = io({
       transports: ['websocket', 'polling'],
     });
     setSocket(socketInstance);
