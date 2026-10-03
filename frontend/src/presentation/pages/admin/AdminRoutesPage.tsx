@@ -79,8 +79,6 @@ const MOCK_ROUTES: Route[] = [
   },
 ];
 
-const COMPANIES = ['Todas las empresas', 'Buses Metropolitanos', 'Trans Oriente', 'Buses del Sur', 'Trans Norte', 'Express Cordillera'];
-
 // ── Helpers ───────────────────────────────────────────────────
 function Badge({ label, color }: { label: string; color: string }) {
   return (
@@ -93,7 +91,7 @@ function Badge({ label, color }: { label: string; color: string }) {
 // ── Modal ─────────────────────────────────────────────────────
 interface ModalProps {
   onClose: () => void;
-  onSave: (data: Partial<Route>) => void;
+  onSave: (data: Partial<Route>) => Promise<void>;
   initial?: Partial<Route>;
 }
 
@@ -101,11 +99,31 @@ function RouteModal({ onClose, onSave, initial }: ModalProps) {
   const [form, setForm] = useState({
     code: initial?.code ?? '',
     name: initial?.name ?? '',
-    company: initial?.company ?? 'Buses Metropolitanos',
+    company: initial?.company ?? '',
     description: initial?.description ?? '',
     isActive: initial?.isActive ?? true,
   });
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
   const isEdit = !!initial?.id;
+
+  const submit = async () => {
+    if (!form.code.trim() || !form.name.trim() || !form.company.trim()) {
+      setError('Completa el código, nombre e ID de empresa.');
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+    try {
+      await onSave(form);
+      onClose();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'No se pudo guardar la ruta.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
@@ -128,11 +146,9 @@ function RouteModal({ onClose, onSave, initial }: ModalProps) {
             </div>
           </div>
           <div>
-            <label style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 'var(--space-1)' }}>Empresa</label>
-            <select value={form.company} onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))}
-              style={{ width: '100%', padding: 'var(--space-3)', background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text-primary)', fontSize: 'var(--font-size-sm)' }}>
-              {COMPANIES.slice(1).map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
+            <label style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 'var(--space-1)' }}>ID de empresa</label>
+            <input type="text" placeholder="company-demo" value={form.company} onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))}
+              style={{ width: '100%', padding: 'var(--space-3)', background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text-primary)', fontSize: 'var(--font-size-sm)' }} />
           </div>
           <div>
             <label style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 'var(--space-1)' }}>Descripción</label>
@@ -145,12 +161,14 @@ function RouteModal({ onClose, onSave, initial }: ModalProps) {
           </label>
         </div>
         <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-6)' }}>
-          <button onClick={onClose} style={{ flex: 1, padding: 'var(--space-3)', background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)', cursor: 'pointer' }}>Cancelar</button>
+          {error && <p style={{ color: 'hsl(0,84%,60%)', fontSize: 'var(--font-size-sm)', margin: 0 }}>{error}</p>}
+          <button onClick={onClose} disabled={saving} style={{ flex: 1, padding: 'var(--space-3)', background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)', cursor: saving ? 'wait' : 'pointer' }}>Cancelar</button>
           <button
             id="route-modal-save-btn"
-            onClick={() => { onSave(form); onClose(); }}
-            style={{ flex: 2, padding: 'var(--space-3)', background: 'linear-gradient(135deg, var(--color-primary-500), hsl(199,89%,48%))', border: 'none', borderRadius: 'var(--radius-md)', color: 'white', fontSize: 'var(--font-size-sm)', fontWeight: 700, cursor: 'pointer' }}>
-            {isEdit ? 'Guardar cambios' : 'Crear ruta'}
+            onClick={() => void submit()}
+            disabled={saving}
+            style={{ flex: 2, padding: 'var(--space-3)', background: 'linear-gradient(135deg, var(--color-primary-500), hsl(199,89%,48%))', border: 'none', borderRadius: 'var(--radius-md)', color: 'white', fontSize: 'var(--font-size-sm)', fontWeight: 700, cursor: saving ? 'wait' : 'pointer' }}>
+            {saving ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Crear ruta'}
           </button>
         </div>
       </div>
@@ -159,7 +177,23 @@ function RouteModal({ onClose, onSave, initial }: ModalProps) {
 }
 
 // ── Delete confirm ────────────────────────────────────────────
-function DeleteConfirm({ route, onClose, onConfirm }: { route: Route; onClose: () => void; onConfirm: () => void }) {
+function DeleteConfirm({ route, onClose, onConfirm }: { route: Route; onClose: () => void; onConfirm: () => Promise<void> }) {
+  const [error, setError] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
+  const confirm = async () => {
+    setDeleting(true);
+    setError('');
+    try {
+      await onConfirm();
+      onClose();
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'No se pudo eliminar la ruta.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -168,13 +202,15 @@ function DeleteConfirm({ route, onClose, onConfirm }: { route: Route; onClose: (
         <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)', marginBottom: 'var(--space-6)' }}>
           ¿Estás seguro de que deseas eliminar la ruta <strong style={{ color: 'var(--color-text-primary)' }}>{route.code} – {route.name}</strong>? Esta acción no se puede deshacer.
         </p>
+        {error && <p style={{ color: 'hsl(0,84%,60%)', fontSize: 'var(--font-size-sm)', marginBottom: 'var(--space-3)' }}>{error}</p>}
         <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
-          <button onClick={onClose} style={{ flex: 1, padding: 'var(--space-3)', background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)', cursor: 'pointer' }}>Cancelar</button>
+          <button onClick={onClose} disabled={deleting} style={{ flex: 1, padding: 'var(--space-3)', background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)', cursor: deleting ? 'wait' : 'pointer' }}>Cancelar</button>
           <button
             id="route-delete-confirm-btn"
-            onClick={() => { onConfirm(); onClose(); }}
-            style={{ flex: 1, padding: 'var(--space-3)', background: 'hsl(0,84%,60%)', border: 'none', borderRadius: 'var(--radius-md)', color: 'white', fontSize: 'var(--font-size-sm)', fontWeight: 700, cursor: 'pointer' }}>
-            Eliminar
+            onClick={() => void confirm()}
+            disabled={deleting}
+            style={{ flex: 1, padding: 'var(--space-3)', background: 'hsl(0,84%,60%)', border: 'none', borderRadius: 'var(--radius-md)', color: 'white', fontSize: 'var(--font-size-sm)', fontWeight: 700, cursor: deleting ? 'wait' : 'pointer' }}>
+            {deleting ? 'Eliminando...' : 'Eliminar'}
           </button>
         </div>
       </div>
@@ -182,12 +218,12 @@ function DeleteConfirm({ route, onClose, onConfirm }: { route: Route; onClose: (
   );
 }
 
-function StopModal({ route, onClose, onSave }: { route: Route; onClose: () => void; onSave: (stop: Omit<Stop, 'id'>) => Promise<void> }) {
+function StopModal({ route, initial, onClose, onSave }: { route: Route; initial?: Stop; onClose: () => void; onSave: (stop: Omit<Stop, 'id'>) => Promise<void> }) {
   const [form, setForm] = useState({
-    name: '',
-    latitude: '',
-    longitude: '',
-    order: String(route.stops.length + 1),
+    name: initial?.name ?? '',
+    latitude: initial ? String(initial.latitude) : '',
+    longitude: initial ? String(initial.longitude) : '',
+    order: String(initial?.order ?? route.stops.length + 1),
   });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -219,7 +255,7 @@ function StopModal({ route, onClose, onSave }: { route: Route; onClose: () => vo
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
       onClick={(e) => { if (e.target === e.currentTarget && !saving) onClose(); }}>
       <div style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-xl)', padding: 'var(--space-8)', width: '480px', maxWidth: '90vw', boxShadow: 'var(--shadow-lg)' }}>
-        <h2 style={{ fontSize: 'var(--font-size-xl)', fontWeight: 800, marginBottom: 'var(--space-2)' }}>➕ Nuevo paradero</h2>
+        <h2 style={{ fontSize: 'var(--font-size-xl)', fontWeight: 800, marginBottom: 'var(--space-2)' }}>{initial ? '✏️ Editar paradero' : '➕ Nuevo paradero'}</h2>
         <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)', marginBottom: 'var(--space-6)' }}>
           Se agregará a la ruta <strong>{route.code} · {route.name}</strong>.
         </p>
@@ -239,7 +275,7 @@ function StopModal({ route, onClose, onSave }: { route: Route; onClose: () => vo
         <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-6)' }}>
           <button onClick={onClose} disabled={saving} style={{ flex: 1, padding: 'var(--space-3)', background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text-secondary)', cursor: saving ? 'wait' : 'pointer' }}>Cancelar</button>
           <button onClick={submit} disabled={saving} style={{ flex: 2, padding: 'var(--space-3)', background: 'var(--color-primary-500)', border: 'none', borderRadius: 'var(--radius-md)', color: 'white', fontWeight: 700, cursor: saving ? 'wait' : 'pointer' }}>
-            {saving ? 'Conectando...' : 'Conectar paradero'}
+            {saving ? 'Guardando...' : initial ? 'Guardar cambios' : 'Conectar paradero'}
           </button>
         </div>
       </div>
@@ -257,6 +293,8 @@ export function AdminRoutesPage() {
   const [modal, setModal] = useState<'new' | Route | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Route | null>(null);
   const [stopRoute, setStopRoute] = useState<Route | null>(null);
+  const [stopTarget, setStopTarget] = useState<{ route: Route; stop: Stop } | null>(null);
+  const [actionError, setActionError] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -305,24 +343,122 @@ export function AdminRoutesPage() {
     const matchStatus = statusFilter === 'ALL' || (statusFilter === 'active' ? r.isActive : !r.isActive);
     return matchSearch && matchCompany && matchStatus;
   }), [routes, search, companyFilter, statusFilter]);
+  const companyOptions = useMemo(() => ['Todas las empresas', ...new Set(routes.map((route) => route.company))], [routes]);
 
-  const toggleActive = (id: string) => setRoutes((prev) => prev.map((r) => r.id === id ? { ...r, isActive: !r.isActive } : r));
-  const handleDelete = (id: string) => setRoutes((prev) => prev.filter((r) => r.id !== id));
+  const getApiError = (error: unknown, fallback: string) => {
+    const responseError = error as { response?: { data?: { error?: string } } };
+    return responseError.response?.data?.error ?? fallback;
+  };
 
-  const handleSave = (data: Partial<Route>) => {
+  const toggleActive = async (route: Route) => {
+    try {
+      const response = await apiClient.put<Route>(`/routes/${route.id}`, {
+        name: route.name,
+        code: route.code,
+        description: route.description || null,
+        isActive: !route.isActive,
+      });
+      setRoutes((prev) => prev.map((current) => current.id === route.id
+        ? { ...current, isActive: response.data.isActive }
+        : current));
+    } catch (error) {
+      throw new Error(getApiError(error, 'No se pudo cambiar el estado de la ruta.'));
+    }
+  };
+
+  const handleToggleActive = async (route: Route) => {
+    setActionError('');
+    try {
+      await toggleActive(route);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'No se pudo cambiar el estado de la ruta.');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await apiClient.delete(`/routes/${id}`);
+      setRoutes((prev) => prev.filter((route) => route.id !== id));
+    } catch (error) {
+      throw new Error(getApiError(error, 'No se pudo eliminar la ruta.'));
+    }
+  };
+
+  const handleSave = async (data: Partial<Route>) => {
     if (modal === 'new') {
-      const newRoute: Route = { id: `r${Date.now()}`, code: data.code ?? '', name: data.name ?? '', company: data.company ?? '', description: data.description ?? '', isActive: data.isActive ?? true, stops: [], busesAssigned: 0, createdAt: new Date().toISOString().split('T')[0] };
-      setRoutes((prev) => [newRoute, ...prev]);
+      try {
+        const response = await apiClient.post<{
+          id: string;
+          code: string;
+          name: string;
+          description?: string;
+          isActive: boolean;
+          companyId: string;
+          createdAt: string;
+        }>('/routes', {
+          code: data.code,
+          name: data.name,
+          description: data.description || null,
+          companyId: data.company,
+        });
+        setRoutes((prev) => [{
+          id: response.data.id,
+          code: response.data.code,
+          name: response.data.name,
+          company: response.data.companyId,
+          description: response.data.description ?? '',
+          isActive: response.data.isActive,
+          stops: [],
+          busesAssigned: 0,
+          createdAt: response.data.createdAt?.split('T')[0] ?? '',
+        }, ...prev]);
+      } catch (error) {
+        throw new Error(getApiError(error, 'No se pudo crear la ruta.'));
+      }
     } else if (modal && typeof modal === 'object') {
-      setRoutes((prev) => prev.map((r) => r.id === modal.id ? { ...r, ...data } : r));
+      try {
+        const response = await apiClient.put<Route>(`/routes/${modal.id}`, {
+          name: data.name,
+          code: data.code,
+          description: data.description || null,
+          isActive: data.isActive,
+        });
+        setRoutes((prev) => prev.map((route) => route.id === modal.id
+          ? { ...route, name: response.data.name, code: response.data.code, description: response.data.description ?? '', isActive: response.data.isActive }
+          : route));
+      } catch (error) {
+        throw new Error(getApiError(error, 'No se pudo actualizar la ruta.'));
+      }
     }
   };
 
   const handleStopSave = async (routeId: string, stop: Omit<Stop, 'id'>) => {
-    const response = await apiClient.post<Stop>(`/routes/${routeId}/stops`, stop);
-    setRoutes((prev) => prev.map((route) => route.id === routeId
-      ? { ...route, stops: [...route.stops, response.data].sort((a, b) => a.order - b.order) }
-      : route));
+    try {
+      const response = stopTarget
+        ? await apiClient.put<Stop>(`/stops/${stopTarget.stop.id}`, stop)
+        : await apiClient.post<Stop>(`/routes/${routeId}/stops`, stop);
+      setRoutes((prev) => prev.map((route) => {
+        if (route.id !== routeId) return route;
+        const stops = stopTarget
+          ? route.stops.map((current) => current.id === response.data.id ? response.data : current)
+          : [...route.stops, response.data];
+        return { ...route, stops: stops.sort((a, b) => a.order - b.order) };
+      }));
+      setStopTarget(null);
+    } catch (error) {
+      throw new Error(getApiError(error, 'No se pudo guardar el paradero.'));
+    }
+  };
+
+  const handleStopDelete = async (routeId: string, stopId: string) => {
+    try {
+      await apiClient.delete(`/stops/${stopId}`);
+      setRoutes((prev) => prev.map((route) => route.id === routeId
+        ? { ...route, stops: route.stops.filter((stop) => stop.id !== stopId) }
+        : route));
+    } catch (error) {
+      throw new Error(getApiError(error, 'No se pudo eliminar el paradero.'));
+    }
   };
 
   return (
@@ -343,6 +479,7 @@ export function AdminRoutesPage() {
           <span>➕</span> Nueva ruta
         </button>
       </div>
+      {actionError && <p style={{ color: 'hsl(0,84%,60%)', background: 'hsla(0,84%,60%,0.1)', border: '1px solid hsla(0,84%,60%,0.25)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)', margin: 0 }}>{actionError}</p>}
 
       {/* Filters */}
       <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -359,7 +496,7 @@ export function AdminRoutesPage() {
         </div>
         <select id="route-company-filter" value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)}
           style={{ padding: 'var(--space-3)', background: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
-          {COMPANIES.map((c) => <option key={c}>{c}</option>)}
+          {companyOptions.map((company) => <option key={company}>{company}</option>)}
         </select>
         <select id="route-status-filter" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
           style={{ padding: 'var(--space-3)', background: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
@@ -426,7 +563,7 @@ export function AdminRoutesPage() {
                     <td style={{ padding: 'var(--space-3) var(--space-4)' }}>
                       <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
                         <button onClick={() => setModal(route)} style={{ padding: '4px 10px', background: 'var(--color-surface-3)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', color: 'var(--color-text-secondary)', fontSize: '11px', cursor: 'pointer' }}>✏️</button>
-                        <button onClick={() => toggleActive(route.id)} style={{ padding: '4px 10px', background: route.isActive ? 'hsla(0,84%,60%,0.1)' : 'hsla(142,71%,45%,0.1)', border: `1px solid ${route.isActive ? 'hsla(0,84%,60%,0.3)' : 'hsla(142,71%,45%,0.3)'}`, borderRadius: 'var(--radius-sm)', color: route.isActive ? 'hsl(0,84%,60%)' : 'hsl(142,71%,45%)', fontSize: '11px', cursor: 'pointer' }}>
+                        <button onClick={() => void handleToggleActive(route)} style={{ padding: '4px 10px', background: route.isActive ? 'hsla(0,84%,60%,0.1)' : 'hsla(142,71%,45%,0.1)', border: `1px solid ${route.isActive ? 'hsla(0,84%,60%,0.3)' : 'hsla(142,71%,45%,0.3)'}`, borderRadius: 'var(--radius-sm)', color: route.isActive ? 'hsl(0,84%,60%)' : 'hsl(142,71%,45%)', fontSize: '11px', cursor: 'pointer' }}>
                           {route.isActive ? '🚫' : '✅'}
                         </button>
                         <button onClick={() => setDeleteTarget(route)} style={{ padding: '4px 10px', background: 'hsla(0,84%,60%,0.08)', border: '1px solid hsla(0,84%,60%,0.2)', borderRadius: 'var(--radius-sm)', color: 'hsl(0,84%,60%)', fontSize: '11px', cursor: 'pointer' }}>🗑️</button>
@@ -457,6 +594,8 @@ export function AdminRoutesPage() {
                               <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginLeft: 'auto' }}>
                                 {stop.latitude.toFixed(4)}, {stop.longitude.toFixed(4)}
                               </p>
+                              <button onClick={() => setStopTarget({ route, stop })} title="Editar paradero" style={{ padding: '3px 7px', background: 'var(--color-surface-3)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}>✏️</button>
+                              <button onClick={() => { if (window.confirm(`¿Eliminar el paradero ${stop.name}?`)) void handleStopDelete(route.id, stop.id).catch((error: Error) => setActionError(error.message)); }} title="Eliminar paradero" style={{ padding: '3px 7px', background: 'hsla(0,84%,60%,0.08)', border: '1px solid hsla(0,84%,60%,0.2)', borderRadius: 'var(--radius-sm)', color: 'hsl(0,84%,60%)', cursor: 'pointer' }}>🗑️</button>
                             </div>
                           ))}
                         </div>
@@ -479,6 +618,7 @@ export function AdminRoutesPage() {
       {modal !== null && <RouteModal onClose={() => setModal(null)} onSave={handleSave} initial={modal === 'new' ? undefined : modal} />}
       {deleteTarget !== null && <DeleteConfirm route={deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={() => handleDelete(deleteTarget.id)} />}
       {stopRoute !== null && <StopModal route={stopRoute} onClose={() => setStopRoute(null)} onSave={(stop) => handleStopSave(stopRoute.id, stop)} />}
+      {stopTarget !== null && <StopModal route={stopTarget.route} initial={stopTarget.stop} onClose={() => setStopTarget(null)} onSave={(stop) => handleStopSave(stopTarget.route.id, stop)} />}
     </div>
   );
 }
