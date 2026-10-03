@@ -69,6 +69,14 @@ curl -i -N --http1.1 \
 En el navegador: DevTools → Network → filtro **WS** → la conexión `socket.io` debe
 quedar en estado `101` y mostrar mensajes `bus:location:broadcast`.
 
+En el propio mapa, el indicador de arriba a la derecha muestra lo mismo:
+
+| Indicador | Significado |
+|---|---|
+| 🟢 **En vivo** | WebSocket (`wss://`) funcionando |
+| 🟠 **En vivo (respaldo HTTP)** | El Ingress no deja pasar el `Upgrade`: el mapa funciona por polling, revisar las anotaciones |
+| 🔴 **Reconectando…** | Sin conexión con `realtime` (pod caído, Service mal configurado o sin ruta `/socket.io`) |
+
 ## Limitaciones conocidas
 
 - `realtime` debe tener **1 réplica**: la simulación de buses está en memoria. Para
