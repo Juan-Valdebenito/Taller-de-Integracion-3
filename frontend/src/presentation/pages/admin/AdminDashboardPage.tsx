@@ -1,20 +1,27 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
-import { FaExclamationTriangle, FaCheckCircle, FaClock, FaStar, FaFilter, FaSync } from 'react-icons/fa';
+import { FaExclamationTriangle, FaCheckCircle, FaClock, FaFilter, FaSync } from 'react-icons/fa';
+import { apiClient } from '../../../infrastructure/api/apiClient';
 
 
+// Forma que devuelve backend-go en GET /api/v1/complaints
 export interface Complaint {
   id: string;
   title: string;
   description: string;
   category: 'OVERCROWDING' | 'DELAY' | 'DRIVER_BEHAVIOR' | 'VEHICLE_CONDITION' | 'ACCESSIBILITY' | 'OTHER';
-  rating: number;
   status: 'PENDING' | 'IN_REVIEW' | 'RESOLVED' | 'REJECTED';
   adminResponse: string | null;
+  passengerId: string;
+  companyId: string;
   busId: string | null;
-  lineName: string | null;
+  routeId: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+interface RouteOption {
+  id: string;
+  code: string;
 }
 
 const CATEGORY_NAMES: Record<string, string> = {
@@ -38,13 +45,15 @@ export function AdminDashboardPage() {
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
 
+  // Código de ruta por id, para mostrar "Línea X" (el reclamo solo trae routeId)
+  const [routeCodes, setRouteCodes] = useState<Record<string, string>>({});
+
   const fetchComplaints = async () => {
     setIsLoading(true);
     try {
-      const res = await axios.get('/api/v1/complaints');
-      if (res.data?.data) {
-        setComplaints(res.data.data);
-      }
+      // apiClient agrega el token JWT; la ruta exige rol ADMIN o COMPANY
+      const res = await apiClient.get<Complaint[]>('/complaints');
+      setComplaints(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error('Error al cargar reclamos:', err);
     } finally {
@@ -54,12 +63,15 @@ export function AdminDashboardPage() {
 
   useEffect(() => {
     fetchComplaints();
+    apiClient.get<RouteOption[]>('/routes')
+      .then((res) => setRouteCodes(Object.fromEntries(res.data.map((r) => [r.id, r.code]))))
+      .catch((err) => console.error('Error al cargar rutas:', err));
   }, []);
 
   const handleUpdateStatus = async (complaintId: string, newStatus: string, replyMessage?: string) => {
     setIsUpdating(true);
     try {
-      await axios.patch(`/api/v1/complaints/${complaintId}/status`, {
+      await apiClient.put(`/complaints/${complaintId}/status`, {
         status: newStatus,
         adminResponse: replyMessage !== undefined ? replyMessage : activeComplaint?.adminResponse,
       });
@@ -70,7 +82,7 @@ export function AdminDashboardPage() {
       setAdminReplyText('');
       await fetchComplaints();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Error al actualizar el estado del reclamo');
+      alert(err.response?.data?.error || 'Error al actualizar el estado del reclamo');
     } finally {
       setIsUpdating(false);
     }
@@ -302,9 +314,9 @@ export function AdminDashboardPage() {
                           {CATEGORY_NAMES[item.category] || item.category}
                         </span>
 
-                        {item.lineName && (
+                        {item.routeId && routeCodes[item.routeId] && (
                           <span style={{ fontSize: '12px', fontWeight: 700, color: '#38bdf8' }}>
-                            Línea {item.lineName}
+                            Línea {routeCodes[item.routeId]}
                           </span>
                         )}
 
@@ -317,16 +329,12 @@ export function AdminDashboardPage() {
                         {item.title}
                       </h3>
 
-                      <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', margin: '0 0 10px 0', lineHeight: 1.5 }}>
+                      {/* pre-line: la descripción puede traer saltos de línea (ej. calificación desde el mapa) */}
+                      <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', margin: '0 0 10px 0', lineHeight: 1.5, whiteSpace: 'pre-line' }}>
                         {item.description}
                       </p>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ display: 'flex', color: '#f59e0b', fontSize: '12px' }}>
-                          {[...Array(5)].map((_, i) => (
-                            <FaStar key={i} color={i < (item.rating || 0) ? '#f59e0b' : '#475569'} />
-                          ))}
-                        </div>
                         {item.busId && (
                           <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
                             Bus: <code>{item.busId}</code>

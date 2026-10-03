@@ -78,6 +78,18 @@ npm run dev:frontend
 # http://localhost:5173
 ```
 
+### 6. Mapa en tiempo real (Socket.io, en otra terminal)
+
+`backend-go` no tiene Socket.io: los buses en vivo del mapa los emite el backend Node.
+Se levanta en `:3002` para no chocar con `backend-go`, y el proxy de Vite le envía `/socket.io`:
+
+```bash
+npm run dev:realtime
+# Socket.IO en http://localhost:3002
+```
+
+O todo junto (Go + tiempo real + frontend): `npm run dev`.
+
 ---
 
 ## 🚀 Inicio rápido — Frontend (solo)

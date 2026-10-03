@@ -35,6 +35,10 @@ spec:
               value: "3001"
             - name: NODE_ENV
               value: "production"
+            # Origen público del frontend (mismo host que el Ingress).
+            # TODO: reemplazar <HOST> igual que en kubernetes/ingress/transithub-ingress.yaml
+            - name: SOCKET_CORS_ORIGIN
+              value: "https://<HOST>"
             # Prisma solo conecta si se usan las rutas REST de este servidor
             # (el Ingress no las expone), pero se deja configurado.
             - name: DB_HOST

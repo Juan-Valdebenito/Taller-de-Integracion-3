@@ -25,7 +25,7 @@ Navegador ── https://<HOST>/            ──► frontend-svc   :80   (ngin
 2. **`CORS_ORIGIN`** en `kubernetes/transporte-db-configmap.yaml` → `https://<HOST>`.
    Los navegadores envían la cabecera `Origin` en los POST, aunque sean del mismo origen, y
    `backend-go` responde 403 si no coincide (ej.: crear reclamos o iniciar sesión).
-3. **`<DOCKERHUB_USER>`** en los deployments de `realtime` y `frontend`.
+3. **`<DOCKERHUB_USER>`** en los deployments de `realtime` y `frontend`, y **`<HOST>`** en `SOCKET_CORS_ORIGIN` del deployment de `realtime`.
 4. **Certificado TLS** `transithub-tls` (sin él no hay `wss://`). Una de dos:
    - Con cert-manager: descomentar la anotación `cert-manager.io/cluster-issuer`.
    - Manual: `kubectl -n student-jvaldebenito create secret tls transithub-tls --cert=tls.crt --key=tls.key`
@@ -73,6 +73,5 @@ quedar en estado `101` y mostrar mensajes `bus:location:broadcast`.
 
 - `realtime` debe tener **1 réplica**: la simulación de buses está en memoria. Para
   escalar hace falta `@socket.io/redis-adapter`.
-- En desarrollo local, el proxy de Vite manda `/socket.io` a `localhost:3001`, donde
-  normalmente corre `backend-go` (que no tiene Socket.io). Para probar el mapa en local,
-  levanten `npm run dev:backend:ts` en ese puerto.
+- En desarrollo local, `npm run dev:realtime` levanta este servidor en `:3002` y el
+  proxy de Vite le envía `/socket.io` (la API sigue yendo a `backend-go` en `:3001`).
