@@ -1,0 +1,13 @@
+# Primera vercion del archivo de persistencia PVC
+# Prueba asilada 
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: storage-test
+  namespace: student-jvaldebenito
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

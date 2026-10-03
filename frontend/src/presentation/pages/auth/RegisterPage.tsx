@@ -33,8 +33,8 @@ export function RegisterPage() {
         role,
       });
 
-      const { token, user } = res.data;
-      login(token, user);
+      const { token, refreshToken, user } = res.data;
+      login(token, user, refreshToken);
 
       if (user.role === 'COMPANY') {
         navigate('/company/dashboard');

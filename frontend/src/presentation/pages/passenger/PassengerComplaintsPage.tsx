@@ -15,6 +15,7 @@ interface Complaint {
   routeId: string | null;
   companyId: string;
   adminResponse: string | null;
+  tripId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -65,6 +66,8 @@ export function PassengerComplaintsPage() {
   const [form, setForm] = useState(initialForm);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [routes, setRoutes] = useState<RouteOption[]>([]);
   const [buses, setBuses] = useState<BusOption[]>([]);
 
@@ -86,7 +89,19 @@ export function PassengerComplaintsPage() {
       setIsLoading(true);
       setError(null);
 
-      const response = await apiClient.get<Complaint[]>('/complaints/my');
+      const params = new URLSearchParams();
+
+      if (categoryFilter) {
+        params.set('category', categoryFilter);
+      }
+
+      if (statusFilter) {
+        params.set('status', statusFilter);
+      }
+
+      const query = params.toString();
+
+      const response = await apiClient.get<Complaint[]>(`/complaints/my-complaints${query ? `?${query}` : ''}`);
 
       setComplaints(response.data);
     } catch (err) {
@@ -99,6 +114,10 @@ export function PassengerComplaintsPage() {
 
   useEffect(() => {
     loadComplaints();
+  }, [categoryFilter, statusFilter]);
+
+  // Rutas y buses para el formulario: se cargan una sola vez
+  useEffect(() => {
     loadOptions();
   }, []);
 
@@ -189,8 +208,16 @@ export function PassengerComplaintsPage() {
           </p>
         </div>
 
-        <button type="button" onClick={() => { setShowForm(true); setError(null); setSuccess(null);}}>
-          Crear reclamo
+        <button type="button" onClick={() => { setShowForm(true); setError(null); setSuccess(null);}}
+          style={{
+            padding: 'var(--space-3) var(--space-5)',
+            borderRadius: 'var(--radius-lg)',
+            border: 'none',
+            cursor: 'pointer',
+            fontWeight: 600,
+            fontSize: 'var(--font-size-sm)',
+          }}>
+          + Crear reclamo
         </button>
       </div>
 
@@ -207,33 +234,64 @@ export function PassengerComplaintsPage() {
       )}
 
       {showForm && (
-        <div style={{ marginBottom: 'var(--space-6)', padding: 'var(--space-6)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', }}>
+        <div style={{ marginBottom: 'var(--space-6)', padding: 'var(--space-6)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', background: 'var(--color-background-secondary)', }}>
           <h2 style={{ fontSize: 'var(--font-size-xl)', fontWeight: 700, marginBottom: 'var(--space-4)', }}>
             Nuevo reclamo
           </h2>
 
           <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: 'var(--space-4)' }}>
-              <label>
+            <div style={{ marginBottom: 'var(--space-5)' }}>
+              <label
+              htmlFor="complaint-title"
+              style={{
+                display: 'block',
+                marginBottom: 'var(--space-2)',
+                fontWeight: 600,
+              }}
+              >
                 Titulo:
               </label>
               <input
+                id="complaint-title"
                 type="text"
                 value={form.title}
                 onChange={(event) => setForm({...form, title: event.target.value})}
                 placeholder="Titulo del reclamo"
                 disabled={isSubmitting}
+                style={{
+                  width: '50%',
+                  padding: 'var(--space-3)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-lg)',
+                  boxSizing: 'border-box',
+                }}
               />
             </div>
 
             <div style={{ marginBottom: 'var(--space-4)' }}>
-              <label>
+              <label
+                htmlFor="complaint-category"
+                style={{
+                  display: 'block',
+                  marginBottom: 'var(--space-2)',
+                  fontWeight: 600,
+                }}
+              >
                 Categoria:
               </label>
               <select
+                id="complaint-category"
                 value={form.category}
                 onChange={(event) => setForm({...form, category: event.target.value})}
                 disabled={isSubmitting}
+                style={{
+                  width: '50%',
+                  padding: 'var(--space-3)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-lg)',
+                  boxSizing: 'border-box',
+
+                }}
               >
                 <option value="">Seleccionar categoría</option>
                 <option value="DELAY">Retraso</option>
@@ -246,13 +304,28 @@ export function PassengerComplaintsPage() {
             </div>
 
             <div style={{ marginBottom: 'var(--space-4)' }}>
-              <label>
+              <label
+                htmlFor="complaint-bus"
+                style={{
+                  display: 'block',
+                  marginBottom: 'var(--space-2)',
+                  fontWeight: 600,
+                }}
+              >
                 Bus (opcional):
               </label>
               <select
+                id="complaint-bus"
                 value={form.busId}
                 onChange={(event) => setForm({...form, busId: event.target.value})}
                 disabled={isSubmitting}
+                style={{
+                  width: '50%',
+                  padding: 'var(--space-3)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-lg)',
+                  boxSizing: 'border-box',
+                }}
               >
                 <option value="">Sin especificar</option>
                 {buses.map((bus) => (
@@ -262,13 +335,28 @@ export function PassengerComplaintsPage() {
             </div>
 
             <div style={{ marginBottom: 'var(--space-4)' }}>
-              <label>
+              <label
+                htmlFor="complaint-route"
+                style={{
+                  display: 'block',
+                  marginBottom: 'var(--space-2)',
+                  fontWeight: 600,
+                }}
+              >
                 Ruta (opcional):
               </label>
               <select
+                id="complaint-route"
                 value={form.routeId}
                 onChange={(event) => setForm({...form, routeId: event.target.value})}
                 disabled={isSubmitting}
+                style={{
+                  width: '50%',
+                  padding: 'var(--space-3)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-lg)',
+                  boxSizing: 'border-box',
+                }}
               >
                 <option value="">Sin especificar</option>
                 {routes.map((route) => (
@@ -282,32 +370,109 @@ export function PassengerComplaintsPage() {
             </p>
 
             <div style={{ marginBottom: 'var(--space-4)' }}>
-              <label>
+              <label
+                htmlFor="complaint-description"
+                style={{
+                  display: 'block',
+                  marginBottom: 'var(--space-2)',
+                  fontWeight: 600,
+                }}
+              >
                 Descripcion
               </label>
 
               <textarea
+                id="complaint-description"
                 value={form.description}
                 onChange={(event) => setForm({...form, description: event.target.value})}
                 placeholder="Describa su reclamo"
                 rows={5}
                 disabled={isSubmitting}
+                style={{
+                  width: '50%',
+                  padding: 'var(--space-3)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-lg)',
+                  resize: 'vertical',
+                  boxSizing: 'border-box',
+                }}
               />
             </div>
 
-            <div style={{ display: 'flex', gap: 'var(--space-4)' }}>
-              <button type="submit" disabled={isSubmitting}>
+            <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end' }}>
+              <button 
+              type="submit" 
+              disabled={isSubmitting}
+              style={{
+                padding: 'var(--space-3) var(--space-5)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-lg)',
+                cursor: 'pointer',
+                fontWeight: 600,
+              }}
+              >
                 {isSubmitting ? 'Enviando...' : 'Enviar reclamo'}
               </button>
 
-              <button type="button" onClick={() => { setShowForm(false); setForm(initialForm); setError(null); }}>
+              <button 
+              type="button" 
+              onClick={() => { setShowForm(false); setForm(initialForm); setError(null); }}
+              style={{
+                padding: 'var(--space-3) var(--space-5)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-lg)',
+                cursor: 'pointer',
+                fontWeight: 600,
+              }}
+              >
                 Cancelar
               </button>
             </div>
 
           </form>
         </div>
-      )} 
+      )}
+
+      <div style={{ 
+        display: 'flex', 
+        gap: 'var(--space-4)', 
+        marginBottom: 'var(--space-6)', 
+        flexWrap: 'wrap', 
+        padding: 'var(--space-5)',
+        border: '1px solid var(--color-border)',
+        borderRadius: 'var(--radius-lg)',
+        }}
+        >
+        <div>
+          <label>
+            Categorias:
+          </label>
+
+          <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} style={{ borderRadius: 'var(--radius-lg)', padding: 'var(--space-2)', }}>
+            <option value="">Todas las categorías</option>
+            <option value="DELAY">Retraso</option>
+            <option value="OVERCROWDING">Exceso de pasajeros</option>
+            <option value="DRIVER_BEHAVIOR">Comportamiento del conductor</option>
+            <option value="VEHICLE_CONDITION">Estado del vehículo</option>
+            <option value="ACCESSIBILITY">Accesibilidad</option>
+            <option value="OTHER">Otro</option>
+          </select>
+        </div>
+
+        <div>
+          <label>
+            Estados:
+          </label>
+
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={{ borderRadius: 'var(--radius-lg)', padding: 'var(--space-2)', }}>
+            <option value="">Todos los estados</option>
+            <option value="PENDING">Pendiente</option>
+            <option value="IN_REVIEW">En revisión</option>
+            <option value="RESOLVED">Resuelto</option>
+            <option value="REJECTED">Rechazado</option>
+          </select>
+        </div>
+      </div>
 
       {complaints.length === 0 ? (
          <div style={{ textAlign: 'center', padding: 'var(--space-8)', }}>
@@ -341,13 +506,13 @@ export function PassengerComplaintsPage() {
                 <strong>Estado:</strong>{' '}
                 {STATUS_LABELS[complaint.status] ??
                   complaint.status}
-              </p>
+                </p>
 
                 {complaint.adminResponse && (
-                  <p>
-                    <strong>Respuesta del administrador:</strong>{' '}
-                    {complaint.adminResponse}
-                  </p>
+                <p>
+                  <strong>Respuesta del administrador:</strong>{' '}
+                  {complaint.adminResponse}
+                </p>
                 )}
             </div>
           ))}

@@ -31,3 +31,9 @@ Thumbs.db
 
 # ── TypeScript ───────────────────────────────────────────────
 *.tsbuildinfo
+
+venv/
+
+# ── Despliegue en el cluster (local, no se sube) ─────────────
+kubernetes/cluster.env
+kubernetes/.rendered/

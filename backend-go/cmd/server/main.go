@@ -55,7 +55,7 @@ func main() {
 	complaintRepo := repository.NewComplaintRepository(pool)
 
 	// ── Handlers ──────────────────────────────────────────────
-	authH := handler.NewAuthHandler(userRepo, cfg.JWTSecret, revStore)
+	authH := handler.NewAuthHandler(userRepo, cfg.JWTSecret, cfg.JWTAccessExpires, cfg.JWTRefreshExpires, revStore)
 	userH := handler.NewUserHandler(userRepo)
 	busH := handler.NewBusHandler(busRepo)
 	routeH := handler.NewRouteHandler(routeRepo, busRepo)

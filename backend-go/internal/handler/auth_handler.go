@@ -22,11 +22,43 @@ import (
 type AuthHandler struct {
 	userRepo  *repository.UserRepository
 	jwtSecret string
-	revStore  token.RevocationStore
+	revStore       token.RevocationStore
+	accessExpires  time.Duration
+	refreshExpires time.Duration
 }
 
-func NewAuthHandler(userRepo *repository.UserRepository, jwtSecret string, revStore token.RevocationStore) *AuthHandler {
-	return &AuthHandler{userRepo: userRepo, jwtSecret: jwtSecret, revStore: revStore}
+func NewAuthHandler(
+	userRepo *repository.UserRepository,
+	jwtSecret string,
+	accessExpires, refreshExpires time.Duration,
+	revStore token.RevocationStore,
+) *AuthHandler {
+	return &AuthHandler{
+		userRepo:       userRepo,
+		jwtSecret:      jwtSecret,
+		revStore:       revStore,
+		accessExpires:  accessExpires,
+		refreshExpires: refreshExpires,
+	}
+}
+
+// issueTokens genera el par access + refresh y arma la respuesta de login/register/refresh.
+// "token" se mantiene igual al access token por compatibilidad con el frontend existente.
+func (h *AuthHandler) issueTokens(user *domain.User) (gin.H, error) {
+	accessToken, _, _, err := h.generateToken(user, "access", h.accessExpires)
+	if err != nil {
+		return nil, fmt.Errorf("access token: %w", err)
+	}
+	refreshToken, _, _, err := h.generateToken(user, "refresh", h.refreshExpires)
+	if err != nil {
+		return nil, fmt.Errorf("refresh token: %w", err)
+	}
+	return gin.H{
+		"token":        accessToken,
+		"accessToken":  accessToken,
+		"refreshToken": refreshToken,
+		"user":         user,
+	}, nil
 }
 
 // generateJTI crea un identificador único para el token (JWT ID).
@@ -40,28 +72,31 @@ func generateJTI() (string, error) {
 
 // generateToken crea un JWT firmado HS256 con los datos del usuario.
 // Incluye el claim "jti" para poder revocar tokens específicos en el logout.
-func (h *AuthHandler) generateToken(user *domain.User) (string, time.Time, error) {
+// tokenType es "access" (para llamar a la API) o "refresh" (solo para POST /auth/refresh).
+func (h *AuthHandler) generateToken(user *domain.User, tokenType string, duration time.Duration) (string, time.Time, string, error) {
 	jti, err := generateJTI()
 	if err != nil {
-		return "", time.Time{}, err
+		return "", time.Time{}, "", err
 	}
 
-	exp := time.Now().Add(7 * 24 * time.Hour)
+	now := time.Now()
+	exp := now.Add(duration)
 
 	claims := jwt.MapClaims{
 		"jti":   jti,
 		"id":    user.ID,
 		"email": user.Email,
 		"role":  string(user.Role),
+		"type":  tokenType,
 		"exp":   exp.Unix(),
-		"iat":   time.Now().Unix(),
+		"iat":   now.Unix(),
 	}
 	t := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signed, err := t.SignedString([]byte(h.jwtSecret))
 	if err != nil {
-		return "", time.Time{}, err
+		return "", time.Time{}, "", err
 	}
-	return signed, exp, nil
+	return signed, exp, jti, nil
 }
 
 // Register godoc
@@ -115,13 +150,13 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	tokenStr, _, err := h.generateToken(user)
+	resp, err := h.issueTokens(user)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al generar token"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al generar tokens"})
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"token": tokenStr, "user": user})
+	c.JSON(http.StatusCreated, resp)
 }
 
 // Login godoc
@@ -153,19 +188,136 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	tokenStr, _, err := h.generateToken(user)
+	resp, err := h.issueTokens(user)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al generar token"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al generar tokens"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"token": tokenStr, "user": user})
+	c.JSON(http.StatusOK, resp)
+}
+
+// Refresh godoc
+// POST /api/v1/auth/refresh
+//
+// Recibe un Refresh Token válido, lo revoca (rotación: cada refresh token
+// sirve una sola vez) y genera un nuevo Access Token y un nuevo Refresh Token.
+func (h *AuthHandler) Refresh(c *gin.Context) {
+	var body struct {
+		RefreshToken string `json:"refreshToken" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "refreshToken es requerido"})
+		return
+	}
+
+	// Parsear y verificar firma del Refresh Token
+	parsed, err := jwt.Parse(body.RefreshToken, func(t *jwt.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("método de firma inválido")
+		}
+		return []byte(h.jwtSecret), nil
+	})
+	if err != nil || !parsed.Valid {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Refresh token inválido o expirado"})
+		return
+	}
+
+	claims, ok := parsed.Claims.(jwt.MapClaims)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Claims inválidos"})
+		return
+	}
+
+	// Verificar que sea realmente un Refresh Token
+	tokenType, ok := claims["type"].(string)
+	if !ok || tokenType != "refresh" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "El token no es un refresh token"})
+		return
+	}
+
+	// Obtener JTI
+	jti, ok := claims["jti"].(string)
+	if !ok || jti == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Refresh token sin JTI"})
+		return
+	}
+
+	// Verificar si ya fue utilizado/revocado (fail-closed, igual que el middleware)
+	revoked, err := h.revStore.IsRevoked(jti)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "No se pudo verificar el estado del token, intenta nuevamente"})
+		return
+	}
+	if revoked {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Refresh token ya utilizado o revocado"})
+		return
+	}
+
+	// Obtener id del usuario
+	userID, ok := claims["id"].(string)
+	if !ok || userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Refresh token sin usuario"})
+		return
+	}
+
+	// Buscar el usuario nuevamente (pudo cambiar de rol o desactivarse)
+	user, err := h.userRepo.FindByID(c.Request.Context(), userID)
+	if err != nil || user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuario no encontrado"})
+		return
+	}
+
+	// No permitir refrescar una cuenta desactivada
+	if !user.IsActive {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Cuenta desactivada"})
+		return
+	}
+
+	// Obtener expiración del Refresh Token
+	expFloat, ok := claims["exp"].(float64)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Refresh token sin expiración"})
+		return
+	}
+
+	exp := time.Unix(int64(expFloat), 0)
+
+	// ROTACIÓN: el Refresh Token que acaba de utilizarse queda invalidado
+	if err := h.revStore.Revoke(jti, exp); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "No se pudo rotar el refresh token, intenta nuevamente"})
+		return
+	}
+
+	resp, err := h.issueTokens(user)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al generar tokens"})
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
 }
 
 // Logout godoc
 // POST /api/v1/auth/logout — requiere middleware Authenticate
 // Revoca el token actual en el RevocationStore hasta su expiración.
+// Si el body trae {"refreshToken": "..."}, también se revoca, para que no
+// pueda usarse en /auth/refresh después de cerrar sesión.
 func (h *AuthHandler) Logout(c *gin.Context) {
+	var body struct {
+		RefreshToken string `json:"refreshToken"`
+	}
+	_ = c.ShouldBindJSON(&body) // body opcional
+	if body.RefreshToken != "" {
+		if jti, exp, err := parseJTIAndExp(body.RefreshToken); err == nil {
+			if revokeErr := h.revStore.Revoke(jti, exp); revokeErr != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "No se pudo cerrar la sesión, intenta nuevamente"})
+				return
+			}
+		}
+	}
+
 	authHeader := c.GetHeader("Authorization")
 	if !strings.HasPrefix(authHeader, "Bearer ") {
 		c.JSON(http.StatusOK, gin.H{"message": "Sesión cerrada correctamente"})

@@ -80,6 +80,7 @@ func Setup(
 	{
 		authGroup.POST("/register", authH.Register)
 		authGroup.POST("/login", authH.Login)
+		authGroup.POST("/refresh", authH.Refresh)
 		authGroup.POST("/logout", auth(), authH.Logout)
 		authGroup.GET("/me", auth(), authH.Me)
 		// Revocación dinámica: un admin puede invalidar cualquier token antes
@@ -137,6 +138,7 @@ func Setup(
 		complaints.GET("/my", middleware.Authorize("PASSENGER"), complaintH.GetMine)
 		complaints.GET("/:id", complaintH.GetByID)
 		complaints.POST("/", middleware.Authorize("PASSENGER"), complaintH.Create)
+		complaints.GET("/my-complaints", middleware.Authorize("PASSENGER"), complaintH.FindByPassengerID)
 		complaints.PUT("/:id/status", middleware.Authorize("ADMIN", "COMPANY"), complaintH.UpdateStatus)
 		complaints.DELETE("/:id", middleware.Authorize("ADMIN"), complaintH.Delete)
 	}

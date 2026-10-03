@@ -72,6 +72,12 @@ func Authenticate(jwtSecret string, store token.RevocationStore) gin.HandlerFunc
 			return
 		}
 
+		tokenType, _ := claims["type"].(string)
+		if tokenType != "access" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Se requiere un access token"})
+			return
+		}
+
 		// Cast explícito a string para evitar fallos de tipo en Authorize
 		userID, _ := claims["id"].(string)
 		userEmail, _ := claims["email"].(string)

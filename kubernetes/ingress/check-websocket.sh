@@ -119,9 +119,9 @@ elif [ "$POLLING_OK" = "1" ]; then
   echo "  - las anotaciones proxy-http-version y proxy-read-timeout del Ingress de /socket.io"
 else
   echo "${RED}${BOLD}Mapa: 🔴 Sin tiempo real${RESET}"
-  echo "  kubectl -n student-jvaldebenito get pods -l app=realtime"
-  echo "  kubectl -n student-jvaldebenito get endpoints realtime-svc"
-  echo "  kubectl -n student-jvaldebenito describe ingress transithub-realtime-ingress"
+  echo "  kubectl -n ${NAMESPACE:-student-jvaldebenito} get pods -l app=realtime"
+  echo "  kubectl -n ${NAMESPACE:-student-jvaldebenito} get endpoints realtime-svc"
+  echo "  kubectl -n ${NAMESPACE:-student-jvaldebenito} describe ingress transithub-realtime"
 fi
 
 if [ "$FAILURES" -gt 0 ]; then
