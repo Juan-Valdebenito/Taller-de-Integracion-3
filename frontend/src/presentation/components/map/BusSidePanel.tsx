@@ -8,6 +8,7 @@
 
 import { useRef, useEffect } from 'react';
 import { BusState, getOccupancyColor, getOccupancyLevel } from '../../../hooks/useSimulatedBuses';
+import { useEta } from '../../../hooks/useEta';
 import { BusListSkeleton } from '../feedback/LoadingSkeleton';
 
 interface BusSidePanelProps {
@@ -59,6 +60,52 @@ const STATUS_CONFIG: Record<BusState['status'], { label: string; dot: string }> 
   STOPPED: { label: 'Detenido',  dot: '#f59e0b' },
   DELAYED: { label: 'Retrasado', dot: '#ef4444' },
 };
+
+/**
+ * Chip que muestra ETA al próximo paradero calculado en tiempo real.
+ * Se oculta si el bus está detenido o sin velocidad.
+ */
+function EtaChip({ bus }: { bus: BusState }) {
+  const { nextStop, isStopped } = useEta(bus);
+
+  if (isStopped || !nextStop) return null;
+
+  return (
+    <div style={{
+      marginTop: '6px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+      fontSize: '10px',
+      color: '#94a3b8',
+    }}>
+      <span style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '3px',
+        padding: '2px 7px',
+        borderRadius: '6px',
+        background: 'rgba(99,102,241,0.10)',
+        border: '1px solid rgba(99,102,241,0.20)',
+        color: '#a5b4fc',
+        fontWeight: 600,
+        fontVariantNumeric: 'tabular-nums',
+      }}>
+        ⏱ {nextStop.etaLabel}
+      </span>
+      <span style={{
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        maxWidth: '120px',
+      }}
+        title={nextStop.stopName}
+      >
+        {nextStop.stopName}
+      </span>
+    </div>
+  );
+}
 
 /** Componente individual de fila del bus con flash animation */
 function BusRow({ bus, isSelected, onSelect }: {
@@ -149,6 +196,9 @@ function BusRow({ bus, isSelected, onSelect }: {
 
       {/* Mini barra de ocupación */}
       <MiniOccupancyBar current={bus.currentPassengers} capacity={bus.capacity} />
+
+      {/* ETA al próximo paradero (calculado con velocidad actual del WS) */}
+      <EtaChip bus={bus} />
 
       {/* Badge de predicción del WS */}
       {bus.wsOccupancy && (

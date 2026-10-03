@@ -11,6 +11,7 @@ import { Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import { BusState, getOccupancyColor, getOccupancyLevel } from '../../../hooks/useSimulatedBuses';
 import { useAnimatedPosition } from '../../../hooks/useAnimatedPosition';
+import { useEta } from '../../../hooks/useEta';
 
 interface BusMarkerProps {
   bus: BusState;
@@ -193,6 +194,9 @@ export function BusMarker({ bus, isSelected, onSelect }: BusMarkerProps) {
     ? (Date.now() - bus.lastWsUpdate.getTime()) < 3000
     : false;
 
+  // ETA al próximo paradero
+  const { nextStop, isStopped } = useEta(bus);
+
   const icon = useMemo(
     () => createBusIcon(color, bus.heading, isSelected, isRecent),
     [bus.heading, color, isSelected, isRecent],
@@ -247,6 +251,48 @@ export function BusMarker({ bus, isSelected, onSelect }: BusMarkerProps) {
           {/* Predicción del WS */}
           {bus.wsOccupancy && (
             <PredictionBadge occupancy={bus.wsOccupancy} />
+          )}
+
+          {/* ETA al próximo paradero */}
+          {!isStopped && nextStop && (
+            <div style={{
+              marginTop: '10px',
+              padding: '8px 10px',
+              borderRadius: '10px',
+              background: 'rgba(99,102,241,0.08)',
+              border: '1px solid rgba(99,102,241,0.18)',
+            }}>
+              <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px' }}
+              >
+                ⏱ Próxima parada
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{
+                  fontSize: '11px', color: '#c7d2fe',
+                  fontWeight: 600,
+                  flex: 1,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  marginRight: '8px',
+                }}
+                  title={nextStop.stopName}
+                >
+                  {nextStop.stopName}
+                </div>
+                <div style={{
+                  fontSize: '13px', fontWeight: 700,
+                  color: '#a5b4fc',
+                  fontVariantNumeric: 'tabular-nums',
+                  flexShrink: 0,
+                }}>
+                  {nextStop.etaLabel}
+                </div>
+              </div>
+              <div style={{ fontSize: '10px', color: '#475569', marginTop: '2px' }}>
+                ~{Math.round(nextStop.distanceM)} m
+              </div>
+            </div>
           )}
 
           {/* Datos extra */}
