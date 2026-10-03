@@ -1,0 +1,77 @@
+# DESPLIEGUE DE POSTGRESQL PARA backend-go (transporte_db)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: transporte-db
+  namespace: student-jvaldebenito
+  labels:
+    app: transporte-db
+spec:
+  replicas: 1 # Las bases de datos relacionales en K8s corren con 1 réplica principal
+  selector:
+    matchLabels:
+      app: transporte-db
+  template:
+    metadata:
+      labels:
+        app: transporte-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          envFrom:
+            - configMapRef:
+                name: transporte-db-configmap # Carga DB_NAME, DB_USER, etc.
+            - secretRef:
+                name: transporte-db-secrets # Carga DB_PASSWORD
+          env:
+            # PostgreSQL oficial exige la variable POSTGRES_PASSWORD
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: transporte-db-secrets
+                  key: DB_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: transporte-db-configmap
+                  key: DB_NAME
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: transporte-db-configmap
+                  key: DB_USER
+          volumeMounts:
+            - name: transporte-db-data
+              mountPath: /var/lib/postgresql/data # Directorio de datos de PostgreSQL
+            # Scripts de inicialización de la base de datos
+            - name: init-scripts-volume
+              mountPath: /docker-entrypoint-initdb.d
+      volumes:
+        - name: transporte-db-data
+          emptyDir: {} # No hay permisos para montar PVC en el cluster
+        - name: init-scripts-volume
+          configMap:
+            name: transporte-db-init-scripts
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: transporte-db-svc
+  namespace: student-jvaldebenito
+spec:
+  type: ClusterIP # Solo accesible dentro del clúster
+  selector:
+    app: transporte-db
+  ports:
+    - port: 5432
+      targetPort: 5432

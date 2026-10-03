@@ -40,6 +40,16 @@ const (
 	ComplaintCategoryOther            ComplaintCategory = "OTHER"
 )
 
+// IsValid indica si la categoría corresponde a un valor del enum "ComplaintCategory".
+func (c ComplaintCategory) IsValid() bool {
+	switch c {
+	case ComplaintCategoryDelay, ComplaintCategoryOvercrowding, ComplaintCategoryDriverBehavior,
+		ComplaintCategoryVehicleCondition, ComplaintCategoryAccessibility, ComplaintCategoryOther:
+		return true
+	}
+	return false
+}
+
 // ── Modelos ────────────────────────────────────────────────────────────────
 
 // User representa a un pasajero, operador de empresa o administrador.

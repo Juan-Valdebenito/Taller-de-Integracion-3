@@ -20,7 +20,7 @@ func Setup(
 	corsOrigin string,
 	jwtSecret string,
 	pool *pgxpool.Pool,
-	bl *token.Blacklist,
+	revStore token.RevocationStore,
 	authH *handler.AuthHandler,
 	userH *handler.UserHandler,
 	busH *handler.BusHandler,
@@ -29,6 +29,7 @@ func Setup(
 	complaintH *handler.ComplaintHandler,
 	occupancyH *handler.OccupancyHandler,
 	wsHandler *ws.WSHandler,
+	grpcH *handler.GRPCProxyHandler,
 ) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery(), middleware.RequestLogger())
@@ -74,19 +75,38 @@ func Setup(
 	// ── API v1 ────────────────────────────────────────────────
 	api := r.Group("/api/v1")
 
+	// Alias del middleware para mayor legibilidad
+	auth := func() gin.HandlerFunc { return middleware.Authenticate(jwtSecret, revStore) }
+
 	// Ocupación (público — sin auth para facilitar integración con dispositivos)
 	api.POST("/occupancy", occupancyH.Predict)
 
-	// Alias del middleware para mayor legibilidad
-	auth := func() gin.HandlerFunc { return middleware.Authenticate(jwtSecret, bl) }
+	// Simulación de sensores/pagos (público — fallback REST del panel DevTools
+	// cuando el socket de tiempo real no está disponible; misma razón que /occupancy)
+	api.POST("/buses/simulate-event", busH.SimulateEvent)
 
-	// Auth (público excepto /logout y /me que requieren token válido)
+	// Proxies gRPC hacia los microservicios de clima y transporte de micros
+	grpcGroup := api.Group("/integrations", auth())
+	{
+		grpcGroup.GET("/climate/telemetry", grpcH.ListTelemetry)
+		grpcGroup.GET("/micro/stops", grpcH.ListStops)
+		grpcGroup.GET("/micro/stops/:id", grpcH.GetStop)
+		grpcGroup.GET("/micro/routes", grpcH.ListRoutes)
+		grpcGroup.GET("/micro/routes/plan", grpcH.PlanRoute)
+	}
+
+	// Auth (público excepto /logout, /me y /revoke que requieren token válido)
 	authGroup := api.Group("/auth")
 	{
 		authGroup.POST("/register", authH.Register)
 		authGroup.POST("/login", authH.Login)
 		authGroup.POST("/logout", auth(), authH.Logout)
 		authGroup.GET("/me", auth(), authH.Me)
+		// Revocación dinámica: un admin puede invalidar cualquier token antes
+		// de que expire (cuenta comprometida, cambio de rol, etc.). Propaga
+		// de inmediato a todas las réplicas del cluster vía el RevocationStore
+		// compartido (Redis).
+		authGroup.POST("/revoke", auth(), middleware.Authorize("ADMIN"), authH.Revoke)
 	}
 
 	// Usuarios (requiere autenticación; operaciones de admin requieren rol)
@@ -109,7 +129,7 @@ func Setup(
 		buses.DELETE("/:id", middleware.Authorize("ADMIN"), busH.Delete)
 	}
 
-	// Rutas de transporte
+	// Rutas de transporte existentes, todavía respaldadas por transporte_db
 	routes := api.Group("/routes", auth())
 	{
 		routes.GET("/", routeH.GetAll)

@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/rs/zerolog/log"
@@ -43,6 +44,22 @@ type Config struct {
 	// SimulationSpeedMultiplier acelera el reloj del recorrido para que el
 	// movimiento sea visible en desarrollo sin alterar los tiempos base.
 	SimulationSpeedMultiplier float64
+
+	// ── Revocación de tokens (RevocationStore) ─────────────────────────────
+	// RedisAddr es la ruta host:port del Redis compartido del cluster
+	// (ej. "redis-svc.student-jvaldebenito.svc.cluster.local:6379").
+	// Vacío por defecto: el backend cae a un almacén en memoria por proceso
+	// (válido solo con una réplica). Ver internal/token.NewStore.
+	RedisAddr     string
+	RedisPassword string
+	RedisDB       int
+
+	// ── Proxies gRPC (microservicios clima / micro) ────────────────────────
+	ClimateGRPCTarget string
+	ClimateAPIKey     string
+	MicroGRPCTarget   string
+	MicroAPIKey       string
+	GRPCTimeout       time.Duration
 }
 
 // Load carga las variables desde el archivo .env y el entorno del sistema.
@@ -52,6 +69,11 @@ func Load() *Config {
 		log.Debug().Str("event", "dotenv_missing").Msg("No .env file found; using system environment")
 	}
 
+	timeout := getEnv("GRPC_TIMEOUT", "5s")
+	grpcTimeout, err := time.ParseDuration(timeout)
+	if err != nil || grpcTimeout <= 0 {
+		grpcTimeout = 5 * time.Second
+	}
 	return &Config{
 		Port:        getEnv("PORT", "3001"),
 		DatabaseURL: getEnv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/transporte_db"),
@@ -70,6 +92,18 @@ func Load() *Config {
 		SimulationEnabled:         getEnvBool("SIMULATION_ENABLED", false),
 		SimulationTickMs:          getEnvInt("SIMULATION_TICK_MS", 2000),
 		SimulationSpeedMultiplier: getEnvFloat("SIMULATION_SPEED_MULTIPLIER", 1),
+
+		// Revocación de tokens
+		RedisAddr:     getEnv("REDIS_ADDR", ""),
+		RedisPassword: getEnv("REDIS_PASSWORD", ""),
+		RedisDB:       getEnvInt("REDIS_DB", 0),
+
+		// Proxies gRPC
+		ClimateGRPCTarget: getEnv("CLIMATE_GRPC_TARGET", "localhost:9090"),
+		ClimateAPIKey:     getEnv("CLIMATE_API_KEY", "temuco_weather_secret_key"),
+		MicroGRPCTarget:   getEnv("MICRO_GRPC_TARGET", "localhost:9091"),
+		MicroAPIKey:       getEnv("MICRO_API_KEY", ""),
+		GRPCTimeout:       grpcTimeout,
 	}
 }
 

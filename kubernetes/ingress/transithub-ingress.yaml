@@ -1,0 +1,95 @@
+# INGRESS DE TRANSITHUB (ingress-nginx)
+#
+# Un solo host público sirve las tres piezas, así el navegador habla siempre
+# con el mismo origen (sin CORS) y Socket.io usa wss:// automáticamente cuando
+# la página se carga por https://:
+#
+#   https://<HOST>/            → frontend-svc   (React estático)
+#   https://<HOST>/api/...     → backend-go-svc (API REST)
+#   wss://<HOST>/socket.io/... → realtime-svc   (Socket.io, mapa en tiempo real)
+#
+# Se usan DOS recursos Ingress para el mismo host porque las anotaciones de
+# ingress-nginx aplican a todo el recurso: solo /socket.io necesita timeouts
+# largos y sesiones pegajosas. ingress-nginx fusiona ambos en un mismo server.
+#
+# Antes de aplicar: reemplazar <HOST> (ver kubernetes/ingress/README.md).
+
+# ── 1. WebSocket / Socket.io ──────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: transithub-realtime-ingress
+  namespace: student-jvaldebenito
+  annotations:
+    # ingress-nginx ya reenvía las cabeceras "Upgrade: websocket" y
+    # "Connection: upgrade" con HTTP/1.1; lo que corta las conexiones es el
+    # timeout por defecto de 60 s sin tráfico. Se sube a 1 hora.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    # Sin buffering: los eventos de posición deben llegar apenas se emiten.
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    # Socket.io parte con long-polling antes de subir a WebSocket (y lo usa
+    # de respaldo); todas las peticiones de un cliente deben caer en el mismo
+    # pod o el handshake falla con "Session ID unknown".
+    nginx.ingress.kubernetes.io/affinity: "cookie"
+    nginx.ingress.kubernetes.io/affinity-mode: "persistent"
+    nginx.ingress.kubernetes.io/session-cookie-name: "transithub-rt"
+    nginx.ingress.kubernetes.io/session-cookie-max-age: "3600"
+    # Fuerza https:// → la página nunca intenta ws:// en claro (mixed content).
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # Si el cluster tiene cert-manager, descomentar para emitir el certificado:
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - <HOST>
+      secretName: transithub-tls
+  rules:
+    - host: <HOST>
+      http:
+        paths:
+          - path: /socket.io
+            pathType: Prefix
+            backend:
+              service:
+                name: realtime-svc
+                port:
+                  number: 3001
+---
+# ── 2. API REST + frontend ────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: transithub-ingress
+  namespace: student-jvaldebenito
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # Límite de tamaño de body para los POST (reclamos, etc.)
+    nginx.ingress.kubernetes.io/proxy-body-size: "2m"
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - <HOST>
+      secretName: transithub-tls
+  rules:
+    - host: <HOST>
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend-go-svc
+                port:
+                  number: 3001
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend-svc
+                port:
+                  number: 80

@@ -10,4 +10,5 @@ data:
   DB_USER: "micros_user"  # Asegurarse de configurar usuario y contraseña
 
   PORT: "3001"    # puerto del microservicio
+  GRPC_PORT: "9091"
   NODE_ENV: "development"  # entorno de desarrollo

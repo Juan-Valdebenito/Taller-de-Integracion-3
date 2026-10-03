@@ -18,7 +18,7 @@ export function LoginPage() {
     setIsLoading(true);
 
     try {
-      const res = await axios.post('http://localhost:3001/api/v1/auth/login', {
+      const res = await axios.post('/api/v1/auth/login', {
         email,
         password,
       });

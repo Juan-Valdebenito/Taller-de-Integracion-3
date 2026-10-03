@@ -11,6 +11,7 @@ import (
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/db"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain/service"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/handler"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/infrastructure/grpcclient"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/logger"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/repository"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/router"
@@ -24,17 +25,17 @@ import (
 func main() {
 	logger.Configure()
 
-	// ── Configuración ─────────────────────────────────────────
+	// â”€â”€ ConfiguraciÃ³n â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 	cfg := config.Load()
 
-	// ── Contexto global (para shutdown ordenado) ──────────────
+	// â”€â”€ Contexto global (para shutdown ordenado) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// ── Base de datos (opcional en modo simulación) ───────────
-	// Cuando SIMULATION_ENABLED=true y la BD no está disponible,
-	// el servidor arranca en modo degradado: solo WebSocket + simulación.
-	// Los endpoints REST que requieren BD devolverán 503.
+	// â”€â”€ Base de datos (opcional en modo simulaciÃ³n) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+	// Cuando SIMULATION_ENABLED=true y la BD no estÃ¡ disponible,
+	// el servidor arranca en modo degradado: solo WebSocket + simulaciÃ³n.
+	// Los endpoints REST que requieren BD devolverÃ¡n 503.
 	pool := db.NewPoolOptional(cfg.DatabaseURL)
 	dbAvailable := pool != nil
 
@@ -47,17 +48,28 @@ func main() {
 		}
 	}
 
-	// ── Datos de prueba (solo si hay BD y no es producción) ────
+	// â”€â”€ Datos de prueba (solo si hay BD y no es producciÃ³n) â”€â”€â”€â”€
 	if dbAvailable && cfg.Env != "production" {
 		if err := seed.Run(ctx, pool); err != nil {
 			log.Warn().Err(err).Str("event", "seed_failed").Msg("Could not create seed data")
 		}
 	}
 
-	// ── Token blacklist (logout seguro) ───────────────────────
-	blacklist := token.NewBlacklist()
+	// â”€â”€ Token revocation store (logout seguro / revocaciÃ³n dinÃ¡mica) â”€â”€
+	// Si cfg.RedisAddr estÃ¡ vacÃ­o (aÃºn no hay Redis en el cluster), cae a un
+	// almacÃ©n en memoria; una vez que exista el servicio compartido basta con
+	// setear REDIS_ADDR para que la revocaciÃ³n sea consistente entre rÃ©plicas.
+	revStore, err := token.NewStore(token.StoreOptions{
+		RedisAddr:     cfg.RedisAddr,
+		RedisPassword: cfg.RedisPassword,
+		RedisDB:       cfg.RedisDB,
+	})
+	if err != nil {
+		log.Fatalf("âŒ Error al inicializar el almacÃ©n de revocaciÃ³n de tokens: %v", err)
+	}
+	defer revStore.Close()
 
-	// ── Repositorios y Handlers (requieren BD) ────────────────
+	// â”€â”€ Repositorios y Handlers (requieren BD) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 	var (
 		authH      *handler.AuthHandler
 		userH      *handler.UserHandler
@@ -74,18 +86,18 @@ func main() {
 		stopRepo := repository.NewStopRepository(pool)
 		complaintRepo := repository.NewComplaintRepository(pool)
 
-		authH = handler.NewAuthHandler(userRepo, cfg.JWTSecret, blacklist)
+		authH = handler.NewAuthHandler(userRepo, cfg.JWTSecret, revStore)
 		userH = handler.NewUserHandler(userRepo)
 		busH = handler.NewBusHandler(busRepo)
 		routeH = handler.NewRouteHandler(routeRepo, busRepo)
 		stopH = handler.NewStopHandler(stopRepo)
-		complaintH = handler.NewComplaintHandler(complaintRepo)
+		complaintH = handler.NewComplaintHandler(complaintRepo, busRepo, routeRepo)
 	}
 
-	// ── Servicio de ocupación (no requiere BD) ─────────────────
+	// â”€â”€ Servicio de ocupaciÃ³n (no requiere BD) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 	occupancySvc := service.NewOccupancyService()
 
-	// ── Conectar predictor ML si está configurado ──────────────
+	// â”€â”€ Conectar predictor ML si estÃ¡ configurado â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 	if cfg.PredictionTransport != "" {
 		predClient, err := transport.NewPredictionClient(transport.Config{
 			Transport:  transport.TransportType(cfg.PredictionTransport),
@@ -118,14 +130,14 @@ func main() {
 
 	occupancyH := handler.NewOccupancyHandler(occupancySvc)
 
-	// ── WebSocket Hub (Pub/Sub — no requiere BD) ──────────────
+	// â”€â”€ WebSocket Hub (Pub/Sub â€” no requiere BD) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 	hub := ws.NewHub(occupancySvc)
 	go hub.Run()
 
 	wsHandler := ws.NewWSHandler(hub, cfg.JWTSecret, []string{cfg.CORSOrigin})
 	log.Info().Str("event", "websocket_ready").Str("path", "/ws").Msg("WebSocket Pub/Sub active")
 
-	// ── Simulación GPS (buses virtuales rutas 7A, 7B, 1C) ─────
+	// â”€â”€ SimulaciÃ³n GPS (buses virtuales rutas 7A, 7B, 1C) â”€â”€â”€â”€â”€
 	if cfg.SimulationEnabled {
 		simRunner := simulation.NewRunner(hub, simulation.RunnerConfig{
 			TickDuration:    time.Duration(cfg.SimulationTickMs) * time.Millisecond,
@@ -139,11 +151,25 @@ func main() {
 		log.Info().Str("event", "simulation_disabled").Msg("GPS simulation disabled")
 	}
 
-	// ── Router ────────────────────────────────────────────────
-	r := router.Setup(cfg.CORSOrigin, cfg.JWTSecret, pool, blacklist,
-		authH, userH, busH, routeH, stopH, complaintH, occupancyH, wsHandler)
+	// â”€â”€ Router â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+	// ── Clientes gRPC hacia microservicios ─────────────────────────────────
+	climateClient, err := grpcclient.NewClimateClient(cfg.ClimateGRPCTarget, cfg.ClimateAPIKey, cfg.GRPCTimeout)
+	if err != nil {
+		log.Fatalf("❌ Error al conectar con clima_service por gRPC: %v", err)
+	}
+	defer climateClient.Close()
+	microClient, err := grpcclient.NewMicroClient(cfg.MicroGRPCTarget, cfg.MicroAPIKey, cfg.GRPCTimeout)
+	if err != nil {
+		log.Fatalf("❌ Error al conectar con micro_service por gRPC: %v", err)
+	}
+	defer microClient.Close()
+	grpcProxyH := handler.NewGRPCProxyHandler(climateClient, microClient)
 
-	// ── Iniciar servidor ──────────────────────────────────────
+	// ── Router ───────────────────────────────────────────────────────────
+	r := router.Setup(cfg.CORSOrigin, cfg.JWTSecret, pool, revStore,
+		authH, userH, busH, routeH, stopH, complaintH, occupancyH, wsHandler, grpcProxyH)
+
+	// â”€â”€ Iniciar servidor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	log.Info().Str("event", "server_starting").Str("address", addr).Str("environment", cfg.Env).Msg("HTTP server starting")
 
