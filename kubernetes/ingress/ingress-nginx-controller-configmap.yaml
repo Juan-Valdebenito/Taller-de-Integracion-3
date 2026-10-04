@@ -3,7 +3,7 @@
 # ⚠️  Requiere permisos de administrador del cluster: vive en el namespace del
 # controlador (normalmente "ingress-nginx"), no en student-jvaldebenito.
 # Si no tienen esos permisos, NO es obligatorio: las anotaciones de
-# transithub-ingress.yaml ya habilitan WebSocket para nuestro host. Esto solo
+# backend-go-ingress.yaml ya habilitan WebSocket para nuestro host. Esto solo
 # deja los mismos valores como defecto para todo el controlador.
 #
 # Verificar nombre/namespace reales antes de aplicar:

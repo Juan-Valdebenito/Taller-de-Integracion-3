@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          # TODO: reemplazar por la imagen publicada (docker build -t <usuario>/transithub-frontend:v1 frontend/ && docker push ...)
+          # deploy.sh la reemplaza por <DOCKERHUB_USER>/transithub-frontend:<IMAGE_TAG> (cluster.env); se construye con: bash kubernetes/deploy.sh app build
           image: <DOCKERHUB_USER>/transithub-frontend:v1
           imagePullPolicy: Always
           ports:

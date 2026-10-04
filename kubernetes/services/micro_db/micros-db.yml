@@ -34,6 +34,21 @@ spec:
           image: postgis/postgis:16-3.4-alpine
           ports:
             - containerPort: 5432
+          # pg_isready: el servidor acepta conexiones (PostGIS tarda en el primer arranque)
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -h 127.0.0.1 -p 5432"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -h 127.0.0.1 -p 5432"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
           resources:
             requests:
               memory: "256Mi"

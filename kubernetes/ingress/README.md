@@ -14,8 +14,7 @@ Navegador ── https://<HOST>/            ──► frontend-svc   :80   (ngin
 
 | Archivo | Para qué |
 |---|---|
-| `transithub-ingress.yaml` | Dos Ingress para el mismo host, en el formato del cluster de la UCT (`external-dns` → `proxy.inf.uct.cl`, sin `tls`). El de `/socket.io` tiene timeouts de 1 h, sin buffering y con sesiones pegajosas (*sticky sessions*) por cookie, que Socket.io necesita cuando parte con *long-polling* |
-| `backend-go-ingress.yaml` | Ingress original de Tomás (solo `backend-go`). Lo reemplaza `transithub-ingress.yaml`: **no aplicar ambos** (mismo host y ruta `/`) |
+| `backend-go-ingress.yaml` | El Ingress de la app, sobre la base del de Tomás, en el formato del cluster de la UCT (`external-dns` → `proxy.inf.uct.cl`, sin `tls`). Rutas `/socket.io`, `/api` y `/`, con timeouts de 1 h, sin buffering y con sesiones pegajosas (*sticky sessions*) por cookie, que Socket.io necesita cuando parte con *long-polling* |
 | `ingress-nginx-controller-configmap.yaml` | **Opcional, requiere admin del cluster.** Los mismos valores como defecto global del controlador |
 | `../services/realtime/realtime-deployment.yaml` | Servidor Socket.io (`backend/` en Node), 1 réplica |
 | `../services/frontend/frontend-deployment.yaml` | Frontend estático en nginx |
@@ -23,8 +22,9 @@ Navegador ── https://<HOST>/            ──► frontend-svc   :80   (ngin
 ## Despliegue
 
 `<HOST>`, el namespace, `CORS_ORIGIN`, `SOCKET_CORS_ORIGIN` y las imágenes los completa
-`kubernetes/deploy.sh` desde `kubernetes/cluster.env`. El HTTPS lo termina el proxy de la
-universidad, así que no hace falta certificado propio. Ver **[../DEPLOY.md](../DEPLOY.md)**.
+`kubernetes/deploy.sh` desde `kubernetes/cluster.env` (stack `app`, cuenta de Tomás).
+El HTTPS lo termina el proxy de la universidad, así que no hace falta certificado propio.
+Ver **[../DEPLOY.md](../DEPLOY.md)**.
 
 ## Verificar el controlador del cluster
 

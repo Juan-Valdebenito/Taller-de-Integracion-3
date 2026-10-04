@@ -114,14 +114,14 @@ if [ "$WEBSOCKET_OK" = "1" ]; then
   echo "${GREEN}${BOLD}Mapa: 🟢 En vivo por WebSocket${RESET}"
 elif [ "$POLLING_OK" = "1" ]; then
   echo "${YELLOW}${BOLD}Mapa: 🟠 En vivo (respaldo HTTP)${RESET}"
-  echo "  El Ingress no deja pasar el Upgrade. Revisar en transithub-ingress.yaml:"
+  echo "  El Ingress no deja pasar el Upgrade. Revisar en kubernetes/ingress/backend-go-ingress.yaml:"
   echo "  - que el controlador sea ingress-nginx (kubectl get ingressclass)"
   echo "  - las anotaciones proxy-http-version y proxy-read-timeout del Ingress de /socket.io"
 else
   echo "${RED}${BOLD}Mapa: 🔴 Sin tiempo real${RESET}"
   echo "  kubectl -n ${NAMESPACE:-student-jvaldebenito} get pods -l app=realtime"
   echo "  kubectl -n ${NAMESPACE:-student-jvaldebenito} get endpoints realtime-svc"
-  echo "  kubectl -n ${NAMESPACE:-student-jvaldebenito} describe ingress transithub-realtime"
+  echo "  kubectl -n ${NAMESPACE:-student-jvaldebenito} describe ingress backend-go"
 fi
 
 if [ "$FAILURES" -gt 0 ]; then

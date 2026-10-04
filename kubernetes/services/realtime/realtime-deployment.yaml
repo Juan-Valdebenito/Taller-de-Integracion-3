@@ -24,7 +24,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: realtime
-          # TODO: reemplazar por la imagen publicada (docker build -t <usuario>/transithub-realtime:v1 backend/ && docker push ...)
+          # deploy.sh la reemplaza por <DOCKERHUB_USER>/transithub-realtime:<IMAGE_TAG> (cluster.env); se construye con: bash kubernetes/deploy.sh app build
           image: <DOCKERHUB_USER>/transithub-realtime:v1
           imagePullPolicy: Always
           ports:
@@ -36,7 +36,7 @@ spec:
             - name: NODE_ENV
               value: "production"
             # Origen público del frontend (mismo host que el Ingress).
-            # TODO: reemplazar <HOST> igual que en kubernetes/ingress/transithub-ingress.yaml
+            # deploy.sh reemplaza <HOST> por APP_HOST de cluster.env (mismo host que el Ingress)
             - name: SOCKET_CORS_ORIGIN
               value: "https://<HOST>"
             # Prisma solo conecta si se usan las rutas REST de este servidor

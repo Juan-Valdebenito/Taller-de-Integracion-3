@@ -1,16 +1,16 @@
 # DEPLOYMENT DEL BACKEND GO (API REST)
 #
-# Versión única: reemplaza a kubernetes/backend-go-deployment.yaml (Ignacio) y a
-# kubernetes/services/backend_go/backend-go-deployment.yaml. El Service está en
-# backend-go-service.yaml (misma carpeta) y la entrada pública en
-# kubernetes/ingress/backend-go-ingress.yaml.
+# Única versión del Deployment (une las variables gRPC de Ignacio con probes y
+# métricas). El Service está en backend-go-service.yaml (misma carpeta) y la
+# entrada pública en kubernetes/ingress/backend-go-ingress.yaml.
+# Se despliega con: bash kubernetes/deploy.sh app apply
 #
 # Cuentas del cluster:
 #   - Este backend, la BD transporte_db y el Ingress corren en la cuenta de Tomás
 #     (deploy.sh cambia el namespace según kubernetes/cluster.env).
 #   - Los microservicios de Ignacio (clima, micros, NATS) corren en
 #     student-jvaldebenito: por eso CLIMATE/MICRO_GRPC_TARGET apuntan a ese
-#     namespace (deploy.sh NO los cambia; se configura con MICROSERVICES_NAMESPACE).
+#     namespace (deploy.sh los ajusta a MICRO_NAMESPACE de cluster.env).
 #
 # Requisitos previos en el MISMO namespace (los Secrets no se comparten entre namespaces):
 #   ConfigMap transporte-db-configmap · Secrets transporte-db-secrets, clima-secrets, micros-secrets
