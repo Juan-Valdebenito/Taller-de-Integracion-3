@@ -22,11 +22,38 @@ import (
 type AuthHandler struct {
 	userRepo  *repository.UserRepository
 	jwtSecret string
+	tokenTTL  time.Duration
 	revStore  token.RevocationStore
 }
 
-func NewAuthHandler(userRepo *repository.UserRepository, jwtSecret string, revStore token.RevocationStore) *AuthHandler {
-	return &AuthHandler{userRepo: userRepo, jwtSecret: jwtSecret, revStore: revStore}
+func NewAuthHandler(userRepo *repository.UserRepository, jwtSecret, expiresIn string, revStore token.RevocationStore) *AuthHandler {
+	tokenTTL, err := parseTokenDuration(expiresIn)
+	if err != nil {
+		tokenTTL = 7 * 24 * time.Hour
+	}
+	return &AuthHandler{userRepo: userRepo, jwtSecret: jwtSecret, tokenTTL: tokenTTL, revStore: revStore}
+}
+
+func parseTokenDuration(value string) (time.Duration, error) {
+	value = strings.TrimSpace(strings.ToLower(value))
+	if strings.HasSuffix(value, "d") {
+		days, err := time.ParseDuration(strings.TrimSuffix(value, "d") + "h")
+		if err != nil || days <= 0 {
+			if err == nil {
+				err = fmt.Errorf("token duration must be positive")
+			}
+			return 0, err
+		}
+		return days * 24, nil
+	}
+	duration, err := time.ParseDuration(value)
+	if err != nil {
+		return 0, err
+	}
+	if duration <= 0 {
+		return 0, fmt.Errorf("token duration must be positive")
+	}
+	return duration, nil
 }
 
 // generateJTI crea un identificador único para el token (JWT ID).
@@ -46,7 +73,7 @@ func (h *AuthHandler) generateToken(user *domain.User) (string, time.Time, error
 		return "", time.Time{}, err
 	}
 
-	exp := time.Now().Add(7 * 24 * time.Hour)
+	exp := time.Now().Add(h.tokenTTL)
 
 	claims := jwt.MapClaims{
 		"jti":   jti,

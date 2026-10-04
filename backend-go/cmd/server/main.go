@@ -86,7 +86,7 @@ func main() {
 		stopRepo := repository.NewStopRepository(pool)
 		complaintRepo := repository.NewComplaintRepository(pool)
 
-		authH = handler.NewAuthHandler(userRepo, cfg.JWTSecret, revStore)
+		authH = handler.NewAuthHandler(userRepo, cfg.JWTSecret, cfg.JWTExpires, revStore)
 		userH = handler.NewUserHandler(userRepo)
 		busH = handler.NewBusHandler(busRepo)
 		routeH = handler.NewRouteHandler(routeRepo, busRepo)

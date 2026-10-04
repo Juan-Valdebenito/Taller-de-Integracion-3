@@ -3,6 +3,7 @@ import {
   useContext,
   useState,
   useCallback,
+  useEffect,
   type ReactNode,
 } from 'react';
 import { apiClient } from '../../infrastructure/api/apiClient';
@@ -32,6 +33,17 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function isExpired(token: string): boolean {
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return true;
+    const claims = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as { exp?: number };
+    return typeof claims.exp === 'number' && claims.exp * 1000 <= Date.now();
+  } catch {
+    return true;
+  }
+}
+
 // ── Provider ──────────────────────────────────────────────────
 
 interface AuthProviderProps {
@@ -39,10 +51,17 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const [token, setToken] = useState<string | null>(
-    () => localStorage.getItem('token'),
-  );
+  const [token, setToken] = useState<string | null>(() => {
+    const stored = localStorage.getItem('token');
+    if (stored && isExpired(stored)) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      return null;
+    }
+    return stored;
+  });
   const [user, setUser] = useState<AuthUser | null>(() => {
+    if (!token) return null;
     const stored = localStorage.getItem('user');
     if (stored && stored !== 'undefined') {
       try {
@@ -57,9 +76,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
   });
   const [isLoading] = useState(false);
 
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      setToken(null);
+      setUser(null);
+    };
+
+    window.addEventListener('auth:session-expired', handleSessionExpired);
+    return () => window.removeEventListener('auth:session-expired', handleSessionExpired);
+  }, []);
+
   const login = useCallback((newToken: string, newUser: AuthUser) => {
-    console.log('Logging in user:', newUser);
-    console.log('Storing token in localStorage:', newToken);
     localStorage.setItem('token', newToken);
     localStorage.setItem('user', JSON.stringify(newUser));
     setToken(newToken);

@@ -49,15 +49,16 @@ func (h *UserHandler) GetByID(c *gin.Context) {
 // PUT /api/v1/users/:id
 func (h *UserHandler) Update(c *gin.Context) {
 	var body struct {
-		Name string `json:"name" binding:"required"`
-		Role string `json:"role" binding:"required"`
+		Name     string `json:"name" binding:"required"`
+		Role     string `json:"role" binding:"required"`
+		IsActive bool   `json:"isActive"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	user, err := h.userRepo.Update(c.Request.Context(), c.Param("id"), body.Name, domain.UserRole(body.Role))
+	user, err := h.userRepo.Update(c.Request.Context(), c.Param("id"), body.Name, domain.UserRole(body.Role), body.IsActive)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar usuario"})
 		return

@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { apiClient } from '../../../infrastructure/api/apiClient';
 
 // ── Tipos ─────────────────────────────────────────────────────
 type UserRole = 'ADMIN' | 'COMPANY' | 'PASSENGER';
@@ -63,7 +64,7 @@ function Badge({ label, color }: { label: string; color: string }) {
 
 interface ModalProps {
   onClose: () => void;
-  onSave: (data: Partial<AdminUser>) => void;
+  onSave: (data: Partial<AdminUser>) => Promise<void>;
   initial?: Partial<AdminUser>;
 }
 
@@ -77,6 +78,26 @@ function UserModal({ onClose, onSave, initial }: ModalProps) {
   });
 
   const isEdit = !!initial?.id;
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    if (!form.name.trim()) {
+      setError('El nombre es obligatorio.');
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+    try {
+      await onSave(form);
+      onClose();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'No se pudo actualizar el usuario.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div
@@ -107,6 +128,7 @@ function UserModal({ onClose, onSave, initial }: ModalProps) {
                 type={type}
                 placeholder={placeholder}
                 value={(form as Record<string, unknown>)[key] as string}
+                readOnly={key === 'email'}
                 onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
                 style={{
                   width: '100%', padding: 'var(--space-3)', background: 'var(--color-surface-2)',
@@ -161,18 +183,21 @@ function UserModal({ onClose, onSave, initial }: ModalProps) {
         </div>
 
         <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-6)' }}>
+          {error && <p style={{ color: 'hsl(0,84%,60%)', fontSize: 'var(--font-size-sm)', margin: 0 }}>{error}</p>}
           <button
             onClick={onClose}
-            style={{ flex: 1, padding: 'var(--space-3)', background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)', cursor: 'pointer' }}
+            disabled={saving}
+            style={{ flex: 1, padding: 'var(--space-3)', background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)', cursor: saving ? 'wait' : 'pointer' }}
           >
             Cancelar
           </button>
           <button
             id="user-modal-save-btn"
-            onClick={() => { onSave(form); onClose(); }}
-            style={{ flex: 2, padding: 'var(--space-3)', background: 'linear-gradient(135deg, var(--color-primary-500), hsl(199,89%,48%))', border: 'none', borderRadius: 'var(--radius-md)', color: 'white', fontSize: 'var(--font-size-sm)', fontWeight: 700, cursor: 'pointer' }}
+            onClick={() => void submit()}
+            disabled={saving}
+            style={{ flex: 2, padding: 'var(--space-3)', background: 'linear-gradient(135deg, var(--color-primary-500), hsl(199,89%,48%))', border: 'none', borderRadius: 'var(--radius-md)', color: 'white', fontSize: 'var(--font-size-sm)', fontWeight: 700, cursor: saving ? 'wait' : 'pointer' }}
           >
-            {isEdit ? 'Guardar cambios' : 'Crear usuario'}
+            {saving ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Crear usuario'}
           </button>
         </div>
       </div>
@@ -186,7 +211,48 @@ export function AdminUsersPage() {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<UserRole | 'ALL'>('ALL');
   const [statusFilter, setStatusFilter] = useState<UserStatus | 'ALL'>('ALL');
-  const [modal, setModal] = useState<'new' | AdminUser | null>(null);
+  const [modal, setModal] = useState<AdminUser | null>(null);
+  const [actionError, setActionError] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadUsers = async () => {
+      try {
+        const response = await apiClient.get<Array<{
+          id: string;
+          name: string;
+          email: string;
+          role: UserRole;
+          companyId?: string | null;
+          isActive: boolean;
+          createdAt: string;
+        }>>('/users/');
+
+        if (active) {
+          setUsers(response.data.map((user) => ({
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            company: user.companyId ?? null,
+            isActive: user.isActive,
+            createdAt: user.createdAt?.split('T')[0] ?? '',
+          })));
+        }
+      } catch (error) {
+        if (active) {
+          setActionError(getApiError(error, 'No se pudieron cargar los usuarios.'));
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    void loadUsers();
+    return () => { active = false; };
+  }, []);
 
   const filtered = useMemo(() => {
     return users.filter((u) => {
@@ -197,24 +263,49 @@ export function AdminUsersPage() {
     });
   }, [users, search, roleFilter, statusFilter]);
 
-  const toggleActive = (id: string) => {
-    setUsers((prev) => prev.map((u) => u.id === id ? { ...u, isActive: !u.isActive } : u));
+  const getApiError = (error: unknown, fallback: string) => {
+    const responseError = error as { response?: { data?: { error?: string } } };
+    return responseError.response?.data?.error ?? fallback;
   };
 
-  const handleSave = (data: Partial<AdminUser>) => {
-    if (modal === 'new') {
-      const newUser: AdminUser = {
-        id: `u${Date.now()}`,
-        name: data.name ?? '',
-        email: data.email ?? '',
-        role: (data.role as UserRole) ?? 'PASSENGER',
-        company: data.company ?? null,
-        isActive: data.isActive ?? true,
-        createdAt: new Date().toISOString().split('T')[0],
-      };
-      setUsers((prev) => [newUser, ...prev]);
-    } else if (modal && typeof modal === 'object') {
-      setUsers((prev) => prev.map((u) => u.id === modal.id ? { ...u, ...data } : u));
+  const toggleActive = async (user: AdminUser) => {
+    try {
+      const response = await apiClient.put<AdminUser>(`/users/${user.id}`, {
+        name: user.name,
+        role: user.role,
+        isActive: !user.isActive,
+      });
+      setUsers((prev) => prev.map((current) => current.id === user.id
+        ? { ...current, isActive: response.data.isActive }
+        : current));
+    } catch (error) {
+      setActionError(getApiError(error, 'No se pudo cambiar el estado del usuario.'));
+    }
+  };
+
+  const handleSave = async (data: Partial<AdminUser>) => {
+    if (!modal) return;
+    try {
+      const response = await apiClient.put<AdminUser>(`/users/${modal.id}`, {
+        name: data.name,
+        role: data.role,
+        isActive: data.isActive,
+      });
+      setUsers((prev) => prev.map((user) => user.id === modal.id
+        ? { ...user, name: response.data.name, role: response.data.role, isActive: response.data.isActive }
+        : user));
+    } catch (error) {
+      throw new Error(getApiError(error, 'No se pudo actualizar el usuario.'));
+    }
+  };
+
+  const handleDelete = async (user: AdminUser) => {
+    if (!window.confirm(`¿Eliminar al usuario ${user.name}?`)) return;
+    try {
+      await apiClient.delete(`/users/${user.id}`);
+      setUsers((prev) => prev.filter((current) => current.id !== user.id));
+    } catch (error) {
+      setActionError(getApiError(error, 'No se pudo eliminar el usuario.'));
     }
   };
 
@@ -239,17 +330,20 @@ export function AdminUsersPage() {
         </div>
         <button
           id="new-user-btn"
-          onClick={() => setModal('new')}
+          type="button"
+          disabled
+          title="La creación de usuarios requiere un endpoint de alta administrativa."
           style={{
             padding: 'var(--space-3) var(--space-5)', background: 'linear-gradient(135deg, var(--color-primary-500), hsl(199,89%,48%))',
             border: 'none', borderRadius: 'var(--radius-md)', color: 'white', fontWeight: 700,
-            fontSize: 'var(--font-size-sm)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
+            fontSize: 'var(--font-size-sm)', cursor: 'not-allowed', opacity: 0.55, display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
             boxShadow: '0 4px 12px hsla(215,80%,46%,0.3)',
           }}
         >
-          <span>➕</span> Nuevo usuario
+          <span>➕</span> Nuevo usuario (no disponible)
         </button>
       </div>
+      {actionError && <p style={{ color: 'hsl(0,84%,60%)', background: 'hsla(0,84%,60%,0.1)', border: '1px solid hsla(0,84%,60%,0.25)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)', margin: 0 }}>{actionError}</p>}
 
       {/* Stats chips */}
       <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
@@ -309,7 +403,9 @@ export function AdminUsersPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
+              {loading ? (
+                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 'var(--space-12)', color: 'var(--color-text-muted)' }}>Cargando usuarios...</td></tr>
+              ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={6} style={{ textAlign: 'center', padding: 'var(--space-12)', color: 'var(--color-text-muted)' }}>
                     No se encontraron usuarios
@@ -364,7 +460,7 @@ export function AdminUsersPage() {
                           ✏️ Editar
                         </button>
                         <button
-                          onClick={() => toggleActive(user.id)}
+                          onClick={() => void toggleActive(user)}
                           style={{
                             padding: 'var(--space-1) var(--space-3)',
                             background: user.isActive ? 'hsla(0,84%,60%,0.1)' : 'hsla(142,71%,45%,0.1)',
@@ -375,6 +471,12 @@ export function AdminUsersPage() {
                           }}
                         >
                           {user.isActive ? '🚫 Desactivar' : '✅ Activar'}
+                        </button>
+                        <button
+                          onClick={() => void handleDelete(user)}
+                          style={{ padding: 'var(--space-1) var(--space-3)', background: 'hsla(0,84%,60%,0.08)', border: '1px solid hsla(0,84%,60%,0.2)', borderRadius: 'var(--radius-sm)', color: 'hsl(0,84%,60%)', fontSize: '12px', cursor: 'pointer' }}
+                        >
+                          🗑️ Eliminar
                         </button>
                       </div>
                     </td>
@@ -398,7 +500,7 @@ export function AdminUsersPage() {
         <UserModal
           onClose={() => setModal(null)}
           onSave={handleSave}
-          initial={modal === 'new' ? undefined : modal}
+          initial={modal}
         />
       )}
     </div>

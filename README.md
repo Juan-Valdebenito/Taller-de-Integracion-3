@@ -82,6 +82,7 @@ Variables opcionales:
 ```bash
 LOG_LEVEL=debug       # trace, debug, info, warn, error, fatal, panic
 LOG_FORMAT=json       # json (por defecto) o console
+JWT_EXPIRES_IN=7d     # duración del token: 15m, 2h o 7d
 ```
 
 ### 5. Ejecutar el frontend (en otra terminal)

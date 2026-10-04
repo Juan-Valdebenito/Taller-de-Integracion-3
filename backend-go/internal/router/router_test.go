@@ -20,6 +20,7 @@ func TestRootEndpointReturnsInfo(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)

@@ -91,14 +91,14 @@ func (r *UserRepository) Create(ctx context.Context, name, email, passwordHash s
 	return &u, nil
 }
 
-// Update actualiza nombre y/o rol de un usuario.
-func (r *UserRepository) Update(ctx context.Context, id, name string, role domain.UserRole) (*domain.User, error) {
+// Update actualiza nombre, rol y estado de un usuario.
+func (r *UserRepository) Update(ctx context.Context, id, name string, role domain.UserRole, isActive bool) (*domain.User, error) {
 	var u domain.User
 	err := r.pool.QueryRow(ctx, `
-		UPDATE users SET name = $1, role = $2, "updatedAt" = NOW()
-		WHERE id = $3
+		UPDATE users SET name = $1, role = $2, "isActive" = $3, "updatedAt" = NOW()
+		WHERE id = $4
 		RETURNING id, name, email, "passwordHash", role, "isActive", "companyId", "createdAt", "updatedAt"
-	`, name, role, id).Scan(
+	`, name, role, isActive, id).Scan(
 		&u.ID, &u.Name, &u.Email, &u.PasswordHash, &u.Role, &u.IsActive, &u.CompanyID, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if err != nil {
