@@ -20,10 +20,11 @@ func NewBusHandler(busRepo *repository.BusRepository) *BusHandler {
 }
 
 // GetAll godoc
-// GET /api/v1/buses?routeId=xxx
+// GET /api/v1/buses?routeId=xxx&companyId=yyy
 func (h *BusHandler) GetAll(c *gin.Context) {
 	routeID := c.Query("routeId")
-	buses, err := h.busRepo.FindAll(c.Request.Context(), routeID)
+	companyID := c.Query("companyId")
+	buses, err := h.busRepo.FindAll(c.Request.Context(), routeID, companyID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener buses"})
 		return
@@ -110,6 +111,38 @@ func (h *BusHandler) Update(c *gin.Context) {
 	bus, err := h.busRepo.Update(c.Request.Context(), c.Param("id"), body.Patente, body.Capacity, domain.BusStatus(body.Status), body.RouteID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar bus"})
+		return
+	}
+	if bus == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Bus no encontrado"})
+		return
+	}
+	c.JSON(http.StatusOK, bus)
+}
+
+// Patch godoc
+// PATCH /api/v1/buses/:id — actualización parcial de bus
+func (h *BusHandler) Patch(c *gin.Context) {
+	var body struct {
+		Patente  *string `json:"patente"`
+		Capacity *int    `json:"capacity"`
+		Status   *string `json:"status"`
+		RouteID  *string `json:"routeId"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var statusPtr *domain.BusStatus
+	if body.Status != nil {
+		s := domain.BusStatus(*body.Status)
+		statusPtr = &s
+	}
+
+	bus, err := h.busRepo.UpdatePartial(c.Request.Context(), c.Param("id"), body.Patente, body.Capacity, statusPtr, body.RouteID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar parcialmente bus: " + err.Error()})
 		return
 	}
 	if bus == nil {

@@ -35,6 +35,7 @@ const (
 	ComplaintCategoryDelay            ComplaintCategory = "DELAY"
 	ComplaintCategoryOvercrowding     ComplaintCategory = "OVERCROWDING"
 	ComplaintCategoryDriverBehavior   ComplaintCategory = "DRIVER_BEHAVIOR"
+	ComplaintCategoryFaresPayment     ComplaintCategory = "FARES_PAYMENT"
 	ComplaintCategoryVehicleCondition ComplaintCategory = "VEHICLE_CONDITION"
 	ComplaintCategoryAccessibility    ComplaintCategory = "ACCESSIBILITY"
 	ComplaintCategoryOther            ComplaintCategory = "OTHER"
@@ -111,18 +112,35 @@ type Complaint struct {
 	ID            string            `json:"id" db:"id"`
 	Title         string            `json:"title" db:"title"`
 	Description   string            `json:"description" db:"description"`
+	Comment       string            `json:"comment,omitempty"`
 	Category      ComplaintCategory `json:"category" db:"category"`
 	Status        ComplaintStatus   `json:"status" db:"status"`
 	Rating        *int              `json:"rating" db:"rating"`
 	LineName      *string           `json:"lineName" db:"lineName"`
 	AdminResponse *string           `json:"adminResponse" db:"adminResponse"`
 	PassengerID   *string           `json:"passengerId" db:"passengerId"`
+	UserID        *string           `json:"userId,omitempty"`
 	BusID         *string           `json:"busId" db:"busId"`
 	RouteID       *string           `json:"routeId" db:"routeId"`
 	CompanyID     *string           `json:"companyId" db:"companyId"`
 	TripID        *string           `json:"tripId" db:"tripId"`
 	CreatedAt     time.Time         `json:"createdAt" db:"createdAt"`
 	UpdatedAt     time.Time         `json:"updatedAt" db:"updatedAt"`
+}
+
+// ComplaintStats representa el resumen analítico de reclamos para el dashboard administrativo.
+type ComplaintStats struct {
+	TotalComplaints    int            `json:"totalComplaints"`
+	AverageRating      float64        `json:"averageRating"`
+	CSAT               float64        `json:"csat"`
+	ResolvedPercentage float64        `json:"resolvedPercentage"`
+	PendingCount       int            `json:"pendingCount"`
+	InReviewCount      int            `json:"inReviewCount"`
+	ResolvedCount      int            `json:"resolvedCount"`
+	RejectedCount      int            `json:"rejectedCount"`
+	ByCategory         map[string]int `json:"byCategory"`
+	ByLine             map[string]int `json:"byLine"`
+	ByStatus           map[string]int `json:"byStatus"`
 }
 
 // RecaudoTransaction registra una validación y cobro de tarifa en microbuses (Bipay / Escolar / Adulto Mayor).

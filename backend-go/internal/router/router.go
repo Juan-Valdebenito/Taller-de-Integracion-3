@@ -28,7 +28,7 @@ func Setup(
 	// ── CORS ──────────────────────────────────────────────────
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{corsOrigin},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
 	}))
@@ -80,6 +80,7 @@ func Setup(
 		users.GET("/", middleware.Authorize("ADMIN"), userH.GetAll)
 		users.GET("/:id", userH.GetByID)
 		users.PUT("/:id", middleware.Authorize("ADMIN"), middleware.ValidateUserUpdatePayload(), userH.Update)
+		users.PATCH("/:id", middleware.Authorize("ADMIN"), middleware.ValidateUserUpdatePayload(), userH.Patch)
 		users.DELETE("/:id", middleware.Authorize("ADMIN"), userH.Delete)
 	}
 
@@ -92,13 +93,13 @@ func Setup(
 				"success": true,
 				"auditTrail": []gin.H{
 					{
-						"id":        "aud-001",
-						"action":    "USER_UPDATE",
-						"adminUser": "admin@transporte.cl",
+						"id":         "aud-001",
+						"action":     "USER_UPDATE",
+						"adminUser":  "admin@transporte.cl",
 						"targetUser": "juan.perez@transporte.cl",
-						"phone":     "+56912345678",
-						"rut":       "12.345.678-9",
-						"timestamp": "2026-09-24T12:00:00Z",
+						"phone":      "+56912345678",
+						"rut":        "12.345.678-9",
+						"timestamp":  "2026-09-24T12:00:00Z",
 					},
 					{
 						"id":        "aud-002",
@@ -112,20 +113,25 @@ func Setup(
 		})
 	}
 
-	// Buses
+	// Buses (CRUD de micros con soporte para PATCH y roles ADMIN/COMPANY)
+	api.GET("/buses", optionalAuth(), busH.GetAll)
 	buses := api.Group("/buses", auth())
 	{
+		buses.GET("", busH.GetAll)
 		buses.GET("/", busH.GetAll)
 		buses.GET("/:id", busH.GetByID)
 		buses.GET("/:id/location", busH.GetLocation)
+		buses.POST("", middleware.Authorize("ADMIN", "COMPANY"), busH.Create)
 		buses.POST("/", middleware.Authorize("ADMIN", "COMPANY"), busH.Create)
 		buses.PUT("/:id", middleware.Authorize("ADMIN", "COMPANY"), busH.Update)
-		buses.DELETE("/:id", middleware.Authorize("ADMIN"), busH.Delete)
+		buses.PATCH("/:id", middleware.Authorize("ADMIN", "COMPANY"), busH.Patch)
+		buses.DELETE("/:id", middleware.Authorize("ADMIN", "COMPANY"), busH.Delete)
 	}
 
 	// Rutas de transporte
 	routes := api.Group("/routes", auth())
 	{
+		routes.GET("", routeH.GetAll)
 		routes.GET("/", routeH.GetAll)
 		routes.GET("/:id", routeH.GetByID)
 		routes.GET("/:id/stops", routeH.GetStops)
@@ -135,12 +141,16 @@ func Setup(
 		routes.DELETE("/:id", middleware.Authorize("ADMIN"), routeH.Delete)
 	}
 
-	// Reclamos con validación y sanitización estricta XSS
+	// Reclamos: creación accesible por pasajeros con validación y sanitización estricta XSS
 	api.POST("/complaints", optionalAuth(), middleware.ValidateComplaintPayload(), complaintH.Create)
 	api.POST("/complaints/", optionalAuth(), middleware.ValidateComplaintPayload(), complaintH.Create)
+	// Resumen analítico accesible para el dashboard de administración
+	api.GET("/complaints/stats", optionalAuth(), complaintH.GetStats)
 
-	complaints := api.Group("/complaints", auth())
+	// Gestión y consulta de reclamos con soporte de enmascaramiento (?mask=true)
+	complaints := api.Group("/complaints", auth(), middleware.SensitiveDataMasker())
 	{
+		complaints.GET("/stats", middleware.Authorize("ADMIN", "COMPANY"), complaintH.GetStats)
 		complaints.GET("", middleware.Authorize("ADMIN", "COMPANY"), complaintH.GetAll)
 		complaints.GET("/", middleware.Authorize("ADMIN", "COMPANY"), complaintH.GetAll)
 		complaints.GET("/:id", complaintH.GetByID)

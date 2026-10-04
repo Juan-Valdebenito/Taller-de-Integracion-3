@@ -8,22 +8,43 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain/service"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/middleware"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/repository"
 )
 
 // ComplaintHandler maneja los endpoints de reclamos.
 type ComplaintHandler struct {
-	complaintRepo *repository.ComplaintRepository
+	complaintRepo    *repository.ComplaintRepository
+	complaintService *service.ComplaintService
 }
 
 func NewComplaintHandler(complaintRepo *repository.ComplaintRepository) *ComplaintHandler {
-	return &ComplaintHandler{complaintRepo: complaintRepo}
+	return &ComplaintHandler{
+		complaintRepo:    complaintRepo,
+		complaintService: service.NewComplaintService(),
+	}
+}
+
+// GetStats godoc
+// GET /api/v1/complaints/stats — resumen analítico para el dashboard administrativo
+func (h *ComplaintHandler) GetStats(c *gin.Context) {
+	var compIDPtr *string
+	if comp := c.Query("companyId"); comp != "" {
+		compIDPtr = &comp
+	}
+
+	stats, err := h.complaintRepo.GetStats(c.Request.Context(), compIDPtr)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al calcular estadísticas de reclamos: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, stats)
 }
 
 // GetAll godoc
 // GET /api/v1/complaints
-// Soporta filtros: status, category, lineName, busId, companyId, minRating, maxRating
+// Soporta filtros: status, category, lineName, busId, companyId, rating, minRating, maxRating, page, limit
 func (h *ComplaintHandler) GetAll(c *gin.Context) {
 	var filter repository.ComplaintFilter
 
@@ -44,6 +65,11 @@ func (h *ComplaintHandler) GetAll(c *gin.Context) {
 	if comp := c.Query("companyId"); comp != "" {
 		filter.CompanyID = &comp
 	}
+	if r := c.Query("rating"); r != "" {
+		if val, err := strconv.Atoi(r); err == nil {
+			filter.Rating = &val
+		}
+	}
 	if minR := c.Query("minRating"); minR != "" {
 		if val, err := strconv.Atoi(minR); err == nil {
 			filter.MinRating = &val
@@ -55,7 +81,17 @@ func (h *ComplaintHandler) GetAll(c *gin.Context) {
 		}
 	}
 
-	complaints, err := h.complaintRepo.FindAll(c.Request.Context(), filter)
+	var pagination []repository.Pagination
+	page, _ := strconv.Atoi(c.Query("page"))
+	limit, _ := strconv.Atoi(c.Query("limit"))
+	if limit > 0 {
+		if page < 1 {
+			page = 1
+		}
+		pagination = append(pagination, repository.Pagination{Page: page, Limit: limit})
+	}
+
+	complaints, err := h.complaintRepo.FindAll(c.Request.Context(), filter, pagination...)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener reclamos: " + err.Error()})
 		return
@@ -149,7 +185,7 @@ func (h *ComplaintHandler) Create(c *gin.Context) {
 }
 
 // UpdateStatus godoc
-// PUT /api/v1/complaints/:id/status — empresa o admin
+// PATCH /api/v1/complaints/:id/status — empresa o admin
 func (h *ComplaintHandler) UpdateStatus(c *gin.Context) {
 	var body struct {
 		Status        string  `json:"status" binding:"required"`
@@ -160,18 +196,35 @@ func (h *ComplaintHandler) UpdateStatus(c *gin.Context) {
 		return
 	}
 
+	newStatus := domain.ComplaintStatus(body.Status)
+	if !h.complaintService.IsValidStatus(newStatus) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Estado de destino no válido. Estados permitidos: PENDING, IN_REVIEW, RESOLVED, REJECTED"})
+		return
+	}
+
+	existing, err := h.complaintRepo.FindByID(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al consultar reclamo"})
+		return
+	}
+	if existing == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Reclamo no encontrado"})
+		return
+	}
+
+	if err := h.complaintService.ValidateTransition(existing.Status, newStatus); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	complaint, err := h.complaintRepo.UpdateStatus(
 		c.Request.Context(),
 		c.Param("id"),
-		domain.ComplaintStatus(body.Status),
+		newStatus,
 		body.AdminResponse,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar estado del reclamo"})
-		return
-	}
-	if complaint == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Reclamo no encontrado"})
 		return
 	}
 	c.JSON(http.StatusOK, complaint)

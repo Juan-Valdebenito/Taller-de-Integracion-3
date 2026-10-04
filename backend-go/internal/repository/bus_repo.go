@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -40,14 +41,21 @@ func scanBus(row pgx.Row) (*domain.Bus, error) {
 	return &b, nil
 }
 
-// FindAll retorna todos los buses. Si routeID no es vacío, filtra por ruta.
-func (r *BusRepository) FindAll(ctx context.Context, routeID string) ([]domain.Bus, error) {
-	query := `SELECT ` + busSelectColumns + ` FROM buses`
-	args := []interface{}{}
+// FindAll retorna todos los buses. Filtra opcionalmente por routeID y/o companyID.
+func (r *BusRepository) FindAll(ctx context.Context, routeID string, companyID ...string) ([]domain.Bus, error) {
+	query := `SELECT ` + busSelectColumns + ` FROM buses WHERE 1=1`
+	var args []any
+	argIdx := 1
 
 	if routeID != "" {
-		query += ` WHERE "routeId" = $1`
+		query += fmt.Sprintf(` AND "routeId" = $%d`, argIdx)
 		args = append(args, routeID)
+		argIdx++
+	}
+	if len(companyID) > 0 && companyID[0] != "" {
+		query += fmt.Sprintf(` AND "companyId" = $%d`, argIdx)
+		args = append(args, companyID[0])
+		argIdx++
 	}
 	query += ` ORDER BY "createdAt" DESC`
 
@@ -59,15 +67,11 @@ func (r *BusRepository) FindAll(ctx context.Context, routeID string) ([]domain.B
 
 	var buses []domain.Bus
 	for rows.Next() {
-		var b domain.Bus
-		if err := rows.Scan(
-			&b.ID, &b.Patente, &b.Capacity, &b.CurrentPassengers, &b.Boardings, &b.Alightings, &b.SchoolBoardings,
-			&b.Status, &b.LastLatitude, &b.LastLongitude, &b.LastHeading, &b.LastSpeed, &b.LastLocationAt,
-			&b.CompanyID, &b.RouteID, &b.CreatedAt, &b.UpdatedAt,
-		); err != nil {
+		b, err := scanBus(rows)
+		if err != nil {
 			return nil, err
 		}
-		buses = append(buses, b)
+		buses = append(buses, *b)
 	}
 	return buses, nil
 }
@@ -138,6 +142,51 @@ func (r *BusRepository) Update(ctx context.Context, id, patente string, capacity
 			return nil, nil
 		}
 		return nil, fmt.Errorf("BusRepository.Update: %w", err)
+	}
+	return b, nil
+}
+
+// UpdatePartial actualiza selectivamente campos de un bus.
+func (r *BusRepository) UpdatePartial(ctx context.Context, id string, patente *string, capacity *int, status *domain.BusStatus, routeID *string) (*domain.Bus, error) {
+	setClauses := []string{`"updatedAt" = NOW()`}
+	var args []any
+	argIdx := 1
+
+	if patente != nil {
+		setClauses = append(setClauses, fmt.Sprintf("patente = $%d", argIdx))
+		args = append(args, *patente)
+		argIdx++
+	}
+	if capacity != nil {
+		setClauses = append(setClauses, fmt.Sprintf("capacity = $%d", argIdx))
+		args = append(args, *capacity)
+		argIdx++
+	}
+	if status != nil {
+		setClauses = append(setClauses, fmt.Sprintf("status = $%d", argIdx))
+		args = append(args, *status)
+		argIdx++
+	}
+	if routeID != nil {
+		setClauses = append(setClauses, fmt.Sprintf("\"routeId\" = $%d", argIdx))
+		args = append(args, *routeID)
+		argIdx++
+	}
+
+	query := fmt.Sprintf(`
+		UPDATE buses
+		SET %s
+		WHERE id = $%d
+		RETURNING `+busSelectColumns, strings.Join(setClauses, ", "), argIdx)
+	args = append(args, id)
+
+	row := r.pool.QueryRow(ctx, query, args...)
+	b, err := scanBus(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("BusRepository.UpdatePartial: %w", err)
 	}
 	return b, nil
 }

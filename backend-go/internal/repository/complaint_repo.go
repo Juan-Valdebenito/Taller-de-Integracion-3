@@ -27,11 +27,19 @@ const complaintSelectColumns = `
 `
 
 // ComplaintFilter define los filtros opcionales para la búsqueda avanzada de reclamos.
+// Pagination define los parámetros opcionales de paginación.
+type Pagination struct {
+	Page  int
+	Limit int
+}
+
+// ComplaintFilter define los filtros opcionales para la búsqueda avanzada de reclamos.
 type ComplaintFilter struct {
 	Status    *domain.ComplaintStatus
 	Category  *domain.ComplaintCategory
 	BusID     *string
 	LineName  *string
+	Rating    *int
 	MinRating *int
 	MaxRating *int
 	CompanyID *string
@@ -46,11 +54,13 @@ func scanComplaint(row pgx.Row) (*domain.Complaint, error) {
 	if err != nil {
 		return nil, err
 	}
+	c.UserID = c.PassengerID
+	c.Comment = c.Description
 	return &c, nil
 }
 
-// FindAll retorna los reclamos aplicando filtros opcionales ordenados por fecha de creación.
-func (r *ComplaintRepository) FindAll(ctx context.Context, filter ComplaintFilter) ([]domain.Complaint, error) {
+// FindAll retorna los reclamos aplicando filtros opcionales y paginación ordenados por fecha de creación.
+func (r *ComplaintRepository) FindAll(ctx context.Context, filter ComplaintFilter, pagination ...Pagination) ([]domain.Complaint, error) {
 	query := `
 		SELECT ` + complaintSelectColumns + `
 		FROM complaints
@@ -79,6 +89,11 @@ func (r *ComplaintRepository) FindAll(ctx context.Context, filter ComplaintFilte
 		args = append(args, "%"+*filter.LineName+"%")
 		argIdx++
 	}
+	if filter.Rating != nil {
+		query += fmt.Sprintf(" AND rating = $%d", argIdx)
+		args = append(args, *filter.Rating)
+		argIdx++
+	}
 	if filter.MinRating != nil {
 		query += fmt.Sprintf(" AND rating >= $%d", argIdx)
 		args = append(args, *filter.MinRating)
@@ -96,6 +111,21 @@ func (r *ComplaintRepository) FindAll(ctx context.Context, filter ComplaintFilte
 	}
 
 	query += ` ORDER BY "createdAt" DESC`
+
+	if len(pagination) > 0 {
+		p := pagination[0]
+		if p.Limit > 0 {
+			query += fmt.Sprintf(" LIMIT $%d", argIdx)
+			args = append(args, p.Limit)
+			argIdx++
+			if p.Page > 1 {
+				offset := (p.Page - 1) * p.Limit
+				query += fmt.Sprintf(" OFFSET $%d", argIdx)
+				args = append(args, offset)
+				argIdx++
+			}
+		}
+	}
 
 	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
@@ -230,4 +260,91 @@ func (r *ComplaintRepository) Delete(ctx context.Context, id string) error {
 		return pgx.ErrNoRows
 	}
 	return nil
+}
+
+// GetStats ejecuta una consulta agregada para calcular métricas completas de reclamos.
+func (r *ComplaintRepository) GetStats(ctx context.Context, companyID *string) (*domain.ComplaintStats, error) {
+	stats := &domain.ComplaintStats{
+		ByCategory: make(map[string]int),
+		ByLine:     make(map[string]int),
+		ByStatus:   make(map[string]int),
+	}
+
+	var compIDVal any = nil
+	if companyID != nil && *companyID != "" {
+		compIDVal = *companyID
+	}
+
+	// 1. Resumen global (total, avg rating / CSAT, tasa resolución, conteos)
+	row := r.pool.QueryRow(ctx, `
+		SELECT
+			COUNT(*)::int AS total_complaints,
+			COALESCE(AVG(rating), 0)::float8 AS avg_rating,
+			COALESCE(
+				ROUND((COUNT(*) FILTER (WHERE status = 'RESOLVED')::numeric / NULLIF(COUNT(*), 0)::numeric) * 100, 2),
+				0
+			)::float8 AS resolved_pct,
+			COUNT(*) FILTER (WHERE status = 'PENDING')::int AS pending_count,
+			COUNT(*) FILTER (WHERE status = 'IN_REVIEW')::int AS in_review_count,
+			COUNT(*) FILTER (WHERE status = 'RESOLVED')::int AS resolved_count,
+			COUNT(*) FILTER (WHERE status = 'REJECTED')::int AS rejected_count
+		FROM complaints
+		WHERE ($1::text IS NULL OR "companyId" = $1)
+	`, compIDVal)
+
+	if err := row.Scan(
+		&stats.TotalComplaints,
+		&stats.AverageRating,
+		&stats.ResolvedPercentage,
+		&stats.PendingCount,
+		&stats.InReviewCount,
+		&stats.ResolvedCount,
+		&stats.RejectedCount,
+	); err != nil {
+		return nil, fmt.Errorf("ComplaintRepository.GetStats summary: %w", err)
+	}
+
+	stats.CSAT = stats.AverageRating
+	stats.ByStatus[string(domain.ComplaintStatusPending)] = stats.PendingCount
+	stats.ByStatus[string(domain.ComplaintStatusInReview)] = stats.InReviewCount
+	stats.ByStatus[string(domain.ComplaintStatusResolved)] = stats.ResolvedCount
+	stats.ByStatus[string(domain.ComplaintStatusRejected)] = stats.RejectedCount
+
+	// 2. Distribución por categoría
+	catRows, err := r.pool.Query(ctx, `
+		SELECT category, COUNT(*)::int
+		FROM complaints
+		WHERE ($1::text IS NULL OR "companyId" = $1)
+		GROUP BY category
+	`, compIDVal)
+	if err == nil {
+		defer catRows.Close()
+		for catRows.Next() {
+			var cat string
+			var count int
+			if err := catRows.Scan(&cat, &count); err == nil {
+				stats.ByCategory[cat] = count
+			}
+		}
+	}
+
+	// 3. Distribución por línea de transporte (7A, 7B, 1C, etc.)
+	lineRows, err := r.pool.Query(ctx, `
+		SELECT COALESCE(NULLIF("lineName", ''), 'Sin Línea') AS line, COUNT(*)::int
+		FROM complaints
+		WHERE ($1::text IS NULL OR "companyId" = $1)
+		GROUP BY "lineName"
+	`, compIDVal)
+	if err == nil {
+		defer lineRows.Close()
+		for lineRows.Next() {
+			var line string
+			var count int
+			if err := lineRows.Scan(&line, &count); err == nil {
+				stats.ByLine[line] = count
+			}
+		}
+	}
+
+	return stats, nil
 }

@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import axios from 'axios';
 
 // ── Tipos ─────────────────────────────────────────────────────
 type UserRole = 'ADMIN' | 'COMPANY' | 'PASSENGER';
@@ -188,6 +189,36 @@ export function AdminUsersPage() {
   const [statusFilter, setStatusFilter] = useState<UserStatus | 'ALL'>('ALL');
   const [modal, setModal] = useState<'new' | AdminUser | null>(null);
 
+  const getHeaders = () => {
+    const token = localStorage.getItem('token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const res = await axios.get('http://localhost:3001/api/v1/users', { headers: getHeaders() });
+      const data = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      if (data.length > 0) {
+        const mapped: AdminUser[] = data.map((u: any) => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          role: u.role,
+          company: u.companyId ?? null,
+          isActive: u.isActive ?? true,
+          createdAt: u.createdAt ? new Date(u.createdAt).toISOString().split('T')[0] : '2025-01-01',
+        }));
+        setUsers(mapped);
+      }
+    } catch {
+      // Fallback a mock data
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
   const filtered = useMemo(() => {
     return users.filter((u) => {
       const matchSearch = u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase());
@@ -197,11 +228,30 @@ export function AdminUsersPage() {
     });
   }, [users, search, roleFilter, statusFilter]);
 
-  const toggleActive = (id: string) => {
-    setUsers((prev) => prev.map((u) => u.id === id ? { ...u, isActive: !u.isActive } : u));
+  const toggleActive = async (id: string) => {
+    const targetUser = users.find((u) => u.id === id);
+    if (!targetUser) return;
+
+    if (targetUser.isActive) {
+      // Soft Delete: Desactivar usuario (isActive = false)
+      try {
+        await axios.delete(`http://localhost:3001/api/v1/users/${id}`, { headers: getHeaders() });
+      } catch {
+        // Fallback local
+      }
+      setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, isActive: false } : u)));
+    } else {
+      // Reactivar usuario vía PATCH
+      try {
+        await axios.patch(`http://localhost:3001/api/v1/users/${id}`, { isActive: true }, { headers: getHeaders() });
+      } catch {
+        // Fallback local
+      }
+      setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, isActive: true } : u)));
+    }
   };
 
-  const handleSave = (data: Partial<AdminUser>) => {
+  const handleSave = async (data: Partial<AdminUser>) => {
     if (modal === 'new') {
       const newUser: AdminUser = {
         id: `u${Date.now()}`,
@@ -212,9 +262,33 @@ export function AdminUsersPage() {
         isActive: data.isActive ?? true,
         createdAt: new Date().toISOString().split('T')[0],
       };
+      try {
+        await axios.post('http://localhost:3001/api/v1/auth/register', {
+          name: newUser.name,
+          email: newUser.email,
+          password: 'Password123!',
+          role: newUser.role,
+        });
+      } catch {
+        // Fallback local
+      }
       setUsers((prev) => [newUser, ...prev]);
     } else if (modal && typeof modal === 'object') {
-      setUsers((prev) => prev.map((u) => u.id === modal.id ? { ...u, ...data } : u));
+      try {
+        // Actualizar vía PUT /api/v1/users/:id con soporte para isActive
+        await axios.put(
+          `http://localhost:3001/api/v1/users/${modal.id}`,
+          {
+            name: data.name,
+            role: data.role,
+            isActive: data.isActive,
+          },
+          { headers: getHeaders() }
+        );
+      } catch {
+        // Fallback local
+      }
+      setUsers((prev) => prev.map((u) => (u.id === modal.id ? { ...u, ...data } : u)));
     }
   };
 
