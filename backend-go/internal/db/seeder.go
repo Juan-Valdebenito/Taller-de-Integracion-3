@@ -40,6 +40,13 @@ func AutoMigrateAndSeed(ctx context.Context, pool *pgxpool.Pool, env string) err
 		CREATE INDEX IF NOT EXISTS idx_recaudo_bus ON recaudo_transactions("busId");
 		CREATE INDEX IF NOT EXISTS idx_recaudo_faretype ON recaudo_transactions("fareType");
 		CREATE INDEX IF NOT EXISTS idx_recaudo_created ON recaudo_transactions("createdAt" DESC);
+
+		DO $$
+		BEGIN
+			ALTER TYPE "BusStatus" ADD VALUE IF NOT EXISTS 'OUT_OF_SERVICE';
+		EXCEPTION
+			WHEN undefined_object THEN NULL;
+		END $$;
 	`
 	if _, err := pool.Exec(ctx, migrationSQL); err != nil {
 		log.Printf("⚠️  Aviso en auto-migración de tablas: %v", err)

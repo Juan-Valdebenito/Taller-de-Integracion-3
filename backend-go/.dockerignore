@@ -1,0 +1,16 @@
+.git
+.gitignore
+*.exe
+server
+server.exe
+*.log
+.env
+.env.*
+scratch/
+tmp/
+*.tmp
+dist/
+node_modules/
+.dockerignore
+Dockerfile
+README.md

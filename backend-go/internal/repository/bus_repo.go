@@ -41,21 +41,58 @@ func scanBus(row pgx.Row) (*domain.Bus, error) {
 	return &b, nil
 }
 
-// FindAll retorna todos los buses. Filtra opcionalmente por routeID y/o companyID.
-func (r *BusRepository) FindAll(ctx context.Context, routeID string, companyID ...string) ([]domain.Bus, error) {
+// BusFilter define los filtros avanzados para la búsqueda de buses.
+type BusFilter struct {
+	Line      *string
+	Status    *domain.BusStatus
+	RouteID   *string
+	CompanyID *string
+}
+
+// BusDetail estructura enriquecida que incluye aforo actual y ruta asociada.
+type BusDetail struct {
+	domain.Bus
+	OccupancyPercentage int           `json:"occupancyPercentage"`
+	Route               *domain.Route `json:"route,omitempty"`
+}
+
+// FindAll retorna los buses aplicando filtros opcionales de línea, estado, ruta y empresa.
+func (r *BusRepository) FindAll(ctx context.Context, filter BusFilter) ([]domain.Bus, error) {
 	query := `SELECT ` + busSelectColumns + ` FROM buses WHERE 1=1`
 	var args []any
 	argIdx := 1
 
-	if routeID != "" {
+	if filter.RouteID != nil && *filter.RouteID != "" {
 		query += fmt.Sprintf(` AND "routeId" = $%d`, argIdx)
-		args = append(args, routeID)
+		args = append(args, *filter.RouteID)
 		argIdx++
 	}
-	if len(companyID) > 0 && companyID[0] != "" {
+	if filter.CompanyID != nil && *filter.CompanyID != "" {
 		query += fmt.Sprintf(` AND "companyId" = $%d`, argIdx)
-		args = append(args, companyID[0])
+		args = append(args, *filter.CompanyID)
 		argIdx++
+	}
+	if filter.Status != nil && *filter.Status != "" {
+		query += fmt.Sprintf(` AND status = $%d`, argIdx)
+		args = append(args, *filter.Status)
+		argIdx++
+	}
+	if filter.Line != nil && *filter.Line != "" {
+		cleanLine := strings.ToUpper(strings.TrimSpace(*filter.Line))
+		cleanLine = strings.TrimPrefix(cleanLine, "LINEA")
+		cleanLine = strings.TrimPrefix(cleanLine, "LÍNEA")
+		cleanLine = strings.TrimSpace(cleanLine)
+		query += fmt.Sprintf(` AND (
+			EXISTS (
+				SELECT 1 FROM routes r 
+				WHERE r.id = buses."routeId" 
+				AND (UPPER(r.code) = $%d OR UPPER(r.code) ILIKE $%d OR UPPER(r.name) ILIKE $%d)
+			)
+			OR UPPER("routeId") ILIKE $%d
+			OR UPPER(id) ILIKE $%d
+		)`, argIdx, argIdx+1, argIdx+2, argIdx+3, argIdx+4)
+		args = append(args, cleanLine, "%"+cleanLine+"%", "%"+cleanLine+"%", "%"+cleanLine+"%", "%"+cleanLine+"%")
+		argIdx += 5
 	}
 	query += ` ORDER BY "createdAt" DESC`
 
@@ -87,6 +124,43 @@ func (r *BusRepository) FindByID(ctx context.Context, id string) (*domain.Bus, e
 		return nil, fmt.Errorf("BusRepository.FindByID: %w", err)
 	}
 	return b, nil
+}
+
+// FindDetailByID retorna el detalle de un bus junto a su aforo actual y datos de la ruta asociada.
+func (r *BusRepository) FindDetailByID(ctx context.Context, id string) (*BusDetail, error) {
+	bus, err := r.FindByID(ctx, id)
+	if err != nil || bus == nil {
+		return nil, err
+	}
+
+	occ := 0
+	if bus.Capacity > 0 {
+		occ = int(float64(bus.CurrentPassengers) / float64(bus.Capacity) * 100)
+		if occ > 100 {
+			occ = 100
+		}
+	}
+
+	detail := &BusDetail{
+		Bus:                 *bus,
+		OccupancyPercentage: occ,
+	}
+
+	if bus.RouteID != nil && *bus.RouteID != "" {
+		var rt domain.Route
+		err := r.pool.QueryRow(ctx, `
+			SELECT id, name, code, description, "isActive", "companyId", "createdAt", "updatedAt"
+			FROM routes
+			WHERE id = $1
+		`, *bus.RouteID).Scan(
+			&rt.ID, &rt.Name, &rt.Code, &rt.Description, &rt.IsActive, &rt.CompanyID, &rt.CreatedAt, &rt.UpdatedAt,
+		)
+		if err == nil {
+			detail.Route = &rt
+		}
+	}
+
+	return detail, nil
 }
 
 // FindActiveByRouteID retorna los buses activos en una ruta.

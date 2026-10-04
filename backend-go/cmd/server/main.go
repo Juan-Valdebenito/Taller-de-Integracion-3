@@ -50,6 +50,7 @@ func main() {
 	occupancyH := handler.NewOccupancyHandler(occupancySvc)
 	aforoH := handler.NewAforoHandler(aforoSvc)
 	recaudoH := handler.NewRecaudoHandler(recaudoRepo, aforoSvc)
+	healthH := handler.NewHealthHandler(pool)
 
 	// ── Router ────────────────────────────────────────────────
 	r := router.Setup(
@@ -64,6 +65,7 @@ func main() {
 		occupancyH,
 		aforoH,
 		recaudoH,
+		healthH,
 	)
 
 	// ── Iniciar servidor ──────────────────────────────────────

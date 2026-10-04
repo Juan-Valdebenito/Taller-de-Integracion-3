@@ -22,6 +22,7 @@ func Setup(
 	occupancyH *handler.OccupancyHandler,
 	aforoH *handler.AforoHandler,
 	recaudoH *handler.RecaudoHandler,
+	healthH *handler.HealthHandler,
 ) *gin.Engine {
 	r := gin.Default()
 
@@ -33,10 +34,14 @@ func Setup(
 		AllowCredentials: true,
 	}))
 
-	// ── Health check ──────────────────────────────────────────
+	// ── Health checks & Kubernetes Probes ─────────────────────
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok", "lang": "go"})
 	})
+	if healthH != nil {
+		r.GET("/healthz", healthH.LivenessProbe)
+		r.GET("/readyz", healthH.ReadinessProbe)
+	}
 
 	// ── API v1 ────────────────────────────────────────────────
 	api := r.Group("/api/v1")

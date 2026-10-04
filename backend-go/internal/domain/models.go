@@ -15,9 +15,10 @@ const (
 type BusStatus string
 
 const (
-	BusStatusActive      BusStatus = "ACTIVE"
-	BusStatusInactive    BusStatus = "INACTIVE"
-	BusStatusMaintenance BusStatus = "MAINTENANCE"
+	BusStatusActive       BusStatus = "ACTIVE"
+	BusStatusInactive     BusStatus = "INACTIVE"
+	BusStatusMaintenance  BusStatus = "MAINTENANCE"
+	BusStatusOutOfService BusStatus = "OUT_OF_SERVICE"
 )
 
 type ComplaintStatus string

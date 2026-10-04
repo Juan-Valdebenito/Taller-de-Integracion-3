@@ -45,26 +45,20 @@ func (h *UserHandler) GetByID(c *gin.Context) {
 }
 
 // Update godoc
-// PUT /api/v1/users/:id
+// PUT /api/v1/users/:id — actualización de usuario (name, role, email, isActive)
 func (h *UserHandler) Update(c *gin.Context) {
 	var body struct {
-		Name     string `json:"name" binding:"required"`
-		Role     string `json:"role" binding:"required"`
-		IsActive *bool  `json:"isActive"`
+		Name     string  `json:"name" binding:"required"`
+		Role     string  `json:"role" binding:"required"`
+		Email    *string `json:"email"`
+		IsActive *bool   `json:"isActive"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	var user *domain.User
-	var err error
-	if body.IsActive != nil {
-		user, err = h.userRepo.Update(c.Request.Context(), c.Param("id"), body.Name, domain.UserRole(body.Role), *body.IsActive)
-	} else {
-		user, err = h.userRepo.Update(c.Request.Context(), c.Param("id"), body.Name, domain.UserRole(body.Role))
-	}
-
+	user, err := h.userRepo.Update(c.Request.Context(), c.Param("id"), body.Name, domain.UserRole(body.Role), body.Email, body.IsActive)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar usuario: " + err.Error()})
 		return
@@ -77,10 +71,11 @@ func (h *UserHandler) Update(c *gin.Context) {
 }
 
 // Patch godoc
-// PATCH /api/v1/users/:id — modificación parcial (nombre, rol, isActive, companyId)
+// PATCH /api/v1/users/:id — modificación parcial (name, email, role, isActive, companyId)
 func (h *UserHandler) Patch(c *gin.Context) {
 	var body struct {
 		Name      *string `json:"name"`
+		Email     *string `json:"email"`
 		Role      *string `json:"role"`
 		IsActive  *bool   `json:"isActive"`
 		CompanyID *string `json:"companyId"`
@@ -90,7 +85,7 @@ func (h *UserHandler) Patch(c *gin.Context) {
 		return
 	}
 
-	if body.Name == nil && body.Role == nil && body.IsActive == nil && body.CompanyID == nil {
+	if body.Name == nil && body.Email == nil && body.Role == nil && body.IsActive == nil && body.CompanyID == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Debe especificar al menos un campo para actualizar"})
 		return
 	}
@@ -101,7 +96,7 @@ func (h *UserHandler) Patch(c *gin.Context) {
 		rolePtr = &r
 	}
 
-	user, err := h.userRepo.UpdatePartial(c.Request.Context(), c.Param("id"), body.Name, rolePtr, body.IsActive, body.CompanyID)
+	user, err := h.userRepo.UpdatePartial(c.Request.Context(), c.Param("id"), body.Name, body.Email, rolePtr, body.IsActive, body.CompanyID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar parcialmente el usuario: " + err.Error()})
 		return

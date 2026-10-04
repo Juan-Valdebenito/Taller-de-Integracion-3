@@ -92,29 +92,35 @@ func (r *UserRepository) Create(ctx context.Context, name, email, passwordHash s
 	return &u, nil
 }
 
-// Update actualiza nombre, rol y opcionalmente isActive de un usuario.
-func (r *UserRepository) Update(ctx context.Context, id, name string, role domain.UserRole, isActive ...bool) (*domain.User, error) {
-	var u domain.User
-	var err error
+// Update actualiza nombre, rol y opcionalmente email e isActive de un usuario.
+func (r *UserRepository) Update(ctx context.Context, id, name string, role domain.UserRole, email *string, isActive *bool) (*domain.User, error) {
+	setClauses := []string{`"updatedAt" = NOW()`, "name = $1", "role = $2"}
+	args := []any{name, role}
+	argIdx := 3
 
-	if len(isActive) > 0 {
-		err = r.pool.QueryRow(ctx, `
-			UPDATE users SET name = $1, role = $2, "isActive" = $3, "updatedAt" = NOW()
-			WHERE id = $4
-			RETURNING id, name, email, "passwordHash", role, "isActive", "companyId", "createdAt", "updatedAt"
-		`, name, role, isActive[0], id).Scan(
-			&u.ID, &u.Name, &u.Email, &u.PasswordHash, &u.Role, &u.IsActive, &u.CompanyID, &u.CreatedAt, &u.UpdatedAt,
-		)
-	} else {
-		err = r.pool.QueryRow(ctx, `
-			UPDATE users SET name = $1, role = $2, "updatedAt" = NOW()
-			WHERE id = $3
-			RETURNING id, name, email, "passwordHash", role, "isActive", "companyId", "createdAt", "updatedAt"
-		`, name, role, id).Scan(
-			&u.ID, &u.Name, &u.Email, &u.PasswordHash, &u.Role, &u.IsActive, &u.CompanyID, &u.CreatedAt, &u.UpdatedAt,
-		)
+	if email != nil && *email != "" {
+		setClauses = append(setClauses, fmt.Sprintf("email = $%d", argIdx))
+		args = append(args, *email)
+		argIdx++
+	}
+	if isActive != nil {
+		setClauses = append(setClauses, fmt.Sprintf(`"isActive" = $%d`, argIdx))
+		args = append(args, *isActive)
+		argIdx++
 	}
 
+	query := fmt.Sprintf(`
+		UPDATE users
+		SET %s
+		WHERE id = $%d
+		RETURNING id, name, email, "passwordHash", role, "isActive", "companyId", "createdAt", "updatedAt"
+	`, strings.Join(setClauses, ", "), argIdx)
+	args = append(args, id)
+
+	var u domain.User
+	err := r.pool.QueryRow(ctx, query, args...).Scan(
+		&u.ID, &u.Name, &u.Email, &u.PasswordHash, &u.Role, &u.IsActive, &u.CompanyID, &u.CreatedAt, &u.UpdatedAt,
+	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
@@ -125,7 +131,7 @@ func (r *UserRepository) Update(ctx context.Context, id, name string, role domai
 }
 
 // UpdatePartial actualiza selectivamente campos específicos de un usuario (para PATCH).
-func (r *UserRepository) UpdatePartial(ctx context.Context, id string, name *string, role *domain.UserRole, isActive *bool, companyID *string) (*domain.User, error) {
+func (r *UserRepository) UpdatePartial(ctx context.Context, id string, name *string, email *string, role *domain.UserRole, isActive *bool, companyID *string) (*domain.User, error) {
 	setClauses := []string{`"updatedAt" = NOW()`}
 	var args []any
 	argIdx := 1
@@ -133,6 +139,11 @@ func (r *UserRepository) UpdatePartial(ctx context.Context, id string, name *str
 	if name != nil {
 		setClauses = append(setClauses, fmt.Sprintf("name = $%d", argIdx))
 		args = append(args, *name)
+		argIdx++
+	}
+	if email != nil {
+		setClauses = append(setClauses, fmt.Sprintf("email = $%d", argIdx))
+		args = append(args, *email)
 		argIdx++
 	}
 	if role != nil {
