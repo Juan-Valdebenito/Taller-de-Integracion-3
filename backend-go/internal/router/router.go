@@ -114,8 +114,7 @@ func Setup(
 	}
 
 	// Buses (CRUD de micros con soporte para PATCH y roles ADMIN/COMPANY)
-	api.GET("/buses", optionalAuth(), busH.GetAll)
-	buses := api.Group("/buses", auth())
+	buses := api.Group("/buses", optionalAuth())
 	{
 		buses.GET("", busH.GetAll)
 		buses.GET("/", busH.GetAll)
@@ -144,15 +143,13 @@ func Setup(
 	// Reclamos: creación accesible por pasajeros con validación y sanitización estricta XSS
 	api.POST("/complaints", optionalAuth(), middleware.ValidateComplaintPayload(), complaintH.Create)
 	api.POST("/complaints/", optionalAuth(), middleware.ValidateComplaintPayload(), complaintH.Create)
-	// Resumen analítico accesible para el dashboard de administración
-	api.GET("/complaints/stats", optionalAuth(), complaintH.GetStats)
 
 	// Gestión y consulta de reclamos con soporte de enmascaramiento (?mask=true)
-	complaints := api.Group("/complaints", auth(), middleware.SensitiveDataMasker())
+	complaints := api.Group("/complaints", optionalAuth(), middleware.SensitiveDataMasker())
 	{
-		complaints.GET("/stats", middleware.Authorize("ADMIN", "COMPANY"), complaintH.GetStats)
-		complaints.GET("", middleware.Authorize("ADMIN", "COMPANY"), complaintH.GetAll)
-		complaints.GET("/", middleware.Authorize("ADMIN", "COMPANY"), complaintH.GetAll)
+		complaints.GET("/stats", complaintH.GetStats)
+		complaints.GET("", complaintH.GetAll)
+		complaints.GET("/", complaintH.GetAll)
 		complaints.GET("/:id", complaintH.GetByID)
 		complaints.PUT("/:id/status", middleware.Authorize("ADMIN", "COMPANY"), complaintH.UpdateStatus)
 		complaints.PATCH("/:id/status", middleware.Authorize("ADMIN", "COMPANY"), complaintH.UpdateStatus)

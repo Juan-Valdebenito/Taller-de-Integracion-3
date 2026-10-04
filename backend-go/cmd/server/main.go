@@ -71,6 +71,14 @@ func main() {
 	fmt.Printf("\n🚌  Servidor Go corriendo en http://localhost%s\n", addr)
 	fmt.Printf("🌍  Entorno: %s\n\n", cfg.Env)
 
+	// Iniciar listener secundario en :8080 si no es el puerto principal
+	if cfg.Port != "8080" {
+		go func() {
+			fmt.Printf("📡  Listener dual activo en http://localhost:8080\n")
+			_ = r.Run(":8080")
+		}()
+	}
+
 	if err := r.Run(addr); err != nil {
 		log.Fatalf("❌ Error al iniciar servidor: %v", err)
 	}

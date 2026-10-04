@@ -49,6 +49,14 @@ router.get('/', async (req: Request, res: Response) => {
       if (!isNaN(parsed)) filters.maxRating = parsed;
     }
 
+    if (req.query.rating) {
+      const parsed = Number(req.query.rating);
+      if (!isNaN(parsed)) {
+        filters.minRating = parsed;
+        filters.maxRating = parsed;
+      }
+    }
+
     const complaints = await ComplaintStore.listAll(filters);
 
     res.json({
@@ -59,6 +67,52 @@ router.get('/', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('[COMPLAINTS GET ERROR]', error);
     res.status(500).json({ status: 'error', message: 'Error al listar reclamos' });
+  }
+});
+
+// GET /api/v1/complaints/stats - Métricas agregadas de reclamos
+router.get('/stats', async (req: Request, res: Response) => {
+  try {
+    const complaints = await ComplaintStore.listAll();
+    const totalComplaints = complaints.length;
+    const rated = complaints.filter((c) => c.rating);
+    const averageRating = rated.length > 0 
+      ? Number((rated.reduce((acc, c) => acc + (c.rating || 0), 0) / rated.length).toFixed(2)) 
+      : 0;
+    const resolvedCount = complaints.filter((c) => c.status === 'RESOLVED').length;
+    const resolvedPercentage = totalComplaints > 0
+      ? Number(((resolvedCount / totalComplaints) * 100).toFixed(2))
+      : 0;
+    const pendingCount = complaints.filter((c) => c.status === 'PENDING').length;
+    const inReviewCount = complaints.filter((c) => c.status === 'IN_REVIEW').length;
+    const rejectedCount = complaints.filter((c) => c.status === 'REJECTED').length;
+
+    const byCategory: Record<string, number> = {};
+    const byLine: Record<string, number> = {};
+    const byStatus: Record<string, number> = {};
+
+    complaints.forEach((c) => {
+      byCategory[c.category] = (byCategory[c.category] || 0) + 1;
+      const line = c.lineName || '7A';
+      byLine[line] = (byLine[line] || 0) + 1;
+      byStatus[c.status] = (byStatus[c.status] || 0) + 1;
+    });
+
+    res.json({
+      totalComplaints,
+      averageRating,
+      csat: averageRating,
+      resolvedPercentage,
+      pendingCount,
+      inReviewCount,
+      resolvedCount,
+      rejectedCount,
+      byCategory,
+      byLine,
+      byStatus,
+    });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: 'Error al obtener estadísticas' });
   }
 });
 
