@@ -25,19 +25,18 @@ FROM alpine:latest AS runner
 
 WORKDIR /app
 
-# Instalar certificados raíz y soporte de zona horaria
+# Instalar certificados raíz y configurar zona horaria de Chile (eliminando paquetes temporales)
 RUN apk --no-cache add ca-certificates tzdata \
     && cp /usr/share/zoneinfo/America/Santiago /etc/localtime \
-    && echo "America/Santiago" > /etc/timezone
+    && echo "America/Santiago" > /etc/timezone \
+    && apk del tzdata \
+    && rm -rf /var/cache/apk/*
 
 # Crear usuario y grupo sin privilegios de root
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-# Copiar únicamente el binario compilado desde la etapa builder
-COPY --from=builder /app/server /app/server
-
-# Asignar permisos al usuario de aplicación
-RUN chown -R appuser:appgroup /app
+# Copiar directamente el binario con los permisos del usuario appuser (evita duplicar capas)
+COPY --chown=appuser:appgroup --from=builder /app/server /app/server
 
 USER appuser
 
