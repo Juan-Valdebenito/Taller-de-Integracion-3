@@ -20,6 +20,9 @@ func main() {
 	// ── Configuración ─────────────────────────────────────────
 	cfg := config.Load()
 
+	// ── Migraciones de base de datos ───────────────────────────
+	db.RunMigrations(cfg.DatabaseURL)
+
 	// ── Base de datos ─────────────────────────────────────────
 	pool := db.NewPool(cfg.DatabaseURL)
 	defer pool.Close()
@@ -35,7 +38,7 @@ func main() {
 	complaintRepo := repository.NewComplaintRepository(pool)
 
 	// ── Handlers ──────────────────────────────────────────────
-	authH := handler.NewAuthHandler(userRepo, cfg.JWTSecret, blacklist)
+	authH := handler.NewAuthHandler(userRepo, cfg.JWTSecret, cfg.JWTAccessExpires, cfg.JWTRefreshExpires, blacklist)
 	userH := handler.NewUserHandler(userRepo)
 	companyH := handler.NewCompanyHandler(companyRepo)
 	busH := handler.NewBusHandler(busRepo)
@@ -93,7 +96,7 @@ func main() {
 	grpcProxyH := handler.NewGRPCProxyHandler(climateClient, microClient)
 
 	// ── Router ────────────────────────────────────────────────
-	r := router.Setup(cfg.CORSOrigin, cfg.JWTSecret, blacklist, authH, userH, companyH, busH, routeH, complaintH, occupancyH, grpcProxyH)
+	r := router.Setup(cfg.CORSOrigin, cfg.JWTSecret, pool, blacklist, authH, companyH, userH, busH, routeH, complaintH, occupancyH, grpcProxyH)
 
 	// ── Iniciar servidor ──────────────────────────────────────
 	addr := fmt.Sprintf(":%s", cfg.Port)

@@ -18,7 +18,7 @@ type CompanyRepository struct {
 }
 
 func NewCompanyRepository(pool *pgxpool.Pool) *CompanyRepository {
-	return &CompanyRepository(pool: pool)
+	return &CompanyRepository{pool: pool}
 }
 
 func (r *CompanyRepository) FindAllActive(ctx context.Context) ([]CompanySummary, error) {

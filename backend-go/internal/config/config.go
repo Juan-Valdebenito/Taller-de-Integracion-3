@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -10,18 +11,22 @@ import (
 
 // Config contiene todas las variables de entorno de la aplicación.
 type Config struct {
-	Port              string
-	DatabaseURL       string
-	JWTSecret         string
-	JWTAccessExpires  time.Duration       
-	JWTRefreshExpires time.Duration
-	CORSOrigin        string
-	Env               string
-	ClimateGRPCTarget string
-	ClimateAPIKey     string
-	MicroGRPCTarget   string
-	MicroAPIKey       string
-	GRPCTimeout       time.Duration
+	Port                 string
+	DatabaseURL          string
+	JWTSecret            string
+	JWTAccessExpires     time.Duration
+	JWTRefreshExpires    time.Duration
+	CORSOrigin           string
+	Env                  string
+	ClimateGRPCTarget    string
+	ClimateAPIKey        string
+	MicroGRPCTarget      string
+	MicroAPIKey          string
+	GRPCTimeout          time.Duration
+	PredictionTransport  string
+	PredictionGRPCAddr   string
+	PredictionHTTPURL    string
+	PredictionTimeoutSec int
 }
 
 // Load carga las variables desde el archivo .env y el entorno del sistema.
@@ -50,18 +55,22 @@ func Load() *Config {
 		grpcTimeout = 5 * time.Second
 	}
 	return &Config{
-		Port:              getEnv("PORT", "3001"),
-		DatabaseURL:       getEnv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/transporte_db"),
-		JWTSecret:         getEnv("JWT_SECRET", "dev_secret_cambiarlo_en_produccion_123"),
-		JWTAccessExpires:  accessDuration,
-		JWTRefreshExpires: refreshDuration,      
-		CORSOrigin:        getEnv("CORS_ORIGIN", "http://localhost:5173"),
-		Env:               getEnv("NODE_ENV", "development"),
-		ClimateGRPCTarget: getEnv("CLIMATE_GRPC_TARGET", "localhost:9090"),
-		ClimateAPIKey:     getEnv("CLIMATE_API_KEY", "temuco_weather_secret_key"),
-		MicroGRPCTarget:   getEnv("MICRO_GRPC_TARGET", "localhost:9091"),
-		MicroAPIKey:       getEnv("MICRO_API_KEY", ""),
-		GRPCTimeout:       grpcTimeout,
+		Port:                 getEnv("PORT", "3001"),
+		DatabaseURL:          getEnv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/transporte_db"),
+		JWTSecret:            getEnv("JWT_SECRET", "dev_secret_cambiarlo_en_produccion_123"),
+		JWTAccessExpires:     accessDuration,
+		JWTRefreshExpires:    refreshDuration,
+		CORSOrigin:           getEnv("CORS_ORIGIN", "http://localhost:5173"),
+		Env:                  getEnv("NODE_ENV", "development"),
+		ClimateGRPCTarget:    getEnv("CLIMATE_GRPC_TARGET", "localhost:9090"),
+		ClimateAPIKey:        getEnv("CLIMATE_API_KEY", "temuco_weather_secret_key"),
+		MicroGRPCTarget:      getEnv("MICRO_GRPC_TARGET", "localhost:9091"),
+		MicroAPIKey:          getEnv("MICRO_API_KEY", ""),
+		GRPCTimeout:          grpcTimeout,
+		PredictionTransport:  getEnv("PREDICTION_TRANSPORT", ""),
+		PredictionGRPCAddr:   getEnv("PREDICTION_GRPC_ADDR", ""),
+		PredictionHTTPURL:    getEnv("PREDICTION_HTTP_URL", ""),
+		PredictionTimeoutSec: getEnvInt("PREDICTION_TIMEOUT_SEC", 5),
 	}
 }
 
