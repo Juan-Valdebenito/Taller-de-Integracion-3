@@ -20,6 +20,7 @@ func Setup(
 	pool *pgxpool.Pool,
 	bl *token.Blacklist,
 	authH *handler.AuthHandler,
+	companyH *handler.CompanyHandler,
 	userH *handler.UserHandler,
 	busH *handler.BusHandler,
 	routeH *handler.RouteHandler,
@@ -86,6 +87,12 @@ func Setup(
 		users.GET("/:id", userH.GetByID)
 		users.PUT("/:id", middleware.Authorize("ADMIN"), userH.Update)
 		users.DELETE("/:id", middleware.Authorize("ADMIN"), userH.Delete)
+	}
+
+	// Empresas (requiere autenticación; operaciones de admin requieren rol)
+	companies := api.Group("/companies", auth())
+	{
+		companies.GET("/", middleware.Authorize("ADMIN"), companyH.GetAll)
 	}
 
 	// Buses

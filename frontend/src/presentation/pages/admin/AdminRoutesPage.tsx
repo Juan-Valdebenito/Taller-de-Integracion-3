@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { routesApi, type ApiRoute, type Company, type RouteBus, type RouteStop } from '../../../infrastructure/api/routesApi';
+import { StopDetailPanel, type Stop } from '../../components/admin/StopDetailPanel'; 
 
 // ── Tipos ─────────────────────────────────────────────────────
 interface Route extends ApiRoute {
@@ -181,6 +182,7 @@ export function AdminRoutesPage() {
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [companyError, setCompanyError] = useState<string | null>(null);
+  const [selectedStop, setSelectedStop] = useState<Stop | null>(null);
 
   const companyMap = useMemo(() => new Map(companies.map((company) => [company.id, company.name])), [companies]);
 
@@ -438,7 +440,7 @@ export function AdminRoutesPage() {
                               <div key={stop.id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-2) 0', position: 'relative' }}>
                                 {idx < route.stops.length - 1 && <div style={{ position: 'absolute', left: '10px', top: '24px', bottom: '-8px', width: '2px', background: 'var(--color-border)', zIndex: 0 }} />}
                                 <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: idx === 0 ? 'var(--color-primary-500)' : idx === route.stops.length - 1 ? 'hsl(142,71%,45%)' : 'var(--color-surface-3)', border: '2px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', fontWeight: 700, color: 'white', flexShrink: 0, zIndex: 1 }}>{stop.order}</div>
-                                <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>{stop.name}</p>
+                                <p onClick={() => setSelectedStop(stop)} style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)', cursor: 'pointer' }}>{stop.name}</p>
                                 <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginLeft: 'auto' }}>{stop.latitude.toFixed(4)}, {stop.longitude.toFixed(4)}</p>
                               </div>
                             ))}
@@ -461,6 +463,8 @@ export function AdminRoutesPage() {
 
       {modal !== null && <RouteModal companies={companies} onClose={() => setModal(null)} onSave={handleSave} initial={modal === 'new' ? undefined : modal} saving={saving} />}
       {deleteTarget !== null && <DeleteConfirm route={deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={() => handleDelete(deleteTarget.id)} deleting={deleting} />}
+      {selectedStop && ( <StopDetailPanel stop={selectedStop} onClose={() => setSelectedStop(null)}/> )}
+
     </div>
   );
 }

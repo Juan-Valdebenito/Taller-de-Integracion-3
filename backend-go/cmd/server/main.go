@@ -29,6 +29,7 @@ func main() {
 
 	// ── Repositorios ─────────────────────────────────────────
 	userRepo := repository.NewUserRepository(pool)
+	companyRepo := repository.NewCompanyRepository(pool)
 	busRepo := repository.NewBusRepository(pool)
 	routeRepo := repository.NewRouteRepository(pool)
 	complaintRepo := repository.NewComplaintRepository(pool)
@@ -36,6 +37,7 @@ func main() {
 	// ── Handlers ──────────────────────────────────────────────
 	authH := handler.NewAuthHandler(userRepo, cfg.JWTSecret, blacklist)
 	userH := handler.NewUserHandler(userRepo)
+	companyH := handler.NewCompanyHandler(companyRepo)
 	busH := handler.NewBusHandler(busRepo)
 	routeH := handler.NewRouteHandler(routeRepo, busRepo)
 	complaintH := handler.NewComplaintHandler(complaintRepo)
@@ -91,7 +93,7 @@ func main() {
 	grpcProxyH := handler.NewGRPCProxyHandler(climateClient, microClient)
 
 	// ── Router ────────────────────────────────────────────────
-	r := router.Setup(cfg.CORSOrigin, cfg.JWTSecret, blacklist, authH, userH, busH, routeH, complaintH, occupancyH, grpcProxyH)
+	r := router.Setup(cfg.CORSOrigin, cfg.JWTSecret, blacklist, authH, userH, companyH, busH, routeH, complaintH, occupancyH, grpcProxyH)
 
 	// ── Iniciar servidor ──────────────────────────────────────
 	addr := fmt.Sprintf(":%s", cfg.Port)
