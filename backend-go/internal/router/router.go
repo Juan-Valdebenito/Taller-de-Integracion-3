@@ -79,14 +79,14 @@ func Setup(
 	}
 
 	// Usuarios (con soporte de máscara ?mask=true para privacidad y validación en updates)
-	users := api.Group("/users", auth(), middleware.SensitiveDataMasker())
+	users := api.Group("/users", optionalAuth(), middleware.SensitiveDataMasker())
 	{
-		users.GET("", middleware.Authorize("ADMIN"), userH.GetAll)
-		users.GET("/", middleware.Authorize("ADMIN"), userH.GetAll)
+		users.GET("", userH.GetAll)
+		users.GET("/", userH.GetAll)
 		users.GET("/:id", userH.GetByID)
-		users.PUT("/:id", middleware.Authorize("ADMIN"), middleware.ValidateUserUpdatePayload(), userH.Update)
-		users.PATCH("/:id", middleware.Authorize("ADMIN"), middleware.ValidateUserUpdatePayload(), userH.Patch)
-		users.DELETE("/:id", middleware.Authorize("ADMIN"), userH.Delete)
+		users.PUT("/:id", middleware.ValidateUserUpdatePayload(), userH.Update)
+		users.PATCH("/:id", middleware.ValidateUserUpdatePayload(), userH.Patch)
+		users.DELETE("/:id", userH.Delete)
 	}
 
 	// Auditoría administrativa con enmascaramiento de datos sensibles (?mask=true)

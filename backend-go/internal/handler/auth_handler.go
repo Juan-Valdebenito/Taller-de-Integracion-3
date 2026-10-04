@@ -151,7 +151,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	// Verificar que la cuenta esté activa
 	if !user.IsActive {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Cuenta desactivada. Contacta al administrador"})
+		c.JSON(http.StatusForbidden, gin.H{
+			"error":   "Usuario inactivo",
+			"message": "Usuario inactivo. Contacta al administrador",
+		})
 		return
 	}
 
