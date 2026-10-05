@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/config"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/db"
@@ -12,11 +13,15 @@ import (
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/repository"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/router"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/token"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/transport"
 )
 
 func main() {
 	// ── Configuración ─────────────────────────────────────────
 	cfg := config.Load()
+
+	// ── Migraciones de base de datos ───────────────────────────
+	db.RunMigrations(cfg.DatabaseURL)
 
 	// ── Base de datos ─────────────────────────────────────────
 	pool := db.NewPool(cfg.DatabaseURL)
@@ -27,21 +32,55 @@ func main() {
 
 	// ── Repositorios ─────────────────────────────────────────
 	userRepo := repository.NewUserRepository(pool)
+	companyRepo := repository.NewCompanyRepository(pool)
 	busRepo := repository.NewBusRepository(pool)
 	routeRepo := repository.NewRouteRepository(pool)
 	complaintRepo := repository.NewComplaintRepository(pool)
 
 	// ── Handlers ──────────────────────────────────────────────
-	authH := handler.NewAuthHandler(userRepo, cfg.JWTSecret, blacklist)
+	authH := handler.NewAuthHandler(userRepo, cfg.JWTSecret, cfg.JWTAccessExpires, cfg.JWTRefreshExpires, blacklist)
 	userH := handler.NewUserHandler(userRepo)
+	companyH := handler.NewCompanyHandler(companyRepo)
 	busH := handler.NewBusHandler(busRepo)
 	routeH := handler.NewRouteHandler(routeRepo, busRepo)
 	complaintH := handler.NewComplaintHandler(complaintRepo)
 
-	// ── Servicio y handler de ocupación (sin BD — lógica pura) ──────────────
-	// Para conectar el clúster ML en el futuro:
-	//   occupancySvc.SetPredictor(service.NewMLClusterPredictor(clusterURL, apiKey))
+	// ── Servicio de ocupación ──────────────────────────────────
 	occupancySvc := service.NewOccupancyService()
+
+	// ── Conectar predictor ML si está configurado ──────────────────────────────
+	// Leer PREDICTION_TRANSPORT del entorno:
+	//   "" (vacío) → usa HeuristicPredictor por defecto (sin cambios al comportamiento actual)
+	//   "http"     → crea HTTPPredictionClient hacia PREDICTION_HTTP_URL
+	//   "grpc"     → crea GRPCPredictionClient hacia PREDICTION_GRPC_ADDR
+	if cfg.PredictionTransport != "" {
+		predClient, err := transport.NewPredictionClient(transport.Config{
+			Transport:  transport.TransportType(cfg.PredictionTransport),
+			GRPCAddr:   cfg.PredictionGRPCAddr,
+			HTTPURL:    cfg.PredictionHTTPURL,
+			TimeoutSec: cfg.PredictionTimeoutSec,
+		})
+		if err != nil {
+			log.Printf("⚠️  No se pudo conectar al servidor ML (%s): %v — usando predictor heurístico\n",
+				cfg.PredictionTransport, err)
+		} else {
+			// Registrar cierre del cliente al finalizar el servidor
+			defer func() {
+				if closeErr := predClient.Close(); closeErr != nil {
+					log.Printf("⚠️  Error cerrando cliente ML: %v\n", closeErr)
+				}
+			}()
+
+			timeout := time.Duration(cfg.PredictionTimeoutSec) * time.Second
+			mlPredictor := service.NewMLRemotePredictor(predClient, timeout)
+			occupancySvc.SetPredictor(mlPredictor)
+
+			fmt.Printf("🤖  Predictor ML activo: %s (%s)\n", mlPredictor.Name(), cfg.PredictionTransport)
+		}
+	} else {
+		fmt.Printf("🔮  Predictor heurístico activo (PREDICTION_TRANSPORT no configurado)\n")
+	}
+
 	occupancyH := handler.NewOccupancyHandler(occupancySvc)
 
 	climateClient, err := grpcclient.NewClimateClient(cfg.ClimateGRPCTarget, cfg.ClimateAPIKey, cfg.GRPCTimeout)
@@ -57,7 +96,7 @@ func main() {
 	grpcProxyH := handler.NewGRPCProxyHandler(climateClient, microClient)
 
 	// ── Router ────────────────────────────────────────────────
-	r := router.Setup(cfg.CORSOrigin, cfg.JWTSecret, blacklist, authH, userH, busH, routeH, complaintH, occupancyH, grpcProxyH)
+	r := router.Setup(cfg.CORSOrigin, cfg.JWTSecret, pool, blacklist, authH, companyH, userH, busH, routeH, complaintH, occupancyH, grpcProxyH)
 
 	// ── Iniciar servidor ──────────────────────────────────────
 	addr := fmt.Sprintf(":%s", cfg.Port)

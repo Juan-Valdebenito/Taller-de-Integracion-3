@@ -23,10 +23,10 @@ export class Complaint {
     public description: string,
     public category: ComplaintCategory,
     public status: ComplaintStatus,
-    public passengerId: string,       // Usuario que envió el reclamo
+    public passengerId: string | null, // Usuario que envió el reclamo
     public busId: string | null,      // Micro implicada (opcional)
     public routeId: string | null,    // Ruta implicada (opcional)
-    public companyId: string,         // Empresa a la que pertenece
+    public companyId: string | null,  // Empresa a la que pertenece
     public adminResponse: string | null, // Respuesta de la empresa/admin
     public readonly createdAt: Date,
     public updatedAt: Date,

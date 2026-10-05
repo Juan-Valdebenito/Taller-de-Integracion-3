@@ -3,7 +3,6 @@ import { ComplaintStore } from '../../database/complaintStore';
 import { ComplaintCategory, ComplaintStatus } from '@prisma/client';
 
 const router = Router();
-const repo = new PrismaComplaintRepository();
 
 // GET /api/v1/complaints - Listar reclamos e incidentes (con filtros de estado, categoría y bus)
 router.get('/', async (req: Request, res: Response) => {
@@ -144,4 +143,3 @@ router.put('/:id/status', handleStatusUpdate);
 router.patch('/:id/status', handleStatusUpdate);
 
 export default router;
-

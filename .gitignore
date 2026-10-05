@@ -1,5 +1,6 @@
 # ── Dependencias ─────────────────────────────────────────────
 node_modules/
+.gocache/
 .pnp
 .pnp.js
 
@@ -30,3 +31,5 @@ Thumbs.db
 
 # ── TypeScript ───────────────────────────────────────────────
 *.tsbuildinfo
+
+venv/

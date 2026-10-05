@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -10,17 +11,22 @@ import (
 
 // Config contiene todas las variables de entorno de la aplicación.
 type Config struct {
-	Port              string
-	DatabaseURL       string
-	JWTSecret         string
-	JWTExpires        string
-	CORSOrigin        string
-	Env               string
-	ClimateGRPCTarget string
-	ClimateAPIKey     string
-	MicroGRPCTarget   string
-	MicroAPIKey       string
-	GRPCTimeout       time.Duration
+	Port                 string
+	DatabaseURL          string
+	JWTSecret            string
+	JWTAccessExpires     time.Duration
+	JWTRefreshExpires    time.Duration
+	CORSOrigin           string
+	Env                  string
+	ClimateGRPCTarget    string
+	ClimateAPIKey        string
+	MicroGRPCTarget      string
+	MicroAPIKey          string
+	GRPCTimeout          time.Duration
+	PredictionTransport  string
+	PredictionGRPCAddr   string
+	PredictionHTTPURL    string
+	PredictionTimeoutSec int
 }
 
 // Load carga las variables desde el archivo .env y el entorno del sistema.
@@ -30,29 +36,56 @@ func Load() *Config {
 		log.Println("⚠️  No se encontró archivo .env, usando variables de entorno del sistema")
 	}
 
+	accessExpires := getEnv("JWT_ACCESS_EXPIRES_IN", "15m")
+	refreshExpires := getEnv("JWT_REFRESH_EXPIRES_IN", "168h")
+
+	accessDuration, err := time.ParseDuration(accessExpires)
+	if err != nil {
+		accessDuration = 15 * time.Minute
+	}
+
+	refreshDuration, err := time.ParseDuration(refreshExpires)
+	if err != nil {
+		refreshDuration = 7 * 24 * time.Hour
+	}
+
 	timeout := getEnv("GRPC_TIMEOUT", "5s")
 	grpcTimeout, err := time.ParseDuration(timeout)
 	if err != nil || grpcTimeout <= 0 {
 		grpcTimeout = 5 * time.Second
 	}
 	return &Config{
-		Port:              getEnv("PORT", "3001"),
-		DatabaseURL:       getEnv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/transporte_db"),
-		JWTSecret:         getEnv("JWT_SECRET", "dev_secret_cambiarlo_en_produccion_123"),
-		JWTExpires:        getEnv("JWT_EXPIRES_IN", "7d"),
-		CORSOrigin:        getEnv("CORS_ORIGIN", "http://localhost:5173"),
-		Env:               getEnv("NODE_ENV", "development"),
-		ClimateGRPCTarget: getEnv("CLIMATE_GRPC_TARGET", "localhost:9090"),
-		ClimateAPIKey:     getEnv("CLIMATE_API_KEY", "temuco_weather_secret_key"),
-		MicroGRPCTarget:   getEnv("MICRO_GRPC_TARGET", "localhost:9091"),
-		MicroAPIKey:       getEnv("MICRO_API_KEY", ""),
-		GRPCTimeout:       grpcTimeout,
+		Port:                 getEnv("PORT", "3001"),
+		DatabaseURL:          getEnv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/transporte_db"),
+		JWTSecret:            getEnv("JWT_SECRET", "dev_secret_cambiarlo_en_produccion_123"),
+		JWTAccessExpires:     accessDuration,
+		JWTRefreshExpires:    refreshDuration,
+		CORSOrigin:           getEnv("CORS_ORIGIN", "http://localhost:5173"),
+		Env:                  getEnv("NODE_ENV", "development"),
+		ClimateGRPCTarget:    getEnv("CLIMATE_GRPC_TARGET", "localhost:9090"),
+		ClimateAPIKey:        getEnv("CLIMATE_API_KEY", "temuco_weather_secret_key"),
+		MicroGRPCTarget:      getEnv("MICRO_GRPC_TARGET", "localhost:9091"),
+		MicroAPIKey:          getEnv("MICRO_API_KEY", ""),
+		GRPCTimeout:          grpcTimeout,
+		PredictionTransport:  getEnv("PREDICTION_TRANSPORT", ""),
+		PredictionGRPCAddr:   getEnv("PREDICTION_GRPC_ADDR", ""),
+		PredictionHTTPURL:    getEnv("PREDICTION_HTTP_URL", ""),
+		PredictionTimeoutSec: getEnvInt("PREDICTION_TIMEOUT_SEC", 5),
 	}
 }
 
 func getEnv(key, fallback string) string {
 	if val := os.Getenv(key); val != "" {
 		return val
+	}
+	return fallback
+}
+
+func getEnvInt(key string, fallback int) int {
+	if val := os.Getenv(key); val != "" {
+		if n, err := strconv.Atoi(val); err == nil {
+			return n
+		}
 	}
 	return fallback
 }
