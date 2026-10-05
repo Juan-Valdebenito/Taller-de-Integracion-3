@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/infrastructure/grpcclient"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/repository"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/router"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/seed"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/token"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/transport"
 )
@@ -27,23 +29,43 @@ func main() {
 	pool := db.NewPool(cfg.DatabaseURL)
 	defer pool.Close()
 
-	// ── Token blacklist (logout seguro) ───────────────────────
-	blacklist := token.NewBlacklist()
+	// ── Datos de prueba (solo fuera de producción) ─────────────
+	if cfg.Env != "production" {
+		if err := seed.Run(context.Background(), pool); err != nil {
+			log.Printf("⚠️  No se pudieron crear los datos de prueba: %v\n", err)
+		}
+	}
+
+	// ── Token revocation store (logout seguro / revocación dinámica) ──
+	// Si cfg.RedisAddr está vacío (aún no hay Redis en el cluster), cae a un
+	// almacén en memoria; una vez que exista el servicio compartido basta con
+	// setear REDIS_ADDR para que la revocación sea consistente entre réplicas.
+	revStore, err := token.NewStore(token.StoreOptions{
+		RedisAddr:     cfg.RedisAddr,
+		RedisPassword: cfg.RedisPassword,
+		RedisDB:       cfg.RedisDB,
+	})
+	if err != nil {
+		log.Fatalf("❌ Error al inicializar el almacén de revocación de tokens: %v", err)
+	}
+	defer revStore.Close()
 
 	// ── Repositorios ─────────────────────────────────────────
 	userRepo := repository.NewUserRepository(pool)
 	companyRepo := repository.NewCompanyRepository(pool)
 	busRepo := repository.NewBusRepository(pool)
 	routeRepo := repository.NewRouteRepository(pool)
+	stopRepo := repository.NewStopRepository(pool)
 	complaintRepo := repository.NewComplaintRepository(pool)
 
 	// ── Handlers ──────────────────────────────────────────────
-	authH := handler.NewAuthHandler(userRepo, cfg.JWTSecret, cfg.JWTAccessExpires, cfg.JWTRefreshExpires, blacklist)
+	authH := handler.NewAuthHandler(userRepo, cfg.JWTSecret, cfg.JWTAccessExpires, cfg.JWTRefreshExpires, revStore)
 	userH := handler.NewUserHandler(userRepo)
 	companyH := handler.NewCompanyHandler(companyRepo)
 	busH := handler.NewBusHandler(busRepo)
 	routeH := handler.NewRouteHandler(routeRepo, busRepo)
-	complaintH := handler.NewComplaintHandler(complaintRepo)
+	stopH := handler.NewStopHandler(stopRepo)
+	complaintH := handler.NewComplaintHandler(complaintRepo, busRepo, routeRepo)
 
 	// ── Servicio de ocupación ──────────────────────────────────
 	occupancySvc := service.NewOccupancyService()
@@ -96,7 +118,7 @@ func main() {
 	grpcProxyH := handler.NewGRPCProxyHandler(climateClient, microClient)
 
 	// ── Router ────────────────────────────────────────────────
-	r := router.Setup(cfg.CORSOrigin, cfg.JWTSecret, pool, blacklist, authH, companyH, userH, busH, routeH, complaintH, occupancyH, grpcProxyH)
+	r := router.Setup(cfg.CORSOrigin, cfg.JWTSecret, pool, revStore, authH, companyH ,userH, busH, routeH, stopH, complaintH, occupancyH, grpcProxyH)
 
 	// ── Iniciar servidor ──────────────────────────────────────
 	addr := fmt.Sprintf(":%s", cfg.Port)

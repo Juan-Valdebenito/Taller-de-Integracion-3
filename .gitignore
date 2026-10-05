@@ -33,3 +33,10 @@ Thumbs.db
 *.tsbuildinfo
 
 venv/
+
+# ── Despliegue en el cluster (local, no se sube) ─────────────
+kubernetes/cluster.env
+kubernetes/.rendered/
+
+# Binarios compilados de los microservicios (los genera el Dockerfile)
+kubernetes/services/micro_telemetry/micro_telemetry

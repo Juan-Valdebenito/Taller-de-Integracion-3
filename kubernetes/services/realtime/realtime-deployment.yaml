@@ -1,48 +1,46 @@
+# SERVIDOR DE TIEMPO REAL (Socket.io) — backend/ en Node
+# El Ingress le envía solo wss://<HOST>/socket.io (ver kubernetes/ingress/).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: backend-go
+  name: realtime
   namespace: student-jvaldebenito
   labels:
-    app: backend-go
+    app: realtime
 spec:
+  # La simulación de buses vive en memoria del proceso: con 2+ réplicas cada
+  # pod tendría buses distintos y los clientes verían mapas diferentes.
+  # Escalar requiere un adapter compartido (ej. @socket.io/redis-adapter).
   replicas: 1
   selector:
     matchLabels:
-      app: backend-go
+      app: realtime
   template:
     metadata:
       labels:
-        app: backend-go
+        app: realtime
     spec:
+      # Dar tiempo a que los clientes reconecten al reiniciar el pod
+      terminationGracePeriodSeconds: 30
       containers:
-        - name: backend-go
-          image: ignaciogsm/backend-go:grpc-v1
+        - name: realtime
+          # deploy.sh la reemplaza por <DOCKERHUB_USER>/transithub-realtime:<IMAGE_TAG> (cluster.env); se construye con: bash kubernetes/deploy.sh app build
+          image: <DOCKERHUB_USER>/transithub-realtime:v1
           imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 3001
           env:
             - name: PORT
-              valueFrom:
-                configMapKeyRef:
-                  name: transporte-db-configmap
-                  key: PORT
+              value: "3001"
             - name: NODE_ENV
-              valueFrom:
-                configMapKeyRef:
-                  name: transporte-db-configmap
-                  key: NODE_ENV
-            - name: JWT_EXPIRES_IN
-              valueFrom:
-                configMapKeyRef:
-                  name: transporte-db-configmap
-                  key: JWT_EXPIRES_IN
-            - name: CORS_ORIGIN
-              valueFrom:
-                configMapKeyRef:
-                  name: transporte-db-configmap
-                  key: CORS_ORIGIN
+              value: "production"
+            # Origen público del frontend (mismo host que el Ingress).
+            # deploy.sh reemplaza <HOST> por APP_HOST de cluster.env (mismo host que el Ingress)
+            - name: SOCKET_CORS_ORIGIN
+              value: "https://<HOST>"
+            # Prisma solo conecta si se usan las rutas REST de este servidor
+            # (el Ingress no las expone), pero se deja configurado.
             - name: DB_HOST
               valueFrom:
                 configMapKeyRef:
@@ -68,44 +66,28 @@ spec:
                 secretKeyRef:
                   name: transporte-db-secrets
                   key: DB_PASSWORD
+            - name: DATABASE_URL
+              value: "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?schema=public"
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: transporte-db-secrets
                   key: JWT_SECRET
-            - name: DATABASE_URL
-              value: "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)"
-            - name: CLIMATE_GRPC_TARGET
-              value: "clima-service-svc.student-jvaldebenito.svc.cluster.local:9090"
-            - name: CLIMATE_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: clima-secrets
-                  key: WEATHER_API_KEY
-            - name: MICRO_GRPC_TARGET
-              value: "micros-service-svc.student-jvaldebenito.svc.cluster.local:9091"
-            - name: MICRO_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: micros-secrets
-                  key: ADMIN_KEY
-            - name: GRPC_TIMEOUT
-              value: "5s"
           readinessProbe:
             httpGet:
               path: /health
               port: http
-            initialDelaySeconds: 10
+            initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /health
               port: http
-            initialDelaySeconds: 20
+            initialDelaySeconds: 15
             periodSeconds: 20
           resources:
             requests:
-              memory: "64Mi"
+              memory: "96Mi"
               cpu: "50m"
             limits:
               memory: "256Mi"
@@ -114,12 +96,12 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: backend-go-svc
+  name: realtime-svc
   namespace: student-jvaldebenito
 spec:
   type: ClusterIP
   selector:
-    app: backend-go
+    app: realtime
   ports:
     - name: http
       port: 3001

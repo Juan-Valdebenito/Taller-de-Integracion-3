@@ -20,10 +20,26 @@ interface Complaint {
   updatedAt: string;
 }
 
+interface RouteOption {
+  id: string;
+  name: string;
+  code: string;
+  companyId: string;
+}
+
+interface BusOption {
+  id: string;
+  patente: string;
+  companyId: string;
+  routeId: string | null;
+}
+
 const initialForm = {
   title: '',
   description: '',
-  category: ''
+  category: '',
+  busId: '',
+  routeId: '',
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -52,6 +68,21 @@ export function PassengerComplaintsPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [routes, setRoutes] = useState<RouteOption[]>([]);
+  const [buses, setBuses] = useState<BusOption[]>([]);
+
+  const loadOptions = async () => {
+    try {
+      const [routesRes, busesRes] = await Promise.all([
+        apiClient.get<RouteOption[]>('/routes'),
+        apiClient.get<BusOption[]>('/buses'),
+      ]);
+      setRoutes(routesRes.data);
+      setBuses(busesRes.data);
+    } catch (err) {
+      console.error('Error al cargar rutas/buses:', err);
+    }
+  };
 
   const loadComplaints = async () => {
     try {
@@ -85,11 +116,22 @@ export function PassengerComplaintsPage() {
     loadComplaints();
   }, [categoryFilter, statusFilter]);
 
+  // Rutas y buses para el formulario: se cargan una sola vez
+  useEffect(() => {
+    loadOptions();
+  }, []);
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
     if (!form.title.trim() || !form.description.trim() || !form.category) {
       setError('Complete todos los campos obligatorios');
+      return;
+    }
+
+    // El backend deriva la empresa responsable a partir del bus o la ruta
+    if (!form.busId && !form.routeId) {
+      setError('Selecciona un bus o una ruta para identificar la empresa responsable');
       return;
     }
 
@@ -104,7 +146,8 @@ export function PassengerComplaintsPage() {
           title: form.title.trim(),
           description: form.description.trim(),
           category: form.category,
-          companyId: 'company-demo',
+          busId: form.busId || undefined,
+          routeId: form.routeId || undefined,
         },
       );
 
@@ -120,7 +163,8 @@ export function PassengerComplaintsPage() {
       setSuccess('Reclamo creado exitosamente');
     } catch (err) {
       console.error('Error al crear el reclamo:', err);
-      setError('No se puede crear el reclamo');
+      const apiMessage = (err as { response?: { data?: { error?: string } } }).response?.data?.error;
+      setError(apiMessage ?? 'No se puede crear el reclamo');
     } finally {
       setIsSubmitting(false);
     }
@@ -258,6 +302,72 @@ export function PassengerComplaintsPage() {
                 <option value="OTHER">Otro</option>
               </select>
             </div>
+
+            <div style={{ marginBottom: 'var(--space-4)' }}>
+              <label
+                htmlFor="complaint-bus"
+                style={{
+                  display: 'block',
+                  marginBottom: 'var(--space-2)',
+                  fontWeight: 600,
+                }}
+              >
+                Bus (opcional):
+              </label>
+              <select
+                id="complaint-bus"
+                value={form.busId}
+                onChange={(event) => setForm({...form, busId: event.target.value})}
+                disabled={isSubmitting}
+                style={{
+                  width: '50%',
+                  padding: 'var(--space-3)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-lg)',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <option value="">Sin especificar</option>
+                {buses.map((bus) => (
+                  <option key={bus.id} value={bus.id}>{bus.patente}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: 'var(--space-4)' }}>
+              <label
+                htmlFor="complaint-route"
+                style={{
+                  display: 'block',
+                  marginBottom: 'var(--space-2)',
+                  fontWeight: 600,
+                }}
+              >
+                Ruta (opcional):
+              </label>
+              <select
+                id="complaint-route"
+                value={form.routeId}
+                onChange={(event) => setForm({...form, routeId: event.target.value})}
+                disabled={isSubmitting}
+                style={{
+                  width: '50%',
+                  padding: 'var(--space-3)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-lg)',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <option value="">Sin especificar</option>
+                {routes.map((route) => (
+                  <option key={route.id} value={route.id}>{route.code} - {route.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)', marginBottom: 'var(--space-4)' }}>
+              Selecciona al menos un bus o una ruta: así identificamos a la empresa responsable del reclamo.
+            </p>
 
             <div style={{ marginBottom: 'var(--space-4)' }}>
               <label

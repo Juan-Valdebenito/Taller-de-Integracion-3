@@ -35,7 +35,7 @@ func TestMetricsCountsRequests(t *testing.T) {
 	r := gin.New()
 	r.Use(metrics.CollectHTTP())
 	r.GET("/ping", func(c *gin.Context) { c.Status(http.StatusNoContent) })
-	r.GET("/metrics", metrics.Prometheus)
+	r.GET("/metrics", metrics.Prometheus())
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/ping", nil))

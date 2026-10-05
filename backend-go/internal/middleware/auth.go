@@ -21,7 +21,11 @@ const (
 
 // Authenticate verifica el token Bearer JWT, comprueba que no esté revocado,
 // y lo inyecta en el contexto de Gin.
-func Authenticate(jwtSecret string, bl *token.Blacklist) gin.HandlerFunc {
+//
+// store puede ser un token.MemoryStore (una sola réplica) o un
+// token.RedisStore (cluster con múltiples réplicas, revocación dinámica
+// compartida entre pods); el middleware no depende de cuál sea.
+func Authenticate(jwtSecret string, store token.RevocationStore) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if !strings.HasPrefix(authHeader, "Bearer ") {
@@ -55,7 +59,15 @@ func Authenticate(jwtSecret string, bl *token.Blacklist) gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Token sin identificador (jti) requerido"})
 			return
 		}
-		if bl.IsRevoked(jti) {
+		revoked, err := store.IsRevoked(jti)
+		if err != nil {
+			// Fail-closed: si no se puede consultar el almacén de revocación
+			// (p.ej. Redis del cluster caído), se rechaza en vez de aceptar
+			// un token que podría estar revocado.
+			c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "No se pudo verificar el estado del token, intenta nuevamente"})
+			return
+		}
+		if revoked {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "El token ha sido revocado. Por favor inicia sesión nuevamente"})
 			return
 		}

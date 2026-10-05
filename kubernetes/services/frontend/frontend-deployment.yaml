@@ -1,0 +1,60 @@
+# FRONTEND (React estático servido por nginx)
+# El Ingress le envía todo lo que no sea /api ni /socket.io (ver kubernetes/ingress/).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: student-jvaldebenito
+  labels:
+    app: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          # deploy.sh la reemplaza por <DOCKERHUB_USER>/transithub-frontend:<IMAGE_TAG> (cluster.env); se construye con: bash kubernetes/deploy.sh app build
+          image: <DOCKERHUB_USER>/transithub-frontend:v1
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "20m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-svc
+  namespace: student-jvaldebenito
+spec:
+  type: ClusterIP
+  selector:
+    app: frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

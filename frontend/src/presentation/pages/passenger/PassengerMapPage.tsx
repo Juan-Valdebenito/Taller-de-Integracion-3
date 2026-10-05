@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import { ComplaintModal } from '../../components/passenger/ComplaintModal';
 import { LiveMap, BusData, HazardData } from '../../components/passenger/LiveMap';
 import { HazardModal } from '../../components/passenger/HazardModal';
 import { SimulationDevTools } from '../../components/passenger/SimulationDevTools';
+import { RealtimeStatusBadge, RealtimeStatus } from '../../components/map/RealtimeStatusBadge';
 import { io, Socket } from 'socket.io-client';
-
-const SOCKET_URL = 'http://localhost:3001';
 
 export function PassengerMapPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -16,25 +14,47 @@ export function PassengerMapPage() {
   const [hazards, setHazards] = useState<HazardData[]>([]);
   const [isHazardModalOpen, setIsHazardModalOpen] = useState(false);
   const [pendingLocation, setPendingLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('connecting');
+  const [transport, setTransport] = useState<string | null>(null);
+  const [reconnectAttempt, setReconnectAttempt] = useState(0);
+  const [lastUpdateAt, setLastUpdateAt] = useState<number | null>(null);
 
   useEffect(() => {
-    // Carga inicial inmediata vía REST para que aparezcan de inmediato en el mapa
-    axios.get(`${SOCKET_URL}/api/v1/buses`)
-      .then((res) => {
-        if (res.data?.data && Array.isArray(res.data.data)) {
-          setBuses(res.data.data);
-        }
-      })
-      .catch((err) => console.warn('Carga inicial REST:', err.message));
-
-    // Conectar a Socket.io
-    const socketInstance = io(SOCKET_URL, {
+    // Conectar a Socket.io en el MISMO origen de la página: en el cluster el
+    // Ingress enruta /socket.io al servidor realtime y, si la página se cargó
+    // por https://, el cliente usa wss:// automáticamente. En desarrollo lo
+    // reenvía el proxy de Vite (vite.config.ts). Al conectar, el servidor
+    // emite el estado de todos los buses, así que no hace falta carga REST.
+    const socketInstance = io({
       transports: ['websocket', 'polling'],
+      // Si el Ingress no deja pasar el Upgrade a WebSocket, caer a polling HTTP
+      // en vez de reintentar WebSocket indefinidamente con el mapa vacío.
+      tryAllTransports: true,
     });
     setSocket(socketInstance);
 
+    // ── Estado de la conexión (para RealtimeStatusBadge) ───────
+    socketInstance.on('connect', () => {
+      setRealtimeStatus('connected');
+      setReconnectAttempt(0);
+      const engine = socketInstance.io.engine;
+      setTransport(engine.transport.name);
+      engine.on('upgrade', (t) => setTransport(t.name));
+    });
+    socketInstance.on('disconnect', (reason) => {
+      // Solo un cierre pedido por el cliente es definitivo; el resto reconecta solo
+      setRealtimeStatus(reason === 'io client disconnect' ? 'offline' : 'reconnecting');
+    });
+    socketInstance.on('connect_error', () => {
+      setRealtimeStatus((prev) => (prev === 'connecting' ? 'connecting' : 'reconnecting'));
+    });
+    socketInstance.io.on('reconnect_attempt', (attempt) => {
+      setRealtimeStatus('reconnecting');
+      setReconnectAttempt(attempt);
+    });
 
     const updateBusState = (data: BusData) => {
+      setLastUpdateAt(Date.now());
       setBuses((prevBuses) => {
         const existingBusIndex = prevBuses.findIndex((b) => b.id === data.id);
         if (existingBusIndex >= 0) {
@@ -118,6 +138,14 @@ export function PassengerMapPage() {
         onHazardUseful={handleHazardUseful}
         onHazardResolve={handleHazardResolve}
         selectedBusId={selectedBus.busId}
+      />
+
+      {/* Estado de la conexión en tiempo real (WebSocket / polling / reconectando) */}
+      <RealtimeStatusBadge
+        status={realtimeStatus}
+        transport={transport}
+        reconnectAttempt={reconnectAttempt}
+        lastUpdateAt={lastUpdateAt}
       />
 
       {/* Panel Flotante DevTools para Simulación de Sensores y Pagos (Líneas 7A, 7B, 1C) */}
