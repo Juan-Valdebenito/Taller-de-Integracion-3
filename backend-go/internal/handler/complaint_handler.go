@@ -59,69 +59,33 @@ func (h *ComplaintHandler) GetStats(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, stats)
 }
-
 // GetAll godoc
 // GET /api/v1/complaints
 // Soporta filtros: status, category, lineName, busId, companyId, rating, minRating, maxRating, page, limit
 func (h *ComplaintHandler) GetAll(c *gin.Context) {
 	var filter repository.ComplaintFilter
-
-	if s := c.Query("status"); s != "" {
-		st := domain.ComplaintStatus(s)
-		filter.Status = &st
-	}
-	if cat := c.Query("category"); cat != "" {
-		ct := domain.ComplaintCategory(cat)
-		filter.Category = &ct
-	}
-	if b := c.Query("busId"); b != "" {
-		filter.BusID = &b
-	}
-	if p := c.Query("passengerId"); p != "" {
-		filter.PassengerID = &p
-	}
-	if l := c.Query("lineName"); l != "" {
-		filter.LineName = &l
-	}
-	if comp := c.Query("companyId"); comp != "" {
-		filter.CompanyID = &comp
-	}
-	if r := c.Query("rating"); r != "" {
-		if val, err := strconv.Atoi(r); err == nil {
-			filter.Rating = &val
-		}
-	}
-	if minR := c.Query("minRating"); minR != "" {
-		if val, err := strconv.Atoi(minR); err == nil {
-			filter.MinRating = &val
-		}
-	}
-	if maxR := c.Query("maxRating"); maxR != "" {
-		if val, err := strconv.Atoi(maxR); err == nil {
-			filter.MaxRating = &val
-		}
-	}
-
+	if s := c.Query("status"); s != "" { v := domain.ComplaintStatus(s); filter.Status = &v }
+	if s := c.Query("category"); s != "" { v := domain.ComplaintCategory(s); filter.Category = &v }
+	if s := c.Query("busId"); s != "" { filter.BusID = &s }
+	if s := c.Query("passengerId"); s != "" { filter.PassengerID = &s }
+	if s := c.Query("lineName"); s != "" { filter.LineName = &s }
+	if s := c.Query("companyId"); s != "" { filter.CompanyID = &s }
+	if s := c.Query("rating"); s != "" { if v, err := strconv.Atoi(s); err == nil { filter.Rating = &v } }
+	if s := c.Query("minRating"); s != "" { if v, err := strconv.Atoi(s); err == nil { filter.MinRating = &v } }
+	if s := c.Query("maxRating"); s != "" { if v, err := strconv.Atoi(s); err == nil { filter.MaxRating = &v } }
 	var pagination []repository.Pagination
 	page, _ := strconv.Atoi(c.Query("page"))
 	limit, _ := strconv.Atoi(c.Query("limit"))
 	if limit > 0 {
-		if page < 1 {
-			page = 1
-		}
+		if page < 1 { page = 1 }
 		pagination = append(pagination, repository.Pagination{Page: page, Limit: limit})
 	}
-
 	complaints, err := h.complaintRepo.FindAll(c.Request.Context(), filter, pagination...)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener reclamos: " + err.Error()})
 		return
 	}
-
-	if complaints == nil {
-		complaints = []domain.Complaint{}
-	}
-
+	if complaints == nil { complaints = []domain.Complaint{} }
 	c.JSON(http.StatusOK, complaints)
 }
 

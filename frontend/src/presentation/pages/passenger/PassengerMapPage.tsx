@@ -7,7 +7,7 @@ import { DevToolsSimulationPanel } from '../../components/passenger/DevToolsSimu
 import { RealtimeStatusBadge, RealtimeStatus } from '../../components/map/RealtimeStatusBadge';
 import { io, Socket } from 'socket.io-client';
 
-// Micros iniciales en Temuco para garantizar visualizaci√≥n inmediata
+// Micros iniciales en Temuco para garantizar visualizaciÛn inmediata
 const INITIAL_BUSES: BusData[] = [
   {
     id: 'B-7A-01',
@@ -24,7 +24,7 @@ const INITIAL_BUSES: BusData[] = [
     isFull: false,
     lastEvent: {
       type: 'tap_in_normal',
-      description: 'Pasajero ingres√≥ (Pago est√°ndar $700 CLP)',
+      description: 'Pasajero ingresÛ (Pago est·ndar $700 CLP)',
       timestamp: new Date().toLocaleTimeString(),
     },
   },
@@ -86,7 +86,7 @@ export function PassengerMapPage() {
   const [lastUpdateAt, setLastUpdateAt] = useState<number | null>(null);
 
   useEffect(() => {
-    // Carga inicial v√≠a REST
+    // Carga inicial vÌa REST
     axios.get('/api/v1/buses')
       .then((res) => {
         const rawList = Array.isArray(res.data) ? res.data : (res.data?.data || []);
@@ -177,7 +177,7 @@ export function PassengerMapPage() {
     socketInstance.on('bus:location:broadcast', updateBusState);
     socketInstance.on('bus:status:broadcast', updateBusState);
 
-    // Simulaci√≥n de movimiento local suave si el backend no emite WebSockets
+    // SimulaciÛn de movimiento local suave si el backend no emite WebSockets
     const movementInterval = setInterval(() => {
       if (socketInstance.connected) return;
       setBuses((prev) =>
@@ -214,22 +214,22 @@ export function PassengerMapPage() {
         if (eventType === 'tap_in_normal') {
           pass = Math.min(b.capacity || 35, pass + 1);
           boardings += 1;
-          desc = 'Pasajero ingres√≥ (Tarjeta Normal +$700)';
+          desc = 'Pasajero ingresÛ (Tarjeta Normal +$700)';
         } else if (eventType === 'tap_in_student') {
           pass = Math.min(b.capacity || 35, pass + 1);
           boardings += 1;
           school += 1;
-          desc = 'Estudiante ingres√≥ (TNE +$240)';
+          desc = 'Estudiante ingresÛ (TNE +$240)';
         } else if (eventType === 'sensor_alight') {
           pass = Math.max(0, pass - 1);
           alight += 1;
-          desc = 'Pasajero descendi√≥ por puerta trasera (-1)';
+          desc = 'Pasajero descendiÛ por puerta trasera (-1)';
         } else if (eventType === 'fill_max' || eventType === 'fill_capacity') {
           pass = b.capacity || 35;
-          desc = 'Micro complet√≥ su capacidad m√°xima (35)';
+          desc = 'Micro completÛ su capacidad m·xima (35)';
         } else if (eventType === 'reset_empty' || eventType === 'empty_capacity') {
           pass = 0;
-          desc = 'Microb√∫s vaciado (0 pasajeros)';
+          desc = 'Microb˙s vaciado (0 pasajeros)';
         }
 
         const cap = b.capacity || 35;
@@ -300,7 +300,7 @@ export function PassengerMapPage() {
       padding: 'var(--space-4)',
       boxSizing: 'border-box'
     }}>
-      {/* Mapa Interactivo con Aforo Din√°mico */}
+      {/* Mapa Interactivo con Aforo Din·mico */}
       <LiveMap 
         buses={buses} 
         hazards={hazards}
@@ -311,7 +311,7 @@ export function PassengerMapPage() {
         selectedBusId={selectedBus.busId}
       />
 
-      {/* Estado de la conexi√≥n en tiempo real */}
+      {/* Estado de la conexiÛn en tiempo real */}
       <RealtimeStatusBadge
         status={realtimeStatus}
         transport={transport}
@@ -319,7 +319,7 @@ export function PassengerMapPage() {
         lastUpdateAt={lastUpdateAt}
       />
 
-      {/* Panel Flotante DevTools para Simulaci√≥n de Sensores y Pagos (L√≠neas 7A, 7B, 1C) */}
+      {/* Panel Flotante DevTools para SimulaciÛn de Sensores y Pagos (LÌneas 7A, 7B, 1C) */}
       <DevToolsSimulationPanel
         socket={socket}
         buses={buses as any}

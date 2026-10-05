@@ -34,7 +34,13 @@ export const router = createBrowserRouter([
   // ── Redirección raíz ─────────────────────────────────────
   {
     path: '/',
-    element: <Navigate to="/passenger/map" replace />,
+    element: <Navigate to="/map" replace />,
+  },
+
+  // ── Mapa público (acceso directo sin auth) ───────────────
+  {
+    path: '/map',
+    element: <PassengerMapPage />,
   },
 
   // ── Autenticación (rutas públicas) ───────────────────────

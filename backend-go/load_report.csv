@@ -1,0 +1,5 @@
+Fase,Rate objetivo (req/s),Duracion (s),Requests,Success rate (%),p50 (ms),p95 (ms),p99 (ms),Max (ms),Media (ms),RPS real,Throughput (KB/s)
+Warm-up,10,10,100,100.00,0.0,0.5,9.9,19.0,0.3,10.1,0.0
+Carga normal,50,15,750,100.00,0.0,0.5,0.7,5.0,0.1,50.1,0.0
+Pico,100,10,1000,100.00,0.0,0.5,0.6,4.4,0.1,100.1,0.1
+Estres,50,5,250,100.00,0.0,0.5,1.1,5.4,0.1,50.2,0.0

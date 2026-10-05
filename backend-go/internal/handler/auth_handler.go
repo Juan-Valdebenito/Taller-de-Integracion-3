@@ -27,6 +27,28 @@ type AuthHandler struct {
 	refreshExpires time.Duration
 }
 
+func parseTokenDuration(value string) (time.Duration, error) {
+	value = strings.TrimSpace(strings.ToLower(value))
+	if strings.HasSuffix(value, "d") {
+		days, err := time.ParseDuration(strings.TrimSuffix(value, "d") + "h")
+		if err != nil || days <= 0 {
+			if err == nil {
+				err = fmt.Errorf("token duration must be positive")
+			}
+			return 0, err
+		}
+		return days * 24, nil
+	}
+	duration, err := time.ParseDuration(value)
+	if err != nil || duration <= 0 {
+		if err == nil {
+			err = fmt.Errorf("token duration must be positive")
+		}
+		return 0, err
+	}
+	return duration, nil
+}
+
 func NewAuthHandler(
 	userRepo *repository.UserRepository,
 	jwtSecret string,

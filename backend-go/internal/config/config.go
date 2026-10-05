@@ -1,12 +1,12 @@
 package config
 
 import (
-	"log"
 	"os"
 	"strconv"
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/rs/zerolog/log"
 )
 
 // Config contiene todas las variables de entorno de la aplicación.
@@ -37,11 +37,23 @@ type Config struct {
 	// PredictionTimeoutSec es el timeout en segundos para cada llamada al ML.
 	PredictionTimeoutSec int
 
+	// ── Simulación GPS ────────────────────────────────────────────────────────
+	// SimulationEnabled activa el motor de simulación circular de buses.
+	// En producción (con datos reales del cluster) dejar en false.
+	SimulationEnabled bool
+
+	// SimulationTickMs es el intervalo en milisegundos entre actualizaciones
+	// de posición de cada bus simulado.
+	SimulationTickMs int
+
+	// SimulationSpeedMultiplier acelera el reloj del recorrido para que el
+	// movimiento sea visible en desarrollo sin alterar los tiempos base.
+	SimulationSpeedMultiplier float64
+
 	// ── Revocación de tokens (RevocationStore) ─────────────────────────────
 	// RedisAddr es la ruta host:port del Redis compartido del cluster
 	// (ej. "redis-svc.student-jvaldebenito.svc.cluster.local:6379").
-	// Vacío por defecto: mientras el equipo de cluster no aprovisione el
-	// servicio de Redis, el backend cae a un almacén en memoria por proceso
+	// Vacío por defecto: el backend cae a un almacén en memoria por proceso
 	// (válido solo con una réplica). Ver internal/token.NewStore.
 	RedisAddr     string
 	RedisPassword string
@@ -59,7 +71,7 @@ type Config struct {
 func Load() *Config {
 	// Intentar cargar .env (no falla si no existe en producción)
 	if err := godotenv.Load(); err != nil {
-		log.Println("⚠️  No se encontró archivo .env, usando variables de entorno del sistema")
+		log.Debug().Str("event", "dotenv_missing").Msg("No .env file found; using system environment")
 	}
 
 	accessExpires := getEnv("JWT_ACCESS_EXPIRES_IN", "15m")
@@ -96,6 +108,11 @@ func Load() *Config {
 		PredictionHTTPURL:    getEnv("PREDICTION_HTTP_URL", "http://localhost:8000"),
 		PredictionTimeoutSec: getEnvInt("PREDICTION_TIMEOUT_SEC", 5),
 
+		// Simulación GPS
+		SimulationEnabled:         getEnvBool("SIMULATION_ENABLED", false),
+		SimulationTickMs:          getEnvInt("SIMULATION_TICK_MS", 2000),
+		SimulationSpeedMultiplier: getEnvFloat("SIMULATION_SPEED_MULTIPLIER", 1),
+
 		// Revocación de tokens
 		RedisAddr:     getEnv("REDIS_ADDR", ""),
 		RedisPassword: getEnv("REDIS_PASSWORD", ""),
@@ -122,6 +139,22 @@ func getEnvInt(key string, fallback int) int {
 		if n, err := strconv.Atoi(val); err == nil {
 			return n
 		}
+	}
+	return fallback
+}
+
+func getEnvFloat(key string, fallback float64) float64 {
+	if val := os.Getenv(key); val != "" {
+		if n, err := strconv.ParseFloat(val, 64); err == nil {
+			return n
+		}
+	}
+	return fallback
+}
+
+func getEnvBool(key string, fallback bool) bool {
+	if val := os.Getenv(key); val != "" {
+		return val == "true" || val == "1" || val == "yes"
 	}
 	return fallback
 }

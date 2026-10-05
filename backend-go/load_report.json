@@ -1,0 +1,77 @@
+{
+  "generatedAt": "2026-09-07T20:19:38-03:00",
+  "baseURL": "http://localhost:3001",
+  "totalRequests": 2100,
+  "totalSuccess": 2100,
+  "overallSuccessRate": 100,
+  "phases": [
+    {
+      "phase": "Warm-up",
+      "rateTarget": 10,
+      "durationSecs": 10,
+      "requests": 100,
+      "successRate": 100,
+      "p50Ms": 0,
+      "p95Ms": 0.51685,
+      "p99Ms": 9.87915,
+      "maxMs": 19.0006,
+      "meanMs": 0.266066,
+      "rps": 10.101098256049427,
+      "throughputKB": 0.009863849210437536,
+      "statusCodes": {
+        "200": 100
+      }
+    },
+    {
+      "phase": "Carga normal",
+      "rateTarget": 50,
+      "durationSecs": 15,
+      "requests": 750,
+      "successRate": 100,
+      "p50Ms": 0,
+      "p95Ms": 0.523708,
+      "p99Ms": 0.675762,
+      "maxMs": 4.9703,
+      "meanMs": 0.066569,
+      "rps": 50.066535755804225,
+      "throughputKB": 0.04889310132402756,
+      "statusCodes": {
+        "200": 750
+      }
+    },
+    {
+      "phase": "Pico",
+      "rateTarget": 100,
+      "durationSecs": 10,
+      "requests": 1000,
+      "successRate": 100,
+      "p50Ms": 0,
+      "p95Ms": 0.51215,
+      "p99Ms": 0.62979,
+      "maxMs": 4.3558,
+      "meanMs": 0.056514,
+      "rps": 100.09798090861239,
+      "throughputKB": 0.09775193448106678,
+      "statusCodes": {
+        "200": 1000
+      }
+    },
+    {
+      "phase": "Estres",
+      "rateTarget": 50,
+      "durationSecs": 5,
+      "requests": 250,
+      "successRate": 100,
+      "p50Ms": 0,
+      "p95Ms": 0.5243,
+      "p99Ms": 1.146,
+      "maxMs": 5.3506,
+      "meanMs": 0.091316,
+      "rps": 50.20537613626815,
+      "throughputKB": 0.049028687633074365,
+      "statusCodes": {
+        "200": 250
+      }
+    }
+  ]
+}

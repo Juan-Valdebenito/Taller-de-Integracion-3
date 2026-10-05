@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import axios from 'axios';
 
-// ── Tipos ─────────────────────────────────────────────────────
+// -- Tipos -----------------------------------------------------
 type UserRole = 'ADMIN' | 'COMPANY' | 'PASSENGER';
 type UserStatus = 'active' | 'inactive';
 
@@ -15,23 +15,23 @@ interface AdminUser {
   createdAt: string;
 }
 
-// ── Mock Data ─────────────────────────────────────────────────
+// -- Mock Data -------------------------------------------------
 const MOCK_USERS: AdminUser[] = [
-  { id: 'u1', name: 'Rodrigo Vásquez', email: 'rodrigo.vasquez@transitadmin.cl', role: 'ADMIN', company: null, isActive: true, createdAt: '2025-01-15' },
+  { id: 'u1', name: 'Rodrigo V�squez', email: 'rodrigo.vasquez@transitadmin.cl', role: 'ADMIN', company: null, isActive: true, createdAt: '2025-01-15' },
   { id: 'u2', name: 'Claudia Torres', email: 'claudia.torres@busmetro.cl', role: 'COMPANY', company: 'Buses Metropolitanos', isActive: true, createdAt: '2025-02-03' },
   { id: 'u3', name: 'Miguel Herrera', email: 'miguel.herrera@transoriente.cl', role: 'COMPANY', company: 'Trans Oriente', isActive: true, createdAt: '2025-02-10' },
-  { id: 'u4', name: 'Valentina Pérez', email: 'val.perez@gmail.com', role: 'PASSENGER', company: null, isActive: true, createdAt: '2025-03-20' },
+  { id: 'u4', name: 'Valentina P�rez', email: 'val.perez@gmail.com', role: 'PASSENGER', company: null, isActive: true, createdAt: '2025-03-20' },
   { id: 'u5', name: 'Felipe Rojas', email: 'felipe.rojas@gmail.com', role: 'PASSENGER', company: null, isActive: true, createdAt: '2025-04-11' },
   { id: 'u6', name: 'Daniela Fuentes', email: 'daniela.fuentes@gmail.com', role: 'PASSENGER', company: null, isActive: false, createdAt: '2025-04-25' },
-  { id: 'u7', name: 'Andrés Castillo', email: 'andres.c@bussur.cl', role: 'COMPANY', company: 'Buses del Sur', isActive: true, createdAt: '2025-05-02' },
-  { id: 'u8', name: 'Carolina López', email: 'carolina.lopez@gmail.com', role: 'PASSENGER', company: null, isActive: true, createdAt: '2025-06-14' },
-  { id: 'u9', name: 'Tomás Navarro', email: 'tomas.navarro@transnorte.cl', role: 'COMPANY', company: 'Trans Norte', isActive: true, createdAt: '2025-07-01' },
+  { id: 'u7', name: 'Andr�s Castillo', email: 'andres.c@bussur.cl', role: 'COMPANY', company: 'Buses del Sur', isActive: true, createdAt: '2025-05-02' },
+  { id: 'u8', name: 'Carolina L�pez', email: 'carolina.lopez@gmail.com', role: 'PASSENGER', company: null, isActive: true, createdAt: '2025-06-14' },
+  { id: 'u9', name: 'Tom�s Navarro', email: 'tomas.navarro@transnorte.cl', role: 'COMPANY', company: 'Trans Norte', isActive: true, createdAt: '2025-07-01' },
   { id: 'u10', name: 'Isabela Morales', email: 'isabela.morales@gmail.com', role: 'PASSENGER', company: null, isActive: false, createdAt: '2025-07-18' },
-  { id: 'u11', name: 'Sebastián Ríos', email: 'srios@transitadmin.cl', role: 'ADMIN', company: null, isActive: true, createdAt: '2025-08-05' },
+  { id: 'u11', name: 'Sebasti�n R�os', email: 'srios@transitadmin.cl', role: 'ADMIN', company: null, isActive: true, createdAt: '2025-08-05' },
   { id: 'u12', name: 'Natalia Vega', email: 'natalia.vega@gmail.com', role: 'PASSENGER', company: null, isActive: true, createdAt: '2025-08-12' },
 ];
 
-// ── Helpers ───────────────────────────────────────────────────
+// -- Helpers ---------------------------------------------------
 const ROLE_LABELS: Record<UserRole, string> = {
   ADMIN: 'Admin',
   COMPANY: 'Empresa',
@@ -93,12 +93,12 @@ function UserModal({ onClose, onSave, initial }: ModalProps) {
         boxShadow: 'var(--shadow-lg)',
       }}>
         <h2 style={{ fontSize: 'var(--font-size-xl)', fontWeight: 800, marginBottom: 'var(--space-6)' }}>
-          {isEdit ? '✏️ Editar Usuario' : '➕ Nuevo Usuario'}
+          {isEdit ? '?? Editar Usuario' : '? Nuevo Usuario'}
         </h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
           {[
-            { label: 'Nombre completo', key: 'name', type: 'text', placeholder: 'Juan Pérez' },
-            { label: 'Correo electrónico', key: 'email', type: 'email', placeholder: 'juan@email.com' },
+            { label: 'Nombre completo', key: 'name', type: 'text', placeholder: 'Juan P�rez' },
+            { label: 'Correo electr�nico', key: 'email', type: 'email', placeholder: 'juan@email.com' },
           ].map(({ label, key, type, placeholder }) => (
             <div key={key}>
               <label style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 'var(--space-1)' }}>
@@ -181,7 +181,7 @@ function UserModal({ onClose, onSave, initial }: ModalProps) {
   );
 }
 
-// ── Página ────────────────────────────────────────────────────
+// -- P�gina ----------------------------------------------------
 export function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUser[]>(MOCK_USERS);
   const [search, setSearch] = useState('');
@@ -241,7 +241,7 @@ export function AdminUsersPage() {
       }
       setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, isActive: false } : u)));
     } else {
-      // Reactivar usuario vía PATCH
+      // Reactivar usuario v�a PATCH
       try {
         await axios.patch(`http://localhost:3001/api/v1/users/${id}`, { isActive: true }, { headers: getHeaders() });
       } catch {
@@ -275,7 +275,7 @@ export function AdminUsersPage() {
       setUsers((prev) => [newUser, ...prev]);
     } else if (modal && typeof modal === 'object') {
       try {
-        // Actualizar vía PUT /api/v1/users/:id con soporte para isActive
+        // Actualizar v�a PUT /api/v1/users/:id con soporte para isActive
         await axios.put(
           `http://localhost:3001/api/v1/users/${modal.id}`,
           {
@@ -305,7 +305,7 @@ export function AdminUsersPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <h1 style={{ fontSize: 'var(--font-size-3xl)', fontWeight: 800, letterSpacing: '-0.02em' }}>
-            Gestión de Usuarios
+            Gesti�n de Usuarios
           </h1>
           <p style={{ color: 'var(--color-text-secondary)', marginTop: 'var(--space-1)', fontSize: 'var(--font-size-sm)' }}>
             {users.length} usuarios registrados en el sistema
@@ -321,7 +321,7 @@ export function AdminUsersPage() {
             boxShadow: '0 4px 12px hsla(215,80%,46%,0.3)',
           }}
         >
-          <span>➕</span> Nuevo usuario
+          <span>?</span> Nuevo usuario
         </button>
       </div>
 
@@ -338,7 +338,7 @@ export function AdminUsersPage() {
       {/* Filters */}
       <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ position: 'relative', flex: 1, minWidth: '200px' }}>
-          <span style={{ position: 'absolute', left: 'var(--space-3)', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', pointerEvents: 'none' }}>🔍</span>
+          <span style={{ position: 'absolute', left: 'var(--space-3)', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', pointerEvents: 'none' }}>??</span>
           <input
             id="user-search-input"
             type="text"
@@ -418,7 +418,7 @@ export function AdminUsersPage() {
                       <Badge label={ROLE_LABELS[user.role]} color={ROLE_COLORS[user.role]} />
                     </td>
                     <td style={{ padding: 'var(--space-3) var(--space-4)', color: 'var(--color-text-secondary)', fontSize: '12px' }}>
-                      {user.company ?? '—'}
+                      {user.company ?? '�'}
                     </td>
                     <td style={{ padding: 'var(--space-3) var(--space-4)' }}>
                       <Badge
@@ -435,7 +435,7 @@ export function AdminUsersPage() {
                           onClick={() => setModal(user)}
                           style={{ padding: 'var(--space-1) var(--space-3)', background: 'var(--color-surface-3)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', color: 'var(--color-text-secondary)', fontSize: '12px', cursor: 'pointer' }}
                         >
-                          ✏️ Editar
+                          ?? Editar
                         </button>
                         <button
                           onClick={() => toggleActive(user.id)}
@@ -448,7 +448,7 @@ export function AdminUsersPage() {
                             fontSize: '12px', cursor: 'pointer',
                           }}
                         >
-                          {user.isActive ? '🚫 Desactivar' : '✅ Activar'}
+                          {user.isActive ? '?? Desactivar' : '? Activar'}
                         </button>
                       </div>
                     </td>

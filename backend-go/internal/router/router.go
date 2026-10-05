@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -11,6 +12,7 @@ import (
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/handler"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/middleware"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/token"
+	ws "github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/websocket"
 )
 
 // Setup configura y retorna el router Gin con todas las rutas registradas.
@@ -27,12 +29,26 @@ func Setup(
 	stopH *handler.StopHandler,
 	complaintH *handler.ComplaintHandler,
 	occupancyH *handler.OccupancyHandler,
-	grpcH *handler.GRPCProxyHandler,
-	aforoH *handler.AforoHandler,
-	recaudoH *handler.RecaudoHandler,
-	healthH *handler.HealthHandler,
+	extras ...interface{},
 ) *gin.Engine {
-	r := gin.Default()
+	var wsHandler *ws.WSHandler
+	var grpcH *handler.GRPCProxyHandler
+	var aforoH *handler.AforoHandler
+	var recaudoH *handler.RecaudoHandler
+	for _, extra := range extras {
+		switch value := extra.(type) {
+		case *ws.WSHandler:
+			wsHandler = value
+		case *handler.GRPCProxyHandler:
+			grpcH = value
+		case *handler.AforoHandler:
+			aforoH = value
+		case *handler.RecaudoHandler:
+			recaudoH = value
+		}
+	}
+	r := gin.New()
+	r.Use(gin.Recovery(), middleware.RequestLogger())
 	metrics := middleware.NewMetrics()
 	r.Use(metrics.CollectHTTP())
 
@@ -47,9 +63,22 @@ func Setup(
 	// ── Health checks & Kubernetes Probes ─────────────────────
 	// Endpoints de infraestructura: sin autenticación para probes de Kubernetes.
 	// /health se conserva como alias por compatibilidad.
+	r.GET("/", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"service":  "TransitHub API",
+			"status":   "ok",
+			"version":  "1.0.0",
+			"docs":     "/health",
+			"api_base": "/api/v1",
+			"message":  "Backend operativo. Usa /health o /api/v1 para consultar la API.",
+		})
+	})
 	r.GET("/health", middleware.Healthz)
 	r.GET("/healthz", middleware.Healthz)
 	r.GET("/readyz", middleware.Readyz(func() error {
+		if pool == nil {
+			return nil // sin BD, siempre listo (solo simulación)
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		if pool != nil {
@@ -58,6 +87,9 @@ func Setup(
 		return nil
 	}))
 	r.GET("/metrics", metrics.Prometheus())
+
+	// ── WebSocket (Pub/Sub — ubicación y aforo de buses) ──────
+	r.GET("/ws", gin.WrapH(http.Handler(wsHandler)))
 
 	// ── API v1 ────────────────────────────────────────────────
 	api := r.Group("/api/v1")
@@ -184,6 +216,7 @@ func Setup(
 		routes.GET("/", routeH.GetAll)
 		routes.GET("/:id", routeH.GetByID)
 		routes.GET("/:id/stops", routeH.GetStops)
+		routes.POST("/:id/stops", middleware.Authorize("ADMIN"), routeH.CreateStop)
 		routes.GET("/:id/buses", routeH.GetBuses)
 		routes.POST("/", middleware.Authorize("ADMIN"), routeH.Create)
 		routes.PUT("/:id", middleware.Authorize("ADMIN", "COMPANY"), routeH.Update)
