@@ -23,6 +23,15 @@ app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 
 // ── Health check ───────────────────────────────────────────
+app.get('/', (_req, res) => {
+  res.json({
+    service: 'TransitHub realtime API',
+    status: 'ok',
+    api: '/api/v1',
+    health: '/health',
+  });
+});
+
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });

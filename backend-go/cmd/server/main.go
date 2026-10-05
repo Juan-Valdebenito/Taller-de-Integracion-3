@@ -65,7 +65,7 @@ func main() {
 		RedisDB:       cfg.RedisDB,
 	})
 	if err != nil {
-		log.Fatalf("âŒ Error al inicializar el almacÃ©n de revocaciÃ³n de tokens: %v", err)
+		log.Fatal().Err(err).Str("event", "token_store_failed").Msg("Could not initialize token revocation store")
 	}
 	defer revStore.Close()
 
@@ -155,12 +155,12 @@ func main() {
 	// ── Clientes gRPC hacia microservicios ─────────────────────────────────
 	climateClient, err := grpcclient.NewClimateClient(cfg.ClimateGRPCTarget, cfg.ClimateAPIKey, cfg.GRPCTimeout)
 	if err != nil {
-		log.Fatalf("❌ Error al conectar con clima_service por gRPC: %v", err)
+		log.Fatal().Err(err).Str("event", "climate_client_failed").Msg("Could not connect to climate service")
 	}
 	defer climateClient.Close()
 	microClient, err := grpcclient.NewMicroClient(cfg.MicroGRPCTarget, cfg.MicroAPIKey, cfg.GRPCTimeout)
 	if err != nil {
-		log.Fatalf("❌ Error al conectar con micro_service por gRPC: %v", err)
+		log.Fatal().Err(err).Str("event", "micro_client_failed").Msg("Could not connect to micro service")
 	}
 	defer microClient.Close()
 	grpcProxyH := handler.NewGRPCProxyHandler(climateClient, microClient)
