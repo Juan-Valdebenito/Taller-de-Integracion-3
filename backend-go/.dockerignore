@@ -1,11 +1,13 @@
 .git
 .gitignore
+.gocache
 *.exe
 server
 server.exe
 *.log
 .env
 .env.*
+!.env.example
 scratch/
 tmp/
 *.tmp

@@ -26,7 +26,7 @@ export function RegisterPage() {
     setIsLoading(true);
 
     try {
-      const res = await axios.post('http://localhost:3001/api/v1/auth/register', {
+      const res = await axios.post('/api/v1/auth/register', {
         name,
         email,
         password,
@@ -34,8 +34,10 @@ export function RegisterPage() {
       });
 
       const payload = res.data?.data || res.data;
-      const { token, user } = payload;
-      login(token, user);
+      const token = payload.token || res.data.token;
+      const refreshToken = payload.refreshToken || res.data.refreshToken;
+      const user = payload.user || res.data.user;
+      login(token, user, refreshToken);
 
       if (user.role === 'COMPANY') {
         navigate('/company/dashboard');

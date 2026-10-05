@@ -4,9 +4,8 @@ import { ComplaintModal } from '../../components/passenger/ComplaintModal';
 import { LiveMap, BusData, HazardData } from '../../components/passenger/LiveMap';
 import { HazardModal } from '../../components/passenger/HazardModal';
 import { DevToolsSimulationPanel } from '../../components/passenger/DevToolsSimulationPanel';
+import { RealtimeStatusBadge, RealtimeStatus } from '../../components/map/RealtimeStatusBadge';
 import { io, Socket } from 'socket.io-client';
-
-const SOCKET_URL = 'http://localhost:3001';
 
 // Micros iniciales en Temuco para garantizar visualización inmediata
 const INITIAL_BUSES: BusData[] = [
@@ -81,10 +80,14 @@ export function PassengerMapPage() {
   const [hazards, setHazards] = useState<HazardData[]>([]);
   const [isHazardModalOpen, setIsHazardModalOpen] = useState(false);
   const [pendingLocation, setPendingLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('connecting');
+  const [transport, setTransport] = useState<string | null>(null);
+  const [reconnectAttempt, setReconnectAttempt] = useState(0);
+  const [lastUpdateAt, setLastUpdateAt] = useState<number | null>(null);
 
   useEffect(() => {
-    // Carga inicial vía REST (compatible con Go y Node)
-    axios.get(`${SOCKET_URL}/api/v1/buses`)
+    // Carga inicial vía REST
+    axios.get('/api/v1/buses')
       .then((res) => {
         const rawList = Array.isArray(res.data) ? res.data : (res.data?.data || []);
         if (Array.isArray(rawList) && rawList.length > 0) {
@@ -127,15 +130,35 @@ export function PassengerMapPage() {
       })
       .catch((err) => console.warn('Carga inicial REST:', err.message));
 
-    // Conectar a Socket.io si está disponible
-    const socketInstance = io(SOCKET_URL, {
+    // Conectar a Socket.io
+    const socketInstance = io({
       transports: ['websocket', 'polling'],
-      reconnectionAttempts: 2,
+      tryAllTransports: true,
+      reconnectionAttempts: 5,
       timeout: 3000,
     });
     setSocket(socketInstance);
 
+    socketInstance.on('connect', () => {
+      setRealtimeStatus('connected');
+      setReconnectAttempt(0);
+      const engine = socketInstance.io.engine;
+      setTransport(engine.transport.name);
+      engine.on('upgrade', (t: any) => setTransport(t.name));
+    });
+    socketInstance.on('disconnect', (reason) => {
+      setRealtimeStatus(reason === 'io client disconnect' ? 'offline' : 'reconnecting');
+    });
+    socketInstance.on('connect_error', () => {
+      setRealtimeStatus((prev) => (prev === 'connecting' ? 'connecting' : 'reconnecting'));
+    });
+    socketInstance.io.on('reconnect_attempt', (attempt) => {
+      setRealtimeStatus('reconnecting');
+      setReconnectAttempt(attempt);
+    });
+
     const updateBusState = (data: BusData) => {
+      setLastUpdateAt(Date.now());
       setBuses((prevBuses) => {
         const existingBusIndex = prevBuses.findIndex((b) => b.id === data.id);
         if (existingBusIndex >= 0) {
@@ -154,7 +177,7 @@ export function PassengerMapPage() {
     socketInstance.on('bus:location:broadcast', updateBusState);
     socketInstance.on('bus:status:broadcast', updateBusState);
 
-    // Simulación de movimiento local suave si el backend no tiene WebSockets (ej: Go)
+    // Simulación de movimiento local suave si el backend no emite WebSockets
     const movementInterval = setInterval(() => {
       if (socketInstance.connected) return;
       setBuses((prev) =>
@@ -254,8 +277,6 @@ export function PassengerMapPage() {
     setPendingLocation(null);
   };
 
-  // Registra un voto "Útil" (solo una vez por usuario vía localStorage).
-  // Devuelve true si el voto fue contado.
   const handleHazardUseful = (id: string): boolean => {
     const votedIds = JSON.parse(localStorage.getItem('hazard:voted') ?? '[]') as string[];
     if (votedIds.includes(id)) return false;
@@ -288,6 +309,14 @@ export function PassengerMapPage() {
         onHazardUseful={handleHazardUseful}
         onHazardResolve={handleHazardResolve}
         selectedBusId={selectedBus.busId}
+      />
+
+      {/* Estado de la conexión en tiempo real */}
+      <RealtimeStatusBadge
+        status={realtimeStatus}
+        transport={transport}
+        reconnectAttempt={reconnectAttempt}
+        lastUpdateAt={lastUpdateAt}
       />
 
       {/* Panel Flotante DevTools para Simulación de Sensores y Pagos (Líneas 7A, 7B, 1C) */}

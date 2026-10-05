@@ -50,6 +50,16 @@ const (
 	FareTypeBipayAdultoMayor FareType = "BIPAY_ADULTO_MAYOR" // Adulto mayor ($350 CLP)
 )
 
+// IsValid indica si la categoría corresponde a un valor del enum "ComplaintCategory".
+func (c ComplaintCategory) IsValid() bool {
+	switch c {
+	case ComplaintCategoryDelay, ComplaintCategoryOvercrowding, ComplaintCategoryDriverBehavior,
+		ComplaintCategoryFaresPayment, ComplaintCategoryVehicleCondition, ComplaintCategoryAccessibility, ComplaintCategoryOther:
+		return true
+	}
+	return false
+}
+
 // ── Modelos ────────────────────────────────────────────────────────────────
 
 // User representa a un pasajero, operador de empresa o administrador.

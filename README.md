@@ -39,12 +39,12 @@ Taller-de-Integracion-3/
 
 ### 1. Inicializar la base de datos
 
-```bash
-# Crear la base de datos
-psql -U postgres -c "CREATE DATABASE transporte_db;"
+El backend Go utiliza **golang-migrate** para ejecutar automáticamente las migraciones pendientes al iniciar el servicio.
 
-# Ejecutar el script SQL completo
-psql -U postgres -d transporte_db -f database_setup.sql
+Solo es necesario crear la base de datos PostgreSQL:
+
+```bash
+psql -U postgres -c "CREATE DATABASE transporte_db;"
 ```
 
 ### 2. Configurar variables de entorno
@@ -52,8 +52,101 @@ psql -U postgres -d transporte_db -f database_setup.sql
 ```bash
 cd backend-go
 cp .env.example .env
-# Edita .env si tus credenciales de PostgreSQL son distintas
 ```
+
+Edita `.env` con las credenciales correspondientes a PostgreSQL.
+
+Por ejemplo:
+
+```env
+DATABASE_URL=postgres://postgres:TU_PASSWORD@localhost:5432/transporte_db?sslmode=disable
+```
+
+Las migraciones se encuentran en:
+
+```text
+backend-go/
+└── internal/
+    └── migrations/
+        ├── 000001_init.up.sql
+        └── 000001_init.down.sql
+```
+
+Al ejecutar el backend:
+
+```bash
+go run ./cmd/server
+```
+
+las migraciones pendientes se ejecutan automáticamente antes de iniciar el servidor HTTP.
+
+Por ejemplo:
+
+```text
+Migraciones ejecutadas correctamente
+Servidor escuchando en :3001
+```
+
+Si la base de datos ya está actualizada, no se ejecutan nuevamente:
+
+```text
+Base de datos ya está actualizada
+Servidor escuchando en :3001
+```
+
+`golang-migrate` utiliza la tabla `schema_migrations` para registrar la versión actual de la base de datos.
+
+### Migraciones
+
+Para agregar un cambio al esquema de la base de datos, **no se debe modificar una migración que ya fue ejecutada**.
+
+Se debe crear una nueva migración:
+
+```text
+internal/migrations/
+├── 000001_init.up.sql
+├── 000001_init.down.sql
+├── 000002_nombre_del_cambio.up.sql
+└── 000002_nombre_del_cambio.down.sql
+```
+
+El archivo `.up.sql` contiene los cambios que se aplicarán:
+
+```sql
+ALTER TABLE routes
+ADD COLUMN description_extra TEXT;
+```
+
+El archivo `.down.sql` contiene el rollback:
+
+```sql
+ALTER TABLE routes
+DROP COLUMN description_extra;
+```
+
+Al volver a iniciar el backend, `golang-migrate` detectará automáticamente la nueva migración y la ejecutará.
+
+### Importante para una base de datos existente
+
+Si `transporte_db` ya fue creada anteriormente utilizando `database_setup.sql`, no se debe ejecutar `000001_init.up.sql` sobre esa base si las tablas ya existen.
+
+Para un entorno de desarrollo limpio, se recomienda recrear la base de datos:
+
+```bash
+psql -U postgres -c "DROP DATABASE transporte_db;"
+psql -U postgres -c "CREATE DATABASE transporte_db;"
+```
+
+Después:
+
+```bash
+cd backend-go
+go run ./cmd/server
+```
+
+La migración `000001_init.up.sql` creará automáticamente las tablas, tipos ENUM, índices, funciones y triggers.
+
+> `database_setup.sql` deja de ser el mecanismo principal para inicializar o actualizar la base de datos. Las migraciones de `internal/migrations/` pasan a ser la fuente oficial del esquema.
 
 ### 3. Descargar dependencias
 
@@ -65,8 +158,9 @@ go mod tidy
 ### 4. Ejecutar el servidor Go
 
 ```bash
+# Desde backend-go
 cd backend-go
-go run ./cmd/server/...
+go run ./cmd/server
 # Servidor en http://localhost:3001
 ```
 
@@ -77,14 +171,30 @@ npm run dev:frontend
 # http://localhost:5173
 ```
 
+### 6. Mapa en tiempo real (Socket.io, en otra terminal)
+
+`backend-go` no tiene Socket.io: los buses en vivo del mapa los emite el backend Node.
+Se levanta en `:3002` para no chocar con `backend-go`, y el proxy de Vite le envía `/socket.io`:
+
+```bash
+npm run dev:realtime
+# Socket.IO en http://localhost:3002
+```
+
+O todo junto (Go + tiempo real + frontend): `npm run dev`.
+
 ---
 
 ## 🚀 Inicio rápido — Frontend (solo)
 
 ```bash
-npm install
-npm run dev:frontend
+cd frontend
+npm.cmd install
+npm.cmd run dev
 ```
+
+> En PowerShell, usa `npm.cmd` si aparece el error de que `npm.ps1` no puede
+> ejecutarse por la politica de scripts.
 
 ---
 
@@ -154,6 +264,42 @@ El token se obtiene desde `POST /auth/login` o `POST /auth/register`.
 | Hash contraseñas | **bcrypt (golang.org/x/crypto)** |
 | Tiempo real | Socket.IO (backend TS - pendiente migración) |
 | Monorepo | npm workspaces (frontend) |
+
+## 🔌 Integración gRPC
+
+La comunicación interna entre `backend-go`, `clima_service` y `micro_service` usa gRPC. Los listeners gRPC son `9090` para clima y `9091` para transporte; los listeners HTTP existentes se mantienen para compatibilidad.
+
+Los stubs compartidos están en `proto/gen/go`. Para regenerarlos desde la raíz del repositorio, instala `protoc`, `protoc-gen-go` y `protoc-gen-go-grpc`, y ejecuta:
+
+```bash
+mkdir -p proto/gen/go/clima/v1 proto/gen/go/micro/v1
+protoc -I proto -I /path/to/protoc/include \
+  --go_out=proto/gen/go/clima/v1 --go_opt=paths=source_relative \
+  --go-grpc_out=proto/gen/go/clima/v1 --go-grpc_opt=paths=source_relative \
+  proto/clima_service.proto
+protoc -I proto -I /path/to/protoc/include \
+  --go_out=proto/gen/go/micro/v1 --go_opt=paths=source_relative \
+  --go-grpc_out=proto/gen/go/micro/v1 --go-grpc_opt=paths=source_relative \
+  proto/micro_service.proto
+```
+
+`backend-go` expone proxies REST autenticados que llaman a gRPC:
+
+- `GET /api/v1/integrations/climate/telemetry?from=...&to=...`
+- `GET /api/v1/integrations/micro/stops`
+- `GET /api/v1/integrations/micro/stops/:id`
+- `GET /api/v1/integrations/micro/routes`
+- `GET /api/v1/integrations/micro/routes/plan?from_stop=...&to_stop=...&preference=fastest`
+
+Variables de `backend-go`: `CLIMATE_GRPC_TARGET`, `CLIMATE_API_KEY`, `MICRO_GRPC_TARGET`, `MICRO_API_KEY` y `GRPC_TIMEOUT`. Las rutas existentes `/api/v1/routes` continúan usando `transporte_db` y no fueron migradas.
+
+Los Dockerfiles de los microservicios y de `backend-go` requieren contexto de build en la raíz (dependen del módulo local `proto/`):
+
+```bash
+docker build -f kubernetes/services/clima_service/Dockerfile .
+docker build -f kubernetes/services/micro_service/Dockerfile .
+docker build -f backend-go/Dockerfile .
+```
 
 ---
 

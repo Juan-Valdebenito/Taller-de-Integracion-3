@@ -1,8 +1,12 @@
 package router
 
 import (
+	"context"
+	"time"
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/handler"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/middleware"
@@ -13,18 +17,24 @@ import (
 func Setup(
 	corsOrigin string,
 	jwtSecret string,
-	bl *token.Blacklist,
+	pool *pgxpool.Pool,
+	revStore token.RevocationStore,
 	authH *handler.AuthHandler,
+	companyH *handler.CompanyHandler,
 	userH *handler.UserHandler,
 	busH *handler.BusHandler,
 	routeH *handler.RouteHandler,
+	stopH *handler.StopHandler,
 	complaintH *handler.ComplaintHandler,
 	occupancyH *handler.OccupancyHandler,
+	grpcH *handler.GRPCProxyHandler,
 	aforoH *handler.AforoHandler,
 	recaudoH *handler.RecaudoHandler,
 	healthH *handler.HealthHandler,
 ) *gin.Engine {
 	r := gin.Default()
+	metrics := middleware.NewMetrics()
+	r.Use(metrics.CollectHTTP())
 
 	// ── CORS ──────────────────────────────────────────────────
 	r.Use(cors.New(cors.Config{
@@ -35,38 +45,63 @@ func Setup(
 	}))
 
 	// ── Health checks & Kubernetes Probes ─────────────────────
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok", "lang": "go"})
-	})
-	if healthH != nil {
-		r.GET("/healthz", healthH.LivenessProbe)
-		r.GET("/readyz", healthH.ReadinessProbe)
-	}
+	// Endpoints de infraestructura: sin autenticación para probes de Kubernetes.
+	// /health se conserva como alias por compatibilidad.
+	r.GET("/health", middleware.Healthz)
+	r.GET("/healthz", middleware.Healthz)
+	r.GET("/readyz", middleware.Readyz(func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if pool != nil {
+			return pool.Ping(ctx)
+		}
+		return nil
+	}))
+	r.GET("/metrics", metrics.Prometheus())
 
 	// ── API v1 ────────────────────────────────────────────────
 	api := r.Group("/api/v1")
 
 	// Alias del middleware para mayor legibilidad
-	auth := func() gin.HandlerFunc { return middleware.Authenticate(jwtSecret, bl) }
-	optionalAuth := func() gin.HandlerFunc { return middleware.OptionalAuthenticate(jwtSecret, bl) }
+	auth := func() gin.HandlerFunc { return middleware.Authenticate(jwtSecret, revStore) }
+	optionalAuth := func() gin.HandlerFunc { return middleware.OptionalAuthenticate(jwtSecret, revStore) }
 
-	// Ocupación heurística / ML (público)
+	// Ocupación (público — sin auth para facilitar integración con dispositivos)
 	api.POST("/occupancy", occupancyH.Predict)
 
+	// Simulación de sensores/pagos (público — fallback REST del panel DevTools)
+	api.POST("/buses/simulate-event", busH.SimulateEvent)
+
 	// Control y cálculo estricto de aforo vehicular
-	aforo := api.Group("/aforo")
-	{
-		aforo.POST("/calculate", aforoH.CalculateStrict)
-		aforo.GET("/bus/:id", aforoH.GetBusAforo)
-		aforo.POST("/bus/:id/flow", aforoH.ProcessFlow)
+	if aforoH != nil {
+		aforo := api.Group("/aforo")
+		{
+			aforo.POST("/calculate", aforoH.CalculateStrict)
+			aforo.GET("/bus/:id", aforoH.GetBusAforo)
+			aforo.POST("/bus/:id/flow", aforoH.ProcessFlow)
+		}
 	}
 
 	// Transacciones de recaudo (Bipay / Escolar / Adulto Mayor)
-	recaudo := api.Group("/recaudo", middleware.SensitiveDataMasker())
-	{
-		recaudo.POST("/transactions", recaudoH.CreateTransaction)
-		recaudo.GET("/transactions", recaudoH.ListTransactions)
-		recaudo.GET("/summary", recaudoH.GetSummary)
+	if recaudoH != nil {
+		recaudo := api.Group("/recaudo", middleware.SensitiveDataMasker())
+		{
+			recaudo.POST("/transactions", recaudoH.CreateTransaction)
+			recaudo.GET("/transactions", recaudoH.ListTransactions)
+			recaudo.GET("/summary", recaudoH.GetSummary)
+		}
+	}
+
+	// Proxies gRPC hacia los microservicios de clima y transporte de micros
+	if grpcH != nil {
+		grpcGroup := api.Group("/integrations", auth())
+		{
+			grpcGroup.GET("/climate/telemetry", grpcH.ListTelemetry)
+			grpcGroup.GET("/micro/stops", grpcH.ListStops)
+			grpcGroup.GET("/micro/stops/:id", grpcH.GetStop)
+			grpcGroup.GET("/micro/routes", grpcH.ListRoutes)
+			grpcGroup.GET("/micro/routes/plan", grpcH.PlanRoute)
+		}
 	}
 
 	// Auth (con validación estricta y sanitización de entrada)
@@ -74,8 +109,10 @@ func Setup(
 	{
 		authGroup.POST("/register", middleware.ValidateUserPayload(), authH.Register)
 		authGroup.POST("/login", authH.Login)
+		authGroup.POST("/refresh", authH.Refresh)
 		authGroup.POST("/logout", auth(), authH.Logout)
 		authGroup.GET("/me", auth(), authH.Me)
+		authGroup.POST("/revoke", auth(), middleware.Authorize("ADMIN"), authH.Revoke)
 	}
 
 	// Usuarios (con soporte de máscara ?mask=true para privacidad y validación en updates)
@@ -89,11 +126,19 @@ func Setup(
 		users.DELETE("/:id", userH.Delete)
 	}
 
+	// Empresas (requiere autenticación; operaciones de admin requieren rol)
+	if companyH != nil {
+		companies := api.Group("/companies", auth())
+		{
+			companies.GET("", middleware.Authorize("ADMIN"), companyH.GetAll)
+			companies.GET("/", middleware.Authorize("ADMIN"), companyH.GetAll)
+		}
+	}
+
 	// Auditoría administrativa con enmascaramiento de datos sensibles (?mask=true)
 	admin := api.Group("/admin", auth(), middleware.Authorize("ADMIN"), middleware.SensitiveDataMasker())
 	{
 		admin.GET("/audit", func(c *gin.Context) {
-			// Retorna eventos de auditoría administrativa con campos sensibles protegidos
 			c.JSON(200, gin.H{
 				"success": true,
 				"auditTrail": []gin.H{
@@ -145,6 +190,17 @@ func Setup(
 		routes.DELETE("/:id", middleware.Authorize("ADMIN"), routeH.Delete)
 	}
 
+	// Paraderos (solo administración)
+	if stopH != nil {
+		stops := api.Group("/stops", auth())
+		{
+			stops.GET("/:id", stopH.GetByID)
+			stops.POST("/", middleware.Authorize("ADMIN"), stopH.Create)
+			stops.PUT("/:id", middleware.Authorize("ADMIN"), stopH.Update)
+			stops.DELETE("/:id", middleware.Authorize("ADMIN"), stopH.Delete)
+		}
+	}
+
 	// Reclamos: creación accesible por pasajeros con validación y sanitización estricta XSS
 	api.POST("/complaints", optionalAuth(), middleware.ValidateComplaintPayload(), complaintH.Create)
 	api.POST("/complaints/", optionalAuth(), middleware.ValidateComplaintPayload(), complaintH.Create)
@@ -155,6 +211,8 @@ func Setup(
 		complaints.GET("/stats", complaintH.GetStats)
 		complaints.GET("", complaintH.GetAll)
 		complaints.GET("/", complaintH.GetAll)
+		complaints.GET("/my", middleware.Authorize("PASSENGER"), complaintH.GetMine)
+		complaints.GET("/my-complaints", middleware.Authorize("PASSENGER"), complaintH.FindByPassengerID)
 		complaints.GET("/:id", complaintH.GetByID)
 		complaints.PUT("/:id/status", middleware.Authorize("ADMIN", "COMPANY"), complaintH.UpdateStatus)
 		complaints.PATCH("/:id/status", middleware.Authorize("ADMIN", "COMPANY"), complaintH.UpdateStatus)

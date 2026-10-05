@@ -17,6 +17,13 @@ type ComplaintRepository struct {
 	pool *pgxpool.Pool
 }
 
+type ComplaintFilters struct {
+	Status      string
+	Category    string
+	BusID       string
+	PassengerID string
+}
+
 func NewComplaintRepository(pool *pgxpool.Pool) *ComplaintRepository {
 	return &ComplaintRepository{pool: pool}
 }
@@ -35,14 +42,15 @@ type Pagination struct {
 
 // ComplaintFilter define los filtros opcionales para la búsqueda avanzada de reclamos.
 type ComplaintFilter struct {
-	Status    *domain.ComplaintStatus
-	Category  *domain.ComplaintCategory
-	BusID     *string
-	LineName  *string
-	Rating    *int
-	MinRating *int
-	MaxRating *int
-	CompanyID *string
+	Status      *domain.ComplaintStatus
+	Category    *domain.ComplaintCategory
+	BusID       *string
+	PassengerID *string
+	LineName    *string
+	Rating      *int
+	MinRating   *int
+	MaxRating   *int
+	CompanyID   *string
 }
 
 func scanComplaint(row pgx.Row) (*domain.Complaint, error) {
@@ -82,6 +90,11 @@ func (r *ComplaintRepository) FindAll(ctx context.Context, filter ComplaintFilte
 	if filter.BusID != nil && *filter.BusID != "" {
 		query += fmt.Sprintf(" AND \"busId\" = $%d", argIdx)
 		args = append(args, *filter.BusID)
+		argIdx++
+	}
+	if filter.PassengerID != nil && *filter.PassengerID != "" {
+		query += fmt.Sprintf(" AND \"passengerId\" = $%d", argIdx)
+		args = append(args, *filter.PassengerID)
 		argIdx++
 	}
 	if filter.LineName != nil && *filter.LineName != "" {
@@ -133,7 +146,8 @@ func (r *ComplaintRepository) FindAll(ctx context.Context, filter ComplaintFilte
 	}
 	defer rows.Close()
 
-	var complaints []domain.Complaint
+	complaints := []domain.Complaint{}
+
 	for rows.Next() {
 		c, err := scanComplaint(rows)
 		if err != nil {
@@ -141,6 +155,59 @@ func (r *ComplaintRepository) FindAll(ctx context.Context, filter ComplaintFilte
 		}
 		complaints = append(complaints, *c)
 	}
+
+	return complaints, nil
+}
+
+// FindByPassengerID retorna todos los reclamos pertenecientes a un pasajero específico.
+func (r *ComplaintRepository) FindByPassengerID(ctx context.Context, passengerID string, filters ComplaintFilters) ([]domain.Complaint, error) {
+	query := `
+		SELECT ` + complaintSelectColumns + `
+		FROM complaints
+		WHERE "passengerId" = $1
+	`
+
+	args := []interface{}{passengerID}
+
+	if filters.Status != "" {
+		args = append(args, filters.Status)
+		query += fmt.Sprintf(` AND status = $%d`, len(args))
+	}
+
+	if filters.Category != "" {
+		args = append(args, filters.Category)
+		query += fmt.Sprintf(` AND category = $%d`, len(args))
+	}
+
+	if filters.BusID != "" {
+		args = append(args, filters.BusID)
+		query += fmt.Sprintf(` AND "busId" = $%d`, len(args))
+	}
+
+	query += ` ORDER BY "createdAt" DESC`
+
+	rows, err := r.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("ComplaintRepository.FindByPassengerID: %w", err)
+	}
+
+	defer rows.Close()
+
+	// Inicializar como slice vacío (evita retornar null en el JSON si no hay reclamos)
+	complaints := []domain.Complaint{}
+
+	for rows.Next() {
+		c, err := scanComplaint(rows)
+		if err != nil {
+			return nil, fmt.Errorf("ComplaintRepository.FindByPassengerID scan: %w", err)
+		}
+		complaints = append(complaints, *c)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("ComplaintRepository.FindByPassengerID rows: %w", err)
+	}
+
 	return complaints, nil
 }
 

@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
@@ -17,13 +18,30 @@ import (
 type ComplaintHandler struct {
 	complaintRepo    *repository.ComplaintRepository
 	complaintService *service.ComplaintService
+	busRepo          *repository.BusRepository
+	routeRepo        *repository.RouteRepository
 }
 
-func NewComplaintHandler(complaintRepo *repository.ComplaintRepository) *ComplaintHandler {
+func NewComplaintHandler(
+	complaintRepo *repository.ComplaintRepository,
+	busRepo *repository.BusRepository,
+	routeRepo *repository.RouteRepository,
+) *ComplaintHandler {
 	return &ComplaintHandler{
 		complaintRepo:    complaintRepo,
 		complaintService: service.NewComplaintService(),
+		busRepo:          busRepo,
+		routeRepo:        routeRepo,
 	}
+}
+
+// emptyToNil normaliza "" (o solo espacios) a nil para los IDs opcionales.
+func emptyToNil(s *string) *string {
+	if s == nil || strings.TrimSpace(*s) == "" {
+		return nil
+	}
+	v := strings.TrimSpace(*s)
+	return &v
 }
 
 // GetStats godoc
@@ -58,6 +76,9 @@ func (h *ComplaintHandler) GetAll(c *gin.Context) {
 	}
 	if b := c.Query("busId"); b != "" {
 		filter.BusID = &b
+	}
+	if p := c.Query("passengerId"); p != "" {
+		filter.PassengerID = &p
 	}
 	if l := c.Query("lineName"); l != "" {
 		filter.LineName = &l
@@ -96,9 +117,49 @@ func (h *ComplaintHandler) GetAll(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener reclamos: " + err.Error()})
 		return
 	}
+
 	if complaints == nil {
 		complaints = []domain.Complaint{}
 	}
+
+	c.JSON(http.StatusOK, complaints)
+}
+
+// GetMine godoc
+// GET /api/v1/complaints/my — reclamos del pasajero autenticado
+func (h *ComplaintHandler) GetMine(c *gin.Context) {
+	passengerID, exists := c.Get(middleware.ContextUserID)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuario no autenticado"})
+		return
+	}
+
+	pidStr := passengerID.(string)
+	filter := repository.ComplaintFilter{
+		PassengerID: &pidStr,
+	}
+	if s := c.Query("status"); s != "" {
+		st := domain.ComplaintStatus(s)
+		filter.Status = &st
+	}
+	if cat := c.Query("category"); cat != "" {
+		ct := domain.ComplaintCategory(cat)
+		filter.Category = &ct
+	}
+	if b := c.Query("busId"); b != "" {
+		filter.BusID = &b
+	}
+
+	complaints, err := h.complaintRepo.FindAll(c.Request.Context(), filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener reclamos: " + err.Error()})
+		return
+	}
+
+	if complaints == nil {
+		complaints = []domain.Complaint{}
+	}
+
 	c.JSON(http.StatusOK, complaints)
 }
 
@@ -118,11 +179,12 @@ func (h *ComplaintHandler) GetByID(c *gin.Context) {
 }
 
 // Create godoc
-// POST /api/v1/complaints — pasajeros autenticados o reporte contextual
+// POST /api/v1/complaints — creación de reclamo contextual
 func (h *ComplaintHandler) Create(c *gin.Context) {
 	var body struct {
 		Title       string  `json:"title"`
 		Description string  `json:"description"`
+		Comment     string  `json:"comment"`
 		Category    string  `json:"category"`
 		Rating      *int    `json:"rating"`
 		LineName    *string `json:"lineName"`
@@ -132,21 +194,59 @@ func (h *ComplaintHandler) Create(c *gin.Context) {
 		TripID      *string `json:"tripId"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Cuerpo de la solicitud inválido"})
 		return
 	}
 
-	if body.Title == "" {
-		body.Title = "Reporte de Servicio"
+	title := strings.TrimSpace(body.Title)
+	if title == "" {
+		title = "Reporte de Servicio"
 	}
-	if body.Description == "" {
-		body.Description = "Sin comentarios adicionales"
+
+	description := strings.TrimSpace(body.Description)
+	if description == "" && body.Comment != "" {
+		description = strings.TrimSpace(body.Comment)
 	}
-	if body.Category == "" {
-		body.Category = "OTHER"
+	if description == "" {
+		description = "Sin comentarios adicionales"
 	}
-	if body.CompanyID == "" {
-		body.CompanyID = "comp-temuco-01"
+
+	category := domain.ComplaintCategory(strings.TrimSpace(body.Category))
+	if category == "" {
+		category = domain.ComplaintCategoryOther
+	}
+
+	busID, routeID, tripID := emptyToNil(body.BusID), emptyToNil(body.RouteID), emptyToNil(body.TripID)
+
+	ctx := c.Request.Context()
+	companyID := strings.TrimSpace(body.CompanyID)
+
+	if busID != nil && h.busRepo != nil {
+		bus, err := h.busRepo.FindByID(ctx, *busID)
+		if err == nil && bus != nil {
+			if companyID == "" {
+				companyID = bus.CompanyID
+			}
+			if routeID == nil {
+				routeID = bus.RouteID
+			}
+		}
+	}
+
+	if routeID != nil && h.routeRepo != nil {
+		route, err := h.routeRepo.FindByID(ctx, *routeID)
+		if err == nil && route != nil {
+			if companyID == "" {
+				companyID = route.CompanyID
+			}
+			if body.LineName == nil || *body.LineName == "" {
+				body.LineName = &route.Name
+			}
+		}
+	}
+
+	if companyID == "" {
+		companyID = "comp-temuco-01"
 	}
 
 	if body.Rating != nil {
@@ -156,7 +256,6 @@ func (h *ComplaintHandler) Create(c *gin.Context) {
 		}
 	}
 
-	// El pasajero es el usuario autenticado (o usuario demo por defecto)
 	passengerID := "usr-pass-01"
 	if uID, exists := c.Get(middleware.ContextUserID); exists {
 		if str, ok := uID.(string); ok && str != "" {
@@ -165,23 +264,52 @@ func (h *ComplaintHandler) Create(c *gin.Context) {
 	}
 
 	complaint, err := h.complaintRepo.Create(
-		c.Request.Context(),
-		body.Title,
-		body.Description,
-		domain.ComplaintCategory(body.Category),
+		ctx,
+		title,
+		description,
+		category,
 		body.Rating,
 		body.LineName,
 		passengerID,
-		body.CompanyID,
-		body.BusID,
-		body.RouteID,
-		body.TripID,
+		companyID,
+		busID,
+		routeID,
+		tripID,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al crear reclamo: " + err.Error()})
 		return
 	}
 	c.JSON(http.StatusCreated, complaint)
+}
+
+func (h *ComplaintHandler) FindByPassengerID(c *gin.Context) {
+	// 1. Obtener el ID del pasajero desde el contexto (inyectado por el middleware Auth)
+	passengerID, exists := c.Get(middleware.ContextUserID)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuario no autenticado"})
+		return
+	}
+
+	// 2. Consultar la base de datos a través del repositorio/servicio
+	filters := repository.ComplaintFilters{
+		Status:   c.Query("status"),
+		Category: c.Query("category"),
+		BusID:    c.Query("busId"),
+	}
+
+	complaints, err := h.complaintRepo.FindByPassengerID(
+		c.Request.Context(),
+		passengerID.(string),
+		filters,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener reclamos"})
+		return
+	}
+
+	// 3. Responder con la lista de reclamos del usuario
+	c.JSON(http.StatusOK, complaints)
 }
 
 // UpdateStatus godoc

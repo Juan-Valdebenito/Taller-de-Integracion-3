@@ -1,0 +1,108 @@
+# 1. SOLICITUD DE ALMACENAMIENTO PERSISTENTE (PVC) por ahora no se puede por permisos del cluster
+# apiVersion: v1
+# kind: PersistentVolumeClaim
+# metadata:
+#   name: micros-db-pvc
+#   namespace: student-jvaldebenito
+# spec:
+#   accessModes:
+#     - ReadWriteOnce # El disco se monta en un solo Pod a la vez
+#   resources:
+#     requests:
+#       storage: 5Gi # 5 Gigabytes de espacio para datos de tránsito
+---
+# 2. DESPLIEGUE DE POSTGIS (DEPLOYMENT)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: micros-db
+  namespace: student-jvaldebenito
+  labels:
+    app: micros-db
+spec:
+  replicas: 1 # Las bases de datos relacionales en K8s corren con 1 réplica principal
+  selector:
+    matchLabels:
+      app: micros-db
+  template:
+    metadata:
+      labels:
+        app: micros-db
+    spec:
+      containers:
+        - name: postgis
+          image: postgis/postgis:16-3.4-alpine
+          ports:
+            - containerPort: 5432
+          # pg_isready: el servidor acepta conexiones (PostGIS tarda en el primer arranque)
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -h 127.0.0.1 -p 5432"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -h 127.0.0.1 -p 5432"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "400m"
+          envFrom:
+            - configMapRef:
+                name: micros-configmap # Carga DB_NAME, DB_USER, etc.
+            - secretRef:
+                name: micros-secrets # Carga DB_PASSWORD
+          env:
+            # PostgreSQL oficial exige la variable POSTGRES_PASSWORD
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: micros-secrets
+                  key: DB_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: micros-configmap
+                  key: DB_NAME
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: micros-configmap
+                  key: DB_USER
+          volumeMounts:
+            - name: micros-db-data
+              mountPath: /var/lib/postgresql/data # Directorio de datos de PostgreSQL
+            # Scripts de inicialización de la base de datos
+            - name: init-scripts-volume
+              mountPath: /docker-entrypoint-initdb.d
+      volumes:
+        - name: micros-db-data
+          emptyDir: {} # No hay permisos para montar PVC en el cluster
+          #persistentVolumeClaim:
+          #  claimName: micros-db-pvc
+        - name: init-scripts-volume
+          configMap:
+            name: micros-db-init-scripts
+---
+# 3. SERVICIO INTERNO (SERVICE)
+apiVersion: v1
+kind: Service
+metadata:
+  name: micros-db-svc
+  namespace: student-jvaldebenito
+spec:
+  type: ClusterIP # Solo accesible dentro del clúster
+  selector:
+    app: micros-db
+  ports:
+    - port: 5432
+      targetPort: 5432

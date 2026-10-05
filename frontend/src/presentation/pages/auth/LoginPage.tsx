@@ -18,14 +18,16 @@ export function LoginPage() {
     setIsLoading(true);
 
     try {
-      const res = await axios.post('http://localhost:3001/api/v1/auth/login', {
+      const res = await axios.post('/api/v1/auth/login', {
         email,
         password,
       });
 
       const payload = res.data?.data || res.data;
-      const { token, user } = payload;
-      login(token, user);
+      const token = payload.token || res.data.token;
+      const refreshToken = payload.refreshToken || res.data.refreshToken;
+      const user = payload.user || res.data.user;
+      login(token, user, refreshToken);
 
       if (user.role === 'ADMIN') {
         navigate('/admin/dashboard');
@@ -154,7 +156,7 @@ export function LoginPage() {
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
           <button
             type="button"
-            onClick={() => handleFillDemo('admin@transporte.cl', 'Admin1234!')}
+            onClick={() => handleFillDemo('admin@transporte.cl', 'admin12345')}
             style={{
               padding: '4px 8px',
               fontSize: '11px',

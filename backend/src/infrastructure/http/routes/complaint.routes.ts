@@ -7,7 +7,7 @@ import {
 } from '../middlewares/userValidation.middleware';
 
 const router = Router();
-// const repo = new PrismaComplaintRepository(); // Removed dangling reference
+
 
 // GET /api/v1/complaints - Listar reclamos e incidentes (con filtros de estado, categoría, bus, línea y rating)
 router.get('/', async (req: Request, res: Response) => {
@@ -219,4 +219,3 @@ router.put('/:id/status', handleStatusUpdate);
 router.patch('/:id/status', handleStatusUpdate);
 
 export default router;
-

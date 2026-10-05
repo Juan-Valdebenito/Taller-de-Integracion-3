@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FaStar, FaRegStar, FaTimes, FaCheckCircle } from 'react-icons/fa';
-import axios from 'axios';
+import { apiClient } from '../../../infrastructure/api/apiClient';
 import './ComplaintModal.css';
 
 interface ComplaintModalProps {
@@ -8,6 +8,12 @@ interface ComplaintModalProps {
   onClose: () => void;
   busId: string;
   lineName: string;
+}
+
+interface RouteOption {
+  id: string;
+  name: string;
+  code: string;
 }
 
 const CATEGORIES = [
@@ -21,6 +27,7 @@ const CATEGORIES = [
 ];
 
 const MAX_COMMENT_LENGTH = 300;
+const DEFAULT_CATEGORY = 'OVERCROWDING';
 
 export const ComplaintModal: React.FC<ComplaintModalProps> = ({ 
   isOpen, 
@@ -28,11 +35,14 @@ export const ComplaintModal: React.FC<ComplaintModalProps> = ({
   busId, 
   lineName 
 }) => {
+  const [title, setTitle] = useState<string>('');
   const [rating, setRating] = useState<number>(0);
   const [hoverRating, setHoverRating] = useState<number>(0);
-  const [category, setCategory] = useState<string>('OVERCROWDING');
+  const [category, setCategory] = useState<string>(DEFAULT_CATEGORY);
   const [comment, setComment] = useState<string>('');
-  
+  const [routes, setRoutes] = useState<RouteOption[]>([]);
+  const [routeId, setRouteId] = useState<string>('');
+
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<boolean>(false);
@@ -51,6 +61,19 @@ export const ComplaintModal: React.FC<ComplaintModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen]);
 
+  // Al abrir: título sugerido y rutas reales de la BD
+  useEffect(() => {
+    if (!isOpen) return;
+    setTitle(`Reclamo línea ${lineName || busId}`);
+    apiClient.get<RouteOption[]>('/routes')
+      .then((res) => {
+        setRoutes(res.data);
+        const match = res.data.find((r) => r.code.toLowerCase() === normalizedLine.toLowerCase());
+        setRouteId(match?.id ?? '');
+      })
+      .catch((err) => console.error('Error al cargar rutas:', err));
+  }, [isOpen, lineName, busId, normalizedLine]);
+
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -68,21 +91,19 @@ export const ComplaintModal: React.FC<ComplaintModalProps> = ({
     setError(null);
 
     try {
-      const token = localStorage.getItem('token');
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
-
-      const payload = {
-        busId: busId || 'B-7A-01',
+      const payload: any = {
+        busId: busId || undefined,
         lineName: normalizedLine,
         companyId: 'comp-temuco-01',
-        title: `Reporte Micro ${busId || normalizedLine} - Línea ${normalizedLine}`,
+        title: title.trim() || `Reporte Micro ${busId || normalizedLine} - Línea ${normalizedLine}`,
         description: comment.trim() || 'Sin comentarios adicionales',
-        motivo: comment.trim() || 'Reporte de servicio de transporte',
+        comment: comment.trim() || 'Sin comentarios adicionales',
         category: category,
         rating: rating,
+        routeId: routeId || undefined,
       };
 
-      await axios.post('http://localhost:3001/api/v1/complaints', payload, { headers });
+      await apiClient.post('/complaints', payload);
 
       setToastMessage('Reclamo registrado exitosamente');
       setSuccess(true);
@@ -104,10 +125,12 @@ export const ComplaintModal: React.FC<ComplaintModalProps> = ({
   const handleClose = () => {
     setSuccess(false);
     setToastMessage(null);
+    setTitle('');
     setRating(0);
     setHoverRating(0);
-    setCategory('OVERCROWDING');
+    setCategory(DEFAULT_CATEGORY);
     setComment('');
+    setRouteId('');
     setError(null);
     onClose();
   };
@@ -153,7 +176,7 @@ export const ComplaintModal: React.FC<ComplaintModalProps> = ({
 
         {/* Header */}
         <div className="modal-header">
-          <h2 id="complaint-modal-title" className="modal-title">Calificar Viaje</h2>
+          <h2 id="complaint-modal-title" className="modal-title">Calificar Viaje / Reclamo</h2>
           <button 
             onClick={handleClose} 
             className="modal-close" 
@@ -230,6 +253,24 @@ export const ComplaintModal: React.FC<ComplaintModalProps> = ({
               </select>
             </div>
 
+            {/* Ruta opcional si existen en la BD */}
+            {routes.length > 0 && (
+              <div className="form-group">
+                <label>Línea / Ruta Asociada</label>
+                <select
+                  className="form-select"
+                  value={routeId}
+                  onChange={(e) => setRouteId(e.target.value)}
+                  disabled={isLoading}
+                >
+                  <option value="">Selecciona la ruta...</option>
+                  {routes.map((route) => (
+                    <option key={route.id} value={route.id}>{route.code} - {route.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Textarea con Contador de Caracteres */}
             <div className="form-group">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
@@ -254,6 +295,7 @@ export const ComplaintModal: React.FC<ComplaintModalProps> = ({
                 placeholder="Detalla qué sucedió durante el recorrido (aforo, conductor, retraso...)"
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
+                disabled={isLoading}
               />
             </div>
 

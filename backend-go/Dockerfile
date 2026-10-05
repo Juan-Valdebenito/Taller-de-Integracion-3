@@ -1,51 +1,49 @@
 # ============================================================
-# Etapa 1: Builder (Compilación estática del binario en Go)
+# Construir desde la RAÍZ del repo:
+#   docker build -f backend-go/Dockerfile -t transithub-backend:latest .
 # ============================================================
+
+# ETAPA 1: Compilación estática en Go
 FROM golang:1.23-alpine AS builder
 
-WORKDIR /src
+WORKDIR /src/backend-go
 
-# Instalar dependencias del sistema requeridas para la compilación
+# Instalar herramientas básicas necesarias
 RUN apk add --no-cache git ca-certificates tzdata
 
-# Copiar manifiestos de dependencias para aprovechar la caché de Docker
-COPY go.mod go.sum ./
+# Copiar módulo proto y dependencias (go.mod hace replace => ../proto)
+COPY proto /src/proto
+COPY backend-go/go.mod backend-go/go.sum ./
 RUN go mod download
 
-# Copiar el código fuente del microservicio
-COPY . .
+# Copiar código fuente y compilar binario estático optimizado
+COPY backend-go/cmd ./cmd
+COPY backend-go/internal ./internal
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/backend-go ./cmd/server
 
-# Compilar binario estático optimizado (sin símbolos de debug -s -w)
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/server ./cmd/server
+# ETAPA 2: Imagen de ejecución ligera Alpine
+FROM alpine:3.22
 
-# ============================================================
-# Etapa 2: Runner (Imagen mínima de ejecución Alpine)
-# ============================================================
-FROM alpine:latest AS runner
-
-WORKDIR /app
-
-# Instalar certificados raíz y configurar zona horaria de Chile (eliminando paquetes temporales)
+# Configurar zona horaria de Chile y certificados CA
 RUN apk --no-cache add ca-certificates tzdata \
     && cp /usr/share/zoneinfo/America/Santiago /etc/localtime \
     && echo "America/Santiago" > /etc/timezone \
     && apk del tzdata \
     && rm -rf /var/cache/apk/*
 
-# Crear usuario y grupo sin privilegios de root
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+# Crear usuario sin privilegios
+RUN adduser -D -H -u 10001 appuser
 
-# Copiar directamente el binario con los permisos del usuario appuser (evita duplicar capas)
-COPY --chown=appuser:appgroup --from=builder /app/server /app/server
+# Copiar binario con los permisos adecuados
+COPY --chown=appuser:appuser --from=builder /out/backend-go /backend-go
 
-USER appuser
-
-# Exponer el puerto estándar del contenedor
+# Exponer puertos de la aplicación
+EXPOSE 3001
 EXPOSE 8080
 
-# Variables de entorno por defecto
 ENV PORT=8080 \
     GIN_MODE=release
 
-# Ejecutar el servidor
-ENTRYPOINT ["/app/server"]
+USER appuser
+
+ENTRYPOINT ["/backend-go"]
