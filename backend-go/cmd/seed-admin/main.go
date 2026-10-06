@@ -1,4 +1,7 @@
-// Command seed-admin crea o restablece la cuenta administrativa inicial.
+// Command seed-admin crea o restablece los datos de prueba (admin, empresa,
+// pasajero, ruta y bus demo) manualmente. Desde la versión que auto-siembra
+// al arrancar "go run ./cmd/server" en desarrollo, este comando ya no es
+// obligatorio, pero se conserva para forzar el reseed sin reiniciar el server.
 //
 // Ejecutar desde backend-go:
 //
@@ -7,18 +10,11 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/config"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/db"
-	"golang.org/x/crypto/bcrypt"
-)
-
-const (
-	adminName     = "Administrador Sistema"
-	adminEmail    = "admin@transporte.cl"
-	adminPassword = "admin12345"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/seed"
 )
 
 func main() {
@@ -26,24 +22,7 @@ func main() {
 	pool := db.NewPool(cfg.DatabaseURL)
 	defer pool.Close()
 
-	passwordHash, err := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.DefaultCost)
-	if err != nil {
-		log.Fatalf("no se pudo generar la contraseña del administrador: %v", err)
+	if err := seed.Run(context.Background(), pool); err != nil {
+		log.Fatalf("no se pudieron crear los datos de prueba: %v", err)
 	}
-
-	_, err = pool.Exec(context.Background(), `
-		INSERT INTO users (id, name, email, "passwordHash", role, "isActive", "createdAt", "updatedAt")
-		VALUES (gen_random_uuid()::TEXT, $1, $2, $3, 'ADMIN', TRUE, NOW(), NOW())
-		ON CONFLICT (email) DO UPDATE
-		SET name = EXCLUDED.name,
-			"passwordHash" = EXCLUDED."passwordHash",
-			role = 'ADMIN',
-			"isActive" = TRUE,
-			"updatedAt" = NOW()
-	`, adminName, adminEmail, string(passwordHash))
-	if err != nil {
-		log.Fatalf("no se pudo crear o restablecer el administrador: %v", err)
-	}
-
-	fmt.Printf("Administrador listo: %s\n", adminEmail)
 }

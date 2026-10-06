@@ -5,6 +5,7 @@ import {
   useCallback,
   type ReactNode,
 } from 'react';
+import { apiClient } from '../../infrastructure/api/apiClient';
 
 // ── Tipos ─────────────────────────────────────────────────────
 
@@ -23,8 +24,8 @@ interface AuthContextValue {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (token: string, user: AuthUser) => void;
-  logout: () => void;
+  login: (token: string, user: AuthUser, refreshToken?: string) => void;
+  logout: () => Promise<void>;
 }
 
 // ── Contexto ──────────────────────────────────────────────────
@@ -56,20 +57,38 @@ export function AuthProvider({ children }: AuthProviderProps) {
   });
   const [isLoading] = useState(false);
 
-  const login = useCallback((newToken: string, newUser: AuthUser) => {
+  const login = useCallback((newToken: string, newUser: AuthUser, refreshToken?: string) => {
     console.log('Logging in user:', newUser);
     console.log('Storing token in localStorage:', newToken);
     localStorage.setItem('token', newToken);
+    // El refresh token permite renovar el access token sin volver a iniciar sesión (ver apiClient)
+    if (refreshToken) {
+      localStorage.setItem('refreshToken', refreshToken);
+    }
     localStorage.setItem('user', JSON.stringify(newUser));
     setToken(newToken);
     setUser(newUser);
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setToken(null);
-    setUser(null);
+  const logout = useCallback(async () => {
+    try {
+      // Revoca el token en el servidor (blacklist por jti) para que no
+      // pueda seguir usándose aunque alguien lo haya interceptado.
+      // También se envía el refresh token para que quede revocado.
+      await apiClient.post('/auth/logout', {
+        refreshToken: localStorage.getItem('refreshToken') ?? undefined,
+      });
+    } catch (error) {
+      console.error('Error al revocar el token en el servidor:', error);
+    } finally {
+      // Se limpia localmente aunque falle la llamada al servidor
+      // (p. ej. sin conexión), para no dejar al usuario atrapado en la sesión.
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('user');
+      setToken(null);
+      setUser(null);
+    }
   }, []);
 
   return (

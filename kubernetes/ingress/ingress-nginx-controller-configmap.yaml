@@ -1,0 +1,30 @@
+# CONFIGURACIÓN GLOBAL DEL INGRESS CONTROLLER (ingress-nginx)
+#
+# ⚠️  Requiere permisos de administrador del cluster: vive en el namespace del
+# controlador (normalmente "ingress-nginx"), no en student-jvaldebenito.
+# Si no tienen esos permisos, NO es obligatorio: las anotaciones de
+# backend-go-ingress.yaml ya habilitan WebSocket para nuestro host. Esto solo
+# deja los mismos valores como defecto para todo el controlador.
+#
+# Verificar nombre/namespace reales antes de aplicar:
+#   kubectl get configmap -A | grep ingress-nginx
+# Aplicar (fusiona con las claves existentes, no las borra):
+#   kubectl -n ingress-nginx patch configmap ingress-nginx-controller \
+#     --type merge --patch-file kubernetes/ingress/ingress-nginx-controller-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ingress-nginx-controller
+  namespace: ingress-nginx
+data:
+  # Conexiones WebSocket inactivas hasta 1 hora (por defecto 60 s).
+  proxy-read-timeout: "3600"
+  proxy-send-timeout: "3600"
+  # HTTP/1.1 hacia los pods: requisito para el Upgrade a WebSocket.
+  proxy-http-version: "1.1"
+  # Respetar X-Forwarded-Proto si hay un balanceador TLS delante del
+  # controlador; así nginx sabe que el cliente vino por https/wss.
+  use-forwarded-headers: "true"
+  # Al recargar la configuración, nginx espera hasta 4 min antes de cerrar
+  # workers viejos, para no cortar de golpe los WebSockets abiertos.
+  worker-shutdown-timeout: "240s"

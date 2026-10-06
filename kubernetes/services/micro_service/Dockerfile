@@ -25,3 +25,4 @@ EXPOSE 3001
 EXPOSE 9091
 
 CMD ["./transit-service"]
+

@@ -26,15 +26,15 @@ export function RegisterPage() {
     setIsLoading(true);
 
     try {
-      const res = await axios.post('http://localhost:3001/api/v1/auth/register', {
+      const res = await axios.post('/api/v1/auth/register', {
         name,
         email,
         password,
         role,
       });
 
-      const { token, user } = res.data;
-      login(token, user);
+      const { token, refreshToken, user } = res.data;
+      login(token, user, refreshToken);
 
       if (user.role === 'COMPANY') {
         navigate('/company/dashboard');
