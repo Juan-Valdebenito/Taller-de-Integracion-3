@@ -213,20 +213,6 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	}
 
 	// Parsear y verificar firma del Refresh Token
-<<<<<<< HEAD
-	token, err := jwt.Parse(
-		body.RefreshToken, func(token *jwt.Token) (interface{}, error) {
-
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("metodo de firma invalido")
-			}
-
-			return []byte(h.jwtSecret), nil
-		},
-	)
-
-	if err != nil || !token.Valid {
-=======
 	parsed, err := jwt.Parse(body.RefreshToken, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("método de firma inválido")
@@ -234,7 +220,6 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return []byte(h.jwtSecret), nil
 	})
 	if err != nil || !parsed.Valid {
->>>>>>> origin/juan
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Refresh token inválido o expirado"})
 		return
 	}
