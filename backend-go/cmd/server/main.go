@@ -118,7 +118,7 @@ func main() {
 	grpcProxyH := handler.NewGRPCProxyHandler(climateClient, microClient)
 
 	// ── Router ────────────────────────────────────────────────
-	r := router.Setup(cfg.CORSOrigin, cfg.JWTSecret, pool, revStore, authH, userH, busH, routeH, stopH, complaintH, occupancyH, grpcProxyH)
+	r := router.Setup(cfg.CORSOrigin, cfg.JWTSecret, pool, revStore, authH, companyH, userH, busH, routeH, stopH, complaintH, occupancyH, grpcProxyH)
 
 	// ── Iniciar servidor ──────────────────────────────────────
 	addr := fmt.Sprintf(":%s", cfg.Port)
