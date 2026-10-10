@@ -1,185 +1,273 @@
-import React, { useState } from 'react';
-import { Socket } from 'socket.io-client';
-import axios from 'axios';
-import { FaTimes, FaCreditCard, FaUserGraduate, FaSignOutAlt, FaBolt, FaTrash, FaTools } from 'react-icons/fa';
+/**
+ * SimulationDevTools.tsx
+ *
+ * Panel flotante de simulaci�n de sensores y pagos.
+ *
+ * Cambios vs versi�n anterior:
+ * - Eliminada dependencia de Socket.io (socket: Socket | null)
+ * - Eventos inyectados via sendMessage() del socketClient nativo (Go /ws)
+ * - Fallback: WS nativo -> REST -> estado local
+ * - Props adaptadas al nuevo BusState (latitude/longitude, routeId)
+ * - Selector de bus din�mico con buses reales del mapa
+ */
+
+import React, { useState, useCallback } from 'react';
+import { FaTimes, FaCreditCard, FaUserGraduate, FaSignOutAlt, FaBolt, FaTrash, FaTools, FaWifi } from 'react-icons/fa';
+import {
+  sendMessage,
+  isConnected,
+  type PublishMessage,
+} from '../../../infrastructure/socket/socketClient';
+import type { BusState } from '../../../hooks/useSimulatedBuses';
+import type { ConnectionStatus } from '../../../hooks/useSocketBuses';
 import './SimulationDevTools.css';
 
-export interface BusSimulationState {
-  id: string;
-  line: string;
-  lat: number;
-  lng: number;
-  status: string;
-  capacity: number;
-  currentPassengers: number;
-  occupancyPercentage: number;
-  boardings: number;
-  schoolBoardings: number;
-  alightings: number;
-  isFull: boolean;
-  lastEvent?: {
-    type: string;
-    description: string;
-    timestamp: string;
-  };
+// Tipos de eventos soportados
+type SimEventType =
+  | 'tap_in_normal'
+  | 'tap_in_student'
+  | 'sensor_alight'
+  | 'fill_capacity'
+  | 'empty_capacity';
+
+type DeltaType = 'board' | 'alight' | 'fill' | 'empty';
+
+interface EventMeta {
+  label: string;
+  delta: DeltaType;
 }
 
+const EVENT_META: Record<SimEventType, EventMeta> = {
+  tap_in_normal:  { label: 'Bip Normal (+1)',    delta: 'board' },
+  tap_in_student: { label: 'Pase Escolar (+1)',  delta: 'board' },
+  sensor_alight:  { label: 'Camara Bajada (-1)', delta: 'alight' },
+  fill_capacity:  { label: 'Llenar capacidad',   delta: 'fill' },
+  empty_capacity: { label: 'Vaciar bus (0)',     delta: 'empty' },
+};
+
+// Token de simulacion para el backend Go
+const SIM_TOKEN = (import.meta as any).env?.VITE_SIM_TOKEN ?? 'sim-dev-token';
+
 interface SimulationDevToolsProps {
-  socket: Socket | null;
-  buses: BusSimulationState[];
-  selectedBusId?: string;
+  buses: BusState[];
+  selectedBusId?: string | null;
   onSelectBus?: (busId: string) => void;
+  wsStatus?: ConnectionStatus;
+  onLocalEvent?: (busId: string, eventType: SimEventType) => void;
 }
 
 export const SimulationDevTools: React.FC<SimulationDevToolsProps> = ({
-  socket,
   buses,
   selectedBusId,
   onSelectBus,
+  wsStatus = 'disconnected',
+  onLocalEvent,
 }) => {
   const [isOpen, setIsOpen] = useState(true);
-  const [activeBusId, setActiveBusId] = useState<string>('B-7A-01');
-  const [localLog, setLocalLog] = useState<string>('Panel de simulación listo. Selecciona una acción para inyectar.');
+  const [localBusId, setLocalBusId] = useState<string>(buses[0]?.id ?? '');
+  const [log, setLog] = useState<string>('Panel listo. Selecciona un bus y una accion.');
+  const [isSending, setIsSending] = useState(false);
 
-  // Usar el bus seleccionado externamente o el local
-  const currentBusId = selectedBusId || activeBusId;
-  const currentBus = buses.find((b) => b.id === currentBusId) || buses[0];
+  const activeBusId = selectedBusId ?? localBusId;
+  const currentBus = buses.find((b) => b.id === activeBusId) ?? buses[0];
 
-  const handleSelect = (id: string) => {
-    setActiveBusId(id);
-    if (onSelectBus) onSelectBus(id);
+  const handleSelectBus = (id: string) => {
+    setLocalBusId(id);
+    onSelectBus?.(id);
   };
 
-  const handleInjectEvent = async (
-    eventType: 'tap_in_normal' | 'tap_in_student' | 'sensor_alight' | 'fill_capacity' | 'empty_capacity'
-  ) => {
-    if (!currentBus) return;
-
-    const eventNames: Record<string, string> = {
-      tap_in_normal: '💳 Tarjeta Normal (+$700 CLP)',
-      tap_in_student: '🎓 Tarjeta Estudiante TNE (+$240 CLP)',
-      sensor_alight: '📷 Sensor Cámara Descenso (-1)',
-      fill_capacity: '⚡ Forzar Capacidad Completa (35)',
-      empty_capacity: '🧹 Forzar Vacío (0)',
-    };
-
-    setLocalLog(`Enviando: ${eventNames[eventType]}...`);
-
-    // Intentar vía Socket.IO primero
-    if (socket && socket.connected) {
-      socket.emit('bus:simulate:event', {
-        busId: currentBus.id,
-        eventType,
-      });
-      setLocalLog(`✓ Emitido por WebSocket: ${eventNames[eventType]}`);
-    } else {
-      // Fallback REST si Socket no está disponible
-      try {
-        const res = await axios.post('/api/v1/buses/simulate-event', {
-          busId: currentBus.id,
-          eventType,
-        });
-        if (res.data?.lastEvent?.description) {
-          setLocalLog(res.data.lastEvent.description);
-        } else {
-          setLocalLog(`✓ REST OK: ${eventNames[eventType]}`);
-        }
-      } catch (err: any) {
-        setLocalLog(`❌ Error al inyectar: ${err.message}`);
+  const handleInjectEvent = useCallback(
+    async (eventType: SimEventType) => {
+      if (!currentBus) {
+        setLog('No hay bus seleccionado');
+        return;
       }
-    }
-  };
+      const meta = EVENT_META[eventType];
+      setLog('Enviando: ' + meta.label + '...');
+      setIsSending(true);
+      try {
+        const cap = currentBus.capacity;
+        let pass = currentBus.currentPassengers;
+        let boardings = currentBus.boardings ?? 0;
+        let alightings = currentBus.alightings ?? 0;
+        let studentBoardings = currentBus.studentBoardings ?? 0;
+
+        if (meta.delta === 'board') {
+          if (pass >= cap) { setLog('Bus ' + currentBus.id + ' esta lleno'); return; }
+          pass = Math.min(cap, pass + 1);
+          boardings += 1;
+          if (eventType === 'tap_in_student') studentBoardings += 1;
+        } else if (meta.delta === 'alight') {
+          if (pass <= 0) { setLog('Bus ' + currentBus.id + ' ya esta vacio'); return; }
+          pass = Math.max(0, pass - 1);
+          alightings += 1;
+        } else if (meta.delta === 'fill') {
+          pass = cap;
+        } else if (meta.delta === 'empty') {
+          pass = 0;
+        }
+
+        // 1. Intentar via WebSocket nativo Go
+        if (isConnected()) {
+          const msg: PublishMessage = {
+            type: 'publish',
+            token: SIM_TOKEN,
+            data: {
+              busId: currentBus.id,
+              routeId: currentBus.routeId,
+              latitude: currentBus.latitude,
+              longitude: currentBus.longitude,
+              heading: currentBus.heading,
+              speed: currentBus.speed,
+              currentPassengers: pass,
+              capacity: cap,
+              boardings,
+              alightings,
+              studentBoardings,
+            },
+          };
+          sendMessage(msg);
+          setLog('WS -> ' + meta.label + ' | Bus ' + currentBus.id + ' | ' + pass + '/' + cap + ' pasajeros');
+        } else {
+          // 2. Fallback REST
+          try {
+            const res = await fetch('/api/v1/buses/simulate-event', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ busId: currentBus.id, eventType }),
+            });
+            if (res.ok) {
+              setLog('REST -> ' + meta.label);
+            } else {
+              throw new Error('HTTP ' + res.status);
+            }
+          } catch {
+            // 3. Fallback local
+            onLocalEvent?.(currentBus.id, eventType);
+            setLog('Local -> ' + meta.label + ' (sin conexion al servidor)');
+          }
+        }
+      } finally {
+        setIsSending(false);
+      }
+    },
+    [currentBus, onLocalEvent],
+  );
 
   if (!isOpen) {
     return (
-      <button 
+      <button
         className="devtools-toggle-btn"
         onClick={() => setIsOpen(true)}
-        title="Abrir Simulador de Sensores y Pagos"
+        title="Abrir Simulador"
+        id="sim-devtools-toggle"
       >
         <FaTools />
-        <span>DevTools Simulación</span>
+        <span>DevTools</span>
       </button>
     );
   }
 
-  const occupancy = currentBus ? (currentBus.occupancyPercentage || 0) : 0;
-  const passengers = currentBus ? (currentBus.currentPassengers || 0) : 0;
-  const capacity = currentBus ? (currentBus.capacity || 35) : 35;
+  const passengers = currentBus?.currentPassengers ?? 0;
+  const capacity   = currentBus?.capacity ?? 35;
+  const occupancy  = capacity > 0 ? Math.round((passengers / capacity) * 100) : 0;
 
-  let badgeClass = 'badge-low';
-  let barClass = 'bar-low';
-  let badgeLabel = 'Baja Ocupación';
+  const occupancyColor =
+    occupancy >= 95 ? '#ef4444'
+    : occupancy >= 70 ? '#f59e0b'
+    : '#22c55e';
 
-  if (occupancy >= 95 || passengers >= capacity) {
-    badgeClass = 'badge-full';
-    barClass = 'bar-full';
-    badgeLabel = 'COMPLETO (35)';
-  } else if (occupancy >= 70) {
-    badgeClass = 'badge-med';
-    barClass = 'bar-med';
-    badgeLabel = 'Media-Alta';
-  }
+  const occupancyLabel =
+    occupancy >= 95 ? 'COMPLETO'
+    : occupancy >= 70 ? 'Media-Alta'
+    : 'Baja';
+
+  const wsColor =
+    wsStatus === 'connected'    ? '#22c55e'
+    : wsStatus === 'connecting' ? '#f59e0b'
+    : '#ef4444';
+
+  const wsLabel =
+    wsStatus === 'connected'    ? 'WS Activo'
+    : wsStatus === 'connecting' ? 'Conectando...'
+    : 'WS Inactivo - modo local';
 
   return (
-    <div className="devtools-panel">
+    <div className="devtools-panel" id="sim-devtools-panel">
       <div className="devtools-header">
         <div className="devtools-title">
           <FaTools />
           <span>Inyector de Sensores y Pagos</span>
         </div>
-        <button 
-          className="devtools-close-btn"
-          onClick={() => setIsOpen(false)}
-          title="Minimizar panel"
-        >
-          <FaTimes size={16} />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '10px', color: wsColor, fontWeight: 600 }}>
+            <FaWifi size={10} />
+            {wsLabel}
+          </span>
+          <button
+            className="devtools-close-btn"
+            onClick={() => setIsOpen(false)}
+            title="Minimizar"
+            id="sim-devtools-close"
+          >
+            <FaTimes size={16} />
+          </button>
+        </div>
       </div>
 
       <div className="devtools-body">
-        {/* Selector de microbús */}
+        {/* Selector de bus */}
         <div>
-          <div className="devtools-section-title">Líneas en Simulación</div>
+          <div className="devtools-section-title">Selecciona un Microbus</div>
           <div className="devtools-bus-tabs">
-            {['B-7A-01', 'B-7B-01', 'B-1C-01'].map((id) => {
-              const busInfo = buses.find((b) => b.id === id);
-              const lineLabel = busInfo ? busInfo.line : id.split('-')[1];
-              const passCount = busInfo ? busInfo.currentPassengers : '?';
-              return (
-                <button
-                  key={id}
-                  className={`devtools-bus-tab ${currentBus?.id === id ? 'active' : ''}`}
-                  onClick={() => handleSelect(id)}
-                >
-                  <span>Línea {lineLabel}</span>
-                  <small style={{ fontSize: '10px', opacity: 0.85 }}>({passCount}/35)</small>
-                </button>
-              );
-            })}
+            {buses.slice(0, 4).map((bus) => (
+              <button
+                key={bus.id}
+                className={'devtools-bus-tab' + (currentBus?.id === bus.id ? ' active' : '')}
+                onClick={() => handleSelectBus(bus.id)}
+                id={'sim-bus-tab-' + bus.id}
+              >
+                <span style={{ fontSize: '11px', fontWeight: 700 }}>
+                  {(bus.routeName?.split('\u2014')[0]?.trim()) ?? bus.id}
+                </span>
+                <small style={{ fontSize: '10px', opacity: 0.8 }}>
+                  {bus.currentPassengers}/{bus.capacity}
+                </small>
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Indicador de Aforo con cotas rígidas 0-35 */}
+        {/* Tarjeta de aforo */}
         <div className="devtools-aforo-card">
           <div className="devtools-aforo-row">
             <div>
               <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block' }}>
-                Micro {currentBus?.id} ({currentBus?.line})
+                {currentBus?.routeName ?? currentBus?.id ?? '-'}
               </span>
               <span className="devtools-aforo-value">
-                {passengers} <span style={{ fontSize: '14px', color: '#94a3b8', fontWeight: 500 }}>/ {capacity}</span>
+                {passengers}
+                <span style={{ fontSize: '14px', color: '#94a3b8', fontWeight: 500 }}>
+                  {' '}/ {capacity}
+                </span>
               </span>
             </div>
-            <span className={`devtools-aforo-badge ${badgeClass}`}>
-              {badgeLabel} ({occupancy}%)
+            <span
+              className="devtools-aforo-badge"
+              style={{ background: occupancyColor + '22', color: occupancyColor, border: '1px solid ' + occupancyColor + '55' }}
+            >
+              {occupancyLabel} ({occupancy}%)
             </span>
           </div>
 
           <div className="devtools-progress-bg">
-            <div 
-              className={`devtools-progress-bar ${barClass}`}
-              style={{ width: `${Math.min(100, Math.max(0, occupancy))}%` }}
+            <div
+              className="devtools-progress-bar"
+              style={{
+                width: Math.min(100, Math.max(0, occupancy)) + '%',
+                background: 'linear-gradient(90deg, ' + occupancyColor + 'bb, ' + occupancyColor + ')',
+                transition: 'width 0.35s cubic-bezier(0.4,0,0.2,1)',
+              }}
             />
           </div>
 
@@ -190,81 +278,42 @@ export const SimulationDevTools: React.FC<SimulationDevToolsProps> = ({
             </div>
             <div className="count-item">
               <span className="count-title">Escolares</span>
-              <span className="count-val">{currentBus?.schoolBoardings ?? 0}</span>
+              <span className="count-val">{currentBus?.studentBoardings ?? 0}</span>
             </div>
             <div className="count-item">
-              <span className="count-title">Bajadas Cam</span>
+              <span className="count-title">Bajadas</span>
               <span className="count-val">{currentBus?.alightings ?? 0}</span>
             </div>
           </div>
         </div>
 
-        {/* Inyectores de eventos manuales */}
+        {/* Inyectores */}
         <div>
           <div className="devtools-section-title">Inyectores Manuales de Eventos</div>
           <div className="devtools-actions-grid">
-            <button
-              className="devtools-action-btn btn-normal"
-              onClick={() => handleInjectEvent('tap_in_normal')}
-              disabled={passengers >= capacity}
-              title="Simula un pasajero pagando tarifa normal en el validador"
-            >
-              <FaCreditCard />
-              <span>Bip Normal (+1)</span>
+            <button className="devtools-action-btn btn-normal" onClick={() => handleInjectEvent('tap_in_normal')} disabled={passengers >= capacity || isSending} id="sim-btn-tap-normal">
+              <FaCreditCard /><span>Bip Normal (+1)</span>
             </button>
-
-            <button
-              className="devtools-action-btn btn-student"
-              onClick={() => handleInjectEvent('tap_in_student')}
-              disabled={passengers >= capacity}
-              title="Simula un estudiante con TNE"
-            >
-              <FaUserGraduate />
-              <span>Pase Escolar (+1)</span>
+            <button className="devtools-action-btn btn-student" onClick={() => handleInjectEvent('tap_in_student')} disabled={passengers >= capacity || isSending} id="sim-btn-tap-student">
+              <FaUserGraduate /><span>Pase Escolar (+1)</span>
             </button>
-
-            <button
-              className="devtools-action-btn btn-alight"
-              onClick={() => handleInjectEvent('sensor_alight')}
-              disabled={passengers <= 0}
-              title="Simula la detección de cámara en la puerta de salida"
-            >
-              <FaSignOutAlt />
-              <span>Cámara Bajada (-1)</span>
+            <button className="devtools-action-btn btn-alight" onClick={() => handleInjectEvent('sensor_alight')} disabled={passengers <= 0 || isSending} id="sim-btn-alight">
+              <FaSignOutAlt /><span>Camara Bajada (-1)</span>
             </button>
-
-            <button
-              className="devtools-action-btn btn-fill"
-              onClick={() => handleInjectEvent('fill_capacity')}
-              title="Forzar bus al límite de 35 pasajeros"
-            >
-              <FaBolt />
-              <span>Llenar a 35</span>
+            <button className="devtools-action-btn btn-fill" onClick={() => handleInjectEvent('fill_capacity')} disabled={isSending} id="sim-btn-fill">
+              <FaBolt /><span>Llenar a {capacity}</span>
             </button>
-
-            <button
-              className="devtools-action-btn btn-empty"
-              onClick={() => handleInjectEvent('empty_capacity')}
-              title="Vaciar todos los pasajeros"
-            >
-              <FaTrash />
-              <span>Vaciar Bus (0 pasajeros)</span>
+            <button className="devtools-action-btn btn-empty" onClick={() => handleInjectEvent('empty_capacity')} disabled={isSending} id="sim-btn-empty">
+              <FaTrash /><span>Vaciar Bus (0)</span>
             </button>
           </div>
         </div>
 
-        {/* Registro en vivo del evento */}
+        {/* Log */}
         <div>
-          <div className="devtools-section-title">Último Evento Recibido</div>
-          <div className="devtools-log-box">
-            {currentBus?.lastEvent ? (
-              <>
-                <span style={{ color: '#94a3b8' }}>[{currentBus.lastEvent.timestamp}] </span>
-                {currentBus.lastEvent.description}
-              </>
-            ) : (
-              localLog
-            )}
+          <div className="devtools-section-title">Ultimo Evento</div>
+          <div className="devtools-log-box" style={{ color: log.includes('Error') || log.includes('error') ? '#f87171' : log.includes('Local') ? '#fbbf24' : '#38bdf8' }}>
+            {isSending ? <span style={{ opacity: 0.6 }}>Enviando...</span> : log}
           </div>
         </div>
       </div>
