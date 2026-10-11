@@ -63,6 +63,39 @@ func (h *RouteHandler) GetStops(c *gin.Context) {
 	c.JSON(http.StatusOK, stops)
 }
 
+// CreateStop godoc
+// POST /api/v1/routes/:id/stops — admin
+func (h *RouteHandler) CreateStop(c *gin.Context) {
+	routeID := c.Param("id")
+	route, err := h.routeRepo.FindByID(c.Request.Context(), routeID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener ruta"})
+		return
+	}
+	if route == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Ruta no encontrada"})
+		return
+	}
+
+	var body struct {
+		Name      string  `json:"name" binding:"required"`
+		Latitude  float64 `json:"latitude" binding:"required"`
+		Longitude float64 `json:"longitude" binding:"required"`
+		Order     int     `json:"order"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	stop, err := h.routeRepo.CreateStop(c.Request.Context(), routeID, body.Name, body.Latitude, body.Longitude, body.Order)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al conectar paradero con ruta"})
+		return
+	}
+	c.JSON(http.StatusCreated, stop)
+}
+
 // GetBuses godoc
 // GET /api/v1/routes/:id/buses — retorna buses activos en la ruta
 func (h *RouteHandler) GetBuses(c *gin.Context) {

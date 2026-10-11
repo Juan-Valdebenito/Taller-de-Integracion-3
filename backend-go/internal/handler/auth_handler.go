@@ -10,11 +10,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
-	"golang.org/x/crypto/bcrypt"
 
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/middleware"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/repository"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/security"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/token"
 )
 
@@ -25,6 +25,28 @@ type AuthHandler struct {
 	revStore       token.RevocationStore
 	accessExpires  time.Duration
 	refreshExpires time.Duration
+}
+
+func parseTokenDuration(value string) (time.Duration, error) {
+	value = strings.TrimSpace(strings.ToLower(value))
+	if strings.HasSuffix(value, "d") {
+		days, err := time.ParseDuration(strings.TrimSuffix(value, "d") + "h")
+		if err != nil || days <= 0 {
+			if err == nil {
+				err = fmt.Errorf("token duration must be positive")
+			}
+			return 0, err
+		}
+		return days * 24, nil
+	}
+	duration, err := time.ParseDuration(value)
+	if err != nil || duration <= 0 {
+		if err == nil {
+			err = fmt.Errorf("token duration must be positive")
+		}
+		return 0, err
+	}
+	return duration, nil
 }
 
 func NewAuthHandler(
@@ -125,10 +147,10 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// Hash de contraseña
-	hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
+	// Hash de contraseña con bcrypt (cost 12)
+	hash, err := security.HashPassword(body.Password)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al procesar contraseña"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -156,6 +178,10 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
+	resp["data"] = gin.H{
+		"token": resp["token"],
+		"user":  resp["user"],
+	}
 	c.JSON(http.StatusCreated, resp)
 }
 
@@ -179,11 +205,14 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	// Verificar que la cuenta esté activa
 	if !user.IsActive {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Cuenta desactivada. Contacta al administrador"})
+		c.JSON(http.StatusForbidden, gin.H{
+			"error":   "Usuario inactivo",
+			"message": "Usuario inactivo. Contacta al administrador",
+		})
 		return
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(body.Password)); err != nil {
+	if !security.ComparePassword(body.Password, user.PasswordHash) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Credenciales inválidas"})
 		return
 	}
@@ -194,6 +223,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	resp["data"] = gin.H{
+		"token": resp["token"],
+		"user":  resp["user"],
+	}
 	c.JSON(http.StatusOK, resp)
 }
 

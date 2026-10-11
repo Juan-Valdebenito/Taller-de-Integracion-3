@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog/log"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -67,10 +68,9 @@ func Run(ctx context.Context, pool *pgxpool.Pool) error {
 		return fmt.Errorf("seed bus: %w", err)
 	}
 
-	fmt.Println("🌱  Datos de prueba listos:")
-	fmt.Printf("    Admin:     %s / %s\n", AdminEmail, AdminPassword)
-	fmt.Printf("    Empresa:   %s / %s\n", CompanyUserEmail, CompanyUserPassword)
-	fmt.Printf("    Pasajero:  %s / %s\n", PassengerEmail, PassengerPassword)
+	log.Info().Str("event", "seed_completed").
+		Strs("roles", []string{"ADMIN", "COMPANY", "PASSENGER"}).
+		Msg("Seed data ready")
 
 	return nil
 }

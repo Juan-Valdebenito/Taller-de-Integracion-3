@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { routesApi, type ApiRoute, type Company, type RouteBus, type RouteStop } from '../../../infrastructure/api/routesApi';
 import { StopDetailPanel, type Stop } from '../../components/admin/StopDetailPanel'; 
 
-// ── Tipos ─────────────────────────────────────────────────────
+// -- Tipos -----------------------------------------------------
 interface Route extends ApiRoute {
   stops: RouteStop[];
   busesAssigned: number;
@@ -24,7 +24,7 @@ interface RouteModalProps {
   saving: boolean;
 }
 
-// ── Helpers ───────────────────────────────────────────────────
+// -- Helpers ---------------------------------------------------
 function Badge({ label, color }: { label: string; color: string }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 10px', borderRadius: '9999px', fontSize: '11px', fontWeight: 600, background: `${color}18`, color, border: `1px solid ${color}33` }}>
@@ -61,13 +61,13 @@ function RouteModal({ companies, onClose, onSave, initial, saving }: RouteModalP
     >
       <div style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-xl)', padding: 'var(--space-8)', width: '480px', maxWidth: '90vw', boxShadow: 'var(--shadow-lg)' }}>
         <h2 style={{ fontSize: 'var(--font-size-xl)', fontWeight: 800, marginBottom: 'var(--space-6)' }}>
-          {isEdit ? '✏️ Editar Ruta' : '➕ Nueva Ruta'}
+          {isEdit ? '?? Editar Ruta' : '? Nueva Ruta'}
         </h2>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 'var(--space-3)' }}>
             <div>
-              <label style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 'var(--space-1)' }}>Código</label>
+              <label style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 'var(--space-1)' }}>C�digo</label>
               <input
                 type="text"
                 placeholder="101"
@@ -80,7 +80,7 @@ function RouteModal({ companies, onClose, onSave, initial, saving }: RouteModalP
               <label style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 'var(--space-1)' }}>Nombre</label>
               <input
                 type="text"
-                placeholder="Centro – Las Condes"
+                placeholder="Centro � Las Condes"
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 style={{ width: '100%', padding: 'var(--space-3)', background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text-primary)', fontSize: 'var(--font-size-sm)' }}
@@ -108,12 +108,12 @@ function RouteModal({ companies, onClose, onSave, initial, saving }: RouteModalP
           </div>
 
           <div>
-            <label style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 'var(--space-1)' }}>Descripción</label>
+            <label style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 'var(--space-1)' }}>Descripci�n</label>
             <textarea
               value={form.description}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
               rows={3}
-              placeholder="Descripción del recorrido..."
+              placeholder="Descripci�n del recorrido..."
               style={{ width: '100%', padding: 'var(--space-3)', background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text-primary)', fontSize: 'var(--font-size-sm)', resize: 'vertical' }}
             />
           </div>
@@ -147,9 +147,9 @@ function DeleteConfirm({ route, onClose, onConfirm, deleting }: { route: Route; 
       onClick={(e) => { if (e.target === e.currentTarget && !deleting) onClose(); }}
     >
       <div style={{ background: 'var(--color-surface-1)', border: '1px solid hsla(0,84%,60%,0.3)', borderRadius: 'var(--radius-xl)', padding: 'var(--space-8)', width: '380px', maxWidth: '90vw', boxShadow: 'var(--shadow-lg)' }}>
-        <h2 style={{ fontSize: 'var(--font-size-lg)', fontWeight: 800, marginBottom: 'var(--space-3)', color: 'hsl(0,84%,60%)' }}>⚠️ Eliminar Ruta</h2>
+        <h2 style={{ fontSize: 'var(--font-size-lg)', fontWeight: 800, marginBottom: 'var(--space-3)', color: 'hsl(0,84%,60%)' }}>?? Eliminar Ruta</h2>
         <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)', marginBottom: 'var(--space-6)' }}>
-          ¿Estás seguro de que deseas eliminar la ruta <strong style={{ color: 'var(--color-text-primary)' }}>{route.code} – {route.name}</strong>? Esta acción no se puede deshacer.
+          �Est�s seguro de que deseas eliminar la ruta <strong style={{ color: 'var(--color-text-primary)' }}>{route.code} � {route.name}</strong>? Esta acci�n no se puede deshacer.
         </p>
         <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
           <button onClick={onClose} disabled={deleting} style={{ flex: 1, padding: 'var(--space-3)', background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)', cursor: 'pointer' }}>Cancelar</button>
@@ -207,7 +207,7 @@ export function AdminRoutesPage() {
       setCompanies(data);
     } catch (err) {
       console.error('Error cargando empresas:', err);
-      setCompanyError('El backend todavía no expone GET /api/v1/companies.');
+      setCompanyError('El backend todav�a no expone GET /api/v1/companies.');
     }
   };
 
@@ -326,7 +326,7 @@ export function AdminRoutesPage() {
         <div>
           <h1 style={{ fontSize: 'var(--font-size-3xl)', fontWeight: 800, letterSpacing: '-0.02em' }}>Rutas del Sistema</h1>
           <p style={{ color: 'var(--color-text-secondary)', marginTop: 'var(--space-1)', fontSize: 'var(--font-size-sm)' }}>
-            {activeRoutes} rutas activas · {loadedStops > 0 ? `${loadedStops} paraderos cargados` : 'paraderos bajo demanda'}
+            {activeRoutes} rutas activas � {loadedStops > 0 ? `${loadedStops} paraderos cargados` : 'paraderos bajo demanda'}
           </p>
         </div>
         <button
@@ -336,7 +336,7 @@ export function AdminRoutesPage() {
           title={companies.length === 0 ? 'Necesitas el endpoint GET /api/v1/companies' : 'Crear nueva ruta'}
           style={{ padding: 'var(--space-3) var(--space-5)', background: 'linear-gradient(135deg, var(--color-primary-500), hsl(199,89%,48%))', border: 'none', borderRadius: 'var(--radius-md)', color: 'white', fontWeight: 700, fontSize: 'var(--font-size-sm)', cursor: companies.length === 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 'var(--space-2)', boxShadow: '0 4px 12px hsla(215,80%,46%,0.3)', opacity: companies.length === 0 ? 0.5 : 1 }}
         >
-          <span>➕</span> Nueva ruta
+          <span>?</span> Nueva ruta
         </button>
       </div>
 
@@ -354,11 +354,11 @@ export function AdminRoutesPage() {
 
       <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ position: 'relative', flex: 1, minWidth: '200px' }}>
-          <span style={{ position: 'absolute', left: 'var(--space-3)', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', pointerEvents: 'none' }}>🔍</span>
+          <span style={{ position: 'absolute', left: 'var(--space-3)', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', pointerEvents: 'none' }}>??</span>
           <input
             id="route-search-input"
             type="text"
-            placeholder="Buscar por código o nombre..."
+            placeholder="Buscar por c�digo o nombre..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{ width: '100%', padding: 'var(--space-3) var(--space-3) var(--space-3) var(--space-10)', background: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text-primary)', fontSize: 'var(--font-size-sm)' }}
@@ -381,7 +381,7 @@ export function AdminRoutesPage() {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-sm)' }}>
           <thead style={{ background: 'var(--color-surface-2)' }}>
             <tr>
-              {['', 'Código', 'Nombre de ruta', 'Empresa', 'Paraderos', 'Micros', 'Estado', 'Acciones'].map((h) => (
+              {['', 'C�digo', 'Nombre de ruta', 'Empresa', 'Paraderos', 'Micros', 'Estado', 'Acciones'].map((h) => (
                 <th key={h} style={{ textAlign: 'left', padding: 'var(--space-3) var(--space-4)', fontSize: '11px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)' }}>{h}</th>
               ))}
             </tr>
@@ -400,12 +400,12 @@ export function AdminRoutesPage() {
                   <>
                   <tr key={route.id} style={{ borderBottom: expandedId === route.id ? 'none' : '1px solid var(--color-border)' }}>
                     <td style={{ padding: 'var(--space-3) var(--space-3) var(--space-3) var(--space-4)', width: '32px' }}>
-                      <button onClick={() => toggleExpanded(route.id)} style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', fontSize: '12px', transition: 'transform var(--transition-fast)', transform: expandedId === route.id ? 'rotate(90deg)' : undefined }}>▶</button>
+                      <button onClick={() => toggleExpanded(route.id)} style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', fontSize: '12px', transition: 'transform var(--transition-fast)', transform: expandedId === route.id ? 'rotate(90deg)' : undefined }}>?</button>
                     </td>
                     <td style={{ padding: 'var(--space-3) var(--space-4)', fontWeight: 800, fontSize: 'var(--font-size-base)', color: 'var(--color-primary-300)', fontFamily: 'monospace' }}>{route.code}</td>
                     <td style={{ padding: 'var(--space-3) var(--space-4)' }}>
                       <p style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{route.name}</p>
-                      <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{route.description ?? 'Sin descripción'}</p>
+                      <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{route.description ?? 'Sin descripci�n'}</p>
                     </td>
                     <td style={{ padding: 'var(--space-3) var(--space-4)', color: 'var(--color-text-secondary)', fontSize: '12px' }}>{companyName}</td>
                     <td style={{ padding: 'var(--space-3) var(--space-4)', fontWeight: 700, color: 'var(--color-text-primary)' }}>
@@ -417,9 +417,9 @@ export function AdminRoutesPage() {
                     <td style={{ padding: 'var(--space-3) var(--space-4)' }}><Badge label={route.isActive ? 'Activa' : 'Inactiva'} color={route.isActive ? 'hsl(142,71%,45%)' : 'hsl(220,10%,50%)'} /></td>
                     <td style={{ padding: 'var(--space-3) var(--space-4)' }}>
                       <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-                        <button onClick={() => setModal(route)} style={{ padding: '4px 10px', background: 'var(--color-surface-3)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', color: 'var(--color-text-secondary)', fontSize: '11px', cursor: 'pointer' }}>✏️</button>
-                        <button onClick={() => void toggleActive(route)} style={{ padding: '4px 10px', background: route.isActive ? 'hsla(0,84%,60%,0.1)' : 'hsla(142,71%,45%,0.1)', border: `1px solid ${route.isActive ? 'hsla(0,84%,60%,0.3)' : 'hsla(142,71%,45%,0.3)'}`, borderRadius: 'var(--radius-sm)', color: route.isActive ? 'hsl(0,84%,60%)' : 'hsl(142,71%,45%)', fontSize: '11px', cursor: 'pointer' }}>{route.isActive ? '🚫' : '✅'}</button>
-                        <button onClick={() => setDeleteTarget(route)} style={{ padding: '4px 10px', background: 'hsla(0,84%,60%,0.08)', border: '1px solid hsla(0,84%,60%,0.2)', borderRadius: 'var(--radius-sm)', color: 'hsl(0,84%,60%)', fontSize: '11px', cursor: 'pointer' }}>🗑️</button>
+                        <button onClick={() => setModal(route)} style={{ padding: '4px 10px', background: 'var(--color-surface-3)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', color: 'var(--color-text-secondary)', fontSize: '11px', cursor: 'pointer' }}>??</button>
+                        <button onClick={() => void toggleActive(route)} style={{ padding: '4px 10px', background: route.isActive ? 'hsla(0,84%,60%,0.1)' : 'hsla(142,71%,45%,0.1)', border: `1px solid ${route.isActive ? 'hsla(0,84%,60%,0.3)' : 'hsla(142,71%,45%,0.3)'}`, borderRadius: 'var(--radius-sm)', color: route.isActive ? 'hsl(0,84%,60%)' : 'hsl(142,71%,45%)', fontSize: '11px', cursor: 'pointer' }}>{route.isActive ? '??' : '?'}</button>
+                        <button onClick={() => setDeleteTarget(route)} style={{ padding: '4px 10px', background: 'hsla(0,84%,60%,0.08)', border: '1px solid hsla(0,84%,60%,0.2)', borderRadius: 'var(--radius-sm)', color: 'hsl(0,84%,60%)', fontSize: '11px', cursor: 'pointer' }}>???</button>
                       </div>
                     </td>
                   </tr>

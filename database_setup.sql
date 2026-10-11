@@ -31,7 +31,7 @@ END $$;
 
 DO $$ BEGIN
   CREATE TYPE "ComplaintCategory" AS ENUM (
-    'DELAY', 'OVERCROWDING', 'DRIVER_BEHAVIOR',
+    'DELAY', 'OVERCROWDING', 'DRIVER_BEHAVIOR', 'FARES_PAYMENT',
     'VEHICLE_CONDITION', 'ACCESSIBILITY', 'OTHER'
   );
   EXCEPTION WHEN duplicate_object THEN NULL;
@@ -143,6 +143,22 @@ CREATE TABLE IF NOT EXISTS passenger_logs (
   "tripId"     TEXT        NOT NULL REFERENCES trips(id) ON DELETE CASCADE
 );
 
+-- ── Tabla: recaudo_transactions (Cobro Bipay / Escolar / Adulto Mayor) ──
+
+CREATE TABLE IF NOT EXISTS recaudo_transactions (
+  id          TEXT        PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+  "busId"     TEXT        NOT NULL REFERENCES buses(id) ON DELETE CASCADE,
+  "cardUid"   TEXT        NOT NULL,
+  "fareType"  TEXT        NOT NULL,
+  amount      INTEGER     NOT NULL,
+  status      TEXT        NOT NULL DEFAULT 'APPROVED',
+  "routeId"   TEXT        REFERENCES routes(id) ON DELETE SET NULL,
+  "tripId"    TEXT        REFERENCES trips(id) ON DELETE SET NULL,
+  latitude    FLOAT8,
+  longitude   FLOAT8,
+  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- ── Tabla: complaints ─────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS complaints (
@@ -151,6 +167,8 @@ CREATE TABLE IF NOT EXISTS complaints (
   description     TEXT                 NOT NULL,
   category        "ComplaintCategory"  NOT NULL DEFAULT 'OTHER',
   status          "ComplaintStatus"    NOT NULL DEFAULT 'PENDING',
+  rating          INT                  CHECK (rating >= 1 AND rating <= 5),
+  "lineName"      TEXT,
   "adminResponse" TEXT,
   "createdAt"     TIMESTAMPTZ          NOT NULL DEFAULT NOW(),
   "updatedAt"     TIMESTAMPTZ          NOT NULL DEFAULT NOW(),
@@ -190,10 +208,17 @@ CREATE INDEX IF NOT EXISTS idx_trips_departure ON trips("departureTime");
 CREATE INDEX IF NOT EXISTS idx_passlogs_trip   ON passenger_logs("tripId");
 CREATE INDEX IF NOT EXISTS idx_passlogs_time   ON passenger_logs("recordedAt");
 
+-- recaudo_transactions
+CREATE INDEX IF NOT EXISTS idx_recaudo_bus      ON recaudo_transactions("busId");
+CREATE INDEX IF NOT EXISTS idx_recaudo_faretype ON recaudo_transactions("fareType");
+CREATE INDEX IF NOT EXISTS idx_recaudo_created  ON recaudo_transactions("createdAt" DESC);
+
 -- complaints
 CREATE INDEX IF NOT EXISTS idx_complaints_passenger ON complaints("passengerId");
 CREATE INDEX IF NOT EXISTS idx_complaints_company   ON complaints("companyId");
 CREATE INDEX IF NOT EXISTS idx_complaints_status    ON complaints(status);
+CREATE INDEX IF NOT EXISTS idx_complaints_rating    ON complaints(rating);
+CREATE INDEX IF NOT EXISTS idx_complaints_linename  ON complaints("lineName");
 CREATE INDEX IF NOT EXISTS idx_complaints_created   ON complaints("createdAt" DESC);
 CREATE INDEX IF NOT EXISTS idx_complaints_trip      ON complaints("tripId");
 

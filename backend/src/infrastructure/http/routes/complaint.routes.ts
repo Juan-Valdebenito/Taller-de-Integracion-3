@@ -1,18 +1,26 @@
 import { Router, Request, Response } from 'express';
 import { ComplaintStore } from '../../database/complaintStore';
 import { ComplaintCategory, ComplaintStatus } from '@prisma/client';
+import {
+  validateComplaintInput,
+  handleValidationErrors,
+} from '../middlewares/userValidation.middleware';
 
 const router = Router();
 
-// GET /api/v1/complaints - Listar reclamos e incidentes (con filtros de estado, categoría y bus)
+
+// GET /api/v1/complaints - Listar reclamos e incidentes (con filtros de estado, categoría, bus, línea y rating)
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const { status, category, busId } = req.query;
+    const { status, category, busId, lineName, minRating, maxRating } = req.query;
 
     const filters: {
       status?: ComplaintStatus;
       category?: ComplaintCategory;
       busId?: string;
+      lineName?: string;
+      minRating?: number;
+      maxRating?: number;
     } = {};
 
     if (status && Object.values(ComplaintStatus).includes(status as ComplaintStatus)) {
@@ -27,6 +35,28 @@ router.get('/', async (req: Request, res: Response) => {
       filters.busId = busId;
     }
 
+    if (lineName && typeof lineName === 'string') {
+      filters.lineName = lineName;
+    }
+
+    if (minRating) {
+      const parsed = Number(minRating);
+      if (!isNaN(parsed)) filters.minRating = parsed;
+    }
+
+    if (maxRating) {
+      const parsed = Number(maxRating);
+      if (!isNaN(parsed)) filters.maxRating = parsed;
+    }
+
+    if (req.query.rating) {
+      const parsed = Number(req.query.rating);
+      if (!isNaN(parsed)) {
+        filters.minRating = parsed;
+        filters.maxRating = parsed;
+      }
+    }
+
     const complaints = await ComplaintStore.listAll(filters);
 
     res.json({
@@ -37,6 +67,52 @@ router.get('/', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('[COMPLAINTS GET ERROR]', error);
     res.status(500).json({ status: 'error', message: 'Error al listar reclamos' });
+  }
+});
+
+// GET /api/v1/complaints/stats - Métricas agregadas de reclamos
+router.get('/stats', async (req: Request, res: Response) => {
+  try {
+    const complaints = await ComplaintStore.listAll();
+    const totalComplaints = complaints.length;
+    const rated = complaints.filter((c) => c.rating);
+    const averageRating = rated.length > 0 
+      ? Number((rated.reduce((acc, c) => acc + (c.rating || 0), 0) / rated.length).toFixed(2)) 
+      : 0;
+    const resolvedCount = complaints.filter((c) => c.status === 'RESOLVED').length;
+    const resolvedPercentage = totalComplaints > 0
+      ? Number(((resolvedCount / totalComplaints) * 100).toFixed(2))
+      : 0;
+    const pendingCount = complaints.filter((c) => c.status === 'PENDING').length;
+    const inReviewCount = complaints.filter((c) => c.status === 'IN_REVIEW').length;
+    const rejectedCount = complaints.filter((c) => c.status === 'REJECTED').length;
+
+    const byCategory: Record<string, number> = {};
+    const byLine: Record<string, number> = {};
+    const byStatus: Record<string, number> = {};
+
+    complaints.forEach((c) => {
+      byCategory[c.category] = (byCategory[c.category] || 0) + 1;
+      const line = c.lineName || '7A';
+      byLine[line] = (byLine[line] || 0) + 1;
+      byStatus[c.status] = (byStatus[c.status] || 0) + 1;
+    });
+
+    res.json({
+      totalComplaints,
+      averageRating,
+      csat: averageRating,
+      resolvedPercentage,
+      pendingCount,
+      inReviewCount,
+      resolvedCount,
+      rejectedCount,
+      byCategory,
+      byLine,
+      byStatus,
+    });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: 'Error al obtener estadísticas' });
   }
 });
 
@@ -58,7 +134,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/v1/complaints - Crear nuevo reclamo (pasajero o reporte contextual)
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', ...validateComplaintInput, handleValidationErrors, async (req: Request, res: Response) => {
   try {
     const { busId, lineName, title, description, category, rating, passengerId } = req.body;
 

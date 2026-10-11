@@ -15,9 +15,10 @@ const (
 type BusStatus string
 
 const (
-	BusStatusActive      BusStatus = "ACTIVE"
-	BusStatusInactive    BusStatus = "INACTIVE"
-	BusStatusMaintenance BusStatus = "MAINTENANCE"
+	BusStatusActive       BusStatus = "ACTIVE"
+	BusStatusInactive     BusStatus = "INACTIVE"
+	BusStatusMaintenance  BusStatus = "MAINTENANCE"
+	BusStatusOutOfService BusStatus = "OUT_OF_SERVICE"
 )
 
 type ComplaintStatus string
@@ -35,16 +36,25 @@ const (
 	ComplaintCategoryDelay            ComplaintCategory = "DELAY"
 	ComplaintCategoryOvercrowding     ComplaintCategory = "OVERCROWDING"
 	ComplaintCategoryDriverBehavior   ComplaintCategory = "DRIVER_BEHAVIOR"
+	ComplaintCategoryFaresPayment     ComplaintCategory = "FARES_PAYMENT"
 	ComplaintCategoryVehicleCondition ComplaintCategory = "VEHICLE_CONDITION"
 	ComplaintCategoryAccessibility    ComplaintCategory = "ACCESSIBILITY"
 	ComplaintCategoryOther            ComplaintCategory = "OTHER"
+)
+
+type FareType string
+
+const (
+	FareTypeBipayNormal      FareType = "BIPAY_NORMAL"       // Tarifa general ($700 CLP)
+	FareTypeBipayEscolar     FareType = "BIPAY_ESCOLAR"      // Pase escolar TNE ($240 CLP)
+	FareTypeBipayAdultoMayor FareType = "BIPAY_ADULTO_MAYOR" // Adulto mayor ($350 CLP)
 )
 
 // IsValid indica si la categoría corresponde a un valor del enum "ComplaintCategory".
 func (c ComplaintCategory) IsValid() bool {
 	switch c {
 	case ComplaintCategoryDelay, ComplaintCategoryOvercrowding, ComplaintCategoryDriverBehavior,
-		ComplaintCategoryVehicleCondition, ComplaintCategoryAccessibility, ComplaintCategoryOther:
+		ComplaintCategoryFaresPayment, ComplaintCategoryVehicleCondition, ComplaintCategoryAccessibility, ComplaintCategoryOther:
 		return true
 	}
 	return false
@@ -113,16 +123,50 @@ type Complaint struct {
 	ID            string            `json:"id" db:"id"`
 	Title         string            `json:"title" db:"title"`
 	Description   string            `json:"description" db:"description"`
+	Comment       string            `json:"comment,omitempty"`
 	Category      ComplaintCategory `json:"category" db:"category"`
 	Status        ComplaintStatus   `json:"status" db:"status"`
+	Rating        *int              `json:"rating" db:"rating"`
+	LineName      *string           `json:"lineName" db:"lineName"`
 	AdminResponse *string           `json:"adminResponse" db:"adminResponse"`
-	PassengerID   string            `json:"passengerId" db:"passengerId"`
+	PassengerID   *string           `json:"passengerId" db:"passengerId"`
+	UserID        *string           `json:"userId,omitempty"`
 	BusID         *string           `json:"busId" db:"busId"`
 	RouteID       *string           `json:"routeId" db:"routeId"`
-	CompanyID     string            `json:"companyId" db:"companyId"`
+	CompanyID     *string           `json:"companyId" db:"companyId"`
 	TripID        *string           `json:"tripId" db:"tripId"`
 	CreatedAt     time.Time         `json:"createdAt" db:"createdAt"`
 	UpdatedAt     time.Time         `json:"updatedAt" db:"updatedAt"`
+}
+
+// ComplaintStats representa el resumen analítico de reclamos para el dashboard administrativo.
+type ComplaintStats struct {
+	TotalComplaints    int            `json:"totalComplaints"`
+	AverageRating      float64        `json:"averageRating"`
+	CSAT               float64        `json:"csat"`
+	ResolvedPercentage float64        `json:"resolvedPercentage"`
+	PendingCount       int            `json:"pendingCount"`
+	InReviewCount      int            `json:"inReviewCount"`
+	ResolvedCount      int            `json:"resolvedCount"`
+	RejectedCount      int            `json:"rejectedCount"`
+	ByCategory         map[string]int `json:"byCategory"`
+	ByLine             map[string]int `json:"byLine"`
+	ByStatus           map[string]int `json:"byStatus"`
+}
+
+// RecaudoTransaction registra una validación y cobro de tarifa en microbuses (Bipay / Escolar / Adulto Mayor).
+type RecaudoTransaction struct {
+	ID        string    `json:"id" db:"id"`
+	BusID     string    `json:"busId" db:"busId"`
+	CardUID   string    `json:"cardUid" db:"cardUid"`
+	FareType  FareType  `json:"fareType" db:"fareType"`
+	Amount    int       `json:"amount" db:"amount"` // CLP
+	Status    string    `json:"status" db:"status"` // APPROVED | REJECTED_AFORO_FULL
+	RouteID   *string   `json:"routeId,omitempty" db:"routeId"`
+	TripID    *string   `json:"tripId,omitempty" db:"tripId"`
+	Latitude  *float64  `json:"latitude,omitempty" db:"latitude"`
+	Longitude *float64  `json:"longitude,omitempty" db:"longitude"`
+	CreatedAt time.Time `json:"createdAt" db:"createdAt"`
 }
 
 // ── Claims JWT ──────────────────────────────────────────────────────────────

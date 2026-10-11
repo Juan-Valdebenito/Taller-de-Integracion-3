@@ -1,15 +1,81 @@
 import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { ComplaintModal } from '../../components/passenger/ComplaintModal';
 import { LiveMap, BusData, HazardData } from '../../components/passenger/LiveMap';
 import { HazardModal } from '../../components/passenger/HazardModal';
-import { SimulationDevTools } from '../../components/passenger/SimulationDevTools';
+import { DevToolsSimulationPanel } from '../../components/passenger/DevToolsSimulationPanel';
 import { RealtimeStatusBadge, RealtimeStatus } from '../../components/map/RealtimeStatusBadge';
 import { io, Socket } from 'socket.io-client';
+
+// Micros iniciales en Temuco para garantizar visualización inmediata
+const INITIAL_BUSES: BusData[] = [
+  {
+    id: 'B-7A-01',
+    line: '7A',
+    lat: -38.7359 + 0.004,
+    lng: -72.5904 + 0.005,
+    status: 'En ruta',
+    capacity: 35,
+    currentPassengers: 14,
+    boardings: 18,
+    schoolBoardings: 6,
+    alightings: 4,
+    occupancyPercentage: 40,
+    isFull: false,
+    lastEvent: {
+      type: 'tap_in_normal',
+      description: 'Pasajero ingresó (Pago estándar $700 CLP)',
+      timestamp: new Date().toLocaleTimeString(),
+    },
+  },
+  {
+    id: 'B-7A-02',
+    line: '7A',
+    lat: -38.7359 - 0.004,
+    lng: -72.5904 + 0.003,
+    status: 'En ruta',
+    capacity: 35,
+    currentPassengers: 28,
+    boardings: 32,
+    schoolBoardings: 10,
+    alightings: 4,
+    occupancyPercentage: 80,
+    isFull: false,
+  },
+  {
+    id: 'B-7B-01',
+    line: '7B',
+    lat: -38.7359 + 0.002,
+    lng: -72.5904 - 0.006,
+    status: 'En ruta',
+    capacity: 35,
+    currentPassengers: 35,
+    boardings: 40,
+    schoolBoardings: 8,
+    alightings: 5,
+    occupancyPercentage: 100,
+    isFull: true,
+  },
+  {
+    id: 'B-1C-01',
+    line: '1C',
+    lat: -38.7359 - 0.006,
+    lng: -72.5904 - 0.003,
+    status: 'En ruta',
+    capacity: 35,
+    currentPassengers: 8,
+    boardings: 12,
+    schoolBoardings: 3,
+    alightings: 4,
+    occupancyPercentage: 23,
+    isFull: false,
+  },
+];
 
 export function PassengerMapPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedBus, setSelectedBus] = useState({ busId: 'B-7A-01', lineName: '7A' });
-  const [buses, setBuses] = useState<BusData[]>([]);
+  const [buses, setBuses] = useState<BusData[]>(INITIAL_BUSES);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [hazards, setHazards] = useState<HazardData[]>([]);
   const [isHazardModalOpen, setIsHazardModalOpen] = useState(false);
@@ -20,29 +86,67 @@ export function PassengerMapPage() {
   const [lastUpdateAt, setLastUpdateAt] = useState<number | null>(null);
 
   useEffect(() => {
-    // Conectar a Socket.io en el MISMO origen de la pÃ¡gina: en el cluster el
-    // Ingress enruta /socket.io al servidor realtime y, si la pÃ¡gina se cargÃ³
-    // por https://, el cliente usa wss:// automÃ¡ticamente. En desarrollo lo
-    // reenvÃ­a el proxy de Vite (vite.config.ts). Al conectar, el servidor
-    // emite el estado de todos los buses, asÃ­ que no hace falta carga REST.
+    // Carga inicial vía REST
+    axios.get('/api/v1/buses')
+      .then((res) => {
+        const rawList = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+        if (Array.isArray(rawList) && rawList.length > 0) {
+          const mapped: BusData[] = rawList.map((raw: any, index: number) => {
+            const def = INITIAL_BUSES[index % INITIAL_BUSES.length];
+            let line = raw.line || raw.routeCode;
+            if (!line && raw.routeId) {
+              line = raw.routeId.replace('route-', '').toUpperCase();
+            }
+            line = line || def.line;
+
+            const lat = (typeof raw.lat === 'number' && !isNaN(raw.lat)) 
+              ? raw.lat 
+              : (raw.lastLatitude || def.lat);
+            const lng = (typeof raw.lng === 'number' && !isNaN(raw.lng)) 
+              ? raw.lng 
+              : (raw.lastLongitude || def.lng);
+            const capacity = raw.capacity || 35;
+            const currentPassengers = raw.currentPassengers ?? def.currentPassengers;
+            const occupancyPercentage = Math.round((currentPassengers / capacity) * 100);
+
+            return {
+              id: raw.id || def.id,
+              line,
+              lat,
+              lng,
+              status: raw.status || 'En ruta',
+              capacity,
+              currentPassengers,
+              occupancyPercentage,
+              boardings: raw.boardings ?? def.boardings,
+              schoolBoardings: raw.schoolBoardings ?? def.schoolBoardings,
+              alightings: raw.alightings ?? def.alightings,
+              isFull: currentPassengers >= capacity,
+              lastEvent: raw.lastEvent || def.lastEvent,
+            };
+          });
+          setBuses(mapped);
+        }
+      })
+      .catch((err) => console.warn('Carga inicial REST:', err.message));
+
+    // Conectar a Socket.io
     const socketInstance = io({
       transports: ['websocket', 'polling'],
-      // Si el Ingress no deja pasar el Upgrade a WebSocket, caer a polling HTTP
-      // en vez de reintentar WebSocket indefinidamente con el mapa vacÃ­o.
       tryAllTransports: true,
+      reconnectionAttempts: 5,
+      timeout: 3000,
     });
     setSocket(socketInstance);
 
-    // â”€â”€ Estado de la conexiÃ³n (para RealtimeStatusBadge) â”€â”€â”€â”€â”€â”€â”€
     socketInstance.on('connect', () => {
       setRealtimeStatus('connected');
       setReconnectAttempt(0);
       const engine = socketInstance.io.engine;
       setTransport(engine.transport.name);
-      engine.on('upgrade', (t) => setTransport(t.name));
+      engine.on('upgrade', (t: any) => setTransport(t.name));
     });
     socketInstance.on('disconnect', (reason) => {
-      // Solo un cierre pedido por el cliente es definitivo; el resto reconecta solo
       setRealtimeStatus(reason === 'io client disconnect' ? 'offline' : 'reconnecting');
     });
     socketInstance.on('connect_error', () => {
@@ -70,14 +174,83 @@ export function PassengerMapPage() {
       });
     };
 
-    // Escuchar actualizaciones de ubicaciÃ³n y estado de aforo en tiempo real
     socketInstance.on('bus:location:broadcast', updateBusState);
     socketInstance.on('bus:status:broadcast', updateBusState);
 
+    // Simulación de movimiento local suave si el backend no emite WebSockets
+    const movementInterval = setInterval(() => {
+      if (socketInstance.connected) return;
+      setBuses((prev) =>
+        prev.map((bus, idx) => {
+          const angle = (Date.now() / 4000) + (idx * (Math.PI / 2));
+          const deltaLat = Math.sin(angle) * 0.00015;
+          const deltaLng = Math.cos(angle) * 0.00015;
+          return {
+            ...bus,
+            lat: bus.lat + deltaLat,
+            lng: bus.lng + deltaLng,
+          };
+        })
+      );
+    }, 2000);
+
     return () => {
+      clearInterval(movementInterval);
       socketInstance.disconnect();
     };
   }, []);
+
+  // Manejador reactivo para los botones de DevTools (subir/bajar pasajero, aforo)
+  const handleLocalSimulationEvent = (busId: string, eventType: string) => {
+    setBuses((prev) =>
+      prev.map((b) => {
+        if (b.id !== busId) return b;
+        let pass = b.currentPassengers ?? 0;
+        let boardings = b.boardings ?? 0;
+        let school = b.schoolBoardings ?? 0;
+        let alight = b.alightings ?? 0;
+        let desc = '';
+
+        if (eventType === 'tap_in_normal') {
+          pass = Math.min(b.capacity || 35, pass + 1);
+          boardings += 1;
+          desc = 'Pasajero ingresó (Tarjeta Normal +$700)';
+        } else if (eventType === 'tap_in_student') {
+          pass = Math.min(b.capacity || 35, pass + 1);
+          boardings += 1;
+          school += 1;
+          desc = 'Estudiante ingresó (TNE +$240)';
+        } else if (eventType === 'sensor_alight') {
+          pass = Math.max(0, pass - 1);
+          alight += 1;
+          desc = 'Pasajero descendió por puerta trasera (-1)';
+        } else if (eventType === 'fill_max' || eventType === 'fill_capacity') {
+          pass = b.capacity || 35;
+          desc = 'Micro completó su capacidad máxima (35)';
+        } else if (eventType === 'reset_empty' || eventType === 'empty_capacity') {
+          pass = 0;
+          desc = 'Microbús vaciado (0 pasajeros)';
+        }
+
+        const cap = b.capacity || 35;
+        const occ = Math.round((pass / cap) * 100);
+        return {
+          ...b,
+          currentPassengers: pass,
+          boardings,
+          schoolBoardings: school,
+          alightings: alight,
+          occupancyPercentage: occ,
+          isFull: pass >= cap,
+          lastEvent: {
+            type: eventType,
+            description: desc,
+            timestamp: new Date().toLocaleTimeString(),
+          },
+        };
+      })
+    );
+  };
 
   const handleBusClick = (busId: string, lineName: string) => {
     setSelectedBus({ busId, lineName });
@@ -104,8 +277,6 @@ export function PassengerMapPage() {
     setPendingLocation(null);
   };
 
-  // Registra un voto "Ãštil" (solo una vez por usuario vÃ­a localStorage).
-  // Devuelve true si el voto fue contado.
   const handleHazardUseful = (id: string): boolean => {
     const votedIds = JSON.parse(localStorage.getItem('hazard:voted') ?? '[]') as string[];
     if (votedIds.includes(id)) return false;
@@ -129,7 +300,7 @@ export function PassengerMapPage() {
       padding: 'var(--space-4)',
       boxSizing: 'border-box'
     }}>
-      {/* Mapa Interactivo con Aforo DinÃ¡mico */}
+      {/* Mapa Interactivo con Aforo Dinámico */}
       <LiveMap 
         buses={buses} 
         hazards={hazards}
@@ -140,7 +311,7 @@ export function PassengerMapPage() {
         selectedBusId={selectedBus.busId}
       />
 
-      {/* Estado de la conexiÃ³n en tiempo real (WebSocket / polling / reconectando) */}
+      {/* Estado de la conexión en tiempo real */}
       <RealtimeStatusBadge
         status={realtimeStatus}
         transport={transport}
@@ -148,8 +319,8 @@ export function PassengerMapPage() {
         lastUpdateAt={lastUpdateAt}
       />
 
-      {/* Panel Flotante DevTools para SimulaciÃ³n de Sensores y Pagos (LÃ­neas 7A, 7B, 1C) */}
-      <SimulationDevTools
+      {/* Panel Flotante DevTools para Simulación de Sensores y Pagos (Líneas 7A, 7B, 1C) */}
+      <DevToolsSimulationPanel
         socket={socket}
         buses={buses as any}
         selectedBusId={selectedBus.busId}
@@ -159,6 +330,7 @@ export function PassengerMapPage() {
             setSelectedBus({ busId: found.id, lineName: found.line });
           }
         }}
+        onLocalEvent={handleLocalSimulationEvent as any}
       />
 
       {/* Modal Flotante Contextual de Reclamo */}
