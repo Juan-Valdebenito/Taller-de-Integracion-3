@@ -62,6 +62,7 @@ APP_FILES=(
   services/clima_service/clima-configmap.yaml
   services/micro_service/micros-secret.yaml
   services/transporte_db/transporte-db-init-scripts.yaml
+  transporte-db-pvc.yaml
   services/transporte_db/transporte-db-deployment.yaml
   services/backend-go/backend-go-deployment.yaml
   services/backend-go/backend-go-service.yaml

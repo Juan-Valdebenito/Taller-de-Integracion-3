@@ -77,7 +77,8 @@ spec:
           configMap:
             name: transporte-db-init-scripts
         - name: postgres-data
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: transporte-db-pvc
 ---
 apiVersion: v1
 kind: Service
