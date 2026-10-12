@@ -27,10 +27,10 @@ function toEntity(raw: PrismaComplaint | {
     raw.category as ComplaintCategory,
     raw.status as ComplaintStatus,
     raw.passengerId ?? '',
-    raw.busId,
-    raw.routeId,
+    raw.busId ?? '',
+    raw.routeId ?? '',
     raw.companyId ?? '',
-    raw.adminResponse,
+    raw.adminResponse ?? '',
     raw.createdAt,
     raw.updatedAt,
   );
