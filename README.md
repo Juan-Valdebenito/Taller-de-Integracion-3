@@ -279,6 +279,39 @@ El token se obtiene desde `POST /auth/login` o `POST /auth/register`.
 | Tiempo real | Socket.IO (backend TS - pendiente migración) |
 | Monorepo | npm workspaces (frontend) |
 
+## 📱 Cliente WebSocket preparado para React Native
+
+La futura app móvil puede reutilizar el cliente agnóstico de plataforma
+[mobileWebSocketClient.ts](frontend/src/infrastructure/socket/mobileWebSocketClient.ts).
+No depende de `window`, Vite ni de una librería de conectividad: usa el
+`WebSocket` global disponible en React Native y permite conectar `NetInfo`
+cuando se cree la app.
+
+```ts
+import NetInfo from '@react-native-community/netinfo';
+import { MobileWebSocketClient } from './mobileWebSocketClient';
+
+const client = new MobileWebSocketClient({
+  url: `${API_BASE_URL.replace(/^http/, 'ws')}/ws`,
+});
+const unsubscribeNetwork = NetInfo.addEventListener((state) => {
+  client.setOnline(Boolean(state.isConnected && state.isInternetReachable !== false));
+});
+const unsubscribeMessages = client.onMessage((message) => {
+  if (message.type === 'bus:update') {
+    // Actualizar el estado de las micros en la app.
+  }
+});
+
+client.subscribe('route', '7A');
+client.connect();
+```
+
+El cliente conserva las suscripciones durante una reconexión, usa backoff
+exponencial hasta 30 segundos y expone los estados `offline`, `connecting`,
+`connected` y `reconnecting`. Al desmontar la pantalla, se deben ejecutar
+`unsubscribeNetwork()`, `unsubscribeMessages()` y `client.disconnect()`.
+
 ## 🔌 Integración gRPC
 
 La comunicación interna entre `backend-go`, `clima_service` y `micro_service` usa gRPC. Los listeners gRPC son `9090` para clima y `9091` para transporte; los listeners HTTP existentes se mantienen para compatibilidad.
