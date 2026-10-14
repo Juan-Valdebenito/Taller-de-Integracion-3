@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Socket } from 'socket.io-client';
 import axios from 'axios';
 import {
   FaTimes,
@@ -12,6 +11,11 @@ import {
   FaExclamationTriangle,
 } from 'react-icons/fa';
 import './DevToolsSimulationPanel.css';
+
+interface LegacySocket {
+  connected: boolean;
+  emit: (event: string, payload: { busId: string; eventType: SimulationEventType }) => void;
+}
 
 export interface BusSimulationState {
   id: string;
@@ -43,7 +47,7 @@ export type SimulationEventType =
   | 'empty_capacity';
 
 interface DevToolsSimulationPanelProps {
-  socket: Socket | null;
+  socket: LegacySocket | null;
   buses: BusSimulationState[];
   selectedBusId?: string;
   onSelectBus?: (busId: string) => void;

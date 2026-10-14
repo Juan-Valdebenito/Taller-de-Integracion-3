@@ -199,14 +199,6 @@ func main() {
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	log.Info().Str("event", "server_starting").Str("address", addr).Str("environment", cfg.Env).Msg("HTTP server starting")
 
-	// Iniciar listener secundario en :8080 si no es el puerto principal
-	if cfg.Port != "8080" {
-		go func() {
-			fmt.Printf("📡  Listener dual activo en http://localhost:8080\n")
-			_ = r.Run(":8080")
-		}()
-	}
-
 	if err := r.Run(addr); err != nil {
 		log.Fatal().Err(err).Str("event", "server_failed").Msg("HTTP server stopped unexpectedly")
 	}
