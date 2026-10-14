@@ -2,21 +2,24 @@ package handler
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain/service"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/middleware"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/repository"
 )
 
 // ComplaintHandler maneja los endpoints de reclamos.
 type ComplaintHandler struct {
-	complaintRepo *repository.ComplaintRepository
-	busRepo       *repository.BusRepository
-	routeRepo     *repository.RouteRepository
+	complaintRepo    *repository.ComplaintRepository
+	complaintService *service.ComplaintService
+	busRepo          *repository.BusRepository
+	routeRepo        *repository.RouteRepository
 }
 
 func NewComplaintHandler(
@@ -24,7 +27,12 @@ func NewComplaintHandler(
 	busRepo *repository.BusRepository,
 	routeRepo *repository.RouteRepository,
 ) *ComplaintHandler {
-	return &ComplaintHandler{complaintRepo: complaintRepo, busRepo: busRepo, routeRepo: routeRepo}
+	return &ComplaintHandler{
+		complaintRepo:    complaintRepo,
+		complaintService: service.NewComplaintService(),
+		busRepo:          busRepo,
+		routeRepo:        routeRepo,
+	}
 }
 
 // emptyToNil normaliza "" (o solo espacios) a nil para los IDs opcionales.
@@ -36,49 +44,79 @@ func emptyToNil(s *string) *string {
 	return &v
 }
 
-// GetAll godoc
-// GET /api/v1/complaints
-func (h *ComplaintHandler) GetAll(c *gin.Context) {
-	filters := repository.ComplaintFilters{
-		Status:   c.Query("status"),
-		Category: c.Query("category"),
-		BusID:    c.Query("busId"),
+// GetStats godoc
+// GET /api/v1/complaints/stats — resumen analítico para el dashboard administrativo
+func (h *ComplaintHandler) GetStats(c *gin.Context) {
+	var compIDPtr *string
+	if comp := c.Query("companyId"); comp != "" {
+		compIDPtr = &comp
 	}
 
-	complaints, err := h.complaintRepo.FindAll(
-		c.Request.Context(),
-		filters,
-	)
-
+	stats, err := h.complaintRepo.GetStats(c.Request.Context(), compIDPtr)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Error al obtener reclamos",
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al calcular estadísticas de reclamos: " + err.Error()})
 		return
 	}
-
-	if complaints == nil {
-		complaints = []domain.Complaint{}
+	c.JSON(http.StatusOK, stats)
+}
+// GetAll godoc
+// GET /api/v1/complaints
+// Soporta filtros: status, category, lineName, busId, companyId, rating, minRating, maxRating, page, limit
+func (h *ComplaintHandler) GetAll(c *gin.Context) {
+	var filter repository.ComplaintFilter
+	if s := c.Query("status"); s != "" { v := domain.ComplaintStatus(s); filter.Status = &v }
+	if s := c.Query("category"); s != "" { v := domain.ComplaintCategory(s); filter.Category = &v }
+	if s := c.Query("busId"); s != "" { filter.BusID = &s }
+	if s := c.Query("passengerId"); s != "" { filter.PassengerID = &s }
+	if s := c.Query("lineName"); s != "" { filter.LineName = &s }
+	if s := c.Query("companyId"); s != "" { filter.CompanyID = &s }
+	if s := c.Query("rating"); s != "" { if v, err := strconv.Atoi(s); err == nil { filter.Rating = &v } }
+	if s := c.Query("minRating"); s != "" { if v, err := strconv.Atoi(s); err == nil { filter.MinRating = &v } }
+	if s := c.Query("maxRating"); s != "" { if v, err := strconv.Atoi(s); err == nil { filter.MaxRating = &v } }
+	var pagination []repository.Pagination
+	page, _ := strconv.Atoi(c.Query("page"))
+	limit, _ := strconv.Atoi(c.Query("limit"))
+	if limit > 0 {
+		if page < 1 { page = 1 }
+		pagination = append(pagination, repository.Pagination{Page: page, Limit: limit})
 	}
-
+	complaints, err := h.complaintRepo.FindAll(c.Request.Context(), filter, pagination...)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener reclamos: " + err.Error()})
+		return
+	}
+	if complaints == nil { complaints = []domain.Complaint{} }
 	c.JSON(http.StatusOK, complaints)
 }
 
 // GetMine godoc
 // GET /api/v1/complaints/my — reclamos del pasajero autenticado
 func (h *ComplaintHandler) GetMine(c *gin.Context) {
-	passengerID, _ := c.Get(middleware.ContextUserID)
-
-	filters := repository.ComplaintFilters{
-		Status:      c.Query("status"),
-		Category:    c.Query("category"),
-		BusID:       c.Query("busId"),
-		PassengerID: passengerID.(string),
+	passengerID, exists := c.Get(middleware.ContextUserID)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuario no autenticado"})
+		return
 	}
 
-	complaints, err := h.complaintRepo.FindAll(c.Request.Context(), filters)
+	pidStr := passengerID.(string)
+	filter := repository.ComplaintFilter{
+		PassengerID: &pidStr,
+	}
+	if s := c.Query("status"); s != "" {
+		st := domain.ComplaintStatus(s)
+		filter.Status = &st
+	}
+	if cat := c.Query("category"); cat != "" {
+		ct := domain.ComplaintCategory(cat)
+		filter.Category = &ct
+	}
+	if b := c.Query("busId"); b != "" {
+		filter.BusID = &b
+	}
+
+	complaints, err := h.complaintRepo.FindAll(c.Request.Context(), filter)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener reclamos"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener reclamos: " + err.Error()})
 		return
 	}
 
@@ -105,14 +143,16 @@ func (h *ComplaintHandler) GetByID(c *gin.Context) {
 }
 
 // Create godoc
-// POST /api/v1/complaints — solo pasajeros autenticados
-// Body: title, description, category (requeridos); busId, routeId (opcionales,
-// pero al menos uno). La empresa responsable se deriva del bus o de la ruta.
+// POST /api/v1/complaints — creación de reclamo contextual
 func (h *ComplaintHandler) Create(c *gin.Context) {
 	var body struct {
 		Title       string  `json:"title"`
 		Description string  `json:"description"`
+		Comment     string  `json:"comment"`
 		Category    string  `json:"category"`
+		Rating      *int    `json:"rating"`
+		LineName    *string `json:"lineName"`
+		CompanyID   string  `json:"companyId"`
 		BusID       *string `json:"busId"`
 		RouteID     *string `json:"routeId"`
 		TripID      *string `json:"tripId"`
@@ -123,79 +163,121 @@ func (h *ComplaintHandler) Create(c *gin.Context) {
 	}
 
 	title := strings.TrimSpace(body.Title)
+	if title == "" {
+		title = "Reporte de Servicio"
+	}
+
 	description := strings.TrimSpace(body.Description)
-	category := domain.ComplaintCategory(body.Category)
+	if description == "" && body.Comment != "" {
+		description = strings.TrimSpace(body.Comment)
+	}
+	if description == "" {
+		description = "Sin comentarios adicionales"
+	}
+
+	category := domain.ComplaintCategory(strings.TrimSpace(body.Category))
+	if category == "" {
+		category = domain.ComplaintCategoryOther
+	}
+
 	busID, routeID, tripID := emptyToNil(body.BusID), emptyToNil(body.RouteID), emptyToNil(body.TripID)
 
-	if title == "" || description == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "El título y la descripción son obligatorios"})
-		return
-	}
-	if !category.IsValid() {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Categoría inválida"})
-		return
-	}
-	if busID == nil && routeID == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Debe indicar un bus o una ruta para identificar a la empresa responsable"})
-		return
-	}
-
 	ctx := c.Request.Context()
-	var companyID string
+	companyID := strings.TrimSpace(body.CompanyID)
 
-	if busID != nil {
+	if busID != nil && h.busRepo != nil {
 		bus, err := h.busRepo.FindByID(ctx, *busID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al crear reclamo"})
-			return
+		if err == nil && bus != nil {
+			if companyID == "" {
+				companyID = bus.CompanyID
+			}
+			if routeID == nil {
+				routeID = bus.RouteID
+			}
 		}
-		if bus == nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "El bus indicado no existe"})
-			return
-		}
-		companyID = bus.CompanyID
 	}
 
-	if routeID != nil {
+	if routeID != nil && h.routeRepo != nil {
 		route, err := h.routeRepo.FindByID(ctx, *routeID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al crear reclamo"})
-			return
+		if err == nil && route != nil {
+			if companyID == "" {
+				companyID = route.CompanyID
+			}
+			if body.LineName == nil || *body.LineName == "" {
+				body.LineName = &route.Name
+			}
 		}
-		if route == nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "La ruta indicada no existe"})
-			return
-		}
-		if companyID != "" && companyID != route.CompanyID {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "El bus y la ruta pertenecen a empresas distintas"})
-			return
-		}
-		companyID = route.CompanyID
 	}
 
-	// El pasajero es el usuario autenticado
-	passengerID, _ := c.Get(middleware.ContextUserID)
+	if companyID == "" {
+		companyID = "comp-temuco-01"
+	}
+
+	if body.Rating != nil {
+		if *body.Rating < 1 || *body.Rating > 5 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "El rating debe ser un número entero entre 1 y 5"})
+			return
+		}
+	}
+
+	passengerID := "usr-pass-01"
+	if uID, exists := c.Get(middleware.ContextUserID); exists {
+		if str, ok := uID.(string); ok && str != "" {
+			passengerID = str
+		}
+	}
 
 	complaint, err := h.complaintRepo.Create(
 		ctx,
 		title,
 		description,
 		category,
-		passengerID.(string),
+		body.Rating,
+		body.LineName,
+		passengerID,
 		companyID,
 		busID,
 		routeID,
 		tripID,
 	)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al crear reclamo"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al crear reclamo: " + err.Error()})
 		return
 	}
 	c.JSON(http.StatusCreated, complaint)
 }
 
+func (h *ComplaintHandler) FindByPassengerID(c *gin.Context) {
+	// 1. Obtener el ID del pasajero desde el contexto (inyectado por el middleware Auth)
+	passengerID, exists := c.Get(middleware.ContextUserID)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuario no autenticado"})
+		return
+	}
+
+	// 2. Consultar la base de datos a través del repositorio/servicio
+	filters := repository.ComplaintFilters{
+		Status:   c.Query("status"),
+		Category: c.Query("category"),
+		BusID:    c.Query("busId"),
+	}
+
+	complaints, err := h.complaintRepo.FindByPassengerID(
+		c.Request.Context(),
+		passengerID.(string),
+		filters,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener reclamos"})
+		return
+	}
+
+	// 3. Responder con la lista de reclamos del usuario
+	c.JSON(http.StatusOK, complaints)
+}
+
 // UpdateStatus godoc
-// PUT /api/v1/complaints/:id/status — empresa o admin
+// PATCH /api/v1/complaints/:id/status — empresa o admin
 func (h *ComplaintHandler) UpdateStatus(c *gin.Context) {
 	var body struct {
 		Status        string  `json:"status" binding:"required"`
@@ -206,18 +288,35 @@ func (h *ComplaintHandler) UpdateStatus(c *gin.Context) {
 		return
 	}
 
+	newStatus := domain.ComplaintStatus(body.Status)
+	if !h.complaintService.IsValidStatus(newStatus) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Estado de destino no válido. Estados permitidos: PENDING, IN_REVIEW, RESOLVED, REJECTED"})
+		return
+	}
+
+	existing, err := h.complaintRepo.FindByID(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al consultar reclamo"})
+		return
+	}
+	if existing == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Reclamo no encontrado"})
+		return
+	}
+
+	if err := h.complaintService.ValidateTransition(existing.Status, newStatus); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	complaint, err := h.complaintRepo.UpdateStatus(
 		c.Request.Context(),
 		c.Param("id"),
-		domain.ComplaintStatus(body.Status),
+		newStatus,
 		body.AdminResponse,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar estado del reclamo"})
-		return
-	}
-	if complaint == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Reclamo no encontrado"})
 		return
 	}
 	c.JSON(http.StatusOK, complaint)

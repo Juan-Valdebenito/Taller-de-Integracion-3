@@ -26,7 +26,20 @@ spec:
               name: client
             - containerPort: 8222 # Puerto de monitoreo HTTP
               name: monitor
-          
+          # /healthz del monitoreo de NATS (incluye el estado de JetStream)
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: monitor
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: monitor
+            initialDelaySeconds: 15
+            periodSeconds: 20
+
           # RECURSOS EXIGIDOS POR EL LimitRange DEL CLÚSTER
           resources:
             requests:

@@ -1,0 +1,152 @@
+# DEPLOYMENT DEL BACKEND GO (API REST)
+#
+# Única versión del Deployment (une las variables gRPC de Ignacio con probes y
+# métricas). El Service está en backend-go-service.yaml (misma carpeta) y la
+# entrada pública en kubernetes/ingress/backend-go-ingress.yaml.
+# Se despliega con: bash kubernetes/deploy.sh app apply
+#
+# Cuentas del cluster:
+#   - Este backend, la BD transporte_db y el Ingress corren en la cuenta de Tomás
+#     (deploy.sh cambia el namespace según kubernetes/cluster.env).
+#   - Los microservicios de Ignacio (clima, micros, NATS) corren en
+#     student-jvaldebenito: por eso CLIMATE/MICRO_GRPC_TARGET apuntan a ese
+#     namespace (deploy.sh los ajusta a MICRO_NAMESPACE de cluster.env).
+#
+# Requisitos previos en el MISMO namespace (los Secrets no se comparten entre namespaces):
+#   ConfigMap transporte-db-configmap · Secrets transporte-db-secrets, clima-secrets, micros-secrets
+#   y la BD transporte-db-svc levantada.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-go
+  namespace: student-jvaldebenito
+  labels:
+    app: backend-go
+spec:
+  # Con 1 réplica la revocación de tokens en memoria es consistente; para más
+  # réplicas configurar REDIS_ADDR (ver más abajo).
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend-go
+  template:
+    metadata:
+      labels:
+        app: backend-go
+      annotations:
+        # Prometheus con scrape por anotaciones descubre /metrics automáticamente.
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "3001"
+    spec:
+      containers:
+        - name: backend-go
+          # deploy.sh la reemplaza por <DOCKERHUB_USER>/backend-go:<IMAGE_TAG> (cluster.env).
+          # Construir desde la raíz del repo: docker build -f backend-go/Dockerfile -t <usuario>/backend-go:v1 .
+          image: <DOCKERHUB_USER>/backend-go:v1
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 3001
+          env:
+            # ── Servidor (ConfigMap de Ignacio) ─────────────────
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: transporte-db-configmap
+                  key: PORT
+            - name: NODE_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: transporte-db-configmap
+                  key: NODE_ENV
+            - name: CORS_ORIGIN
+              valueFrom:
+                configMapKeyRef:
+                  name: transporte-db-configmap
+                  key: CORS_ORIGIN
+            # ── PostgreSQL transporte_db (ConfigMap + Secret de Ignacio, BD de Tomás) ──
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: transporte-db-configmap
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: transporte-db-configmap
+                  key: DB_PORT
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: transporte-db-configmap
+                  key: DB_NAME
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: transporte-db-configmap
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: transporte-db-secrets
+                  key: DB_PASSWORD
+            # backend-go espera una URL de conexión única
+            - name: DATABASE_URL
+              value: "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)"
+            # ── JWT (clave en el Secret de Ignacio) ─────────────
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: transporte-db-secrets
+                  key: JWT_SECRET
+            # Access token corto + refresh token con rotación (POST /api/v1/auth/refresh)
+            - name: JWT_ACCESS_EXPIRES_IN
+              value: "15m"
+            - name: JWT_REFRESH_EXPIRES_IN
+              value: "168h"
+            # ── gRPC hacia los microservicios de Ignacio (namespace student-jvaldebenito) ──
+            - name: CLIMATE_GRPC_TARGET
+              value: "clima-service-svc.student-jvaldebenito.svc.cluster.local:9090"
+            - name: CLIMATE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: clima-secrets
+                  key: WEATHER_API_KEY
+            - name: MICRO_GRPC_TARGET
+              value: "micros-service-svc.student-jvaldebenito.svc.cluster.local:9091"
+            - name: MICRO_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: micros-secrets
+                  key: ADMIN_KEY
+            - name: GRPC_TIMEOUT
+              value: "5s"
+            # ── Revocación de tokens compartida (opcional) ──────
+            # Sin REDIS_ADDR la revocación (logout / refresh) vive en memoria del
+            # pod: válido solo con replicas: 1. Con Redis en el cluster:
+            # - name: REDIS_ADDR
+            #   value: "redis-svc.<namespace>.svc.cluster.local:6379"
+          # /readyz comprueba la conexión a PostgreSQL: el Service no envía
+          # tráfico al pod hasta que la BD responde.
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          # /healthz solo verifica que el proceso responde (no reinicia el pod
+          # porque la BD esté caída).
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"

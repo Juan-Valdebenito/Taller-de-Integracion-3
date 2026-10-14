@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: micro-telemetry-configmap
+  namespace: student-iglausser
+data:
+  PORT: "8080"
+  DB_HOST: micro-telemetry-db-svc.student-iglausser.svc.cluster.local
+  DB_PORT: "5432"
+  DB_NAME: micro_telemetry
+  DB_USER: telemetry_user
+  DB_SSLMODE: disable
+  NATS_URL: nats://nats-svc.student-jvaldebenito.svc.cluster.local:4222
+  NATS_SUBJECT: transport.micro.telemetry.state
+  MAX_BODY_BYTES: "1048576"

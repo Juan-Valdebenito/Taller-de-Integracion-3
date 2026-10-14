@@ -1,0 +1,17 @@
+# SERVICE DEL BACKEND GO
+# Expone los pods app=backend-go dentro del cluster en backend-go-svc:3001.
+# Lo usa el Ingress (kubernetes/ingress/backend-go-ingress.yaml) para /api.
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-go-svc
+  namespace: student-jvaldebenito
+spec:
+  selector:
+    app: backend-go
+  ports:
+    - name: http
+      port: 3001
+      # Puerto con nombre "http" del contenedor (backend-go-deployment.yaml)
+      targetPort: http
+  type: ClusterIP

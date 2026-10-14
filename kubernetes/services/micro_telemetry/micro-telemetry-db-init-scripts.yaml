@@ -1,0 +1,72 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: micro-telemetry-db-init-scripts
+  namespace: student-iglausser
+data:
+  01_schema.sql: |
+    CREATE EXTENSION IF NOT EXISTS timescaledb;
+    CREATE EXTENSION IF NOT EXISTS postgis;
+
+    CREATE TABLE IF NOT EXISTS gps_telemetry (
+        time TIMESTAMPTZ NOT NULL,
+        event_id VARCHAR(128) NOT NULL,
+        bus_id VARCHAR(64) NOT NULL,
+        route_id VARCHAR(64) NOT NULL DEFAULT '',
+        latitude DOUBLE PRECISION NOT NULL CHECK (latitude BETWEEN -90 AND 90),
+        longitude DOUBLE PRECISION NOT NULL CHECK (longitude BETWEEN -180 AND 180),
+        heading DOUBLE PRECISION NOT NULL CHECK (heading >= 0 AND heading < 360),
+        speed_kmh DOUBLE PRECISION NOT NULL CHECK (speed_kmh >= 0),
+        location GEOMETRY(Point, 4326) GENERATED ALWAYS AS
+            (ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)) STORED
+    );
+
+    SELECT create_hypertable('gps_telemetry', 'time', if_not_exists => TRUE);
+
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_gps_telemetry_event
+        ON gps_telemetry (event_id, time);
+    CREATE INDEX IF NOT EXISTS idx_gps_telemetry_bus_time
+        ON gps_telemetry (bus_id, time DESC);
+    CREATE INDEX IF NOT EXISTS idx_gps_telemetry_location
+        ON gps_telemetry USING GIST (location);
+
+    CREATE TABLE IF NOT EXISTS passenger_telemetry (
+        time TIMESTAMPTZ NOT NULL,
+        event_id VARCHAR(128) NOT NULL,
+        bus_id VARCHAR(64) NOT NULL,
+        route_id VARCHAR(64) NOT NULL DEFAULT '',
+        current_passengers INTEGER NOT NULL CHECK (current_passengers >= 0),
+        capacity INTEGER NOT NULL CHECK (capacity > 0),
+        boardings INTEGER NOT NULL CHECK (boardings >= 0),
+        alightings INTEGER NOT NULL CHECK (alightings >= 0),
+        CHECK (current_passengers <= capacity)
+    );
+
+    SELECT create_hypertable('passenger_telemetry', 'time', if_not_exists => TRUE);
+
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_passenger_telemetry_event
+        ON passenger_telemetry (event_id, time);
+    CREATE INDEX IF NOT EXISTS idx_passenger_telemetry_bus_time
+        ON passenger_telemetry (bus_id, time DESC);
+
+    CREATE TABLE IF NOT EXISTS micro_current_state (
+        bus_id VARCHAR(64) PRIMARY KEY,
+        route_id VARCHAR(64) NOT NULL DEFAULT '',
+        latitude DOUBLE PRECISION,
+        longitude DOUBLE PRECISION,
+        heading DOUBLE PRECISION,
+        speed_kmh DOUBLE PRECISION,
+        gps_time TIMESTAMPTZ,
+        current_passengers INTEGER,
+        capacity INTEGER,
+        boardings INTEGER,
+        alightings INTEGER,
+        passenger_time TIMESTAMPTZ,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        CHECK (latitude IS NULL OR latitude BETWEEN -90 AND 90),
+        CHECK (longitude IS NULL OR longitude BETWEEN -180 AND 180),
+        CHECK (speed_kmh IS NULL OR speed_kmh >= 0),
+        CHECK (current_passengers IS NULL OR current_passengers >= 0),
+        CHECK (capacity IS NULL OR capacity > 0),
+        CHECK (current_passengers IS NULL OR capacity IS NULL OR current_passengers <= capacity)
+    );

@@ -1,61 +1,44 @@
 # Ingress con soporte WebSocket (wss://)
 
-Resuelve la falla del mapa de buses en tiempo real: el navegador abre un
-WebSocket contra el mismo host del frontend y el Ingress lo hace llegar al
-servidor Socket.io (`realtime`) sin cortarlo.
+Expone el servicio de buses en tiempo real mediante un host dedicado, porque
+el cluster solo permite `path: /` en los Ingress. El Ingress de realtime vive en
+el mismo namespace que `realtime-svc`: `student-iglausser`.
 
 ```
-Navegador ── https://<HOST>/            ──► frontend-svc   :80   (nginx + React)
-          ── https://<HOST>/api/...     ──► backend-go-svc :3001 (API REST)
-          ── wss://<HOST>/socket.io/... ──► realtime-svc   :3001 (Socket.io)
+Navegador ── https://<APP_HOST>/          ──► frontend-svc     :80
+          ── https://<APP_HOST>/api/...   ──► bridge → backend-go
+          ── wss://<REALTIME_HOST>/      ──► realtime-svc     :3001
 ```
 
 ## Qué hace cada archivo
 
 | Archivo | Para qué |
 |---|---|
-| `transithub-ingress.yaml` | Dos Ingress para el mismo host. El de `/socket.io` tiene timeouts de 1 h, sin buffering y con sesiones pegajosas (*sticky sessions*) por cookie, que Socket.io necesita cuando parte con *long-polling* |
+| `backend-go-ingress.yaml` | Ingress principal para frontend y API, con `path: /` y `/api` |
+| `backend-go-bridge.yaml` | Service + Endpoints en `student-tpenroz` que apuntan al pod backend-go de `student-jvaldebenito` |
+| `realtime-ingress.yaml` | Ingress nginx en `student-iglausser`, con host `REALTIME_HOST`, path `/` y soporte WebSocket |
 | `ingress-nginx-controller-configmap.yaml` | **Opcional, requiere admin del cluster.** Los mismos valores como defecto global del controlador |
 | `../services/realtime/realtime-deployment.yaml` | Servidor Socket.io (`backend/` en Node), 1 réplica |
 | `../services/frontend/frontend-deployment.yaml` | Frontend estático en nginx |
 
-## Antes de aplicar: placeholders a reemplazar
+## Despliegue
 
-1. **`<HOST>`** en `transithub-ingress.yaml` (4 veces): el dominio que asigne el cluster.
-2. **`CORS_ORIGIN`** en `kubernetes/transporte-db-configmap.yaml` → `https://<HOST>`.
-   Los navegadores envían la cabecera `Origin` en los POST, aunque sean del mismo origen, y
-   `backend-go` responde 403 si no coincide (ej.: crear reclamos o iniciar sesión).
-3. **`<DOCKERHUB_USER>`** en los deployments de `realtime` y `frontend`, y **`<HOST>`** en `SOCKET_CORS_ORIGIN` del deployment de `realtime`.
-4. **Certificado TLS** `transithub-tls` (sin él no hay `wss://`). Una de dos:
-   - Con cert-manager: descomentar la anotación `cert-manager.io/cluster-issuer`.
-   - Manual: `kubectl -n student-jvaldebenito create secret tls transithub-tls --cert=tls.crt --key=tls.key`
+`<HOST>`, los namespaces, `REALTIME_HOST`, `BACKEND_GO_IP`, `CORS_ORIGIN` y las
+imágenes los completa `kubernetes/deploy.sh` desde `kubernetes/cluster.env`.
+El HTTPS lo termina el proxy de la universidad, así que no hace falta certificado propio.
+Ver **[../DEPLOY.md](../DEPLOY.md)**.
 
 ## Verificar el controlador del cluster
 
 ```bash
-kubectl get ingressclass          # debe aparecer "nginx"
+kubectl get ingressclass
 kubectl get pods -A | grep ingress
 ```
-Si la clase tiene otro nombre, cambiar `ingressClassName`. Si el controlador **no** es
-ingress-nginx (p. ej. Traefik), las anotaciones `nginx.ingress.kubernetes.io/*` no aplican:
-Traefik soporta WebSocket sin configuración extra, pero las sesiones pegajosas
-se configuran en el Service.
-
-## Orden de despliegue
-
-```bash
-# Imágenes (desde la raíz del repo)
-docker build -f backend-go/Dockerfile -t <usuario>/backend-go:v1 .
-docker build -t <usuario>/transithub-realtime:v1 backend/
-docker build -t <usuario>/transithub-frontend:v1 frontend/
-docker push ...   # las tres
-
-# Recursos
-kubectl apply -f kubernetes/transporte-db-configmap.yaml
-kubectl apply -f kubernetes/services/realtime/realtime-deployment.yaml
-kubectl apply -f kubernetes/services/frontend/frontend-deployment.yaml
-kubectl apply -f kubernetes/ingress/transithub-ingress.yaml
-```
+En este cluster la clase disponible es la global `nginx` del controlador
+`ingress-nginx`. Los manifests del repo quedan con `ingressClassName: nginx`; no
+se crean clases por namespace ni se instalan controladores dentro de un
+namespace. Si el cluster usa otro controlador distinto, el valor `ingressClassName`
+se debe ajustar en coordinación con el administrador del clúster.
 
 ## Comprobar que el WebSocket funciona
 
@@ -67,9 +50,9 @@ bash kubernetes/ingress/check-websocket.sh http://localhost:5173   # en local, v
 El script solo hace peticiones HTTP (no cambia nada en el cluster) y comprueba en orden:
 
 1. `/` responde 200 → el Ingress llega al **frontend**.
-2. `/api/v1/auth/me` responde 401 → el Ingress llega a **backend-go** (pide token, como corresponde).
+2. `/api/v1/auth/me` responde 401 → el bridge llega a **backend-go**.
 3. Handshake de Socket.io por *polling* con `sid`, y la cookie de afinidad `transithub-rt`.
-4. Upgrade a WebSocket → **`101 Switching Protocols`**.
+4. Upgrade a WebSocket → **`101 Switching Protocols`** en `REALTIME_HOST`.
 
 Al final indica qué estado verá el mapa (🟢/🟠/🔴) y qué revisar si algo falla.
 Sale con código `0` si todo pasa y `1` si algo falla, así que también sirve en un pipeline de CI.

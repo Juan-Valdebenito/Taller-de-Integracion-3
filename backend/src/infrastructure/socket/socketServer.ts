@@ -30,7 +30,7 @@ export const setupSocketIO = (io: Server): void => {
 
     // Emitir estado actual de todos los buses al conectarse
     buses.forEach((bus) => {
-      socket.emit(SocketEvents.BUS_LOCATION_BROADCAST, {
+      const busPayload = {
         id: bus.id,
         line: bus.line,
         lat: bus.lat,
@@ -44,7 +44,9 @@ export const setupSocketIO = (io: Server): void => {
         alightings: bus.alightings,
         isFull: bus.isFull,
         lastEvent: bus.lastEvent,
-      });
+      };
+      socket.emit(SocketEvents.BUS_LOCATION_BROADCAST, busPayload);
+      socket.emit(SocketEvents.BUS_STATUS_BROADCAST, busPayload);
     });
 
     // ── Inyección manual de eventos desde DevTools ──────────

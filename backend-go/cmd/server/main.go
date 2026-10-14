@@ -72,32 +72,39 @@ func main() {
 	// â”€â”€ Repositorios y Handlers (requieren BD) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 	var (
 		authH      *handler.AuthHandler
+		companyH   *handler.CompanyHandler
 		userH      *handler.UserHandler
 		busH       *handler.BusHandler
 		routeH     *handler.RouteHandler
 		stopH      *handler.StopHandler
 		complaintH *handler.ComplaintHandler
+		recaudoH   *handler.RecaudoHandler
+		healthH    *handler.HealthHandler
 	)
+	occupancySvc := service.NewOccupancyService()
+	aforoSvc := service.NewAforoService(pool)
 
 	if dbAvailable {
 		userRepo := repository.NewUserRepository(pool)
+		companyRepo := repository.NewCompanyRepository(pool)
 		busRepo := repository.NewBusRepository(pool)
 		routeRepo := repository.NewRouteRepository(pool)
 		stopRepo := repository.NewStopRepository(pool)
 		complaintRepo := repository.NewComplaintRepository(pool)
+		recaudoRepo := repository.NewRecaudoRepository(pool)
 
-		authH = handler.NewAuthHandler(userRepo, cfg.JWTSecret, cfg.JWTExpires, revStore)
+		authH = handler.NewAuthHandler(userRepo, cfg.JWTSecret, cfg.JWTAccessExpires, cfg.JWTRefreshExpires, revStore)
+		companyH = handler.NewCompanyHandler(companyRepo)
 		userH = handler.NewUserHandler(userRepo)
 		busH = handler.NewBusHandler(busRepo)
 		routeH = handler.NewRouteHandler(routeRepo, busRepo)
 		stopH = handler.NewStopHandler(stopRepo)
 		complaintH = handler.NewComplaintHandler(complaintRepo, busRepo, routeRepo)
+		recaudoH = handler.NewRecaudoHandler(recaudoRepo, aforoSvc)
+		healthH = handler.NewHealthHandler(pool)
 	}
 
-	// â”€â”€ Servicio de ocupaciÃ³n (no requiere BD) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-	occupancySvc := service.NewOccupancyService()
-
-	// â”€â”€ Conectar predictor ML si estÃ¡ configurado â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+	// ── Conectar predictor ML si está configurado ──────────────────────────────
 	if cfg.PredictionTransport != "" {
 		predClient, err := transport.NewPredictionClient(transport.Config{
 			Transport:  transport.TransportType(cfg.PredictionTransport),
@@ -129,7 +136,9 @@ func main() {
 	}
 
 	occupancyH := handler.NewOccupancyHandler(occupancySvc)
+	aforoH := handler.NewAforoHandler(aforoSvc)
 
+	// Conexión gRPC clientes de clima y micro
 	// â”€â”€ WebSocket Hub (Pub/Sub â€” no requiere BD) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 	hub := ws.NewHub(occupancySvc)
 	go hub.Run()
@@ -165,13 +174,38 @@ func main() {
 	defer microClient.Close()
 	grpcProxyH := handler.NewGRPCProxyHandler(climateClient, microClient)
 
-	// ── Router ───────────────────────────────────────────────────────────
-	r := router.Setup(cfg.CORSOrigin, cfg.JWTSecret, pool, revStore,
-		authH, userH, busH, routeH, stopH, complaintH, occupancyH, wsHandler, grpcProxyH)
+	// ── Router ────────────────────────────────────────────────
+	r := router.Setup(
+		cfg.CORSOrigin,
+		cfg.JWTSecret,
+		pool,
+		revStore,
+		authH,
+		companyH,
+		userH,
+		busH,
+		routeH,
+		stopH,
+		complaintH,
+		occupancyH,
+		wsHandler,
+		grpcProxyH,
+		aforoH,
+		recaudoH,
+		healthH,
+	)
 
 	// â”€â”€ Iniciar servidor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	log.Info().Str("event", "server_starting").Str("address", addr).Str("environment", cfg.Env).Msg("HTTP server starting")
+
+	// Iniciar listener secundario en :8080 si no es el puerto principal
+	if cfg.Port != "8080" {
+		go func() {
+			fmt.Printf("📡  Listener dual activo en http://localhost:8080\n")
+			_ = r.Run(":8080")
+		}()
+	}
 
 	if err := r.Run(addr); err != nil {
 		log.Fatal().Err(err).Str("event", "server_failed").Msg("HTTP server stopped unexpectedly")

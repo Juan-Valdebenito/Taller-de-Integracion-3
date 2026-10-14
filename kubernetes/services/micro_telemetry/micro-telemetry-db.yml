@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: micro-telemetry-db
+  namespace: student-iglausser
+  labels:
+    app: micro-telemetry-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: micro-telemetry-db
+  template:
+    metadata:
+      labels:
+        app: micro-telemetry-db
+    spec:
+      containers:
+        - name: micro-telemetry-db
+          image: timescale/timescaledb-ha:pg16
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: micro_telemetry
+            - name: POSTGRES_USER
+              value: telemetry_user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: micro-telemetry-secrets
+                  key: DB_PASSWORD
+          volumeMounts:
+            - name: init-scripts
+              mountPath: /docker-entrypoint-initdb.d
+          # Mismo patrón que clima-db (también TimescaleDB)
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+      volumes:
+        - name: init-scripts
+          configMap:
+            name: micro-telemetry-db-init-scripts
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: micro-telemetry-db-svc
+  namespace: student-iglausser
+spec:
+  type: ClusterIP
+  selector:
+    app: micro-telemetry-db
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres

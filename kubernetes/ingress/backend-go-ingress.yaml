@@ -1,0 +1,42 @@
+# INGRESS DE TRANSITHUB — HTTP + WebSocket (wss://)
+#
+# Formato del cluster de la UCT (base: Ingress de Tomás):
+#   - external-dns crea solo el registro DNS <host> → proxy.inf.uct.cl
+#   - proxy.inf.uct.cl reenvía al ingress-nginx del cluster
+#   - sin sección tls: el HTTPS lo termina el proxy de la universidad, y el
+#     navegador usa wss:// automáticamente porque la página carga por https://
+#
+# Rutas (un solo host = mismo origen, sin CORS entre frontend y API):
+#   https://<host>/api/...       → backend-go-svc (API REST)
+#   https://<host>/              → frontend-svc   (React)
+#
+# deploy.sh reemplaza namespace y host según kubernetes/cluster.env.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: backend-go
+  namespace: student-jvaldebenito
+  annotations:
+    external-dns.alpha.kubernetes.io/target: proxy.inf.uct.cl
+    # Límite de body para los POST (reclamos, etc.)
+    nginx.ingress.kubernetes.io/proxy-body-size: "2m"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: <APP_HOST>
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend-go-ingress-svc
+                port:
+                  number: 3001
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend-svc
+                port:
+                  number: 80

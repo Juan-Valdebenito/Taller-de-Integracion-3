@@ -1,0 +1,30 @@
+# Ingress dedicado para realtime.
+# El cluster solo permite path "/", por eso usa un host propio.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: realtime
+  namespace: student-iglausser
+  annotations:
+    external-dns.alpha.kubernetes.io/target: proxy.inf.uct.cl
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/affinity: "cookie"
+    nginx.ingress.kubernetes.io/affinity-mode: "persistent"
+    nginx.ingress.kubernetes.io/session-cookie-name: "transithub-rt"
+    nginx.ingress.kubernetes.io/session-cookie-max-age: "3600"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: <REALTIME_HOST>
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: realtime-svc
+                port:
+                  number: 3001

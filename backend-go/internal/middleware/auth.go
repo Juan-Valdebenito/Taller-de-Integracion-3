@@ -72,6 +72,12 @@ func Authenticate(jwtSecret string, store token.RevocationStore) gin.HandlerFunc
 			return
 		}
 
+		tokenType, _ := claims["type"].(string)
+		if tokenType != "access" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Se requiere un access token"})
+			return
+		}
+
 		// Cast explícito a string para evitar fallos de tipo en Authorize
 		userID, _ := claims["id"].(string)
 		userEmail, _ := claims["email"].(string)
@@ -111,3 +117,42 @@ func Authorize(roles ...string) gin.HandlerFunc {
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "No tienes permisos para realizar esta acción"})
 	}
 }
+
+// OptionalAuthenticate extrae los datos del token si viene en la cabecera Authorization,
+// pero no interrumpe la petición si no viene token.
+func OptionalAuthenticate(jwtSecret string, store token.RevocationStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		authHeader := c.GetHeader("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+			t, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
+				if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+					return nil, jwt.ErrSignatureInvalid
+				}
+				return []byte(jwtSecret), nil
+			})
+			if err == nil && t.Valid {
+				if claims, ok := t.Claims.(jwt.MapClaims); ok {
+					jti, _ := claims["jti"].(string)
+					revoked := false
+					if jti != "" && store != nil {
+						revoked, _ = store.IsRevoked(jti)
+					}
+					if !revoked {
+						if userID, ok := claims["id"].(string); ok {
+							c.Set(ContextUserID, userID)
+						}
+						if userEmail, ok := claims["email"].(string); ok {
+							c.Set(ContextUserEmail, userEmail)
+						}
+						if userRole, ok := claims["role"].(string); ok {
+							c.Set(ContextUserRole, userRole)
+						}
+					}
+				}
+			}
+		}
+		c.Next()
+	}
+}
+
