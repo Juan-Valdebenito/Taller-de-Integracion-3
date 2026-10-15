@@ -5,4 +5,4 @@ metadata:
   namespace: student-tpenroz
 spec:
   type: ExternalName
-  externalName: backend-go-svc.student-jvaldebenito.svc.cluster.local
+  externalName: backend-go-svc.<FOUNDATION_NAMESPACE>.svc.cluster.local
