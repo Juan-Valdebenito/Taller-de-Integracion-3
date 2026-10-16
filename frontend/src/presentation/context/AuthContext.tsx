@@ -7,7 +7,7 @@ import {
 } from 'react';
 import { apiClient } from '../../infrastructure/api/apiClient';
 
-// ── Tipos ─────────────────────────────────────────────────────
+// -- Tipos -----------------------------------------------------
 
 export type UserRole = 'PASSENGER' | 'COMPANY' | 'ADMIN';
 
@@ -28,11 +28,11 @@ interface AuthContextValue {
   logout: () => Promise<void>;
 }
 
-// ── Contexto ──────────────────────────────────────────────────
+// -- Contexto --------------------------------------------------
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-// ── Provider ──────────────────────────────────────────────────
+// -- Provider --------------------------------------------------
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -61,7 +61,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     console.log('Logging in user:', newUser);
     console.log('Storing token in localStorage:', newToken);
     localStorage.setItem('token', newToken);
-    // El refresh token permite renovar el access token sin volver a iniciar sesión (ver apiClient)
+    // El refresh token permite renovar el access token sin volver a iniciar sesi�n (ver apiClient)
     if (refreshToken) {
       localStorage.setItem('refreshToken', refreshToken);
     }
@@ -73,8 +73,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const logout = useCallback(async () => {
     try {
       // Revoca el token en el servidor (blacklist por jti) para que no
-      // pueda seguir usándose aunque alguien lo haya interceptado.
-      // También se envía el refresh token para que quede revocado.
+      // pueda seguir us�ndose aunque alguien lo haya interceptado.
+      // Tambi�n se env�a el refresh token para que quede revocado.
       await apiClient.post('/auth/logout', {
         refreshToken: localStorage.getItem('refreshToken') ?? undefined,
       });
@@ -82,7 +82,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.error('Error al revocar el token en el servidor:', error);
     } finally {
       // Se limpia localmente aunque falle la llamada al servidor
-      // (p. ej. sin conexión), para no dejar al usuario atrapado en la sesión.
+      // (p. ej. sin conexi�n), para no dejar al usuario atrapado en la sesi�n.
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('user');
@@ -107,7 +107,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   );
 }
 
-// ── Hook ──────────────────────────────────────────────────────
+// -- Hook ------------------------------------------------------
 
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);

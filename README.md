@@ -39,12 +39,12 @@ Taller-de-Integracion-3/
 
 ### 1. Inicializar la base de datos
 
-```bash
-# Crear la base de datos
-psql -U postgres -c "CREATE DATABASE transporte_db;"
+El backend Go utiliza **golang-migrate** para ejecutar automáticamente las migraciones pendientes al iniciar el servicio.
 
-# Ejecutar el script SQL completo
-psql -U postgres -d transporte_db -f database_setup.sql
+Solo es necesario crear la base de datos PostgreSQL:
+
+```bash
+psql -U postgres -c "CREATE DATABASE transporte_db;"
 ```
 
 ### 2. Configurar variables de entorno
@@ -52,8 +52,101 @@ psql -U postgres -d transporte_db -f database_setup.sql
 ```bash
 cd backend-go
 cp .env.example .env
-# Edita .env si tus credenciales de PostgreSQL son distintas
 ```
+
+Edita `.env` con las credenciales correspondientes a PostgreSQL.
+
+Por ejemplo:
+
+```env
+DATABASE_URL=postgres://postgres:TU_PASSWORD@localhost:5432/transporte_db?sslmode=disable
+```
+
+Las migraciones se encuentran en:
+
+```text
+backend-go/
+└── internal/
+    └── migrations/
+        ├── 000001_init.up.sql
+        └── 000001_init.down.sql
+```
+
+Al ejecutar el backend:
+
+```bash
+go run ./cmd/server
+```
+
+las migraciones pendientes se ejecutan automáticamente antes de iniciar el servidor HTTP.
+
+Por ejemplo:
+
+```text
+Migraciones ejecutadas correctamente
+Servidor escuchando en :3001
+```
+
+Si la base de datos ya está actualizada, no se ejecutan nuevamente:
+
+```text
+Base de datos ya está actualizada
+Servidor escuchando en :3001
+```
+
+`golang-migrate` utiliza la tabla `schema_migrations` para registrar la versión actual de la base de datos.
+
+### Migraciones
+
+Para agregar un cambio al esquema de la base de datos, **no se debe modificar una migración que ya fue ejecutada**.
+
+Se debe crear una nueva migración:
+
+```text
+internal/migrations/
+├── 000001_init.up.sql
+├── 000001_init.down.sql
+├── 000002_nombre_del_cambio.up.sql
+└── 000002_nombre_del_cambio.down.sql
+```
+
+El archivo `.up.sql` contiene los cambios que se aplicarán:
+
+```sql
+ALTER TABLE routes
+ADD COLUMN description_extra TEXT;
+```
+
+El archivo `.down.sql` contiene el rollback:
+
+```sql
+ALTER TABLE routes
+DROP COLUMN description_extra;
+```
+
+Al volver a iniciar el backend, `golang-migrate` detectará automáticamente la nueva migración y la ejecutará.
+
+### Importante para una base de datos existente
+
+Si `transporte_db` ya fue creada anteriormente utilizando `database_setup.sql`, no se debe ejecutar `000001_init.up.sql` sobre esa base si las tablas ya existen.
+
+Para un entorno de desarrollo limpio, se recomienda recrear la base de datos:
+
+```bash
+psql -U postgres -c "DROP DATABASE transporte_db;"
+psql -U postgres -c "CREATE DATABASE transporte_db;"
+```
+
+Después:
+
+```bash
+cd backend-go
+go run ./cmd/server
+```
+
+La migración `000001_init.up.sql` creará automáticamente las tablas, tipos ENUM, índices, funciones y triggers.
+
+> `database_setup.sql` deja de ser el mecanismo principal para inicializar o actualizar la base de datos. Las migraciones de `internal/migrations/` pasan a ser la fuente oficial del esquema.
 
 ### 3. Descargar dependencias
 
@@ -69,6 +162,20 @@ go mod tidy
 cd backend-go
 go run ./cmd/server
 # Servidor en http://localhost:3001
+```
+
+### Logs estructurados
+
+El backend Go usa `zerolog` y emite JSON por defecto hacia stdout. Cada request
+incluye `event`, `request_id`, método, ruta, estado y latencia; el ID también se
+devuelve en el header `X-Request-ID`.
+
+Variables opcionales:
+
+```bash
+LOG_LEVEL=debug       # trace, debug, info, warn, error, fatal, panic
+LOG_FORMAT=json       # json (por defecto) o console
+JWT_EXPIRES_IN=7d     # duración del token: 15m, 2h o 7d
 ```
 
 ### 5. Ejecutar el frontend (en otra terminal)
@@ -171,6 +278,39 @@ El token se obtiene desde `POST /auth/login` o `POST /auth/register`.
 | Hash contraseñas | **bcrypt (golang.org/x/crypto)** |
 | Tiempo real | Socket.IO (backend TS - pendiente migración) |
 | Monorepo | npm workspaces (frontend) |
+
+## 📱 Cliente WebSocket preparado para React Native
+
+La futura app móvil puede reutilizar el cliente agnóstico de plataforma
+[mobileWebSocketClient.ts](frontend/src/infrastructure/socket/mobileWebSocketClient.ts).
+No depende de `window`, Vite ni de una librería de conectividad: usa el
+`WebSocket` global disponible en React Native y permite conectar `NetInfo`
+cuando se cree la app.
+
+```ts
+import NetInfo from '@react-native-community/netinfo';
+import { MobileWebSocketClient } from './mobileWebSocketClient';
+
+const client = new MobileWebSocketClient({
+  url: `${API_BASE_URL.replace(/^http/, 'ws')}/ws`,
+});
+const unsubscribeNetwork = NetInfo.addEventListener((state) => {
+  client.setOnline(Boolean(state.isConnected && state.isInternetReachable !== false));
+});
+const unsubscribeMessages = client.onMessage((message) => {
+  if (message.type === 'bus:update') {
+    // Actualizar el estado de las micros en la app.
+  }
+});
+
+client.subscribe('route', '7A');
+client.connect();
+```
+
+El cliente conserva las suscripciones durante una reconexión, usa backoff
+exponencial hasta 30 segundos y expone los estados `offline`, `connecting`,
+`connected` y `reconnecting`. Al desmontar la pantalla, se deben ejecutar
+`unsubscribeNetwork()`, `unsubscribeMessages()` y `client.disconnect()`.
 
 ## 🔌 Integración gRPC
 

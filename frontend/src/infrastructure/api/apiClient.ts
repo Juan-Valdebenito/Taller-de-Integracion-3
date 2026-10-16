@@ -2,7 +2,7 @@ import axios, { type AxiosRequestConfig } from 'axios';
 
 /**
  * Instancia de Axios preconfigurada para el backend.
- * Agrega automáticamente el token JWT de localStorage.
+ * Agrega autom�ticamente el token JWT de localStorage.
  */
 export const apiClient = axios.create({
   baseURL: '/api/v1',
@@ -11,7 +11,7 @@ export const apiClient = axios.create({
   },
 });
 
-// ── Interceptor de request: agrega el token JWT ────────────
+// -- Interceptor de request: agrega el token JWT ------------
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
@@ -52,10 +52,10 @@ const refreshAccessToken = (): Promise<string> => {
   return refreshPromise;
 };
 
-// ── Interceptor de response: maneja errores 401 ────────────
+// -- Interceptor de response: maneja errores 401 ------------
 // El access token dura poco (JWT_ACCESS_EXPIRES_IN, 15 min por defecto): al
-// vencer, se pide un par nuevo con el refresh token y se reintenta la petición
-// una vez. Solo si eso falla se cierra la sesión.
+// vencer, se pide un par nuevo con el refresh token y se reintenta la petici�n
+// una vez. Solo si eso falla se cierra la sesi�n.
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {

@@ -10,19 +10,21 @@ package main
 
 import (
 	"context"
-	"log"
 
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/config"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/db"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/logger"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/seed"
+	"github.com/rs/zerolog/log"
 )
 
 func main() {
+	logger.Configure()
 	cfg := config.Load()
 	pool := db.NewPool(cfg.DatabaseURL)
 	defer pool.Close()
 
 	if err := seed.Run(context.Background(), pool); err != nil {
-		log.Fatalf("no se pudieron crear los datos de prueba: %v", err)
+		log.Fatal().Err(err).Str("event", "seed_failed").Msg("Could not create seed data")
 	}
 }

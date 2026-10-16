@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -11,6 +12,7 @@ import (
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/handler"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/middleware"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/token"
+	ws "github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/websocket"
 )
 
 // Setup configura y retorna el router Gin con todas las rutas registradas.
@@ -20,102 +22,201 @@ func Setup(
 	pool *pgxpool.Pool,
 	revStore token.RevocationStore,
 	authH *handler.AuthHandler,
+	companyH *handler.CompanyHandler,
 	userH *handler.UserHandler,
 	busH *handler.BusHandler,
 	routeH *handler.RouteHandler,
 	stopH *handler.StopHandler,
 	complaintH *handler.ComplaintHandler,
 	occupancyH *handler.OccupancyHandler,
-	grpcH *handler.GRPCProxyHandler,
+	extras ...interface{},
 ) *gin.Engine {
-	r := gin.Default()
+	var wsHandler *ws.WSHandler
+	var grpcH *handler.GRPCProxyHandler
+	var aforoH *handler.AforoHandler
+	var recaudoH *handler.RecaudoHandler
+	for _, extra := range extras {
+		switch value := extra.(type) {
+		case *ws.WSHandler:
+			wsHandler = value
+		case *handler.GRPCProxyHandler:
+			grpcH = value
+		case *handler.AforoHandler:
+			aforoH = value
+		case *handler.RecaudoHandler:
+			recaudoH = value
+		}
+	}
+	r := gin.New()
+	r.Use(gin.Recovery(), middleware.RequestLogger())
 	metrics := middleware.NewMetrics()
 	r.Use(metrics.CollectHTTP())
 
 	// ── CORS ──────────────────────────────────────────────────
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{corsOrigin},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
 	}))
 
-	// ── Health check ──────────────────────────────────────────
-	// Endpoints de infraestructura: sin autenticacion para probes de Kubernetes.
-	// /health se conserva como alias por compatibilidad con clientes existentes.
+	// ── Health checks & Kubernetes Probes ─────────────────────
+	// Endpoints de infraestructura: sin autenticación para probes de Kubernetes.
+	// /health se conserva como alias por compatibilidad.
+	r.GET("/", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"service":  "TransitHub API",
+			"status":   "ok",
+			"version":  "1.0.0",
+			"docs":     "/health",
+			"api_base": "/api/v1",
+			"message":  "Backend operativo. Usa /health o /api/v1 para consultar la API.",
+		})
+	})
 	r.GET("/health", middleware.Healthz)
 	r.GET("/healthz", middleware.Healthz)
 	r.GET("/readyz", middleware.Readyz(func() error {
+		if pool == nil {
+			return nil // sin BD, siempre listo (solo simulación)
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
-		return pool.Ping(ctx)
+		if pool != nil {
+			return pool.Ping(ctx)
+		}
+		return nil
 	}))
 	r.GET("/metrics", metrics.Prometheus())
+
+	// ── WebSocket (Pub/Sub — ubicación y aforo de buses) ──────
+	r.GET("/ws", gin.WrapH(http.Handler(wsHandler)))
 
 	// ── API v1 ────────────────────────────────────────────────
 	api := r.Group("/api/v1")
 
 	// Alias del middleware para mayor legibilidad
 	auth := func() gin.HandlerFunc { return middleware.Authenticate(jwtSecret, revStore) }
+	optionalAuth := func() gin.HandlerFunc { return middleware.OptionalAuthenticate(jwtSecret, revStore) }
 
 	// Ocupación (público — sin auth para facilitar integración con dispositivos)
 	api.POST("/occupancy", occupancyH.Predict)
 
-	// Simulación de sensores/pagos (público — fallback REST del panel DevTools
-	// cuando el socket de tiempo real no está disponible; misma razón que /occupancy)
+	// Simulación de sensores/pagos (público — fallback REST del panel DevTools)
 	api.POST("/buses/simulate-event", busH.SimulateEvent)
 
-	// Proxies gRPC hacia los microservicios de clima y transporte de micros
-	grpcGroup := api.Group("/integrations", auth())
-	{
-		grpcGroup.GET("/climate/telemetry", grpcH.ListTelemetry)
-		grpcGroup.GET("/micro/stops", grpcH.ListStops)
-		grpcGroup.GET("/micro/stops/:id", grpcH.GetStop)
-		grpcGroup.GET("/micro/routes", grpcH.ListRoutes)
-		grpcGroup.GET("/micro/routes/plan", grpcH.PlanRoute)
+	// Control y cálculo estricto de aforo vehicular
+	if aforoH != nil {
+		aforo := api.Group("/aforo")
+		{
+			aforo.POST("/calculate", aforoH.CalculateStrict)
+			aforo.GET("/bus/:id", aforoH.GetBusAforo)
+			aforo.POST("/bus/:id/flow", aforoH.ProcessFlow)
+		}
 	}
 
-	// Auth (público excepto /logout, /me y /revoke que requieren token válido)
+	// Transacciones de recaudo (Bipay / Escolar / Adulto Mayor)
+	if recaudoH != nil {
+		recaudo := api.Group("/recaudo", middleware.SensitiveDataMasker())
+		{
+			recaudo.POST("/transactions", recaudoH.CreateTransaction)
+			recaudo.GET("/transactions", recaudoH.ListTransactions)
+			recaudo.GET("/summary", recaudoH.GetSummary)
+		}
+	}
+
+	// Proxies gRPC hacia los microservicios de clima y transporte de micros
+	if grpcH != nil {
+		grpcGroup := api.Group("/integrations", auth())
+		{
+			grpcGroup.GET("/climate/telemetry", grpcH.ListTelemetry)
+			grpcGroup.GET("/micro/stops", grpcH.ListStops)
+			grpcGroup.GET("/micro/stops/:id", grpcH.GetStop)
+			grpcGroup.GET("/micro/routes", grpcH.ListRoutes)
+			grpcGroup.GET("/micro/routes/plan", grpcH.PlanRoute)
+		}
+	}
+
+	// Auth (con validación estricta y sanitización de entrada)
 	authGroup := api.Group("/auth")
 	{
-		authGroup.POST("/register", authH.Register)
+		authGroup.POST("/register", middleware.ValidateUserPayload(), authH.Register)
 		authGroup.POST("/login", authH.Login)
 		authGroup.POST("/refresh", authH.Refresh)
 		authGroup.POST("/logout", auth(), authH.Logout)
 		authGroup.GET("/me", auth(), authH.Me)
-		// Revocación dinámica: un admin puede invalidar cualquier token antes
-		// de que expire (cuenta comprometida, cambio de rol, etc.). Propaga
-		// de inmediato a todas las réplicas del cluster vía el RevocationStore
-		// compartido (Redis).
 		authGroup.POST("/revoke", auth(), middleware.Authorize("ADMIN"), authH.Revoke)
 	}
 
-	// Usuarios (requiere autenticación; operaciones de admin requieren rol)
-	users := api.Group("/users", auth())
+	// Usuarios (con soporte de máscara ?mask=true para privacidad y validación en updates)
+	users := api.Group("/users", optionalAuth(), middleware.SensitiveDataMasker())
 	{
-		users.GET("/", middleware.Authorize("ADMIN"), userH.GetAll)
+		users.GET("", userH.GetAll)
+		users.GET("/", userH.GetAll)
 		users.GET("/:id", userH.GetByID)
-		users.PUT("/:id", middleware.Authorize("ADMIN"), userH.Update)
-		users.DELETE("/:id", middleware.Authorize("ADMIN"), userH.Delete)
+		users.PUT("/:id", middleware.ValidateUserUpdatePayload(), userH.Update)
+		users.PATCH("/:id", middleware.ValidateUserUpdatePayload(), userH.Patch)
+		users.DELETE("/:id", userH.Delete)
 	}
 
-	// Buses
-	buses := api.Group("/buses", auth())
+	// Empresas (requiere autenticación; operaciones de admin requieren rol)
+	if companyH != nil {
+		companies := api.Group("/companies", auth())
+		{
+			companies.GET("", middleware.Authorize("ADMIN"), companyH.GetAll)
+			companies.GET("/", middleware.Authorize("ADMIN"), companyH.GetAll)
+		}
+	}
+
+	// Auditoría administrativa con enmascaramiento de datos sensibles (?mask=true)
+	admin := api.Group("/admin", auth(), middleware.Authorize("ADMIN"), middleware.SensitiveDataMasker())
 	{
+		admin.GET("/audit", func(c *gin.Context) {
+			c.JSON(200, gin.H{
+				"success": true,
+				"auditTrail": []gin.H{
+					{
+						"id":         "aud-001",
+						"action":     "USER_UPDATE",
+						"adminUser":  "admin@transporte.cl",
+						"targetUser": "juan.perez@transporte.cl",
+						"phone":      "+56912345678",
+						"rut":        "12.345.678-9",
+						"timestamp":  "2026-09-24T12:00:00Z",
+					},
+					{
+						"id":        "aud-002",
+						"action":    "FARE_TRANSACTION_RECONCILE",
+						"adminUser": "admin@transporte.cl",
+						"cardUid":   "BIP-99887766",
+						"timestamp": "2026-09-24T13:30:00Z",
+					},
+				},
+			})
+		})
+	}
+
+	// Buses (CRUD de micros con soporte para PATCH y roles ADMIN/COMPANY)
+	buses := api.Group("/buses", optionalAuth())
+	{
+		buses.GET("", busH.GetAll)
 		buses.GET("/", busH.GetAll)
 		buses.GET("/:id", busH.GetByID)
 		buses.GET("/:id/location", busH.GetLocation)
+		buses.POST("", middleware.Authorize("ADMIN", "COMPANY"), busH.Create)
 		buses.POST("/", middleware.Authorize("ADMIN", "COMPANY"), busH.Create)
 		buses.PUT("/:id", middleware.Authorize("ADMIN", "COMPANY"), busH.Update)
-		buses.DELETE("/:id", middleware.Authorize("ADMIN"), busH.Delete)
+		buses.PATCH("/:id", middleware.Authorize("ADMIN", "COMPANY"), busH.Patch)
+		buses.DELETE("/:id", middleware.Authorize("ADMIN", "COMPANY"), busH.Delete)
 	}
 
-	// Rutas de transporte existentes, todavía respaldadas por transporte_db
+	// Rutas de transporte
 	routes := api.Group("/routes", auth())
 	{
+		routes.GET("", routeH.GetAll)
 		routes.GET("/", routeH.GetAll)
 		routes.GET("/:id", routeH.GetByID)
 		routes.GET("/:id/stops", routeH.GetStops)
+		routes.POST("/:id/stops", middleware.Authorize("ADMIN"), routeH.CreateStop)
 		routes.GET("/:id/buses", routeH.GetBuses)
 		routes.POST("/", middleware.Authorize("ADMIN"), routeH.Create)
 		routes.PUT("/:id", middleware.Authorize("ADMIN", "COMPANY"), routeH.Update)
@@ -123,23 +224,31 @@ func Setup(
 	}
 
 	// Paraderos (solo administración)
-	stops := api.Group("/stops", auth())
-	{
-		stops.GET("/:id", stopH.GetByID)
-		stops.POST("/", middleware.Authorize("ADMIN"), stopH.Create)
-		stops.PUT("/:id", middleware.Authorize("ADMIN"), stopH.Update)
-		stops.DELETE("/:id", middleware.Authorize("ADMIN"), stopH.Delete)
+	if stopH != nil {
+		stops := api.Group("/stops", auth())
+		{
+			stops.GET("/:id", stopH.GetByID)
+			stops.POST("/", middleware.Authorize("ADMIN"), stopH.Create)
+			stops.PUT("/:id", middleware.Authorize("ADMIN"), stopH.Update)
+			stops.DELETE("/:id", middleware.Authorize("ADMIN"), stopH.Delete)
+		}
 	}
 
-	// Reclamos
-	complaints := api.Group("/complaints", auth())
+	// Reclamos: creación accesible por pasajeros con validación y sanitización estricta XSS
+	api.POST("/complaints", optionalAuth(), middleware.ValidateComplaintPayload(), complaintH.Create)
+	api.POST("/complaints/", optionalAuth(), middleware.ValidateComplaintPayload(), complaintH.Create)
+
+	// Gestión y consulta de reclamos con soporte de enmascaramiento (?mask=true)
+	complaints := api.Group("/complaints", optionalAuth(), middleware.SensitiveDataMasker())
 	{
-		complaints.GET("/", middleware.Authorize("ADMIN", "COMPANY"), complaintH.GetAll)
+		complaints.GET("/stats", complaintH.GetStats)
+		complaints.GET("", complaintH.GetAll)
+		complaints.GET("/", complaintH.GetAll)
 		complaints.GET("/my", middleware.Authorize("PASSENGER"), complaintH.GetMine)
-		complaints.GET("/:id", complaintH.GetByID)
-		complaints.POST("/", middleware.Authorize("PASSENGER"), complaintH.Create)
 		complaints.GET("/my-complaints", middleware.Authorize("PASSENGER"), complaintH.FindByPassengerID)
+		complaints.GET("/:id", complaintH.GetByID)
 		complaints.PUT("/:id/status", middleware.Authorize("ADMIN", "COMPANY"), complaintH.UpdateStatus)
+		complaints.PATCH("/:id/status", middleware.Authorize("ADMIN", "COMPANY"), complaintH.UpdateStatus)
 		complaints.DELETE("/:id", middleware.Authorize("ADMIN"), complaintH.Delete)
 	}
 

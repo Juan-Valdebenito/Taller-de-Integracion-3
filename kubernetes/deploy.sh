@@ -1,73 +1,66 @@
 #!/usr/bin/env bash
-# Despliega TransitHub en el cluster, repartido en DOS cuentas (ver kubernetes/DEPLOY.md):
+# Despliega TransitHub en el cluster, repartido en TRES cuentas (ver kubernetes/DEPLOY.md):
 #
-#   micro → cuenta de Ignacio (MICRO_NAMESPACE): NATS, clima, micros y telemetría
-#   app   → cuenta de Tomás   (APP_NAMESPACE):   Secrets/ConfigMaps, BD transporte,
-#                                                backend-go, realtime, frontend e Ingress
+#   foundation → student-jvaldebenito: NATS, clima, micros, backend-go y transporte-db
+#   app        → student-tpenroz:      frontend, bridge e Ingress principal
+#   realtime   → student-iglausser:    telemetría, realtime e Ingress realtime
 #
 # Uso (desde la raíz del repo):
-#   bash kubernetes/deploy.sh <micro|app> render   # genera kubernetes/.rendered/<stack>/ (no toca el cluster)
-#   bash kubernetes/deploy.sh <micro|app> check    # verifica kubectl, sesión, permisos y cuota
-#   bash kubernetes/deploy.sh app build            # docker build + push de backend-go, realtime y frontend
-#   bash kubernetes/deploy.sh <micro|app> apply    # render + kubectl apply en orden + espera los pods
-#   bash kubernetes/deploy.sh <micro|app> status   # pods, servicios e ingress (+ prueba WebSocket en app)
-#   bash kubernetes/deploy.sh <micro|app> delete   # borra del namespace lo que aplicó este script
+#   bash kubernetes/deploy.sh <foundation|app|realtime> render
+#   bash kubernetes/deploy.sh <foundation|app|realtime> check
+#   bash kubernetes/deploy.sh <foundation|app|realtime> apply
+#   bash kubernetes/deploy.sh <foundation|app|realtime> status
+#   bash kubernetes/deploy.sh <foundation|app|realtime> delete
+#   bash kubernetes/deploy.sh foundation build
 #
-# Orden: primero "micro" (el backend llama por gRPC a clima y micros), después "app".
+# Orden recomendado: foundation primero; después app y realtime.
 # El inicio de sesión en el cluster NO lo hace este script ni guarda contraseñas.
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 K8S="$ROOT/kubernetes"
-ENV_FILE="$K8S/cluster.env"
+ENV_FILE="${CLUSTER_ENV_FILE:-$K8S/cluster.env}"
 
-# Dominio con el que está escrito el Ingress en el repo
-SOURCE_HOST="backend-jvaldebenito.dev.censei.cl"
-
-# Services que viven en la cuenta "app"; cualquier otro <svc>.student-*.svc es de "micro".
-APP_SERVICES="transporte-db-svc|backend-go-svc|realtime-svc|frontend-svc"
-
-# ── Stack "micro": cuenta de Ignacio ──────────────────────────
-# Orden: configuración → bases de datos → mensajería → microservicios.
-MICRO_FILES=(
+# ── Stack "foundation": student-jvaldebenito ──────────────────
+FOUNDATION_FILES=(
   services/clima_service/clima-configmap.yaml
   services/micro_service/micros-configmap.yaml
   services/micro_service/micros-secret.yaml
-  services/micro_telemetry/micro-telemetry-configmap.yaml
-  services/micro_telemetry/micro-telemetry-secrets.yaml
   services/clima_db/clima-db-init-scripts.yaml
   services/micro_db/micros-db-init-scripts.yaml
-  services/micro_telemetry/micro-telemetry-db-init-scripts.yaml
   services/clima_db/clima-db.yml
   services/micro_db/micros-db.yml
-  services/micro_telemetry/micro-telemetry-db.yml
   services/nats-jetstream.yml
   services/clima_service/clima-deployment.yaml
   services/micro_service/micros-deployment.yaml
-  services/micro_telemetry/micro-telemetry-deployment.yaml
   services/clima_simulator/clima-simulator-deployment.yaml
-)
-
-# ── Stack "app": cuenta de Tomás + Juan ───────────────────────
-# Secuencia de arranque del equipo:
-#   1. ConfigMaps y Secrets (tarea de Ignacio). Los Secrets NO se comparten entre
-#      namespaces: los que usa backend-go (incluidas las API keys de clima y
-#      micros) tienen que existir también en esta cuenta.
-#   2. Base de datos PostgreSQL transporte_db (tarea de Tomás; emptyDir por ahora).
-#   3. Deployment/Service de backend-go + realtime + frontend e Ingress con wss:// (tarea de Juan).
-APP_FILES=(
   transporte-db-configmap.yaml
   transporte-db-secret.yaml
-  services/clima_service/clima-configmap.yaml
-  services/micro_service/micros-secret.yaml
   services/transporte_db/transporte-db-init-scripts.yaml
   services/transporte_db/transporte-db-deployment.yaml
   services/backend-go/backend-go-deployment.yaml
   services/backend-go/backend-go-service.yaml
-  services/realtime/realtime-deployment.yaml
+)
+
+# ── Stack "app": student-tpenroz ──────────────────────────────
+APP_FILES=(
   services/frontend/frontend-deployment.yaml
   ingress/backend-go-ingress.yaml
+  ingress/backend-go-bridge.yaml
+)
+
+# ── Stack "realtime": student-iglausser ──────────────────────
+REALTIME_FILES=(
+  transporte-db-configmap.yaml
+  transporte-db-secret.yaml
+  services/micro_telemetry/micro-telemetry-configmap.yaml
+  services/micro_telemetry/micro-telemetry-secrets.yaml
+  services/micro_telemetry/micro-telemetry-db-init-scripts.yaml
+  services/micro_telemetry/micro-telemetry-db.yml
+  services/micro_telemetry/micro-telemetry-deployment.yaml
+  services/realtime/realtime-deployment.yaml
+  ingress/realtime-ingress.yaml
 )
 
 # No se aplican en ningún stack:
@@ -94,23 +87,34 @@ load_env() {
   [ -f "$ENV_FILE" ] || die "Falta $ENV_FILE. Créalo con: cp kubernetes/cluster.env.example kubernetes/cluster.env"
   # shellcheck disable=SC1090
   set -a; . "$ENV_FILE"; set +a
-  MICRO_NAMESPACE="${MICRO_NAMESPACE:-student-jvaldebenito}"
+  FOUNDATION_NAMESPACE="${FOUNDATION_NAMESPACE:-student-jvaldebenito}"
   APP_NAMESPACE="${APP_NAMESPACE:-student-tpenroz}"
+  REALTIME_NAMESPACE="${REALTIME_NAMESPACE:-student-iglausser}"
   APP_HOST="${APP_HOST:-backend-tpenroz.dev.censei.cl}"
+  REALTIME_HOST="${REALTIME_HOST:-realtime-backend-tpenroz.dev.censei.cl}"
+  BACKEND_GO_IP="${BACKEND_GO_IP:-<BACKEND_GO_IP>}"
+  # El cluster usa la clase global ingress-nginx; no se crean clases por namespace.
+  APP_INGRESS_CLASS="${APP_INGRESS_CLASS:-nginx}"
+  REALTIME_INGRESS_CLASS="${REALTIME_INGRESS_CLASS:-nginx}"
   APP_SCHEME="${APP_SCHEME:-https}"
   DOCKERHUB_USER="${DOCKERHUB_USER:-}"
   IMAGE_TAG="${IMAGE_TAG:-v1}"
 
   case "$STACK" in
-    micro)
-      NAMESPACE="$MICRO_NAMESPACE"
-      CONTEXT="${MICRO_KUBE_CONTEXT:-}"
-      FILES=("${MICRO_FILES[@]}")
+    foundation)
+      NAMESPACE="$FOUNDATION_NAMESPACE"
+      CONTEXT="${FOUNDATION_KUBE_CONTEXT:-}"
+      FILES=("${FOUNDATION_FILES[@]}")
       ;;
     app)
       NAMESPACE="$APP_NAMESPACE"
       CONTEXT="${APP_KUBE_CONTEXT:-}"
       FILES=("${APP_FILES[@]}")
+      ;;
+    realtime)
+      NAMESPACE="$REALTIME_NAMESPACE"
+      CONTEXT="${REALTIME_KUBE_CONTEXT:-}"
+      FILES=("${REALTIME_FILES[@]}")
       ;;
   esac
   OUT="$K8S/.rendered/$STACK"
@@ -135,16 +139,19 @@ cmd_render() {
     dst="$OUT/$(printf '%02d' "$i")-$(basename "$f")"
 
     # 1. Namespace del recurso → el de este stack
-    # 2. Direcciones internas <svc>.student-*.svc: primero todas a la cuenta "micro",
-    #    después las de la cuenta "app" (transporte-db, backend-go, realtime, frontend)
-    # 3. Dominio público, CORS e imágenes propias
+    # 2. Dominios públicos y namespaces explícitos.
     sed -E \
       -e "s#namespace: student-[a-z0-9-]+#namespace: $NAMESPACE#" \
-      -e "s#([a-z0-9-]+-svc)\.student-[a-z0-9-]+\.svc#\1.$MICRO_NAMESPACE.svc#g" \
-      -e "s#($APP_SERVICES)\.$MICRO_NAMESPACE\.svc#\1.$APP_NAMESPACE.svc#g" \
       -e "s#https://<HOST>#$APP_SCHEME://$APP_HOST#g" \
       -e "s#<HOST>#$APP_HOST#g" \
-      -e "s#$SOURCE_HOST#$APP_HOST#g" \
+      -e "s#<APP_HOST>#$APP_HOST#g" \
+      -e "s#<FOUNDATION_NAMESPACE>#$FOUNDATION_NAMESPACE#g" \
+      -e "s#<APP_NAMESPACE>#$APP_NAMESPACE#g" \
+      -e "s#<REALTIME_NAMESPACE>#$REALTIME_NAMESPACE#g" \
+      -e "s#<REALTIME_HOST>#$REALTIME_HOST#g" \
+      -e "s#<BACKEND_GO_IP>#$BACKEND_GO_IP#g" \
+      -e "s#<APP_INGRESS_CLASS>#$APP_INGRESS_CLASS#g" \
+      -e "s#<REALTIME_INGRESS_CLASS>#$REALTIME_INGRESS_CLASS#g" \
       -e "s#CORS_ORIGIN: \"[^\"]*\"#CORS_ORIGIN: \"$APP_SCHEME://$APP_HOST\"#" \
       "$src" > "$dst"
 
@@ -181,13 +188,19 @@ cmd_check() {
     fi
   done
 
-  if [ "$STACK" = "app" ]; then
-    # backend-go llama por gRPC a clima-service-svc y micros-service-svc en la otra cuenta
-    if "${KUBECTL[@]}" get svc clima-service-svc micros-service-svc -n "$MICRO_NAMESPACE" >/dev/null 2>&1; then
-      ok "Microservicios visibles en $MICRO_NAMESPACE"
+  if [ "$STACK" = "foundation" ]; then
+    if "${KUBECTL[@]}" get svc clima-service-svc micros-service-svc nats-svc -n "$FOUNDATION_NAMESPACE" >/dev/null 2>&1; then
+      ok "Servicios foundation visibles en $FOUNDATION_NAMESPACE"
     else
-      warn "No se pudo listar clima/micros en $MICRO_NAMESPACE (normal si esta cuenta no tiene permisos de lectura allí;"
-      warn "  igual deben estar desplegados antes con: bash kubernetes/deploy.sh micro apply)"
+      warn "No se pudieron listar todos los servicios foundation en $FOUNDATION_NAMESPACE"
+    fi
+  elif [ "$STACK" = "app" ]; then
+    warn "backend-go vive en $FOUNDATION_NAMESPACE; verifica el bridge backend-go-ingress-svc antes de aplicar"
+  elif [ "$STACK" = "realtime" ]; then
+    if "${KUBECTL[@]}" get svc nats-svc -n "$FOUNDATION_NAMESPACE" >/dev/null 2>&1; then
+      ok "NATS visible en $FOUNDATION_NAMESPACE"
+    else
+      warn "No se pudo listar nats-svc en $FOUNDATION_NAMESPACE"
     fi
   fi
 
@@ -196,7 +209,10 @@ cmd_check() {
 }
 
 cmd_build() {
-  [ "$STACK" = "app" ] || die "build solo aplica al stack app (los microservicios de Ignacio ya están publicados en ignaciogsm/*)."
+  case "$STACK" in
+    foundation|realtime) ;;
+    *) die "build aplica a foundation o realtime." ;;
+  esac
   [ -n "$DOCKERHUB_USER" ] || die "Falta DOCKERHUB_USER en cluster.env."
   command -v docker >/dev/null 2>&1 || die "docker no está instalado."
   info "Construyendo y publicando imágenes en $DOCKERHUB_USER (tag $IMAGE_TAG)"
@@ -211,8 +227,11 @@ cmd_build() {
 }
 
 cmd_apply() {
-  if [ "$STACK" = "app" ] && [ -z "$DOCKERHUB_USER" ]; then
-    die "Falta DOCKERHUB_USER en cluster.env (imágenes de backend-go, realtime y frontend)."
+  if [ -z "$DOCKERHUB_USER" ]; then
+    die "Falta DOCKERHUB_USER en cluster.env (necesario para las imágenes del stack $STACK)."
+  fi
+  if [ "$STACK" = "app" ] && [ "$BACKEND_GO_IP" = "<BACKEND_GO_IP>" ]; then
+    die "Falta BACKEND_GO_IP en cluster.env para el bridge hacia backend-go."
   fi
   cmd_render
   cmd_check
@@ -238,6 +257,8 @@ cmd_apply() {
     warn "Hay deployments con problemas; revisa con: bash kubernetes/deploy.sh $STACK status"
   elif [ "$STACK" = "app" ]; then
     ok "Listo. La app quedará en $APP_SCHEME://$APP_HOST cuando external-dns cree el registro DNS (puede tardar unos minutos)."
+  elif [ "$STACK" = "realtime" ]; then
+    ok "Realtime quedará en $APP_SCHEME://$REALTIME_HOST cuando external-dns cree el registro DNS."
   else
     ok "Microservicios listos en $NAMESPACE. Sigue con: bash kubernetes/deploy.sh app apply"
   fi
@@ -250,6 +271,8 @@ cmd_status() {
     echo
     info "Prueba del Ingress y WebSocket"
     NAMESPACE="$NAMESPACE" bash "$K8S/ingress/check-websocket.sh" "$APP_SCHEME://$APP_HOST" || true
+  elif [ "$STACK" = "realtime" ]; then
+    NAMESPACE="$NAMESPACE" bash "$K8S/ingress/check-websocket.sh" "$APP_SCHEME://$REALTIME_HOST" || true
   fi
 }
 
@@ -269,7 +292,7 @@ cmd_delete() {
 STACK="${1:-}"
 COMMAND="${2:-}"
 case "$STACK" in
-  micro|app) ;;
+  foundation|app|realtime) ;;
   *) usage ;;
 esac
 load_env

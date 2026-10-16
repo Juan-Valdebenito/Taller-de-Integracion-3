@@ -1,185 +1,140 @@
-import { useState, useEffect } from 'react';
-import { ComplaintModal } from '../../components/passenger/ComplaintModal';
-import { LiveMap, BusData, HazardData } from '../../components/passenger/LiveMap';
-import { HazardModal } from '../../components/passenger/HazardModal';
-import { SimulationDevTools } from '../../components/passenger/SimulationDevTools';
-import { RealtimeStatusBadge, RealtimeStatus } from '../../components/map/RealtimeStatusBadge';
-import { io, Socket } from 'socket.io-client';
+/**
+ * PassengerMapPage.tsx
+ *
+ * Vista principal del mapa interactivo para pasajeros.
+ * Muestra micros en tiempo real sobre un mapa Leaflet centrado en Temuco.
+ *
+ * Features:
+ *  - WebSocket como fuente primaria de datos (backend Go)
+ *  - Simulación local como fallback cuando el WS no está conectado
+ *  - Marcadores SVG con animación de movimiento suave (interpolación rAF)
+ *  - Halo de ocupación con color del OccupancyService
+ *  - Popup con datos de predicción de aforo del backend
+ *  - Panel lateral ordenado por ocupación con badges de predicción
+ *  - Barra de estado con latencia WS y mensajes/segundo
+ *  - Overlay de reconexión cuando se pierde la conexión
+ */
+
+import { useCallback, useState } from 'react';
+import { MapContainer, TileLayer } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import './PassengerMapPage.css';
+
+import { useSimulatedBuses, BusState } from '../../../hooks/useSimulatedBuses';
+import { useSocketBuses } from '../../../hooks/useSocketBuses';
+import { BusMarker } from '../../components/map/BusMarker';
+import { BusSidePanel } from '../../components/map/BusSidePanel';
+import { RouteFilter } from '../../components/map/RouteFilter';
+import { MapStatusBar } from '../../components/map/MapStatusBar';
+import { ConnectionOverlay } from '../../components/map/ConnectionOverlay';
+import { RouteNodesLayer } from '../../components/map/RouteNodesLayer';
+
+// Centro del mapa: Plaza de Armas de Temuco
+const TEMUCO_CENTER: [number, number] = [-38.7359, -72.5904];
+const DEFAULT_ZOOM = 14;
 
 export function PassengerMapPage() {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedBus, setSelectedBus] = useState({ busId: 'B-7A-01', lineName: '7A' });
-  const [buses, setBuses] = useState<BusData[]>([]);
-  const [socket, setSocket] = useState<Socket | null>(null);
-  const [hazards, setHazards] = useState<HazardData[]>([]);
-  const [isHazardModalOpen, setIsHazardModalOpen] = useState(false);
-  const [pendingLocation, setPendingLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('connecting');
-  const [transport, setTransport] = useState<string | null>(null);
-  const [reconnectAttempt, setReconnectAttempt] = useState(0);
-  const [lastUpdateAt, setLastUpdateAt] = useState<number | null>(null);
+  // ── Estado ────────────────────────────────────────────────────
+  const [selectedBusId, setSelectedBusId] = useState<string | null>(null);
+  const [routeFilter, setRouteFilter] = useState<string>('all');
 
-  useEffect(() => {
-    // Conectar a Socket.io en el MISMO origen de la página: en el cluster el
-    // Ingress enruta /socket.io al servidor realtime y, si la página se cargó
-    // por https://, el cliente usa wss:// automáticamente. En desarrollo lo
-    // reenvía el proxy de Vite (vite.config.ts). Al conectar, el servidor
-    // emite el estado de todos los buses, así que no hace falta carga REST.
-    const socketInstance = io({
-      transports: ['websocket', 'polling'],
-      // Si el Ingress no deja pasar el Upgrade a WebSocket, caer a polling HTTP
-      // en vez de reintentar WebSocket indefinidamente con el mapa vacío.
-      tryAllTransports: true,
-    });
-    setSocket(socketInstance);
+  // ── Buses simulados (fallback cuando WS no está conectado) ────
+  const simulatedBuses = useSimulatedBuses(2000);
+  const [buses, setBuses] = useState<BusState[]>(simulatedBuses);
 
-    // ── Estado de la conexión (para RealtimeStatusBadge) ───────
-    socketInstance.on('connect', () => {
-      setRealtimeStatus('connected');
-      setReconnectAttempt(0);
-      const engine = socketInstance.io.engine;
-      setTransport(engine.transport.name);
-      engine.on('upgrade', (t) => setTransport(t.name));
-    });
-    socketInstance.on('disconnect', (reason) => {
-      // Solo un cierre pedido por el cliente es definitivo; el resto reconecta solo
-      setRealtimeStatus(reason === 'io client disconnect' ? 'offline' : 'reconnecting');
-    });
-    socketInstance.on('connect_error', () => {
-      setRealtimeStatus((prev) => (prev === 'connecting' ? 'connecting' : 'reconnecting'));
-    });
-    socketInstance.io.on('reconnect_attempt', (attempt) => {
-      setRealtimeStatus('reconnecting');
-      setReconnectAttempt(attempt);
-    });
+  // Sincronizar estado local con la simulación
+  useState(() => {
+    setBuses(simulatedBuses);
+  });
 
-    const updateBusState = (data: BusData) => {
-      setLastUpdateAt(Date.now());
-      setBuses((prevBuses) => {
-        const existingBusIndex = prevBuses.findIndex((b) => b.id === data.id);
-        if (existingBusIndex >= 0) {
-          const updated = [...prevBuses];
-          updated[existingBusIndex] = {
-            ...updated[existingBusIndex],
-            ...data,
-          };
-          return updated;
-        } else {
-          return [...prevBuses, data];
-        }
-      });
-    };
+  // ── WebSocket (fuente primaria) ────────────────────────────────
+  const setBusesCallback = useCallback(
+    (updater: (prev: BusState[]) => BusState[]) => {
+      setBuses(updater);
+    },
+    [],
+  );
+  const wsState = useSocketBuses(setBusesCallback, true);
 
-    // Escuchar actualizaciones de ubicación y estado de aforo en tiempo real
-    socketInstance.on('bus:location:broadcast', updateBusState);
-    socketInstance.on('bus:status:broadcast', updateBusState);
+  // WebSocket es la fuente primaria; simulación es fallback
+  const activeBuses = wsState.status === 'connected' ? buses : simulatedBuses;
+  const isInitialLoading = wsState.status === 'connecting' && wsState.totalMessages === 0;
 
-    return () => {
-      socketInstance.disconnect();
-    };
-  }, []);
+  // ── Filtro de ruta ────────────────────────────────────────────
+  const visibleBuses =
+    routeFilter === 'all'
+      ? activeBuses
+      : activeBuses.filter((b) => b.routeId === routeFilter);
 
-  const handleBusClick = (busId: string, lineName: string) => {
-    setSelectedBus({ busId, lineName });
-    setIsModalOpen(true);
-  };
-
-  const handleMapClick = (lat: number, lng: number) => {
-    setPendingLocation({ lat, lng });
-    setIsHazardModalOpen(true);
-  };
-
-  const handleCreateHazard = (title: string, description: string) => {
-    if (!pendingLocation) return;
-    const hazard: HazardData = {
-      id: crypto.randomUUID(),
-      lat: pendingLocation.lat,
-      lng: pendingLocation.lng,
-      title,
-      description,
-      createdAt: new Date().toISOString(),
-      usefulVotes: 0,
-    };
-    setHazards((prev) => [...prev, hazard]);
-    setPendingLocation(null);
-  };
-
-  // Registra un voto "Útil" (solo una vez por usuario vía localStorage).
-  // Devuelve true si el voto fue contado.
-  const handleHazardUseful = (id: string): boolean => {
-    const votedIds = JSON.parse(localStorage.getItem('hazard:voted') ?? '[]') as string[];
-    if (votedIds.includes(id)) return false;
-
-    localStorage.setItem('hazard:voted', JSON.stringify([...votedIds, id]));
-    setHazards((prev) =>
-      prev.map((h) => (h.id === id ? { ...h, usefulVotes: h.usefulVotes + 1 } : h)),
-    );
-    return true;
-  };
-
-  const handleHazardResolve = (id: string) => {
-    setHazards((prev) => prev.filter((h) => h.id !== id));
+  // ── Handlers ─────────────────────────────────────────────────
+  const handleSelectBus = (id: string) => {
+    setSelectedBusId((prev) => (prev === id ? null : id));
   };
 
   return (
-    <div style={{
-      height: 'calc(100vh - 65px)',
-      width: '100%',
-      position: 'relative',
-      padding: 'var(--space-4)',
-      boxSizing: 'border-box'
-    }}>
-      {/* Mapa Interactivo con Aforo Dinámico */}
-      <LiveMap 
-        buses={buses} 
-        hazards={hazards}
-        onBusClick={handleBusClick} 
-        onMapClick={handleMapClick}
-        onHazardUseful={handleHazardUseful}
-        onHazardResolve={handleHazardResolve}
-        selectedBusId={selectedBus.busId}
+    <div className="map-page">
+      {/* Barra de estado superior */}
+      <MapStatusBar
+        buses={activeBuses}
+        wsState={wsState}
+        routeFilter={routeFilter}
       />
 
-      {/* Estado de la conexión en tiempo real (WebSocket / polling / reconectando) */}
-      <RealtimeStatusBadge
-        status={realtimeStatus}
-        transport={transport}
-        reconnectAttempt={reconnectAttempt}
-        lastUpdateAt={lastUpdateAt}
-      />
+      {/* Barra de filtro de rutas */}
+      <div className="map-topbar">
+        <span className="map-topbar-label">Ruta:</span>
+        <RouteFilter
+          buses={activeBuses}
+          value={routeFilter}
+          onChange={setRouteFilter}
+        />
+      </div>
 
-      {/* Panel Flotante DevTools para Simulación de Sensores y Pagos (Líneas 7A, 7B, 1C) */}
-      <SimulationDevTools
-        socket={socket}
-        buses={buses as any}
-        selectedBusId={selectedBus.busId}
-        onSelectBus={(busId) => {
-          const found = buses.find((b) => b.id === busId);
-          if (found) {
-            setSelectedBus({ busId: found.id, lineName: found.line });
-          }
-        }}
-      />
+      {/* Contenido principal: mapa + panel lateral */}
+      <div className="map-content">
+        {/* Mapa Leaflet */}
+        <div className="map-leaflet-wrapper">
+          <MapContainer
+            center={TEMUCO_CENTER}
+            zoom={DEFAULT_ZOOM}
+            style={{ height: '100%', width: '100%' }}
+            zoomControl={true}
+          >
+            {/* Tiles de OpenStreetMap */}
+            <TileLayer
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              maxZoom={19}
+            />
 
-      {/* Modal Flotante Contextual de Reclamo */}
-      <ComplaintModal 
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        busId={selectedBus.busId}
-        lineName={selectedBus.lineName}
-      />
+            <RouteNodesLayer routeFilter={routeFilter} />
 
-      {/* Modal de Reporte de Peligro */}
-      <HazardModal
-        isOpen={isHazardModalOpen}
-        lat={pendingLocation?.lat ?? 0}
-        lng={pendingLocation?.lng ?? 0}
-        onClose={() => {
-          setIsHazardModalOpen(false);
-          setPendingLocation(null);
-        }}
-        onCreate={handleCreateHazard}
-      />
+            {/* Marcadores de micros con animación */}
+            {visibleBuses.map((bus) => (
+              <BusMarker
+                key={bus.id}
+                bus={bus}
+                isSelected={bus.id === selectedBusId}
+                onSelect={handleSelectBus}
+              />
+            ))}
+          </MapContainer>
+
+          {/* Overlay de conexión */}
+          <ConnectionOverlay status={wsState.status} />
+        </div>
+
+        {/* Panel lateral */}
+        <aside className="map-side-panel">
+          <BusSidePanel
+            buses={activeBuses}
+            selectedId={selectedBusId}
+            onSelect={handleSelectBus}
+            routeFilter={routeFilter}
+            loading={isInitialLoading}
+          />
+        </aside>
+      </div>
     </div>
   );
 }

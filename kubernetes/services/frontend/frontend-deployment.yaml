@@ -1,5 +1,5 @@
 # FRONTEND (React estático servido por nginx)
-# El Ingress le envía todo lo que no sea /api ni /socket.io (ver kubernetes/ingress/).
+# El Ingress principal le envía las rutas del frontend (ver kubernetes/ingress/).
 apiVersion: apps/v1
 kind: Deployment
 metadata:

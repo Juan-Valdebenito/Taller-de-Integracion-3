@@ -23,7 +23,10 @@ export function LoginPage() {
         password,
       });
 
-      const { token, refreshToken, user } = res.data;
+      const payload = res.data?.data || res.data;
+      const token = payload.token || res.data.token;
+      const refreshToken = payload.refreshToken || res.data.refreshToken;
+      const user = payload.user || res.data.user;
       login(token, user, refreshToken);
 
       if (user.role === 'ADMIN') {
@@ -36,7 +39,9 @@ export function LoginPage() {
     } catch (err: any) {
       console.error('Error al iniciar sesión:', err);
       setErrorMessage(
-        err.response?.data?.message || 'Error al iniciar sesión. Verifica tus credenciales.'
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        'Error al iniciar sesión. Verifica tus credenciales.'
       );
     } finally {
       setIsLoading(false);

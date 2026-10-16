@@ -6,18 +6,31 @@ import { ComplaintStatus } from '../../../../shared/enums';
 
 
 // ── Mapper: Prisma record → Entidad de dominio ─────────────────
-function toEntity(raw: PrismaComplaint): Complaint {
+function toEntity(raw: PrismaComplaint | {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  status: string;
+  adminResponse?: string | null;
+  passengerId?: string | null;
+  busId?: string | null;
+  routeId?: string | null;
+  companyId?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}): Complaint {
   return new Complaint(
     raw.id,
     raw.title,
     raw.description,
     raw.category as ComplaintCategory,
     raw.status as ComplaintStatus,
-    raw.passengerId,
-    raw.busId,
-    raw.routeId,
-    raw.companyId,
-    raw.adminResponse,
+    raw.passengerId ?? '',
+    raw.busId ?? '',
+    raw.routeId ?? '',
+    raw.companyId ?? '',
+    raw.adminResponse ?? '',
     raw.createdAt,
     raw.updatedAt,
   );

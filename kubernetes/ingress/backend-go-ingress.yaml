@@ -7,7 +7,6 @@
 #     navegador usa wss:// automáticamente porque la página carga por https://
 #
 # Rutas (un solo host = mismo origen, sin CORS entre frontend y API):
-#   https://<host>/socket.io/... → realtime-svc   (Socket.io: mapa de buses en tiempo real, wss://)
 #   https://<host>/api/...       → backend-go-svc (API REST)
 #   https://<host>/              → frontend-svc   (React)
 #
@@ -19,41 +18,19 @@ metadata:
   namespace: student-jvaldebenito
   annotations:
     external-dns.alpha.kubernetes.io/target: proxy.inf.uct.cl
-    # ── WebSocket Upgrade ──────────────────────────────────────
-    # ingress-nginx reenvía "Upgrade: websocket" / "Connection: upgrade" sobre
-    # HTTP/1.1; lo que cortaba el mapa era el timeout por defecto de 60 s sin
-    # tráfico. Se sube a 1 hora.
-    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-    # Sin buffering: las posiciones de los buses llegan apenas se emiten.
-    nginx.ingress.kubernetes.io/proxy-buffering: "off"
-    # Socket.io parte con long-polling y lo usa de respaldo: todas las
-    # peticiones de un cliente deben llegar al mismo pod ("sticky sessions").
-    nginx.ingress.kubernetes.io/affinity: "cookie"
-    nginx.ingress.kubernetes.io/affinity-mode: "persistent"
-    nginx.ingress.kubernetes.io/session-cookie-name: "transithub-rt"
-    nginx.ingress.kubernetes.io/session-cookie-max-age: "3600"
     # Límite de body para los POST (reclamos, etc.)
     nginx.ingress.kubernetes.io/proxy-body-size: "2m"
 spec:
   ingressClassName: nginx
   rules:
-    - host: backend-jvaldebenito.dev.censei.cl
+    - host: <APP_HOST>
       http:
         paths:
-          - path: /socket.io
-            pathType: Prefix
-            backend:
-              service:
-                name: realtime-svc
-                port:
-                  number: 3001
           - path: /api
             pathType: Prefix
             backend:
               service:
-                name: backend-go-svc
+                name: backend-go-ingress-svc
                 port:
                   number: 3001
           - path: /

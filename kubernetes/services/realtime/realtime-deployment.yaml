@@ -1,10 +1,10 @@
 # SERVIDOR DE TIEMPO REAL (Socket.io) — backend/ en Node
-# El Ingress le envía solo wss://<HOST>/socket.io (ver kubernetes/ingress/).
+# El Ingress dedicado de realtime le envía tráfico desde realtime.<HOST> (ver kubernetes/ingress/).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: realtime
-  namespace: student-jvaldebenito
+  namespace: student-iglausser
   labels:
     app: realtime
 spec:
@@ -35,10 +35,10 @@ spec:
               value: "3001"
             - name: NODE_ENV
               value: "production"
-            # Origen público del frontend (mismo host que el Ingress).
-            # deploy.sh reemplaza <HOST> por APP_HOST de cluster.env (mismo host que el Ingress)
+            # Origen público del frontend.
+            # deploy.sh reemplaza <REALTIME_HOST> desde cluster.env.
             - name: SOCKET_CORS_ORIGIN
-              value: "https://<HOST>"
+              value: "https://<REALTIME_HOST>"
             # Prisma solo conecta si se usan las rutas REST de este servidor
             # (el Ingress no las expone), pero se deja configurado.
             - name: DB_HOST
@@ -97,7 +97,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: realtime-svc
-  namespace: student-jvaldebenito
+  namespace: student-iglausser
 spec:
   type: ClusterIP
   selector:
