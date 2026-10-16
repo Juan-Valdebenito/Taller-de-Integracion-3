@@ -19,12 +19,15 @@ export class ApiError extends Error {
   readonly status: number;
   /** Segundos de espera sugeridos por el servidor en respuestas 429. */
   readonly retryAfter?: number;
+  /** Errores de validación por campo (ej. { password: "..." }) en respuestas 400. */
+  readonly fieldErrors?: Record<string, string>;
 
-  constructor(status: number, message: string, retryAfter?: number) {
+  constructor(status: number, message: string, retryAfter?: number, fieldErrors?: Record<string, string>) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.retryAfter = retryAfter;
+    this.fieldErrors = fieldErrors;
   }
 }
 
@@ -82,16 +85,34 @@ async function readJson(response: Response): Promise<any> {
   }
 }
 
+/**
+ * backend-go responde errores en dos formatos:
+ *   { "error": "..." }                                         (la mayoría)
+ *   { "message": "...", "errors": [{ "field", "message" }] }   (validación de registro)
+ */
 function toApiError(response: Response, data: any): ApiError {
   const retryAfterHeader = Number(response.headers.get('Retry-After'));
   const retryAfter =
     typeof data?.retryAfter === 'number' ? data.retryAfter : Number.isFinite(retryAfterHeader) && retryAfterHeader > 0 ? retryAfterHeader : undefined;
+
+  let fieldErrors: Record<string, string> | undefined;
+  if (Array.isArray(data?.errors)) {
+    fieldErrors = {};
+    for (const item of data.errors) {
+      if (typeof item?.field === 'string' && typeof item?.message === 'string' && !(item.field in fieldErrors)) {
+        fieldErrors[item.field] = item.message;
+      }
+    }
+  }
+  const firstFieldError = fieldErrors ? Object.values(fieldErrors)[0] : undefined;
+
   const message =
     (typeof data?.error === 'string' && data.error) ||
+    firstFieldError ||
     (typeof data?.message === 'string' && data.message) ||
     DEFAULT_MESSAGES[response.status] ||
     `Error inesperado (${response.status}).`;
-  return new ApiError(response.status, message, retryAfter);
+  return new ApiError(response.status, message, retryAfter, fieldErrors);
 }
 
 function buildInit(method: string, body: unknown, accessToken: string | null): RequestInit {

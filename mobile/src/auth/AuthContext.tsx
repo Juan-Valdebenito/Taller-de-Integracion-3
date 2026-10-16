@@ -1,0 +1,93 @@
+/**
+ * Estado de sesión de la app.
+ *
+ * - Al montar, recupera la sesión guardada en SecureStore (restoreSession).
+ * - signIn / signUp guardan los tokens cifrados y dejan al usuario dentro.
+ * - signOut revoca los tokens en el servidor y los borra del dispositivo.
+ * - Si la API no puede renovar los tokens (sesión expirada), vuelve a "signedOut".
+ */
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+
+import * as authApi from '../api/authApi';
+import { ApiError, setSessionExpiredHandler } from '../api/client';
+import type { AuthUser, LoginInput, RegisterInput } from './types';
+
+export type AuthStatus = 'loading' | 'signedOut' | 'signedIn';
+
+export interface AuthContextValue {
+  status: AuthStatus;
+  user: AuthUser | null;
+  /** Error al recuperar la sesión al abrir la app (ej. sin conexión). */
+  restoreError: string | null;
+  signIn: (input: LoginInput) => Promise<void>;
+  signUp: (input: RegisterInput) => Promise<void>;
+  signOut: () => Promise<void>;
+  retryRestore: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [status, setStatus] = useState<AuthStatus>('loading');
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+
+  const restore = useCallback(async () => {
+    setStatus('loading');
+    setRestoreError(null);
+    try {
+      const restored = await authApi.restoreSession();
+      setUser(restored);
+      setStatus(restored ? 'signedIn' : 'signedOut');
+    } catch (error) {
+      // Sin conexión: los tokens se conservan y se puede reintentar.
+      setUser(null);
+      setStatus('signedOut');
+      setRestoreError(error instanceof ApiError ? error.message : 'No se pudo recuperar la sesión.');
+    }
+  }, []);
+
+  useEffect(() => {
+    setSessionExpiredHandler(() => {
+      setUser(null);
+      setStatus('signedOut');
+    });
+    restore();
+    return () => setSessionExpiredHandler(null);
+  }, [restore]);
+
+  const signIn = useCallback(async (input: LoginInput) => {
+    const signedInUser = await authApi.login(input);
+    setRestoreError(null);
+    setUser(signedInUser);
+    setStatus('signedIn');
+  }, []);
+
+  const signUp = useCallback(async (input: RegisterInput) => {
+    const newUser = await authApi.register(input);
+    setRestoreError(null);
+    setUser(newUser);
+    setStatus('signedIn');
+  }, []);
+
+  const signOut = useCallback(async () => {
+    await authApi.logout();
+    setUser(null);
+    setStatus('signedOut');
+  }, []);
+
+  const value = useMemo<AuthContextValue>(
+    () => ({ status, user, restoreError, signIn, signUp, signOut, retryRestore: restore }),
+    [status, user, restoreError, signIn, signUp, signOut, restore],
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth(): AuthContextValue {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth debe usarse dentro de <AuthProvider>');
+  }
+  return context;
+}

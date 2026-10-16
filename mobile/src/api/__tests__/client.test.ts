@@ -108,6 +108,30 @@ describe('apiRequest', () => {
     expect(error.message).toContain('42 segundos');
   });
 
+  it('expone los errores de validación por campo del registro', async () => {
+    fetchMock.mockResolvedValueOnce(
+      fakeResponse({
+        status: 400,
+        body: {
+          status: 'fail',
+          message: 'Datos de usuario inválidos o no cumplen con las políticas de seguridad',
+          errors: [
+            { field: 'password', message: 'La contraseña debe tener una longitud mínima de 8 caracteres' },
+            { field: 'email', message: 'El formato de correo electrónico no cumple con la norma RFC 5322' },
+          ],
+        },
+      }),
+    );
+
+    const error = (await apiRequest('/auth/register', { method: 'POST', auth: false }).catch((e: unknown) => e)) as ApiError;
+    expect(error.status).toBe(400);
+    expect(error.fieldErrors).toEqual({
+      password: 'La contraseña debe tener una longitud mínima de 8 caracteres',
+      email: 'El formato de correo electrónico no cumple con la norma RFC 5322',
+    });
+    expect(error.message).toBe('La contraseña debe tener una longitud mínima de 8 caracteres');
+  });
+
   it('traduce un fallo de red a un mensaje para el usuario', async () => {
     fetchMock.mockRejectedValueOnce(new TypeError('Network request failed'));
 
