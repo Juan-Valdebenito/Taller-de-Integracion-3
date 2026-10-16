@@ -136,6 +136,45 @@ func (l *IPRateLimiter) StartCleanup(ctx context.Context, interval time.Duration
 	}()
 }
 
+// AuthRateLimiters agrupa los limitadores de los endpoints de autenticación.
+// Se entrega a router.Setup; si es nil (o un campo es nil), esas rutas no se limitan.
+type AuthRateLimiters struct {
+	// Credentials protege login y registro contra fuerza bruta de contraseñas.
+	Credentials *IPRateLimiter
+	// Tokens protege la rotación de tokens: refresh, logout y revoke.
+	Tokens *IPRateLimiter
+}
+
+// NewAuthRateLimiters crea los dos limitadores e inicia su limpieza periódica
+// hasta que ctx se cancele.
+func NewAuthRateLimiters(ctx context.Context, credentials, tokens RateLimitConfig) *AuthRateLimiters {
+	a := &AuthRateLimiters{
+		Credentials: NewIPRateLimiter(credentials),
+		Tokens:      NewIPRateLimiter(tokens),
+	}
+	a.Credentials.StartCleanup(ctx, time.Minute)
+	a.Tokens.StartCleanup(ctx, time.Minute)
+	return a
+}
+
+// CredentialsMiddleware devuelve el límite de login/registro, o un paso libre si no está configurado.
+func (a *AuthRateLimiters) CredentialsMiddleware() gin.HandlerFunc {
+	if a == nil || a.Credentials == nil {
+		return passThrough
+	}
+	return a.Credentials.Middleware()
+}
+
+// TokensMiddleware devuelve el límite de rotación de tokens, o un paso libre si no está configurado.
+func (a *AuthRateLimiters) TokensMiddleware() gin.HandlerFunc {
+	if a == nil || a.Tokens == nil {
+		return passThrough
+	}
+	return a.Tokens.Middleware()
+}
+
+func passThrough(c *gin.Context) { c.Next() }
+
 // Middleware devuelve el handler de Gin que aplica el límite por IP de cliente
 // (c.ClientIP()). Al excederse responde 429 Too Many Requests con el header
 // Retry-After en segundos.

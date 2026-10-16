@@ -35,8 +35,11 @@ func Setup(
 	var grpcH *handler.GRPCProxyHandler
 	var aforoH *handler.AforoHandler
 	var recaudoH *handler.RecaudoHandler
+	var authLimits *middleware.AuthRateLimiters
 	for _, extra := range extras {
 		switch value := extra.(type) {
+		case *middleware.AuthRateLimiters:
+			authLimits = value
 		case *ws.WSHandler:
 			wsHandler = value
 		case *handler.GRPCProxyHandler:
@@ -137,14 +140,20 @@ func Setup(
 	}
 
 	// Auth (con validación estricta y sanitización de entrada)
+	// Rate limiting por IP contra DoS y fuerza bruta: va primero para cortar el
+	// exceso antes de validar el body, verificar JWT o consultar la BD.
+	//   credentialsLimit → login y registro (límite estricto)
+	//   tokensLimit      → rotación de tokens: refresh, logout y revoke
+	credentialsLimit := authLimits.CredentialsMiddleware()
+	tokensLimit := authLimits.TokensMiddleware()
 	authGroup := api.Group("/auth")
 	{
-		authGroup.POST("/register", middleware.ValidateUserPayload(), authH.Register)
-		authGroup.POST("/login", authH.Login)
-		authGroup.POST("/refresh", authH.Refresh)
-		authGroup.POST("/logout", auth(), authH.Logout)
+		authGroup.POST("/register", credentialsLimit, middleware.ValidateUserPayload(), authH.Register)
+		authGroup.POST("/login", credentialsLimit, authH.Login)
+		authGroup.POST("/refresh", tokensLimit, authH.Refresh)
+		authGroup.POST("/logout", tokensLimit, auth(), authH.Logout)
 		authGroup.GET("/me", auth(), authH.Me)
-		authGroup.POST("/revoke", auth(), middleware.Authorize("ADMIN"), authH.Revoke)
+		authGroup.POST("/revoke", tokensLimit, auth(), middleware.Authorize("ADMIN"), authH.Revoke)
 	}
 
 	// Usuarios (con soporte de máscara ?mask=true para privacidad y validación en updates)
