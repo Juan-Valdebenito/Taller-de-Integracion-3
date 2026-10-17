@@ -1,7 +1,7 @@
 # TransitHub — App móvil (React Native + Expo)
 
 App para pasajeros. Por ahora incluye el **módulo de autenticación** (login,
-registro, sesión persistente y cierre de sesión) contra `backend-go`.
+registro, sesión persistente y cierre de sesión) y la **vista de Perfil**, contra `backend-go`.
 
 - Expo SDK 58 · React Native 0.88 · TypeScript · Expo Router
 - Tokens JWT guardados **cifrados** con `expo-secure-store`
@@ -44,7 +44,9 @@ src/
 │   ├── _layout.tsx         AuthProvider + Stack.Protected (qué rutas se ven con/sin sesión)
 │   ├── login.tsx           → screens/LoginScreen
 │   ├── register.tsx        → screens/RegisterScreen
-│   └── (app)/index.tsx     → screens/HomeScreen (solo con sesión)
+│   └── (app)/              Solo con sesión; pestañas inferiores (_layout.tsx)
+│       ├── index.tsx       → screens/HomeScreen   (pestaña Inicio)
+│       └── profile.tsx     → screens/ProfileScreen (pestaña Perfil)
 ├── auth/
 │   ├── AuthContext.tsx     Estado de sesión: restaurar al abrir, signIn, signUp, signOut
 │   └── validation.ts       Mismas reglas que backend-go (email, contraseña ≥ 8)
@@ -69,5 +71,12 @@ src/
   servidor; los tokens locales se borran aunque no haya conexión.
 - **Límite de intentos:** si backend-go responde 429 (rate limiting), el formulario
   muestra el mensaje y bloquea el botón con cuenta regresiva hasta el `Retry-After`.
+
+## Perfil
+
+La pestaña **Perfil** muestra avatar con iniciales, nombre, tipo de cuenta, correo,
+estado de la cuenta y fecha de registro. Los datos se piden a `GET /auth/me` al
+entrar y al deslizar hacia abajo; si falla (ej. sin conexión), se conservan los
+datos ya cargados y se muestra un aviso.
 
 `expo-secure-store` no funciona en la versión web; la app está pensada para iOS y Android.

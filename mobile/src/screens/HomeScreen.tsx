@@ -3,15 +3,9 @@ import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '../auth/AuthContext';
-import type { UserRole } from '../auth/types';
 import { Button } from '../components/Button';
 import { colors, radius, spacing } from '../theme';
-
-const ROLE_LABELS: Record<UserRole, string> = {
-  PASSENGER: 'Pasajero',
-  COMPANY: 'Empresa',
-  ADMIN: 'Administrador',
-};
+import { roleLabel } from '../utils/format';
 
 /** Pantalla inicial con sesión iniciada: datos del usuario y cierre de sesión. */
 export function HomeScreen() {
@@ -37,7 +31,7 @@ export function HomeScreen() {
           <Text style={styles.label}>Correo</Text>
           <Text style={styles.value}>{user?.email}</Text>
           <Text style={[styles.label, styles.spaced]}>Tipo de cuenta</Text>
-          <Text style={styles.value}>{user ? ROLE_LABELS[user.role] ?? user.role : ''}</Text>
+          <Text style={styles.value}>{roleLabel(user?.role)}</Text>
         </View>
         <Text style={styles.hint}>Tu sesión está guardada de forma cifrada en este dispositivo.</Text>
       </View>

@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { ApiError } from '../../api/client';
 import { useAuth } from '../../auth/AuthContext';
+import { mockAuthValue } from '../../test-utils/auth';
 import { RegisterScreen } from '../RegisterScreen';
 
 const mockBack = jest.fn();
@@ -23,15 +24,7 @@ const submit = () => fireEvent.press(screen.getByRole('button', { name: 'Crear c
 
 beforeEach(() => {
   jest.clearAllMocks();
-  jest.mocked(useAuth).mockReturnValue({
-    status: 'signedOut',
-    user: null,
-    restoreError: null,
-    signIn: jest.fn(),
-    signUp,
-    signOut: jest.fn(),
-    retryRestore: jest.fn(),
-  });
+  jest.mocked(useAuth).mockReturnValue(mockAuthValue({ signUp }));
 });
 
 describe('RegisterScreen', () => {

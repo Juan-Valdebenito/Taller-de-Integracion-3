@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { ApiError } from '../../api/client';
 import { useAuth, type AuthContextValue } from '../../auth/AuthContext';
+import { mockAuthValue } from '../../test-utils/auth';
 import { LoginScreen } from '../LoginScreen';
 
 const mockPush = jest.fn();
@@ -10,16 +11,7 @@ jest.mock('../../auth/AuthContext', () => ({ useAuth: jest.fn() }));
 
 const signIn = jest.fn();
 function mockAuth(overrides: Partial<AuthContextValue> = {}) {
-  jest.mocked(useAuth).mockReturnValue({
-    status: 'signedOut',
-    user: null,
-    restoreError: null,
-    signIn,
-    signUp: jest.fn(),
-    signOut: jest.fn(),
-    retryRestore: jest.fn(),
-    ...overrides,
-  });
+  jest.mocked(useAuth).mockReturnValue(mockAuthValue({ signIn, ...overrides }));
 }
 
 async function fillAndSubmit(email: string, password: string) {

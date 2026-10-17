@@ -71,6 +71,18 @@ describe('AuthProvider', () => {
     expect(mockedApi.logout).toHaveBeenCalledTimes(1);
   });
 
+  it('actualiza los datos del usuario desde el servidor', async () => {
+    mockedApi.restoreSession.mockResolvedValue(user);
+    mockedApi.getCurrentUser.mockResolvedValue({ ...user, name: 'Ana Actualizada' });
+    await renderProvider();
+    await screen.findByText('estado:signedIn');
+
+    await act(() => auth.refreshUser());
+
+    expect(mockedApi.getCurrentUser).toHaveBeenCalledTimes(1);
+    expect(auth.user?.name).toBe('Ana Actualizada');
+  });
+
   it('vuelve a "sin sesión" cuando la API avisa que la sesión expiró', async () => {
     mockedApi.restoreSession.mockResolvedValue(user);
     await renderProvider();

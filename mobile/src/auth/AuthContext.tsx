@@ -23,6 +23,8 @@ export interface AuthContextValue {
   signUp: (input: RegisterInput) => Promise<void>;
   signOut: () => Promise<void>;
   retryRestore: () => Promise<void>;
+  /** Vuelve a pedir los datos del usuario al servidor (GET /auth/me). */
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -76,9 +78,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('signedOut');
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    // Si la sesión ya no es válida, el cliente avisa con onSessionExpired.
+    const current = await authApi.getCurrentUser();
+    setUser(current);
+  }, []);
+
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, restoreError, signIn, signUp, signOut, retryRestore: restore }),
-    [status, user, restoreError, signIn, signUp, signOut, restore],
+    () => ({ status, user, restoreError, signIn, signUp, signOut, retryRestore: restore, refreshUser }),
+    [status, user, restoreError, signIn, signUp, signOut, restore, refreshUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
