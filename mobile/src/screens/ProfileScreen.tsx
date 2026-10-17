@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { Button } from '../components/Button';
 import { colors, radius, spacing } from '../theme';
 import { formatLongDate, initials, roleLabel } from '../utils/format';
 
@@ -21,9 +22,29 @@ function InfoRow({ label, value }: { label: string; value: string }) {
  * actualizan al entrar y al deslizar hacia abajo.
  */
 export function ProfileScreen() {
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, signOut } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+
+  // Envía el access y el refresh token a la lista negra del backend Go
+  // (POST /auth/logout) y borra la sesión del dispositivo. Al cambiar la
+  // sesión, Stack.Protected lleva al login.
+  const doSignOut = useCallback(async () => {
+    setSigningOut(true);
+    try {
+      await signOut();
+    } finally {
+      setSigningOut(false);
+    }
+  }, [signOut]);
+
+  const confirmSignOut = useCallback(() => {
+    Alert.alert('Cerrar sesión', '¿Quieres cerrar tu sesión en este dispositivo?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Cerrar sesión', style: 'destructive', onPress: doSignOut },
+    ]);
+  }, [doSignOut]);
 
   const reload = useCallback(async () => {
     setRefreshing(true);
@@ -84,6 +105,13 @@ export function ProfileScreen() {
             Tu sesión está guardada de forma cifrada en este dispositivo y se renueva automáticamente mientras uses la app.
           </Text>
         </View>
+
+        <View style={styles.signOut}>
+          <Button title="Cerrar sesión" variant="danger" onPress={confirmSignOut} loading={signingOut} />
+          <Text style={styles.signOutHint}>
+            Al cerrar sesión, tus tokens se invalidan en el servidor y se borran de este dispositivo.
+          </Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -127,4 +155,6 @@ const styles = StyleSheet.create({
   rowLabel: { fontSize: 13, color: colors.muted },
   rowValue: { fontSize: 16, color: colors.text, fontWeight: '600', marginTop: 2 },
   securityText: { fontSize: 14, color: colors.text, lineHeight: 20 },
+  signOut: { marginTop: spacing.md },
+  signOutHint: { marginTop: spacing.sm, fontSize: 13, color: colors.muted, textAlign: 'center' },
 });

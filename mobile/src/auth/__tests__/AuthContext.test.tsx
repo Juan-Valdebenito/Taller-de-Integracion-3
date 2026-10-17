@@ -58,7 +58,7 @@ describe('AuthProvider', () => {
   it('inicia y cierra sesión', async () => {
     mockedApi.restoreSession.mockResolvedValue(null);
     mockedApi.login.mockResolvedValue(user);
-    mockedApi.logout.mockResolvedValue();
+    mockedApi.logout.mockResolvedValue({ serverConfirmed: true });
     await renderProvider();
     await screen.findByText('estado:signedOut');
 
@@ -69,6 +69,22 @@ describe('AuthProvider', () => {
     await act(() => auth.signOut());
     expect(screen.getByText('estado:signedOut')).toBeTruthy();
     expect(mockedApi.logout).toHaveBeenCalledTimes(1);
+    expect(auth.signOutNotice).toBeNull();
+  });
+
+  it('avisa si el servidor no confirmó la lista negra, y limpia el aviso al volver a entrar', async () => {
+    mockedApi.restoreSession.mockResolvedValue(user);
+    mockedApi.logout.mockResolvedValue({ serverConfirmed: false });
+    mockedApi.login.mockResolvedValue(user);
+    await renderProvider();
+    await screen.findByText('estado:signedIn');
+
+    await act(() => auth.signOut());
+    expect(screen.getByText('estado:signedOut')).toBeTruthy();
+    expect(auth.signOutNotice).toContain('no se pudo confirmar con el servidor');
+
+    await act(() => auth.signIn({ email: 'ana@correo.cl', password: 'secreta123' }));
+    expect(auth.signOutNotice).toBeNull();
   });
 
   it('actualiza los datos del usuario desde el servidor', async () => {

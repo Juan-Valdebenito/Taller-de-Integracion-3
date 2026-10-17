@@ -14,7 +14,7 @@ import { spacing } from '../theme';
 
 export function LoginScreen() {
   const router = useRouter();
-  const { signIn, restoreError, retryRestore } = useAuth();
+  const { signIn, restoreError, signOutNotice, retryRestore } = useAuth();
   const cooldown = useCooldown();
   const passwordRef = useRef<TextInputInstance>(null);
 
@@ -52,9 +52,10 @@ export function LoginScreen() {
     }
   };
 
-  // Error del último intento; si no hay, el aviso de "no se pudo recuperar la sesión".
-  const notice = message ?? restoreError;
-  const isWarning = cooldown.active || (!message && Boolean(restoreError));
+  // Error del último intento; si no hay, los avisos de "no se pudo recuperar la
+  // sesión" o "el cierre de sesión no se confirmó con el servidor".
+  const notice = message ?? restoreError ?? signOutNotice;
+  const isWarning = cooldown.active || (!message && Boolean(restoreError ?? signOutNotice));
   return (
     <AuthScreenLayout
       title="Iniciar sesión"

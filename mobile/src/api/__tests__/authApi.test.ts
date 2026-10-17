@@ -1,7 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 
 import { getTokens, saveTokens } from '../../storage/tokenStorage';
-import { bodyOf, fakeResponse, installFetchMock, type FetchMock } from '../../test-utils/http';
+import { authHeaderOf, bodyOf, fakeResponse, installFetchMock, type FetchMock } from '../../test-utils/http';
 import { login, logout, register, restoreSession } from '../authApi';
 
 const mockStore = SecureStore as unknown as { __reset: () => void };
@@ -70,22 +70,41 @@ describe('restoreSession', () => {
 });
 
 describe('logout', () => {
-  it('revoca el refresh token en el servidor y borra los tokens locales', async () => {
+  it('envía el access token (header) y el refresh token (body) a la lista negra y borra los locales', async () => {
     await saveTokens({ accessToken: 'access-1', refreshToken: 'refresh-1' });
-    fetchMock.mockResolvedValueOnce(fakeResponse({ body: { message: 'Sesión cerrada correctamente' } }));
+    fetchMock.mockResolvedValueOnce(fakeResponse({ body: { message: 'Sesión cerrada correctamente', refreshRevoked: true } }));
 
-    await logout();
+    await expect(logout()).resolves.toEqual({ serverConfirmed: true });
 
     expect(fetchMock.mock.calls[0][0]).toMatch(/\/auth\/logout$/);
+    expect(fetchMock.mock.calls[0][1]?.method).toBe('POST');
+    expect(authHeaderOf(fetchMock, 0)).toBe('Bearer access-1');
     expect(bodyOf(fetchMock, 0)).toEqual({ refreshToken: 'refresh-1' });
     await expect(getTokens()).resolves.toBeNull();
   });
 
-  it('borra los tokens locales aunque el servidor no responda', async () => {
+  it('sin conexión borra los tokens locales pero informa que el servidor no lo confirmó', async () => {
     await saveTokens({ accessToken: 'access-1', refreshToken: 'refresh-1' });
     fetchMock.mockRejectedValueOnce(new TypeError('Network request failed'));
 
-    await expect(logout()).resolves.toBeUndefined();
+    await expect(logout()).resolves.toEqual({ serverConfirmed: false });
+    await expect(getTokens()).resolves.toBeNull();
+  });
+
+  it('un error del servidor (500) tampoco cuenta como confirmado', async () => {
+    await saveTokens({ accessToken: 'access-1', refreshToken: 'refresh-1' });
+    fetchMock.mockResolvedValueOnce(fakeResponse({ status: 500, body: { error: 'No se pudo cerrar la sesión' } }));
+
+    await expect(logout()).resolves.toEqual({ serverConfirmed: false });
+    await expect(getTokens()).resolves.toBeNull();
+  });
+
+  it('si los tokens ya no eran válidos en el servidor (401) no queda nada que revocar', async () => {
+    await saveTokens({ accessToken: 'access-1', refreshToken: 'refresh-1' });
+    // access vencido → intenta renovar → el refresh también fue revocado
+    fetchMock.mockResolvedValue(fakeResponse({ status: 401 }));
+
+    await expect(logout()).resolves.toEqual({ serverConfirmed: true });
     await expect(getTokens()).resolves.toBeNull();
   });
 });

@@ -1,25 +1,13 @@
-import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '../auth/AuthContext';
-import { Button } from '../components/Button';
 import { colors, radius, spacing } from '../theme';
 import { roleLabel } from '../utils/format';
 
-/** Pantalla inicial con sesión iniciada: datos del usuario y cierre de sesión. */
+/** Pantalla inicial con sesión iniciada. El cierre de sesión está en la pestaña Perfil. */
 export function HomeScreen() {
-  const { user, signOut } = useAuth();
-  const [signingOut, setSigningOut] = useState(false);
-
-  const handleSignOut = async () => {
-    setSigningOut(true);
-    try {
-      await signOut();
-    } finally {
-      setSigningOut(false);
-    }
-  };
+  const { user } = useAuth();
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom', 'left', 'right']}>
@@ -33,10 +21,7 @@ export function HomeScreen() {
           <Text style={[styles.label, styles.spaced]}>Tipo de cuenta</Text>
           <Text style={styles.value}>{roleLabel(user?.role)}</Text>
         </View>
-        <Text style={styles.hint}>Tu sesión está guardada de forma cifrada en este dispositivo.</Text>
-      </View>
-      <View style={styles.footer}>
-        <Button title="Cerrar sesión" onPress={handleSignOut} loading={signingOut} />
+        <Text style={styles.hint}>Revisa tus datos o cierra sesión desde la pestaña Perfil.</Text>
       </View>
     </SafeAreaView>
   );
@@ -51,5 +36,4 @@ const styles = StyleSheet.create({
   value: { fontSize: 16, color: colors.text, fontWeight: '600', marginTop: 2 },
   spaced: { marginTop: spacing.md },
   hint: { marginTop: spacing.md, color: colors.muted, fontSize: 13 },
-  footer: { padding: spacing.lg },
 });

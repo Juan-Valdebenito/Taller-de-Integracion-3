@@ -19,8 +19,14 @@ export interface AuthContextValue {
   user: AuthUser | null;
   /** Error al recuperar la sesión al abrir la app (ej. sin conexión). */
   restoreError: string | null;
+  /**
+   * Aviso tras cerrar sesión si el servidor no confirmó que los tokens quedaron
+   * en la lista negra (se muestra en el login). Se limpia al volver a entrar.
+   */
+  signOutNotice: string | null;
   signIn: (input: LoginInput) => Promise<void>;
   signUp: (input: RegisterInput) => Promise<void>;
+  /** Envía los tokens a la lista negra del backend y cierra la sesión local. */
   signOut: () => Promise<void>;
   retryRestore: () => Promise<void>;
   /** Vuelve a pedir los datos del usuario al servidor (GET /auth/me). */
@@ -33,6 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [user, setUser] = useState<AuthUser | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [signOutNotice, setSignOutNotice] = useState<string | null>(null);
 
   const restore = useCallback(async () => {
     setStatus('loading');
@@ -61,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(async (input: LoginInput) => {
     const signedInUser = await authApi.login(input);
     setRestoreError(null);
+    setSignOutNotice(null);
     setUser(signedInUser);
     setStatus('signedIn');
   }, []);
@@ -68,12 +76,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = useCallback(async (input: RegisterInput) => {
     const newUser = await authApi.register(input);
     setRestoreError(null);
+    setSignOutNotice(null);
     setUser(newUser);
     setStatus('signedIn');
   }, []);
 
   const signOut = useCallback(async () => {
-    await authApi.logout();
+    const { serverConfirmed } = await authApi.logout();
+    setRestoreError(null);
+    setSignOutNotice(
+      serverConfirmed
+        ? null
+        : 'Cerraste sesión en este dispositivo, pero no se pudo confirmar con el servidor (¿sin conexión?). ' +
+            'Tu sesión anterior dejará de ser válida cuando expire.',
+    );
     setUser(null);
     setStatus('signedOut');
   }, []);
@@ -85,8 +101,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, restoreError, signIn, signUp, signOut, retryRestore: restore, refreshUser }),
-    [status, user, restoreError, signIn, signUp, signOut, restore, refreshUser],
+    () => ({ status, user, restoreError, signOutNotice, signIn, signUp, signOut, retryRestore: restore, refreshUser }),
+    [status, user, restoreError, signOutNotice, signIn, signUp, signOut, restore, refreshUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

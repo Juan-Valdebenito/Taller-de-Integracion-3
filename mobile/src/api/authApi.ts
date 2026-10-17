@@ -55,11 +55,22 @@ export async function restoreSession(): Promise<AuthUser | null> {
   }
 }
 
+export interface LogoutResult {
+  /**
+   * true si el servidor confirmó que ambos tokens quedaron en la lista negra
+   * (o ya no eran válidos). false si no se pudo confirmar (ej. sin conexión):
+   * en ese caso los tokens siguen vigentes en el servidor hasta que venzan.
+   */
+  serverConfirmed: boolean;
+}
+
 /**
- * POST /auth/logout: revoca en el servidor el access token y el refresh token.
- * Los tokens locales se borran siempre, aunque el servidor no responda.
+ * POST /auth/logout: envía el access token (header) y el refresh token (body)
+ * a la lista negra de backend-go. Los tokens locales se borran siempre, aunque
+ * el servidor no responda.
  */
-export async function logout(): Promise<void> {
+export async function logout(): Promise<LogoutResult> {
+  let serverConfirmed = false;
   try {
     await apiRequest('/auth/logout', {
       method: 'POST',
@@ -70,9 +81,13 @@ export async function logout(): Promise<void> {
         return refreshToken ? { refreshToken } : undefined;
       },
     });
-  } catch {
-    // Sin conexión o token ya vencido: igual se cierra la sesión local.
+    serverConfirmed = true;
+  } catch (error) {
+    // 401: los tokens ya no eran válidos en el servidor (vencidos o revocados),
+    // así que no queda nada que revocar. Cualquier otro error: sin confirmar.
+    serverConfirmed = error instanceof ApiError && error.status === 401;
   } finally {
     await clearTokens();
   }
+  return { serverConfirmed };
 }

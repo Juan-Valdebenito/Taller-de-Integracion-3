@@ -71,6 +71,13 @@ describe('LoginScreen', () => {
     expect(retryRestore).toHaveBeenCalledTimes(1);
   });
 
+  it('muestra el aviso si el cierre de sesión no se confirmó con el servidor', async () => {
+    mockAuth({ signOutNotice: 'Cerraste sesión en este dispositivo, pero no se pudo confirmar con el servidor.' });
+    await render(<LoginScreen />);
+
+    expect(screen.getByText('Cerraste sesión en este dispositivo, pero no se pudo confirmar con el servidor.')).toBeTruthy();
+  });
+
   it('lleva al registro', async () => {
     await render(<LoginScreen />);
     await fireEvent.press(screen.getByRole('button', { name: '¿No tienes cuenta? Regístrate' }));

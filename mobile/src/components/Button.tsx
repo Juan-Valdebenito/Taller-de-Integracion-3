@@ -7,12 +7,13 @@ export interface ButtonProps {
   onPress: () => void;
   loading?: boolean;
   disabled?: boolean;
-  variant?: 'primary' | 'secondary';
+  /** primary: azul · secondary: texto · danger: rojo (acciones destructivas como cerrar sesión) */
+  variant?: 'primary' | 'secondary' | 'danger';
 }
 
 export function Button({ title, onPress, loading = false, disabled = false, variant = 'primary' }: ButtonProps) {
   const isDisabled = disabled || loading;
-  const primary = variant === 'primary';
+  const primary = variant !== 'secondary';
   return (
     <Pressable
       accessibilityRole="button"
@@ -22,8 +23,9 @@ export function Button({ title, onPress, loading = false, disabled = false, vari
       onPress={onPress}
       style={({ pressed }) => [
         styles.base,
-        primary ? styles.primary : styles.secondary,
-        pressed && primary ? styles.primaryPressed : null,
+        variant === 'danger' ? styles.danger : primary ? styles.primary : styles.secondary,
+        pressed && variant === 'primary' ? styles.primaryPressed : null,
+        pressed && variant === 'danger' ? styles.dangerPressed : null,
         isDisabled ? styles.disabled : null,
       ]}
     >
@@ -47,6 +49,8 @@ const styles = StyleSheet.create({
   },
   primary: { backgroundColor: colors.primary },
   primaryPressed: { backgroundColor: colors.primaryPressed },
+  danger: { backgroundColor: colors.danger },
+  dangerPressed: { backgroundColor: '#991b1b' },
   secondary: { backgroundColor: 'transparent' },
   disabled: { opacity: 0.6 },
   text: { fontSize: 16, fontWeight: '600' },

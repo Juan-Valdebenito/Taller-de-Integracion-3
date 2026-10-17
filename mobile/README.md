@@ -67,8 +67,12 @@ src/
   `POST /auth/refresh`, guarda el par nuevo (backend-go rota el refresh token) y
   reintenta. Las renovaciones simultáneas comparten una sola llamada.
 - **Sesión expirada:** si la renovación falla, se borran los tokens y la app vuelve al login.
-- **Cerrar sesión:** `POST /auth/logout` revoca el access y el refresh token en el
-  servidor; los tokens locales se borran aunque no haya conexión.
+- **Cerrar sesión** (botón en la pestaña Perfil, con confirmación): `POST /auth/logout`
+  envía el access token (header) y el refresh token (body) a la **lista negra** de
+  backend-go, que los rechaza desde ese momento aunque no hayan vencido. Los tokens
+  locales se borran siempre; si el servidor no pudo confirmarlo (ej. sin conexión),
+  el login muestra un aviso, porque esos tokens siguen vigentes hasta que expiren.
+  El backend solo acepta en el body un refresh token firmado por él y del mismo usuario.
 - **Límite de intentos:** si backend-go responde 429 (rate limiting), el formulario
   muestra el mensaje y bloquea el botón con cuenta regresiva hasta el `Retry-After`.
 
