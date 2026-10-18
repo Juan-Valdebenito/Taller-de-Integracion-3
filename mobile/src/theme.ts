@@ -11,6 +11,7 @@ export const colors = {
   dangerBg: '#fef2f2',
   warning: '#b45309',
   warningBg: '#fffbeb',
+  successBg: '#ecfdf5',
 };
 
 export const spacing = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 };

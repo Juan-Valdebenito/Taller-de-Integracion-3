@@ -92,6 +92,24 @@ no se pide ubicación en segundo plano).
 
 El texto del permiso se configura en `app.json` (plugin `expo-location`).
 
+### Paradero más cercano y radio de verificación
+
+- `src/api/stopsApi.ts`: pide a backend-go los paraderos oficiales a menos de
+  1 km (`GET /integrations/micro/stops?lat=&long=&radius_m=&limit=`). Si no hay
+  resultados el backend responde `{}`; se descartan paraderos sin id o sin coordenadas.
+- `src/location/geo.ts`: distancia con la fórmula de **Haversine** y verificación
+  final en la app (no se confía solo en el filtro del servidor). Resultados:
+  - `inside`: a `EXPO_PUBLIC_STOP_RADIUS_M` metros o menos de un paradero (por defecto 100).
+  - `outside`: hay paraderos cerca, pero ninguno dentro del radio.
+  - `no-stops`: no hay paraderos oficiales en 1 km.
+  - `low-accuracy`: la precisión del GPS es peor que `EXPO_PUBLIC_MAX_LOCATION_ACCURACY_M`
+    (por defecto 100 m); no se confirma que esté en el paradero.
+- `src/hooks/useNearestStop.ts`: vuelve a consultar al backend solo si el usuario se
+  aleja más de 200 m del punto de la última consulta (o al tocar **Actualizar
+  paraderos**); con cada posición nueva recalcula la distancia sin pedir datos.
+- `src/components/NearbyStopCard.tsx` (pantalla Inicio): paradero más cercano,
+  distancia y si está dentro del radio.
+
 ## Perfil
 
 La pestaña **Perfil** muestra avatar con iniciales, nombre, tipo de cuenta, correo,

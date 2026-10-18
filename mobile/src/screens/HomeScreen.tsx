@@ -1,9 +1,11 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '../auth/AuthContext';
 import { LocationCard } from '../components/LocationCard';
+import { NearbyStopCard } from '../components/NearbyStopCard';
 import { useLocation } from '../hooks/useLocation';
+import { useNearestStop } from '../hooks/useNearestStop';
 import { colors, radius, spacing } from '../theme';
 import { roleLabel } from '../utils/format';
 
@@ -11,10 +13,11 @@ import { roleLabel } from '../utils/format';
 export function HomeScreen() {
   const { user } = useAuth();
   const location = useLocation();
+  const nearby = useNearestStop(location.position);
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom', 'left', 'right']}>
-      <View style={styles.content}>
+      <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.greeting} accessibilityRole="header">
           Hola, {user?.name ?? 'pasajero'}
         </Text>
@@ -25,15 +28,16 @@ export function HomeScreen() {
           <Text style={styles.value}>{roleLabel(user?.role)}</Text>
         </View>
         <LocationCard location={location} />
+        <NearbyStopCard nearby={nearby} hasPosition={location.position !== null} />
         <Text style={styles.hint}>Revisa tus datos o cierra sesión desde la pestaña Perfil.</Text>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  content: { flex: 1, padding: spacing.lg },
+  content: { flexGrow: 1, padding: spacing.lg },
   greeting: { fontSize: 26, fontWeight: '700', color: colors.text, marginBottom: spacing.lg },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md },
   label: { fontSize: 13, color: colors.muted },
