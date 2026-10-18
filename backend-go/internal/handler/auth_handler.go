@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -366,7 +368,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		userID, _ := c.Get(middleware.ContextUserID)
 		jti, exp, err := h.verifyOwnRefreshToken(body.RefreshToken, fmt.Sprint(userID))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			c.JSON(http.StatusBadRequest, gin.H{"error": userMessage(err)})
 			return
 		}
 		// Un refresh token ya vencido no sirve: no hace falta guardarlo.
@@ -389,6 +391,26 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	})
 }
 
+// Errores de verificación del refresh token en el logout. Siguen la convención
+// de Go (minúscula, comparables con errors.Is); userMessage arma el texto que
+// se muestra al usuario.
+var (
+	errRefreshInvalid   = errors.New("refresh token inválido")
+	errRefreshWrongType = errors.New("el token enviado no es un refresh token")
+	errRefreshNotOwned  = errors.New("el refresh token no pertenece a la sesión actual")
+	errRefreshClaims    = errors.New("refresh token sin claims jti/exp válidos")
+)
+
+// userMessage devuelve el mensaje del error con la primera letra en mayúscula,
+// para mostrarlo en la respuesta JSON.
+func userMessage(err error) string {
+	msg := err.Error()
+	for i, r := range msg {
+		return string(unicode.ToUpper(r)) + msg[i+utf8.RuneLen(r):]
+	}
+	return msg
+}
+
 // verifyOwnRefreshToken comprueba que tokenStr sea un refresh token firmado por
 // este backend y que pertenezca a userID. No exige que esté vigente: el
 // llamador decide qué hacer con uno vencido. Devuelve su jti y expiración.
@@ -398,22 +420,22 @@ func (h *AuthHandler) verifyOwnRefreshToken(tokenStr, userID string) (string, ti
 		return []byte(h.jwtSecret), nil
 	})
 	if err != nil || !parsed.Valid {
-		return "", time.Time{}, errors.New("Refresh token inválido")
+		return "", time.Time{}, errRefreshInvalid
 	}
 	claims, ok := parsed.Claims.(jwt.MapClaims)
 	if !ok {
-		return "", time.Time{}, errors.New("Refresh token inválido")
+		return "", time.Time{}, errRefreshInvalid
 	}
 	if tokenType, _ := claims["type"].(string); tokenType != "refresh" {
-		return "", time.Time{}, errors.New("El token enviado no es un refresh token")
+		return "", time.Time{}, errRefreshWrongType
 	}
 	if owner, _ := claims["id"].(string); owner == "" || owner != userID {
-		return "", time.Time{}, errors.New("El refresh token no pertenece a la sesión actual")
+		return "", time.Time{}, errRefreshNotOwned
 	}
 	jti, _ := claims["jti"].(string)
 	expFloat, _ := claims["exp"].(float64)
 	if jti == "" || expFloat <= 0 {
-		return "", time.Time{}, errors.New("Refresh token sin claims jti/exp válidos")
+		return "", time.Time{}, errRefreshClaims
 	}
 	return jti, time.Unix(int64(expFloat), 0), nil
 }

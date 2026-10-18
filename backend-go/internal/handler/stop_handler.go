@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -87,7 +88,7 @@ func (h *StopHandler) Update(c *gin.Context) {
 func (h *StopHandler) Delete(c *gin.Context) {
 	err := h.stopRepo.Delete(c.Request.Context(), c.Param("id"))
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Paradero no encontrado"})
 			return
 		}
