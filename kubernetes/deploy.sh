@@ -59,6 +59,7 @@ REALTIME_FILES=(
   services/micro_telemetry/micro-telemetry-db-init-scripts.yaml
   services/micro_telemetry/micro-telemetry-db.yml
   services/micro_telemetry/micro-telemetry-deployment.yaml
+  services/micro_telemetry/micro-telemetry-hpa.yaml
   services/realtime/realtime-deployment.yaml
   ingress/realtime-ingress.yaml
 )
