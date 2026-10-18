@@ -4,8 +4,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../auth/AuthContext';
 import { LocationCard } from '../components/LocationCard';
 import { NearbyStopCard } from '../components/NearbyStopCard';
+import { ProximityAlertsCard } from '../components/ProximityAlertsCard';
 import { useLocation } from '../hooks/useLocation';
 import { useNearestStop } from '../hooks/useNearestStop';
+import { useProximityAlerts } from '../hooks/useProximityAlerts';
 import { colors, radius, spacing } from '../theme';
 import { roleLabel } from '../utils/format';
 
@@ -14,6 +16,7 @@ export function HomeScreen() {
   const { user } = useAuth();
   const location = useLocation();
   const nearby = useNearestStop(location.position);
+  const alerts = useProximityAlerts(nearby.proximity);
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom', 'left', 'right']}>
@@ -29,6 +32,7 @@ export function HomeScreen() {
         </View>
         <LocationCard location={location} />
         <NearbyStopCard nearby={nearby} hasPosition={location.position !== null} />
+        <ProximityAlertsCard alerts={alerts} />
         <Text style={styles.hint}>Revisa tus datos o cierra sesión desde la pestaña Perfil.</Text>
       </ScrollView>
     </SafeAreaView>

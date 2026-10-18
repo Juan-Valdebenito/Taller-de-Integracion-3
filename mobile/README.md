@@ -110,6 +110,27 @@ El texto del permiso se configura en `app.json` (plugin `expo-location`).
 - `src/components/NearbyStopCard.tsx` (pantalla Inicio): paradero más cercano,
   distancia y si está dentro del radio.
 
+### Alertas de proximidad
+
+Las alertas **solo se emiten si la verificación anterior da `inside`**. En
+cualquier otro estado (`outside`, `no-stops`, `low-accuracy` o sin ubicación) la
+app no consulta las micros y la tarjeta explica por qué las alertas están en pausa.
+
+- `src/api/busesApi.ts`: posiciones de las micros activas (`GET /buses?status=ACTIVE`,
+  campos `lastLatitude`, `lastLongitude`, `lastLocationAt`).
+- `src/alerts/proximityAlerts.ts`: reglas puras. Una micro genera alerta si su último
+  reporte tiene menos de 2 minutos y está a `EXPO_PUBLIC_ALERT_RADIUS_M` metros o menos
+  del paradero (por defecto 500). Se avisa una vez por micro; si sale del radio y vuelve,
+  avisa de nuevo.
+- `src/hooks/useProximityAlerts.ts`: con el paradero confirmado consulta las micros cada
+  15 s, solo con la app en primer plano. Si el usuario sale del radio o cambia de
+  paradero, detiene la consulta y limpia las alertas.
+- `src/components/ProximityAlertsCard.tsx` (pantalla Inicio): aviso con vibración
+  ("La micro ABCD12 está a 350 m de Plaza de Armas."), micros que se acercan y
+  botón **Buscar micros ahora**.
+
+Son alertas dentro de la app (no notificaciones push con la app cerrada).
+
 ## Perfil
 
 La pestaña **Perfil** muestra avatar con iniciales, nombre, tipo de cuenta, correo,

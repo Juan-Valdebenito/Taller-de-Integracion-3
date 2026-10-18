@@ -32,3 +32,15 @@ export const MAX_LOCATION_ACCURACY_M = positiveNumber(process.env.EXPO_PUBLIC_MA
 
 /** Radio (m) para buscar paraderos cercanos y poder mostrar el más próximo. */
 export const STOP_SEARCH_RADIUS_M = 1_000;
+
+/**
+ * Radio (m) alrededor del paradero en el que una micro que se acerca genera
+ * una alerta de proximidad. Configurable con EXPO_PUBLIC_ALERT_RADIUS_M.
+ */
+export const ALERT_RADIUS_M = positiveNumber(process.env.EXPO_PUBLIC_ALERT_RADIUS_M, 500);
+
+/** Cada cuánto se consultan las posiciones de las micros mientras hay alertas activas. */
+export const BUS_POLL_INTERVAL_MS = 15_000;
+
+/** Posiciones de micros más antiguas que esto se ignoran (micro sin reportar). */
+export const BUS_LOCATION_MAX_AGE_MS = 2 * 60_000;
