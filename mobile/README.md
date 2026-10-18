@@ -130,7 +130,8 @@ app no consulta las micros y la tarjeta explica por qué las alertas están en p
   avisa de nuevo.
 - `src/hooks/useProximityAlerts.ts`: con el paradero confirmado consulta las micros cada
   15 s, solo con la app en primer plano. Si el usuario sale del radio o cambia de
-  paradero, detiene la consulta y limpia las alertas.
+  paradero, detiene la consulta y limpia las alertas. Nunca hay dos consultas a la
+  vez para el mismo paradero: si la red está lenta, se espera la que está en curso.
 - `src/components/ProximityAlertsCard.tsx` (pantalla Inicio): aviso con vibración
   ("La micro ABCD12 está a 350 m de Plaza de Armas."), micros que se acercan y
   botón **Buscar micros ahora**.

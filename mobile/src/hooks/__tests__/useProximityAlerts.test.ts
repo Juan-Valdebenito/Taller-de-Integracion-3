@@ -144,4 +144,77 @@ describe('useProximityAlerts', () => {
     await waitFor(() => expect(result.current.error).toBe('No se pudieron consultar las micros cercanas.'));
     expect(result.current.alert).toBeNull();
   });
+  describe('candado: no se acumulan consultas', () => {
+    /** Respuesta lenta que el test resuelve a mano. */
+    function slowResponse() {
+      let resolve: (buses: BusPosition[]) => void = () => {};
+      fetchActiveBuses.mockImplementationOnce(() => new Promise((r) => (resolve = r)));
+      return (buses: BusPosition[]) => resolve(buses);
+    }
+
+    it('con red lenta no lanza otra consulta mientras la anterior sigue en curso', async () => {
+      jest.useFakeTimers();
+      const respond = slowResponse();
+      const { result } = await renderHook(() => useProximityAlerts(proximity('inside')));
+      expect(fetchActiveBuses).toHaveBeenCalledTimes(1);
+      expect(result.current.loading).toBe(true);
+
+      // Pasan 3 ciclos de 15 s sin respuesta.
+      await act(async () => {
+        jest.advanceTimersByTime(45_000);
+      });
+      expect(fetchActiveBuses).toHaveBeenCalledTimes(1);
+
+      await act(async () => respond([bus('b1', PLAZA, 300)]));
+      expect(result.current.loading).toBe(false);
+      expect(result.current.alert?.bus.id).toBe('b1');
+
+      // Liberado el candado, el siguiente ciclo vuelve a consultar.
+      await act(async () => {
+        jest.advanceTimersByTime(15_000);
+      });
+      expect(fetchActiveBuses).toHaveBeenCalledTimes(2);
+    });
+
+    it('"Buscar micros ahora" durante una consulta en curso espera esa misma', async () => {
+      const respond = slowResponse();
+      const { result } = await renderHook(() => useProximityAlerts(proximity('inside')));
+      expect(fetchActiveBuses).toHaveBeenCalledTimes(1);
+
+      let done = false;
+      let pending: Promise<void> = Promise.resolve();
+      await act(async () => {
+        pending = result.current.checkNow().then(() => {
+          done = true;
+        });
+      });
+      expect(fetchActiveBuses).toHaveBeenCalledTimes(1);
+      expect(done).toBe(false);
+
+      await act(async () => {
+        respond([bus('b1', PLAZA, 300)]);
+        await pending;
+      });
+      expect(done).toBe(true);
+      expect(result.current.alert?.bus.id).toBe('b1');
+    });
+
+    it('si cambia de paradero con una consulta en curso, consulta para el nuevo sin esperar', async () => {
+      const respond = slowResponse();
+      fetchActiveBuses.mockResolvedValue([bus('b9', OTHER, 100)]);
+      const { result, rerender } = await renderHook(({ value }: { value: ProximityResult }) => useProximityAlerts(value), {
+        initialProps: { value: proximity('inside', PLAZA) },
+      });
+      expect(fetchActiveBuses).toHaveBeenCalledTimes(1);
+
+      await rerender({ value: proximity('inside', OTHER) });
+      await waitFor(() => expect(result.current.alert?.bus.id).toBe('b9'));
+      expect(fetchActiveBuses).toHaveBeenCalledTimes(2);
+
+      // La respuesta tardía del paradero anterior se descarta.
+      await act(async () => respond([bus('b1', PLAZA, 300)]));
+      expect(result.current.alert?.bus.id).toBe('b9');
+      expect(result.current.stop).toBe(OTHER);
+    });
+  });
 });

@@ -59,10 +59,11 @@ export function useProximityAlerts(proximity: ProximityResult | null): UseProxim
     };
   }, []);
 
-  const check = useCallback(async () => {
-    const current = stopRef.current;
-    if (!current) return;
-    setLoading(true);
+  /** Consulta de micros en curso (candado). */
+  const inFlight = useRef<{ stopId: string; promise: Promise<void> } | null>(null);
+
+  /** Consulta las micros y emite la alerta si alguna acaba de entrar al radio. */
+  const runCheck = useCallback(async (current: Stop) => {
     try {
       const buses = await fetchActiveBuses();
       if (!mounted.current || stopRef.current?.id !== current.id) return;
@@ -83,10 +84,28 @@ export function useProximityAlerts(proximity: ProximityResult | null): UseProxim
       if (mounted.current && stopRef.current?.id === current.id) {
         setError('No se pudieron consultar las micros cercanas.');
       }
-    } finally {
-      if (mounted.current) setLoading(false);
     }
   }, []);
+
+  /**
+   * Candado: con red lenta una consulta puede durar más que el intervalo de 15 s.
+   * Si ya hay una en curso para el mismo paradero no se lanza otra: se devuelve
+   * la que está en curso (el botón "Buscar micros ahora" también la espera).
+   */
+  const check = useCallback((): Promise<void> => {
+    const current = stopRef.current;
+    if (!current) return Promise.resolve();
+    if (inFlight.current?.stopId === current.id) return inFlight.current.promise;
+
+    setLoading(true);
+    const promise = runCheck(current).finally(() => {
+      if (inFlight.current?.promise !== promise) return;
+      inFlight.current = null;
+      if (mounted.current) setLoading(false);
+    });
+    inFlight.current = { stopId: current.id, promise };
+    return promise;
+  }, [runCheck]);
 
   useEffect(() => {
     notified.current = new Set();
