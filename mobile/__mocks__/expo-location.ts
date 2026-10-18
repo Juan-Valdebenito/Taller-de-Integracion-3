@@ -23,6 +23,7 @@ export const requestForegroundPermissionsAsync = jest.fn();
 export const hasServicesEnabledAsync = jest.fn();
 export const getCurrentPositionAsync = jest.fn();
 export const getLastKnownPositionAsync = jest.fn();
+export const watchPositionAsync = jest.fn();
 
 /** Respuesta de permiso como la entrega expo-location. */
 export function __permission(status: 'granted' | 'undetermined' | 'denied', canAskAgain = true) {

@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
-import { Linking } from 'react-native';
+import { AppState, Linking } from 'react-native';
 
 import * as service from '../../location/locationService';
 import { useLocation } from '../useLocation';
@@ -11,16 +11,23 @@ jest.mock('../../location/locationService', () => {
     getLocationPermission: jest.fn(),
     requestLocationPermission: jest.fn(),
     getCurrentPosition: jest.fn(),
+    watchPosition: jest.fn(),
   };
 });
 
 const mocked = jest.mocked(service);
 const position = { latitude: -38.7359, longitude: -72.5904, accuracy: 10, timestamp: 1 };
+let stopWatching: jest.Mock;
 
 beforeEach(() => {
   jest.clearAllMocks();
   mocked.getCurrentPosition.mockResolvedValue(position);
+  stopWatching = jest.fn();
+  mocked.watchPosition.mockResolvedValue(stopWatching);
 });
+
+/** Callback que el hook registró en watchPosition (simula una nueva lectura del GPS). */
+const emitPosition = (next: service.UserPosition) => mocked.watchPosition.mock.calls.at(-1)![0](next);
 
 describe('useLocation', () => {
   it('al montar solo consulta el permiso: no muestra el diálogo ni busca posición sin permiso', async () => {
@@ -81,6 +88,67 @@ describe('useLocation', () => {
     const { result } = await renderHook(() => useLocation());
 
     await waitFor(() => expect(result.current.permission).toBe('blocked'));
+  });
+
+  describe('seguimiento de la posición', () => {
+    it('sin permiso no sigue la posición', async () => {
+      mocked.getLocationPermission.mockResolvedValue('denied');
+      const { result } = await renderHook(() => useLocation());
+      await waitFor(() => expect(result.current.permission).toBe('denied'));
+
+      expect(mocked.watchPosition).not.toHaveBeenCalled();
+    });
+
+    it('con permiso actualiza la posición cuando el usuario se mueve', async () => {
+      mocked.getLocationPermission.mockResolvedValue('granted');
+      const { result } = await renderHook(() => useLocation());
+      await waitFor(() => expect(mocked.watchPosition).toHaveBeenCalledTimes(1));
+
+      const moved = { latitude: -38.7341, longitude: -72.6043, accuracy: 8, timestamp: 2 };
+      await act(async () => emitPosition(moved));
+
+      expect(result.current.position).toEqual(moved);
+    });
+
+    it('empieza a seguir la posición apenas el usuario concede el permiso', async () => {
+      mocked.getLocationPermission.mockResolvedValue('undetermined');
+      mocked.requestLocationPermission.mockResolvedValue('granted');
+      const { result } = await renderHook(() => useLocation());
+      await waitFor(() => expect(result.current.permission).toBe('undetermined'));
+      expect(mocked.watchPosition).not.toHaveBeenCalled();
+
+      await act(() => result.current.requestAndLocate());
+
+      expect(mocked.watchPosition).toHaveBeenCalledTimes(1);
+    });
+
+    it('se pausa en segundo plano y se reanuda al volver a la app', async () => {
+      const listeners: Array<(state: string) => void> = [];
+      jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, listener) => {
+        listeners.push(listener as (state: string) => void);
+        return { remove: jest.fn() } as unknown as ReturnType<typeof AppState.addEventListener>;
+      });
+      mocked.getLocationPermission.mockResolvedValue('granted');
+      await renderHook(() => useLocation());
+      await waitFor(() => expect(mocked.watchPosition).toHaveBeenCalledTimes(1));
+
+      await act(async () => listeners.forEach((listener) => listener('background')));
+      expect(stopWatching).toHaveBeenCalledTimes(1);
+
+      await act(async () => listeners.forEach((listener) => listener('active')));
+      expect(mocked.watchPosition).toHaveBeenCalledTimes(2);
+    });
+
+    it('deja de seguir la posición al salir de la pantalla', async () => {
+      mocked.getLocationPermission.mockResolvedValue('granted');
+      const { unmount } = await renderHook(() => useLocation());
+      await waitFor(() => expect(mocked.watchPosition).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(stopWatching).not.toHaveBeenCalled());
+
+      await unmount();
+
+      expect(stopWatching).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('abre los ajustes del teléfono', async () => {

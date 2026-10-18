@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Linking } from 'react-native';
+import { AppState, Linking } from 'react-native';
 
 import {
   LocationError,
   getCurrentPosition,
   getLocationPermission,
   requestLocationPermission,
+  watchPosition,
   type LocationPermission,
   type UserPosition,
 } from '../location/locationService';
@@ -29,6 +30,8 @@ export interface UseLocationResult {
  * Estado de la ubicación del usuario. Al montar solo consulta el permiso (sin
  * mostrar diálogos); si ya estaba concedido, obtiene la posición. El diálogo
  * del sistema se muestra solo cuando el usuario lo pide (requestAndLocate).
+ * Con el permiso concedido sigue la posición mientras la app está en primer
+ * plano, para que la verificación del paradero se mantenga al día.
  */
 export function useLocation(): UseLocationResult {
   const [permission, setPermission] = useState<LocationPermission | null>(null);
@@ -79,6 +82,54 @@ export function useLocation(): UseLocationResult {
       cancelled = true;
     };
   }, [locate]);
+
+  // Seguimiento continuo: solo con permiso y la app en primer plano.
+  useEffect(() => {
+    if (permission !== 'granted') return;
+    let stopWatching: (() => void) | null = null;
+    let wanted = false;
+    let starting = false;
+    let disposed = false;
+
+    const start = () => {
+      wanted = true;
+      if (stopWatching || starting) return;
+      starting = true;
+      watchPosition(
+        (next) => {
+          if (!mounted.current) return;
+          setPosition(next);
+          setError(null);
+        },
+        (e) => {
+          if (mounted.current) setError(e.message);
+        },
+      )
+        .then((remove) => {
+          if (disposed || !wanted) remove();
+          else stopWatching = remove;
+        })
+        .catch(() => {
+          // Sin seguimiento sigue disponible la lectura puntual (Actualizar ubicación).
+        })
+        .finally(() => {
+          starting = false;
+        });
+    };
+    const pause = () => {
+      wanted = false;
+      stopWatching?.();
+      stopWatching = null;
+    };
+
+    if (AppState.currentState !== 'background') start();
+    const subscription = AppState.addEventListener('change', (state) => (state === 'active' ? start() : pause()));
+    return () => {
+      disposed = true;
+      pause();
+      subscription.remove();
+    };
+  }, [permission]);
 
   const requestAndLocate = useCallback(async () => {
     setError(null);

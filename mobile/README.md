@@ -86,7 +86,10 @@ no se pide ubicación en segundo plano).
   `blocked`) y posición actual. Si el GPS no responde en 15 s usa una posición
   guardada de hace menos de 1 minuto; si no hay, informa el error.
 - `src/hooks/useLocation.ts`: al abrir la app solo consulta el permiso; el diálogo
-  del sistema aparece cuando el usuario toca **Activar ubicación**.
+  del sistema aparece cuando el usuario toca **Activar ubicación**. Con el permiso
+  concedido **sigue la posición** (`watchPositionAsync`, cada 20 m o 10 s) mientras la
+  app está en primer plano; se pausa en segundo plano y se reanuda al volver. Así la
+  verificación del paradero y las alertas se actualizan solas si el usuario se mueve.
 - `src/components/LocationCard.tsx` (pantalla Inicio): estado, coordenadas y
   precisión; si el permiso quedó bloqueado, botón **Abrir ajustes**.
 

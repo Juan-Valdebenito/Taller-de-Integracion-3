@@ -5,6 +5,7 @@ import {
   getCurrentPosition,
   getLocationPermission,
   requestLocationPermission,
+  watchPosition,
 } from '../locationService';
 
 const mock = Location as unknown as typeof Location & {
@@ -89,5 +90,33 @@ describe('getCurrentPosition', () => {
   it('acepta precisión desconocida', async () => {
     m(Location.getCurrentPositionAsync).mockResolvedValue(mock.__location(TEMUCO.latitude, TEMUCO.longitude, null));
     await expect(getCurrentPosition()).resolves.toMatchObject({ accuracy: null });
+  });
+});
+
+describe('watchPosition', () => {
+  it('sigue la posición cada 20 m o 10 s y entrega posiciones normalizadas', async () => {
+    const remove = jest.fn();
+    m(Location.watchPositionAsync).mockResolvedValue({ remove });
+    const onPosition = jest.fn();
+
+    const stop = await watchPosition(onPosition);
+
+    const [options, callback] = m(Location.watchPositionAsync).mock.calls[0];
+    expect(options).toEqual({ accuracy: Location.Accuracy.Balanced, distanceInterval: 20, timeInterval: 10_000 });
+    callback(mock.__location(TEMUCO.latitude, TEMUCO.longitude, 8, 123));
+    expect(onPosition).toHaveBeenCalledWith({ ...TEMUCO, accuracy: 8, timestamp: 123 });
+
+    stop();
+    expect(remove).toHaveBeenCalledTimes(1);
+  });
+
+  it('informa los errores del seguimiento con un mensaje para el usuario', async () => {
+    m(Location.watchPositionAsync).mockResolvedValue({ remove: jest.fn() });
+    const onError = jest.fn();
+
+    await watchPosition(jest.fn(), onError);
+    m(Location.watchPositionAsync).mock.calls[0][2]('Location unavailable');
+
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ code: 'unavailable' }));
   });
 });

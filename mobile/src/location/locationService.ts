@@ -118,3 +118,31 @@ export async function getCurrentPosition(timeoutMs: number = POSITION_TIMEOUT_MS
   }
   throw new LocationError('timeout');
 }
+
+/**
+ * Seguimiento de la posición: se recibe una nueva cuando el usuario se mueve
+ * al menos esta distancia (m) o pasa este tiempo (ms), lo primero que ocurra.
+ * 20 m es bastante menos que el radio de un paradero (100 m por defecto).
+ */
+export const WATCH_DISTANCE_INTERVAL_M = 20;
+export const WATCH_TIME_INTERVAL_MS = 10_000;
+
+/**
+ * Sigue la posición del usuario mientras la app está en primer plano.
+ * Devuelve la función para detener el seguimiento. Requiere permiso concedido.
+ */
+export async function watchPosition(
+  onPosition: (position: UserPosition) => void,
+  onError?: (error: LocationError) => void,
+): Promise<() => void> {
+  const subscription = await Location.watchPositionAsync(
+    {
+      accuracy: Location.Accuracy.Balanced,
+      distanceInterval: WATCH_DISTANCE_INTERVAL_M,
+      timeInterval: WATCH_TIME_INTERVAL_MS,
+    },
+    (location) => onPosition(toPosition(location)),
+    () => onError?.(new LocationError('unavailable')),
+  );
+  return () => subscription.remove();
+}
