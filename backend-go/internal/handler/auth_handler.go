@@ -471,9 +471,21 @@ func parseJTIAndExp(tokenStr string) (jti string, exp time.Time, err error) {
 // Me godoc
 // GET /api/v1/auth/me — requiere middleware Authenticate
 func (h *AuthHandler) Me(c *gin.Context) {
-	userID, _ := c.Get(middleware.ContextUserID)
-	user, err := h.userRepo.FindByID(c.Request.Context(), userID.(string))
-	if err != nil || user == nil {
+	// Aserción verificada: si la ruta se registrara sin Authenticate, antes
+	// userID.(string) hacía panic (500); ahora responde 401.
+	userID, ok := c.Get(middleware.ContextUserID)
+	id, isString := userID.(string)
+	if !ok || !isString || id == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "No autenticado"})
+		return
+	}
+	user, err := h.userRepo.FindByID(c.Request.Context(), id)
+	if err != nil {
+		// Antes un error de BD se informaba como 404 "Usuario no encontrado".
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener el usuario"})
+		return
+	}
+	if user == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Usuario no encontrado"})
 		return
 	}

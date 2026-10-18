@@ -101,11 +101,19 @@ func Setup(
 	auth := func() gin.HandlerFunc { return middleware.Authenticate(jwtSecret, revStore) }
 	optionalAuth := func() gin.HandlerFunc { return middleware.OptionalAuthenticate(jwtSecret, revStore) }
 
+	// Rutas que usan PostgreSQL: en modo degradado (sin BD) main.go no crea sus
+	// handlers y estas guardas responden 503 en vez de un panic → 500.
+	authDB := middleware.RequireDatabase(authH != nil)
+	usersDB := middleware.RequireDatabase(userH != nil)
+	busesDB := middleware.RequireDatabase(busH != nil)
+	routesDB := middleware.RequireDatabase(routeH != nil)
+	complaintsDB := middleware.RequireDatabase(complaintH != nil)
+
 	// Ocupación (público — sin auth para facilitar integración con dispositivos)
 	api.POST("/occupancy", occupancyH.Predict)
 
 	// Simulación de sensores/pagos (público — fallback REST del panel DevTools)
-	api.POST("/buses/simulate-event", busH.SimulateEvent)
+	api.POST("/buses/simulate-event", busesDB, busH.SimulateEvent)
 
 	// Control y cálculo estricto de aforo vehicular
 	if aforoH != nil {
@@ -146,7 +154,7 @@ func Setup(
 	//   tokensLimit      → rotación de tokens: refresh, logout y revoke
 	credentialsLimit := authLimits.CredentialsMiddleware()
 	tokensLimit := authLimits.TokensMiddleware()
-	authGroup := api.Group("/auth")
+	authGroup := api.Group("/auth", authDB)
 	{
 		authGroup.POST("/register", credentialsLimit, middleware.ValidateUserPayload(), authH.Register)
 		authGroup.POST("/login", credentialsLimit, authH.Login)
@@ -157,7 +165,7 @@ func Setup(
 	}
 
 	// Usuarios (con soporte de máscara ?mask=true para privacidad y validación en updates)
-	users := api.Group("/users", optionalAuth(), middleware.SensitiveDataMasker())
+	users := api.Group("/users", usersDB, optionalAuth(), middleware.SensitiveDataMasker())
 	{
 		users.GET("", userH.GetAll)
 		users.GET("/", userH.GetAll)
@@ -205,7 +213,7 @@ func Setup(
 	}
 
 	// Buses (CRUD de micros con soporte para PATCH y roles ADMIN/COMPANY)
-	buses := api.Group("/buses", optionalAuth())
+	buses := api.Group("/buses", busesDB, optionalAuth())
 	{
 		buses.GET("", busH.GetAll)
 		buses.GET("/", busH.GetAll)
@@ -219,7 +227,7 @@ func Setup(
 	}
 
 	// Rutas de transporte
-	routes := api.Group("/routes", auth())
+	routes := api.Group("/routes", routesDB, auth())
 	{
 		routes.GET("", routeH.GetAll)
 		routes.GET("/", routeH.GetAll)
@@ -244,11 +252,11 @@ func Setup(
 	}
 
 	// Reclamos: creación accesible por pasajeros con validación y sanitización estricta XSS
-	api.POST("/complaints", optionalAuth(), middleware.ValidateComplaintPayload(), complaintH.Create)
-	api.POST("/complaints/", optionalAuth(), middleware.ValidateComplaintPayload(), complaintH.Create)
+	api.POST("/complaints", complaintsDB, optionalAuth(), middleware.ValidateComplaintPayload(), complaintH.Create)
+	api.POST("/complaints/", complaintsDB, optionalAuth(), middleware.ValidateComplaintPayload(), complaintH.Create)
 
 	// Gestión y consulta de reclamos con soporte de enmascaramiento (?mask=true)
-	complaints := api.Group("/complaints", optionalAuth(), middleware.SensitiveDataMasker())
+	complaints := api.Group("/complaints", complaintsDB, optionalAuth(), middleware.SensitiveDataMasker())
 	{
 		complaints.GET("/stats", complaintH.GetStats)
 		complaints.GET("", complaintH.GetAll)
