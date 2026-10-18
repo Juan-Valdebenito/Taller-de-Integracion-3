@@ -13,6 +13,18 @@ import type { UserPosition } from '../location/locationService';
  */
 export const REFETCH_DISTANCE_M = STOP_SEARCH_RADIUS_M / 5;
 
+/**
+ * Espera antes de reintentar automáticamente tras un error. Se duplica con cada
+ * fallo seguido (30 s, 60 s, 120 s…) hasta RETRY_MAX_DELAY_MS, para no golpear
+ * al backend con cada nueva posición del GPS mientras está caído.
+ */
+export const RETRY_BASE_DELAY_MS = 30_000;
+export const RETRY_MAX_DELAY_MS = 5 * 60_000;
+
+export function retryDelay(consecutiveFailures: number): number {
+  return Math.min(RETRY_BASE_DELAY_MS * 2 ** Math.max(0, consecutiveFailures - 1), RETRY_MAX_DELAY_MS);
+}
+
 export interface UseNearestStopResult {
   /** null hasta tener posición y paraderos cargados. */
   proximity: ProximityResult | null;
@@ -47,41 +59,66 @@ export function useNearestStop(position: UserPosition | null): UseNearestStopRes
   /** Descarta respuestas de consultas anteriores que lleguen tarde. */
   const requestId = useRef(0);
   const mounted = useRef(true);
+  /** Última posición conocida, para el reintento programado. */
+  const latest = useRef<Coordinates | null>(null);
+  const failures = useRef(0);
+  /** Reintento automático pendiente; mientras exista no se consulta con cada posición. */
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelRetry = useCallback(() => {
+    if (retryTimer.current) clearTimeout(retryTimer.current);
+    retryTimer.current = null;
+  }, []);
 
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
+      cancelRetry();
     };
-  }, []);
+  }, [cancelRetry]);
 
-  const load = useCallback(async (from: Coordinates) => {
-    const id = ++requestId.current;
-    origin.current = from;
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await fetchNearbyStops({ ...from, radiusMeters: STOP_SEARCH_RADIUS_M });
-      if (mounted.current && id === requestId.current) setStops(result);
-    } catch (e) {
-      if (!mounted.current || id !== requestId.current) return;
-      // Permite reintentar automáticamente con la próxima posición.
-      origin.current = null;
-      setError(errorMessage(e));
-    } finally {
-      if (mounted.current && id === requestId.current) setLoading(false);
-    }
-  }, []);
+  const load = useCallback(
+    async (from: Coordinates) => {
+      const id = ++requestId.current;
+      cancelRetry();
+      origin.current = from;
+      setLoading(true);
+      setError(null);
+      try {
+        const result = await fetchNearbyStops({ ...from, radiusMeters: STOP_SEARCH_RADIUS_M });
+        if (mounted.current && id === requestId.current) {
+          failures.current = 0;
+          setStops(result);
+        }
+      } catch (e) {
+        if (!mounted.current || id !== requestId.current) return;
+        origin.current = null;
+        failures.current += 1;
+        setError(errorMessage(e));
+        retryTimer.current = setTimeout(() => {
+          retryTimer.current = null;
+          if (latest.current) load(latest.current);
+        }, retryDelay(failures.current));
+      } finally {
+        if (mounted.current && id === requestId.current) setLoading(false);
+      }
+    },
+    [cancelRetry],
+  );
 
   const latitude = position?.latitude;
   const longitude = position?.longitude;
   useEffect(() => {
     if (latitude == null || longitude == null) return;
     const current = { latitude, longitude };
+    latest.current = current;
+    if (retryTimer.current) return;
     if (origin.current && distanceInMeters(origin.current, current) < REFETCH_DISTANCE_M) return;
     load(current);
   }, [latitude, longitude, load]);
 
+  /** Manual: consulta al instante aunque haya un reintento programado. */
   const reload = useCallback(async () => {
     if (latitude == null || longitude == null) return;
     await load({ latitude, longitude });

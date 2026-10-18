@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { ApiError } from '../../api/client';
 import * as stopsApi from '../../api/stopsApi';
 import type { UserPosition } from '../../location/locationService';
-import { REFETCH_DISTANCE_M, useNearestStop } from '../useNearestStop';
+import { REFETCH_DISTANCE_M, RETRY_BASE_DELAY_MS, retryDelay, useNearestStop } from '../useNearestStop';
 
 jest.mock('../../api/stopsApi', () => ({ fetchNearbyStops: jest.fn() }));
 
@@ -23,6 +23,10 @@ const stops = [{ id: 'p1', name: 'Plaza de Armas', latitude: north(60), longitud
 beforeEach(() => {
   jest.clearAllMocks();
   fetchNearbyStops.mockResolvedValue(stops);
+});
+
+afterEach(() => {
+  jest.useRealTimers();
 });
 
 describe('useNearestStop', () => {
@@ -109,5 +113,98 @@ describe('useNearestStop', () => {
       resolveFirst(stops);
     });
     expect(result.current.proximity?.nearest?.stop.id).toBe('lejos');
+  });
+  describe('reintentos tras un error', () => {
+    const unavailable = () => new ApiError(503, 'micro service unavailable');
+
+    it('no reintenta con cada nueva posición: espera y reintenta solo una vez', async () => {
+      jest.useFakeTimers();
+      fetchNearbyStops.mockRejectedValueOnce(unavailable());
+      const { result, rerender } = await renderHook(({ position }: { position: UserPosition }) => useNearestStop(position), {
+        initialProps: { position: at(0) },
+      });
+      await waitFor(() => expect(result.current.error).not.toBeNull());
+
+      // El GPS sigue entregando posiciones (incluso lejanas) durante la espera.
+      for (const meters of [10, 20, 500, 900]) {
+        await rerender({ position: at(meters) });
+      }
+      expect(fetchNearbyStops).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        jest.advanceTimersByTime(RETRY_BASE_DELAY_MS);
+      });
+
+      expect(fetchNearbyStops).toHaveBeenCalledTimes(2);
+      // Reintenta desde la última posición conocida.
+      expect(fetchNearbyStops).toHaveBeenLastCalledWith(expect.objectContaining({ latitude: north(900) }));
+      await waitFor(() => expect(result.current.error).toBeNull());
+      expect(result.current.proximity).not.toBeNull();
+    });
+
+    it('si vuelve a fallar, duplica la espera', async () => {
+      jest.useFakeTimers();
+      fetchNearbyStops.mockRejectedValueOnce(unavailable()).mockRejectedValueOnce(unavailable());
+      const { result } = await renderHook(() => useNearestStop(at(0)));
+      await waitFor(() => expect(result.current.error).not.toBeNull());
+
+      await act(async () => {
+        jest.advanceTimersByTime(RETRY_BASE_DELAY_MS);
+      });
+      expect(fetchNearbyStops).toHaveBeenCalledTimes(2);
+
+      await act(async () => {
+        jest.advanceTimersByTime(RETRY_BASE_DELAY_MS);
+      });
+      expect(fetchNearbyStops).toHaveBeenCalledTimes(2);
+
+      await act(async () => {
+        jest.advanceTimersByTime(RETRY_BASE_DELAY_MS);
+      });
+      expect(fetchNearbyStops).toHaveBeenCalledTimes(3);
+    });
+
+    it('el botón Reintentar consulta al instante y cancela el reintento programado', async () => {
+      jest.useFakeTimers();
+      fetchNearbyStops.mockRejectedValueOnce(unavailable());
+      const { result } = await renderHook(() => useNearestStop(at(0)));
+      await waitFor(() => expect(result.current.error).not.toBeNull());
+
+      await act(async () => {
+        await result.current.reload();
+      });
+      expect(fetchNearbyStops).toHaveBeenCalledTimes(2);
+      expect(result.current.error).toBeNull();
+
+      await act(async () => {
+        jest.advanceTimersByTime(RETRY_BASE_DELAY_MS * 10);
+      });
+      expect(fetchNearbyStops).toHaveBeenCalledTimes(2);
+    });
+
+    it('al salir de la pantalla cancela el reintento pendiente', async () => {
+      jest.useFakeTimers();
+      fetchNearbyStops.mockRejectedValueOnce(unavailable());
+      const { result, unmount } = await renderHook(() => useNearestStop(at(0)));
+      await waitFor(() => expect(result.current.error).not.toBeNull());
+
+      await unmount();
+      await act(async () => {
+        jest.advanceTimersByTime(RETRY_BASE_DELAY_MS * 10);
+      });
+
+      expect(fetchNearbyStops).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      [1, 30_000],
+      [2, 60_000],
+      [3, 120_000],
+      [4, 240_000],
+      [5, 300_000],
+      [10, 300_000],
+    ])('retryDelay(%p fallos) = %p ms', (failures, expected) => {
+      expect(retryDelay(failures)).toBe(expected);
+    });
   });
 });

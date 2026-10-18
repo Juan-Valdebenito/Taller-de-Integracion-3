@@ -110,6 +110,9 @@ El texto del permiso se configura en `app.json` (plugin `expo-location`).
 - `src/hooks/useNearestStop.ts`: vuelve a consultar al backend solo si el usuario se
   aleja más de 200 m del punto de la última consulta (o al tocar **Actualizar
   paraderos**); con cada posición nueva recalcula la distancia sin pedir datos.
+  Si el backend falla no reintenta con cada posición: programa un reintento a los
+  30 s y duplica la espera en cada fallo seguido (máximo 5 min). **Reintentar**
+  consulta al instante.
 - `src/components/NearbyStopCard.tsx` (pantalla Inicio): paradero más cercano,
   distancia y si está dentro del radio.
 
