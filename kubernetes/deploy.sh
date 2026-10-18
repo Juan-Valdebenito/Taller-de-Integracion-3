@@ -39,6 +39,7 @@ FOUNDATION_FILES=(
   transporte-db-secret.yaml
   services/transporte_db/transporte-db-init-scripts.yaml
   services/transporte_db/transporte-db-deployment.yaml
+  services/redis_server/redis-server-deployment.yml
   services/backend-go/backend-go-deployment.yaml
   services/backend-go/backend-go-service.yaml
 )

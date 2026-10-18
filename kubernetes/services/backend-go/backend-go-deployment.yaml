@@ -125,8 +125,13 @@ spec:
             # ── Revocación de tokens compartida (opcional) ──────
             # Sin REDIS_ADDR la revocación (logout / refresh) vive en memoria del
             # pod: válido solo con replicas: 1. Con Redis en el cluster:
-            # - name: REDIS_ADDR
-            #   value: "redis-svc.<namespace>.svc.cluster.local:6379"
+            - name: REDIS_ADDR
+              value: "redis-svc:6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-auth
+                  key: REDIS_PASSWORD
           # /readyz comprueba la conexión a PostgreSQL: el Service no envía
           # tráfico al pod hasta que la BD responde.
           readinessProbe:
