@@ -76,6 +76,22 @@ src/
 - **Límite de intentos:** si backend-go responde 429 (rate limiting), el formulario
   muestra el mensaje y bloquea el botón con cuenta regresiva hasta el `Retry-After`.
 
+## Ubicación
+
+Base para verificar si el usuario está cerca de un paradero antes de emitir
+alertas de proximidad (`expo-location`, solo **mientras la app está en uso**;
+no se pide ubicación en segundo plano).
+
+- `src/location/locationService.ts`: permiso (`granted`, `undetermined`, `denied`,
+  `blocked`) y posición actual. Si el GPS no responde en 15 s usa una posición
+  guardada de hace menos de 1 minuto; si no hay, informa el error.
+- `src/hooks/useLocation.ts`: al abrir la app solo consulta el permiso; el diálogo
+  del sistema aparece cuando el usuario toca **Activar ubicación**.
+- `src/components/LocationCard.tsx` (pantalla Inicio): estado, coordenadas y
+  precisión; si el permiso quedó bloqueado, botón **Abrir ajustes**.
+
+El texto del permiso se configura en `app.json` (plugin `expo-location`).
+
 ## Perfil
 
 La pestaña **Perfil** muestra avatar con iniciales, nombre, tipo de cuenta, correo,

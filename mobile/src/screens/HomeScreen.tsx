@@ -2,12 +2,15 @@ import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '../auth/AuthContext';
+import { LocationCard } from '../components/LocationCard';
+import { useLocation } from '../hooks/useLocation';
 import { colors, radius, spacing } from '../theme';
 import { roleLabel } from '../utils/format';
 
 /** Pantalla inicial con sesión iniciada. El cierre de sesión está en la pestaña Perfil. */
 export function HomeScreen() {
   const { user } = useAuth();
+  const location = useLocation();
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom', 'left', 'right']}>
@@ -21,6 +24,7 @@ export function HomeScreen() {
           <Text style={[styles.label, styles.spaced]}>Tipo de cuenta</Text>
           <Text style={styles.value}>{roleLabel(user?.role)}</Text>
         </View>
+        <LocationCard location={location} />
         <Text style={styles.hint}>Revisa tus datos o cierra sesión desde la pestaña Perfil.</Text>
       </View>
     </SafeAreaView>

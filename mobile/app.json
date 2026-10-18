@@ -24,7 +24,15 @@
     "plugins": [
       "expo-secure-store",
       "expo-router",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "TransitHub usa tu ubicación para comprobar si estás cerca de un paradero antes de enviarte alertas de proximidad.",
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false
+        }
+      ]
     ],
     "scheme": "transithub"
   }
