@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '../components/Button';
@@ -9,6 +9,7 @@ import { useNotificationPreference } from '../hooks/useNotificationPreference';
 import { useSettings } from '../settings/SettingsContext';
 import type { TextSizePreference, ThemePreference } from '../settings/settingsStorage';
 import { makeStyles, radius, spacing } from '../theme';
+import { confirmAction, isWeb } from '../utils/platform';
 
 export const THEME_OPTIONS: readonly SegmentedOption<ThemePreference>[] = [
   { value: 'system', label: 'Sistema' },
@@ -39,10 +40,13 @@ export function SettingsScreen() {
         : null;
 
   const confirmReset = useCallback(() => {
-    Alert.alert('Restablecer configuración', '¿Volver a los valores por defecto? Las notificaciones quedarán desactivadas.', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Restablecer', style: 'destructive', onPress: resetSettings },
-    ]);
+    confirmAction({
+      title: 'Restablecer configuración',
+      message: '¿Volver a los valores por defecto? Las notificaciones quedarán desactivadas.',
+      confirmText: 'Restablecer',
+      destructive: true,
+      onConfirm: resetSettings,
+    });
   }, [resetSettings]);
 
   return (
@@ -60,13 +64,23 @@ export function SettingsScreen() {
           Notificaciones
         </Text>
         <View style={styles.card}>
-          <SettingSwitchRow
-            label="Notificaciones push"
-            description="Recibe en el teléfono las alertas de micros que se acercan a tu paradero."
-            value={notifications.enabled}
-            onValueChange={notifications.setEnabled}
-            disabled={notifications.busy}
-          />
+          {isWeb() ? (
+            <SettingSwitchRow
+              label="Notificaciones push"
+              description="Solo están disponibles en la app del teléfono. En la vista previa web las alertas se muestran en la pantalla de Inicio."
+              value={false}
+              onValueChange={() => {}}
+              disabled
+            />
+          ) : (
+            <SettingSwitchRow
+              label="Notificaciones push"
+              description="Recibe en el teléfono las alertas de micros que se acercan a tu paradero."
+              value={notifications.enabled}
+              onValueChange={notifications.setEnabled}
+              disabled={notifications.busy}
+            />
+          )}
           {notificationNotice ? (
             <View style={styles.notice}>
               <Text style={styles.noticeText} accessibilityRole="alert">
@@ -79,7 +93,7 @@ export function SettingsScreen() {
               ) : null}
             </View>
           ) : null}
-          {notifications.enabled ? (
+          {notifications.enabled && !isWeb() ? (
             <View style={styles.test}>
               <Button
                 title="Enviar notificación de prueba"

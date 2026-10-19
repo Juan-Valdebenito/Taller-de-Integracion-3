@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import * as Notifications from 'expo-notifications';
-import { Alert, StyleSheet, type AlertButton } from 'react-native';
+import { Alert, Platform, StyleSheet, type AlertButton } from 'react-native';
 
 import { SettingsProvider } from '../../settings/SettingsContext';
 import { DEFAULT_SETTINGS, SETTINGS_KEY, loadSettings } from '../../settings/settingsStorage';
@@ -173,6 +173,38 @@ describe('SettingsScreen', () => {
 
       await waitFor(() => expect(screen.getByText('Listo: revisa la notificación en tu teléfono.')).toBeTruthy());
       expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('vista previa web', () => {
+    beforeEach(() => {
+      jest.replaceProperty(Platform, 'OS', 'web');
+    });
+
+    afterEach(() => {
+      delete (globalThis as { confirm?: unknown }).confirm;
+    });
+
+    it('las notificaciones aparecen desactivadas con la explicación', async () => {
+      await renderScreen();
+
+      const toggle = screen.getByRole('switch', { name: 'Notificaciones push' });
+      expect(toggle.props.value).toBe(false);
+      expect(toggle.props.disabled).toBe(true);
+      expect(screen.getByText(/Solo están disponibles en la app del teléfono/)).toBeTruthy();
+      expect(Notifications.getPermissionsAsync).not.toHaveBeenCalled();
+    });
+
+    it('restablecer usa el diálogo del navegador', async () => {
+      (globalThis as { confirm?: unknown }).confirm = jest.fn(() => true);
+      await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify({ theme: 'dark' }));
+      await renderScreen();
+      await waitFor(() => expect(radio('Oscuro').props.accessibilityState.checked).toBe(true));
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Restablecer valores por defecto' }));
+
+      expect(globalThis.confirm).toHaveBeenCalledTimes(1);
+      await waitFor(() => expect(radio('Sistema').props.accessibilityState.checked).toBe(true));
     });
   });
 });

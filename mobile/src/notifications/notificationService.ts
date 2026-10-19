@@ -10,6 +10,12 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 import type { ProximityAlert } from '../alerts/proximityAlerts';
+import { isWeb } from '../utils/platform';
+
+/** Las notificaciones del teléfono no existen en la vista previa web. */
+export function notificationsSupported(): boolean {
+  return !isWeb();
+}
 
 /** Mismo modelo que el permiso de ubicación. */
 export type NotificationPermission = 'granted' | 'undetermined' | 'denied' | 'blocked';
@@ -45,7 +51,7 @@ let configured = false;
  * también con la app abierta y crear los canales de Android.
  */
 export async function setupNotifications(): Promise<void> {
-  if (configured) return;
+  if (configured || !notificationsSupported()) return;
   configured = true;
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -80,6 +86,7 @@ async function showNow(
   { title, body, data }: { title: string; body: string; data: Record<string, unknown> },
   vibrate: boolean,
 ): Promise<void> {
+  if (!notificationsSupported()) return;
   await Notifications.scheduleNotificationAsync({
     content: { title, body, sound: vibrate ? 'default' : false, data },
     trigger: Platform.OS === 'android' ? { channelId: vibrate ? ALERTS_CHANNEL_ID : SILENT_ALERTS_CHANNEL_ID } : null,

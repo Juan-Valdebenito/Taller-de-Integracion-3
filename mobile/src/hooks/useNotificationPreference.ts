@@ -3,6 +3,7 @@ import { AppState, Linking } from 'react-native';
 
 import {
   getNotificationPermission,
+  notificationsSupported,
   requestNotificationPermission,
   sendTestNotification,
   type NotificationPermission,
@@ -44,6 +45,7 @@ export function useNotificationPreference(): UseNotificationPreferenceResult {
   const mounted = useRef(true);
 
   const refresh = useCallback(async () => {
+    if (!notificationsSupported()) return;
     try {
       const current = await getNotificationPermission();
       if (mounted.current) setPermission(current);

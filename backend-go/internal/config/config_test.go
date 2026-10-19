@@ -45,3 +45,23 @@ func TestRateLimitFromEnvironment(t *testing.T) {
 		t.Fatalf("expected trusted proxies %v, got %v", want, cfg.TrustedProxies)
 	}
 }
+
+func TestCORSOrigins(t *testing.T) {
+	cases := []struct {
+		name string
+		env  string
+		want []string
+	}{
+		{"por defecto el frontend web", "", []string{"http://localhost:5173"}},
+		{"un solo origen (como en el cluster)", "https://backend-tpenroz.dev.censei.cl", []string{"https://backend-tpenroz.dev.censei.cl"}},
+		{"varios orígenes separados por coma", " http://localhost:5173, ,http://localhost:8081 ", []string{"http://localhost:5173", "http://localhost:8081"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("CORS_ORIGIN", tc.env)
+			if got := Load().CORSOrigins; !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("CORS_ORIGIN=%q: expected %v, got %v", tc.env, tc.want, got)
+			}
+		})
+	}
+}

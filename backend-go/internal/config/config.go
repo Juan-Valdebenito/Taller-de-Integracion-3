@@ -15,7 +15,9 @@ type Config struct {
 	Port        string
 	DatabaseURL string
 	JWTSecret   string
-	CORSOrigin  string
+	// CORSOrigins: orígenes permitidos (CORS_ORIGIN, separados por coma), ej.
+	// la web en :5173 y la vista previa web de la app móvil (Expo) en :8081.
+	CORSOrigins []string
 	Env         string
 
 	// ── Duración de los JWT ────────────────────────────────────────────────
@@ -111,7 +113,7 @@ func Load() *Config {
 		Port:        getEnv("PORT", "3001"),
 		DatabaseURL: getEnv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/transporte_db"),
 		JWTSecret:   getEnv("JWT_SECRET", "dev_secret_cambiarlo_en_produccion_123"),
-		CORSOrigin:  getEnv("CORS_ORIGIN", "http://localhost:5173"),
+		CORSOrigins: corsOrigins(),
 		Env:         getEnv("NODE_ENV", "development"),
 
 		JWTAccessExpires:  accessDuration,
@@ -148,6 +150,14 @@ func Load() *Config {
 		MicroAPIKey:       getEnv("MICRO_API_KEY", ""),
 		GRPCTimeout:       grpcTimeout,
 	}
+}
+
+// corsOrigins lee CORS_ORIGIN (uno o varios orígenes separados por coma).
+func corsOrigins() []string {
+	if origins := getEnvList("CORS_ORIGIN"); len(origins) > 0 {
+		return origins
+	}
+	return []string{"http://localhost:5173"}
 }
 
 func getEnv(key, fallback string) string {

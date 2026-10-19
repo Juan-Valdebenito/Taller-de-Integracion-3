@@ -17,7 +17,7 @@ import (
 
 // Setup configura y retorna el router Gin con todas las rutas registradas.
 func Setup(
-	corsOrigin string,
+	corsOrigins []string,
 	jwtSecret string,
 	pool *pgxpool.Pool,
 	revStore token.RevocationStore,
@@ -57,7 +57,7 @@ func Setup(
 
 	// ── CORS ──────────────────────────────────────────────────
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{corsOrigin},
+		AllowOrigins:     corsOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,

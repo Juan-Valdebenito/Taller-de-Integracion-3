@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { Platform } from 'react-native';
 
 import type { UseLocationResult } from '../../hooks/useLocation';
 import { LocationCard, formatPosition } from '../LocationCard';
@@ -70,5 +71,14 @@ describe('LocationCard', () => {
 describe('formatPosition', () => {
   it('usa 5 decimales', () => {
     expect(formatPosition(-38.7359123, -72.5904456)).toBe('-38.73591, -72.59045');
+  });
+
+  it('en web, con la ubicación bloqueada, explica cómo permitirla en el navegador', async () => {
+    jest.replaceProperty(Platform, 'OS', 'web');
+    await render(<LocationCard location={state({ permission: 'blocked' })} />);
+
+    expect(screen.getByText(/El navegador bloqueó la ubicación/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Abrir ajustes' })).toBeNull();
+    jest.restoreAllMocks();
   });
 });

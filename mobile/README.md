@@ -26,6 +26,30 @@ npx expo start            # escanear el QR con Expo Go, o "a" / "i" para emulado
 
 Si cambias `.env`, reinicia con `npx expo start --clear`.
 
+## Ver la app en VS Code (vista previa web)
+
+Sin teléfono ni emulador: la app corre como página web y se abre en el navegador
+integrado de VS Code.
+
+1. Backend Go corriendo en el PC (`npm run dev` desde la raíz). En `backend-go/.env`,
+   `CORS_ORIGIN` debe incluir el origen de la vista previa:
+   `CORS_ORIGIN=http://localhost:5173,http://localhost:8081`
+2. En `mobile/.env`: `EXPO_PUBLIC_API_URL=http://localhost:3001/api/v1`
+3. `npx expo start --web --clear`
+4. En VS Code: `Ctrl+Shift+P` → **Simple Browser: Show** → `http://localhost:8081`
+
+Qué cambia en web (`src/utils/platform.ts`):
+
+- La sesión se guarda en `sessionStorage` (el navegador no tiene almacenamiento
+  cifrado) y se borra al cerrar la pestaña. Es solo para desarrollo.
+- Las confirmaciones (cerrar sesión, restablecer) usan el diálogo del navegador.
+- La ubicación usa el GPS del navegador (pide permiso). Si la bloquea, se habilita
+  desde el ícono junto a la dirección de la página.
+- Las notificaciones del teléfono no existen en web: el interruptor aparece
+  desactivado y las alertas se ven en la pantalla de Inicio.
+- El backend del cluster no acepta el origen `localhost:8081` (CORS), así que la
+  vista previa web se usa con el backend local.
+
 ## Comandos
 
 ```bash

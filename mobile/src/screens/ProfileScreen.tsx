@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ApiError } from '../api/client';
@@ -7,6 +7,7 @@ import { useAuth } from '../auth/AuthContext';
 import { Button } from '../components/Button';
 import { makeStyles, radius, spacing, useTheme } from '../theme';
 import { formatLongDate, initials, roleLabel } from '../utils/format';
+import { confirmAction } from '../utils/platform';
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   const styles = useStyles();
@@ -43,10 +44,13 @@ export function ProfileScreen() {
   }, [signOut]);
 
   const confirmSignOut = useCallback(() => {
-    Alert.alert('Cerrar sesión', '¿Quieres cerrar tu sesión en este dispositivo?', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Cerrar sesión', style: 'destructive', onPress: doSignOut },
-    ]);
+    confirmAction({
+      title: 'Cerrar sesión',
+      message: '¿Quieres cerrar tu sesión en este dispositivo?',
+      confirmText: 'Cerrar sesión',
+      destructive: true,
+      onConfirm: doSignOut,
+    });
   }, [doSignOut]);
 
   const reload = useCallback(async () => {

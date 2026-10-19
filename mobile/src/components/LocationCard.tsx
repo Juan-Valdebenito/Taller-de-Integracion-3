@@ -2,6 +2,7 @@ import { Text, View } from 'react-native';
 
 import type { UseLocationResult } from '../hooks/useLocation';
 import { makeStyles, radius, spacing } from '../theme';
+import { isWeb } from '../utils/platform';
 import { Button } from './Button';
 
 /** Coordenadas con 5 decimales (~1 m de resolución). */
@@ -29,6 +30,9 @@ export function LocationCard({ location }: { location: UseLocationResult }) {
   } else if (permission === 'denied') {
     description = 'Sin permiso de ubicación no podemos verificar si estás cerca de un paradero.';
     action = { title: 'Permitir ubicación', onPress: requestAndLocate };
+  } else if (permission === 'blocked' && isWeb()) {
+    // El navegador no permite abrir sus ajustes desde la página.
+    description = 'El navegador bloqueó la ubicación. Permítela desde el ícono junto a la dirección de la página y recarga.';
   } else if (permission === 'blocked') {
     description = 'El permiso de ubicación está desactivado para TransitHub. Puedes activarlo desde los ajustes del teléfono.';
     action = { title: 'Abrir ajustes', onPress: openSettings };

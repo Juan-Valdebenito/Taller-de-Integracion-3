@@ -144,3 +144,18 @@ describe('sendTestNotification', () => {
   });
 });
 });
+
+describe('vista previa web', () => {
+  beforeEach(() => {
+    jest.replaceProperty(Platform, 'OS', 'web');
+  });
+
+  it('no configura ni muestra notificaciones (no existen en el navegador)', async () => {
+    await setupNotifications();
+    await notifyProximityAlert(alert, { vibrate: true });
+    await sendTestNotification({ vibrate: true });
+
+    expect(Notifications.setNotificationHandler).not.toHaveBeenCalled();
+    expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+  });
+});
