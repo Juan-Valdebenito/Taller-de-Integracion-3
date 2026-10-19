@@ -3,20 +3,23 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
 import { AuthProvider, useAuth } from '../auth/AuthContext';
+import { SettingsProvider, useSettings } from '../settings/SettingsContext';
 
-// Mantener la pantalla de carga mientras se recupera la sesión guardada.
+// Mantener la pantalla de carga mientras se recuperan la sesión y las preferencias guardadas.
 SplashScreen.preventAutoHideAsync();
 
 function RootNavigator() {
   const { status } = useAuth();
+  const { loaded: settingsLoaded } = useSettings();
+  const ready = status !== 'loading' && settingsLoaded;
 
   useEffect(() => {
-    if (status !== 'loading') {
+    if (ready) {
       SplashScreen.hideAsync();
     }
-  }, [status]);
+  }, [ready]);
 
-  if (status === 'loading') {
+  if (!ready) {
     return null;
   }
 
@@ -38,9 +41,11 @@ function RootNavigator() {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <RootNavigator />
-      <StatusBar style="dark" />
-    </AuthProvider>
+    <SettingsProvider>
+      <AuthProvider>
+        <RootNavigator />
+        <StatusBar style="dark" />
+      </AuthProvider>
+    </SettingsProvider>
   );
 }

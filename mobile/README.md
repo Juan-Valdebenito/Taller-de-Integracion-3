@@ -138,6 +138,29 @@ app no consulta las micros y la tarjeta explica por qué las alertas están en p
 
 Son alertas dentro de la app (no notificaciones push con la app cerrada).
 
+## Configuración del pasajero
+
+Preferencias guardadas en el teléfono con AsyncStorage (no son datos sensibles,
+por eso no van en SecureStore como los tokens). Son del dispositivo: se mantienen
+al cerrar la app y al cerrar sesión.
+
+| Preferencia            | Valores                         | Por defecto |
+| ---------------------- | ------------------------------- | ----------- |
+| `notificationsEnabled` | `true` / `false`                | `false`     |
+| `vibrationEnabled`     | `true` / `false`                | `true`      |
+| `theme`                | `system`, `light`, `dark`       | `system`    |
+| `textSize`             | `normal`, `large`, `extraLarge` | `normal`    |
+
+- `src/settings/settingsStorage.ts`: lee y guarda (`transithub.settings`). Valida
+  campo por campo: un valor dañado o desconocido vuelve a su valor por defecto sin
+  perder el resto.
+- `src/settings/SettingsContext.tsx`: `useSettings()` entrega `settings`,
+  `updateSettings(cambios)` y `resetSettings()`. Los cambios se aplican al instante
+  y se guardan en orden; si el guardado falla, el cambio se mantiene hasta cerrar
+  la app y se muestra un aviso (`saveError`).
+- La pantalla de carga espera a leer las preferencias (además de la sesión), para
+  que la app no se muestre un instante con el tema equivocado.
+
 ## Perfil
 
 La pestaña **Perfil** muestra avatar con iniciales, nombre, tipo de cuenta, correo,
