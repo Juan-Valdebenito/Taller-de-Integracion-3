@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -374,7 +375,7 @@ func isValidOperationalStatus(status domain.BusStatus) bool {
 func (h *BusHandler) Delete(c *gin.Context) {
 	err := h.busRepo.Delete(c.Request.Context(), c.Param("id"))
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Bus no encontrado"})
 			return
 		}

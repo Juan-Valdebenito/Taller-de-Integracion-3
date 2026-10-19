@@ -13,6 +13,7 @@ import (
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/handler"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/infrastructure/grpcclient"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/logger"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/middleware"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/repository"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/router"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/seed"
@@ -174,6 +175,22 @@ func main() {
 	defer microClient.Close()
 	grpcProxyH := handler.NewGRPCProxyHandler(climateClient, microClient)
 
+	// ── Rate limiting de autenticación (por IP) ───────────────
+	// Protege login/registro y la rotación de tokens contra DoS y fuerza bruta.
+	var authLimits *middleware.AuthRateLimiters
+	if cfg.RateLimitEnabled {
+		authLimits = middleware.NewAuthRateLimiters(ctx,
+			middleware.RateLimitConfig{Name: "auth", RequestsPerMinute: cfg.AuthRateLimitPerMin, Burst: cfg.AuthRateLimitBurst},
+			middleware.RateLimitConfig{Name: "token", RequestsPerMinute: cfg.TokenRateLimitPerMin, Burst: cfg.TokenRateLimitBurst},
+		)
+		log.Info().Str("event", "rate_limit_enabled").
+			Int("auth_per_min", cfg.AuthRateLimitPerMin).Int("auth_burst", cfg.AuthRateLimitBurst).
+			Int("token_per_min", cfg.TokenRateLimitPerMin).Int("token_burst", cfg.TokenRateLimitBurst).
+			Msg("Auth rate limiting active")
+	} else {
+		log.Warn().Str("event", "rate_limit_disabled").Msg("Auth rate limiting disabled (RATE_LIMIT_ENABLED=false)")
+	}
+
 	// ── Router ────────────────────────────────────────────────
 	r := router.Setup(
 		cfg.CORSOrigin,
@@ -193,7 +210,18 @@ func main() {
 		aforoH,
 		recaudoH,
 		healthH,
+		authLimits,
 	)
+
+	// IP real del cliente detrás del Ingress: solo se acepta X-Forwarded-For de
+	// los proxies listados en TRUSTED_PROXIES (si está vacío, se mantiene el
+	// comportamiento por defecto de Gin).
+	if len(cfg.TrustedProxies) > 0 {
+		if err := r.SetTrustedProxies(cfg.TrustedProxies); err != nil {
+			log.Fatal().Err(err).Str("event", "trusted_proxies_invalid").Msg("Invalid TRUSTED_PROXIES")
+		}
+		log.Info().Str("event", "trusted_proxies_set").Strs("proxies", cfg.TrustedProxies).Msg("Trusted proxies configured")
+	}
 
 	// â”€â”€ Iniciar servidor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 	addr := fmt.Sprintf(":%s", cfg.Port)

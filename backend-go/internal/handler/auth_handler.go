@@ -3,10 +3,13 @@ package handler
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -334,41 +337,107 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 
 // Logout godoc
 // POST /api/v1/auth/logout — requiere middleware Authenticate
-// Revoca el token actual en el RevocationStore hasta su expiración.
-// Si el body trae {"refreshToken": "..."}, también se revoca, para que no
-// pueda usarse en /auth/refresh después de cerrar sesión.
+// Agrega a la lista negra (RevocationStore) el access token actual hasta su
+// expiración. Si el body trae {"refreshToken": "..."}, también lo revoca, para
+// que no pueda usarse en /auth/refresh después de cerrar sesión.
+//
+// El refresh token se verifica antes de revocarlo: firma válida, tipo
+// "refresh" y mismo usuario que el access token. Primero se valida todo y
+// después se revoca, para no dejar la sesión cerrada a medias.
 func (h *AuthHandler) Logout(c *gin.Context) {
 	var body struct {
 		RefreshToken string `json:"refreshToken"`
 	}
 	_ = c.ShouldBindJSON(&body) // body opcional
-	if body.RefreshToken != "" {
-		if jti, exp, err := parseJTIAndExp(body.RefreshToken); err == nil {
-			if revokeErr := h.revStore.Revoke(jti, exp); revokeErr != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "No se pudo cerrar la sesión, intenta nuevamente"})
-				return
-			}
+
+	type revocation struct {
+		jti string
+		exp time.Time
+	}
+	var toRevoke []revocation
+
+	// Access token del header (el middleware Authenticate ya verificó la firma).
+	if authHeader := c.GetHeader("Authorization"); strings.HasPrefix(authHeader, "Bearer ") {
+		if jti, exp, err := parseJTIAndExp(strings.TrimPrefix(authHeader, "Bearer ")); err == nil {
+			toRevoke = append(toRevoke, revocation{jti, exp})
 		}
 	}
 
-	authHeader := c.GetHeader("Authorization")
-	if !strings.HasPrefix(authHeader, "Bearer ") {
-		c.JSON(http.StatusOK, gin.H{"message": "Sesión cerrada correctamente"})
-		return
+	refreshRevoked := false
+	if body.RefreshToken != "" {
+		userID, _ := c.Get(middleware.ContextUserID)
+		jti, exp, err := h.verifyOwnRefreshToken(body.RefreshToken, fmt.Sprint(userID))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": userMessage(err)})
+			return
+		}
+		// Un refresh token ya vencido no sirve: no hace falta guardarlo.
+		if exp.After(time.Now()) {
+			toRevoke = append(toRevoke, revocation{jti, exp})
+			refreshRevoked = true
+		}
 	}
 
-	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
-
-	// Parsear sin verificar nuevamente (el middleware ya lo hizo)
-	jti, exp, err := parseJTIAndExp(tokenStr)
-	if err == nil {
-		if revokeErr := h.revStore.Revoke(jti, exp); revokeErr != nil {
+	for _, r := range toRevoke {
+		if err := h.revStore.Revoke(r.jti, r.exp); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "No se pudo cerrar la sesión, intenta nuevamente"})
 			return
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Sesión cerrada correctamente"})
+	c.JSON(http.StatusOK, gin.H{
+		"message":        "Sesión cerrada correctamente",
+		"refreshRevoked": refreshRevoked,
+	})
+}
+
+// Errores de verificación del refresh token en el logout. Siguen la convención
+// de Go (minúscula, comparables con errors.Is); userMessage arma el texto que
+// se muestra al usuario.
+var (
+	errRefreshInvalid   = errors.New("refresh token inválido")
+	errRefreshWrongType = errors.New("el token enviado no es un refresh token")
+	errRefreshNotOwned  = errors.New("el refresh token no pertenece a la sesión actual")
+	errRefreshClaims    = errors.New("refresh token sin claims jti/exp válidos")
+)
+
+// userMessage devuelve el mensaje del error con la primera letra en mayúscula,
+// para mostrarlo en la respuesta JSON.
+func userMessage(err error) string {
+	msg := err.Error()
+	for i, r := range msg {
+		return string(unicode.ToUpper(r)) + msg[i+utf8.RuneLen(r):]
+	}
+	return msg
+}
+
+// verifyOwnRefreshToken comprueba que tokenStr sea un refresh token firmado por
+// este backend y que pertenezca a userID. No exige que esté vigente: el
+// llamador decide qué hacer con uno vencido. Devuelve su jti y expiración.
+func (h *AuthHandler) verifyOwnRefreshToken(tokenStr, userID string) (string, time.Time, error) {
+	parser := jwt.NewParser(jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}), jwt.WithoutClaimsValidation())
+	parsed, err := parser.Parse(tokenStr, func(*jwt.Token) (interface{}, error) {
+		return []byte(h.jwtSecret), nil
+	})
+	if err != nil || !parsed.Valid {
+		return "", time.Time{}, errRefreshInvalid
+	}
+	claims, ok := parsed.Claims.(jwt.MapClaims)
+	if !ok {
+		return "", time.Time{}, errRefreshInvalid
+	}
+	if tokenType, _ := claims["type"].(string); tokenType != "refresh" {
+		return "", time.Time{}, errRefreshWrongType
+	}
+	if owner, _ := claims["id"].(string); owner == "" || owner != userID {
+		return "", time.Time{}, errRefreshNotOwned
+	}
+	jti, _ := claims["jti"].(string)
+	expFloat, _ := claims["exp"].(float64)
+	if jti == "" || expFloat <= 0 {
+		return "", time.Time{}, errRefreshClaims
+	}
+	return jti, time.Unix(int64(expFloat), 0), nil
 }
 
 // Revoke godoc
@@ -424,9 +493,21 @@ func parseJTIAndExp(tokenStr string) (jti string, exp time.Time, err error) {
 // Me godoc
 // GET /api/v1/auth/me — requiere middleware Authenticate
 func (h *AuthHandler) Me(c *gin.Context) {
-	userID, _ := c.Get(middleware.ContextUserID)
-	user, err := h.userRepo.FindByID(c.Request.Context(), userID.(string))
-	if err != nil || user == nil {
+	// Aserción verificada: si la ruta se registrara sin Authenticate, antes
+	// userID.(string) hacía panic (500); ahora responde 401.
+	userID, ok := c.Get(middleware.ContextUserID)
+	id, isString := userID.(string)
+	if !ok || !isString || id == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "No autenticado"})
+		return
+	}
+	user, err := h.userRepo.FindByID(c.Request.Context(), id)
+	if err != nil {
+		// Antes un error de BD se informaba como 404 "Usuario no encontrado".
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener el usuario"})
+		return
+	}
+	if user == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Usuario no encontrado"})
 		return
 	}

@@ -19,8 +19,11 @@ type ClimateClient struct {
 	timeout    time.Duration
 }
 
+// NewClimateClient crea el cliente gRPC de clima_service. grpc.NewClient
+// (reemplaza a grpc.Dial, obsoleto) conecta en segundo plano al primer uso:
+// el backend arranca aunque el microservicio aún no esté disponible.
 func NewClimateClient(target, key string, timeout time.Duration) (*ClimateClient, error) {
-	connection, err := grpc.Dial(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	connection, err := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}
@@ -48,8 +51,9 @@ type MicroClient struct {
 	timeout    time.Duration
 }
 
+// NewMicroClient crea el cliente gRPC de micro_service (ver NewClimateClient).
 func NewMicroClient(target, key string, timeout time.Duration) (*MicroClient, error) {
-	connection, err := grpc.Dial(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	connection, err := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}

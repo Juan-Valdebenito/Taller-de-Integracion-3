@@ -67,60 +67,42 @@ func scanComplaint(row pgx.Row) (*domain.Complaint, error) {
 	return &c, nil
 }
 
-// FindAll retorna los reclamos aplicando filtros opcionales y paginación ordenados por fecha de creación.
-func (r *ComplaintRepository) FindAll(ctx context.Context, filter ComplaintFilter, pagination ...Pagination) ([]domain.Complaint, error) {
+// buildComplaintFindAllQuery arma el SELECT de FindAll con los filtros y la
+// paginación presentes. Es una función pura para poder probar el SQL sin BD.
+func buildComplaintFindAllQuery(filter ComplaintFilter, pagination ...Pagination) (string, []any) {
 	query := `
 		SELECT ` + complaintSelectColumns + `
 		FROM complaints
 		WHERE 1=1
 	`
-	var args []any
-	argIdx := 1
+	var args queryArgs
 
 	if filter.Status != nil {
-		query += fmt.Sprintf(" AND status = $%d", argIdx)
-		args = append(args, *filter.Status)
-		argIdx++
+		query += " AND status = " + args.add(*filter.Status)
 	}
 	if filter.Category != nil {
-		query += fmt.Sprintf(" AND category = $%d", argIdx)
-		args = append(args, *filter.Category)
-		argIdx++
+		query += " AND category = " + args.add(*filter.Category)
 	}
 	if filter.BusID != nil && *filter.BusID != "" {
-		query += fmt.Sprintf(" AND \"busId\" = $%d", argIdx)
-		args = append(args, *filter.BusID)
-		argIdx++
+		query += ` AND "busId" = ` + args.add(*filter.BusID)
 	}
 	if filter.PassengerID != nil && *filter.PassengerID != "" {
-		query += fmt.Sprintf(" AND \"passengerId\" = $%d", argIdx)
-		args = append(args, *filter.PassengerID)
-		argIdx++
+		query += ` AND "passengerId" = ` + args.add(*filter.PassengerID)
 	}
 	if filter.LineName != nil && *filter.LineName != "" {
-		query += fmt.Sprintf(" AND \"lineName\" ILIKE $%d", argIdx)
-		args = append(args, "%"+*filter.LineName+"%")
-		argIdx++
+		query += ` AND "lineName" ILIKE ` + args.add("%"+*filter.LineName+"%")
 	}
 	if filter.Rating != nil {
-		query += fmt.Sprintf(" AND rating = $%d", argIdx)
-		args = append(args, *filter.Rating)
-		argIdx++
+		query += " AND rating = " + args.add(*filter.Rating)
 	}
 	if filter.MinRating != nil {
-		query += fmt.Sprintf(" AND rating >= $%d", argIdx)
-		args = append(args, *filter.MinRating)
-		argIdx++
+		query += " AND rating >= " + args.add(*filter.MinRating)
 	}
 	if filter.MaxRating != nil {
-		query += fmt.Sprintf(" AND rating <= $%d", argIdx)
-		args = append(args, *filter.MaxRating)
-		argIdx++
+		query += " AND rating <= " + args.add(*filter.MaxRating)
 	}
 	if filter.CompanyID != nil && *filter.CompanyID != "" {
-		query += fmt.Sprintf(" AND \"companyId\" = $%d", argIdx)
-		args = append(args, *filter.CompanyID)
-		argIdx++
+		query += ` AND "companyId" = ` + args.add(*filter.CompanyID)
 	}
 
 	query += ` ORDER BY "createdAt" DESC`
@@ -128,17 +110,18 @@ func (r *ComplaintRepository) FindAll(ctx context.Context, filter ComplaintFilte
 	if len(pagination) > 0 {
 		p := pagination[0]
 		if p.Limit > 0 {
-			query += fmt.Sprintf(" LIMIT $%d", argIdx)
-			args = append(args, p.Limit)
-			argIdx++
+			query += " LIMIT " + args.add(p.Limit)
 			if p.Page > 1 {
-				offset := (p.Page - 1) * p.Limit
-				query += fmt.Sprintf(" OFFSET $%d", argIdx)
-				args = append(args, offset)
-				argIdx++
+				query += " OFFSET " + args.add((p.Page-1)*p.Limit)
 			}
 		}
 	}
+	return query, args
+}
+
+// FindAll retorna los reclamos aplicando filtros opcionales y paginación ordenados por fecha de creación.
+func (r *ComplaintRepository) FindAll(ctx context.Context, filter ComplaintFilter, pagination ...Pagination) ([]domain.Complaint, error) {
+	query, args := buildComplaintFindAllQuery(filter, pagination...)
 
 	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {

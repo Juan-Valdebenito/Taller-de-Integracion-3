@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -58,6 +59,20 @@ type Config struct {
 	RedisAddr     string
 	RedisPassword string
 	RedisDB       int
+
+	// ── Rate limiting de autenticación (por IP) ────────────────────────────
+	// RateLimitEnabled activa el límite en /auth/*. Desactivar solo en pruebas de carga.
+	RateLimitEnabled bool
+	// Login y registro: solicitudes por minuto y ráfaga permitidas por IP.
+	AuthRateLimitPerMin int
+	AuthRateLimitBurst  int
+	// Rotación de tokens (refresh, logout, revoke): solicitudes por minuto y ráfaga por IP.
+	TokenRateLimitPerMin int
+	TokenRateLimitBurst  int
+	// TrustedProxies son las IPs o rangos CIDR de los proxies (ej. el Ingress)
+	// de los que se acepta X-Forwarded-For para saber la IP real del cliente.
+	// Vacío = comportamiento por defecto de Gin (confía en cualquier proxy).
+	TrustedProxies []string
 
 	// ── Proxies gRPC (microservicios clima / micro) ────────────────────────
 	ClimateGRPCTarget string
@@ -118,6 +133,14 @@ func Load() *Config {
 		RedisPassword: getEnv("REDIS_PASSWORD", ""),
 		RedisDB:       getEnvInt("REDIS_DB", 0),
 
+		// Rate limiting de autenticación
+		RateLimitEnabled:     getEnvBool("RATE_LIMIT_ENABLED", true),
+		AuthRateLimitPerMin:  getEnvInt("RATE_LIMIT_AUTH_PER_MIN", 10),
+		AuthRateLimitBurst:   getEnvInt("RATE_LIMIT_AUTH_BURST", 5),
+		TokenRateLimitPerMin: getEnvInt("RATE_LIMIT_TOKEN_PER_MIN", 30),
+		TokenRateLimitBurst:  getEnvInt("RATE_LIMIT_TOKEN_BURST", 10),
+		TrustedProxies:       getEnvList("TRUSTED_PROXIES"),
+
 		// Proxies gRPC
 		ClimateGRPCTarget: getEnv("CLIMATE_GRPC_TARGET", "localhost:9090"),
 		ClimateAPIKey:     getEnv("CLIMATE_API_KEY", "temuco_weather_secret_key"),
@@ -150,6 +173,17 @@ func getEnvFloat(key string, fallback float64) float64 {
 		}
 	}
 	return fallback
+}
+
+// getEnvList lee una lista separada por comas, ignorando espacios y elementos vacíos.
+func getEnvList(key string) []string {
+	var items []string
+	for _, item := range strings.Split(os.Getenv(key), ",") {
+		if item = strings.TrimSpace(item); item != "" {
+			items = append(items, item)
+		}
+	}
+	return items
 }
 
 func getEnvBool(key string, fallback bool) bool {
