@@ -8,6 +8,7 @@ import { ProximityAlertsCard } from '../components/ProximityAlertsCard';
 import { useLocation } from '../hooks/useLocation';
 import { useNearestStop } from '../hooks/useNearestStop';
 import { useProximityAlerts } from '../hooks/useProximityAlerts';
+import { useSettings } from '../settings/SettingsContext';
 import { makeStyles, radius, spacing } from '../theme';
 import { roleLabel } from '../utils/format';
 
@@ -17,7 +18,11 @@ export function HomeScreen() {
   const { user } = useAuth();
   const location = useLocation();
   const nearby = useNearestStop(location.position);
-  const alerts = useProximityAlerts(nearby.proximity);
+  const { settings } = useSettings();
+  const alerts = useProximityAlerts(nearby.proximity, {
+    vibrate: settings.vibrationEnabled,
+    notify: settings.notificationsEnabled,
+  });
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom', 'left', 'right']}>

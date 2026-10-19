@@ -136,7 +136,9 @@ app no consulta las micros y la tarjeta explica por qué las alertas están en p
   ("La micro ABCD12 está a 350 m de Plaza de Armas."), micros que se acercan y
   botón **Buscar micros ahora**.
 
-Son alertas dentro de la app (no notificaciones push con la app cerrada).
+Las alertas siempre se muestran en la app. Además respetan la Configuración:
+**Vibración** (vibrar o no) y **Notificaciones push** (también como notificación
+del teléfono). Ver "Notificaciones" más abajo.
 
 ## Configuración del pasajero
 
@@ -205,6 +207,23 @@ al cerrar la app y al cerrar sesión.
   texto. En el selector de opciones las etiquetas pueden usar dos líneas, y las
   iniciales del avatar (círculo fijo de 88 px) limitan el aumento del sistema.
 - En Configuración, una vista previa muestra el tamaño elegido.
+
+### Notificaciones
+
+- `src/notifications/notificationService.ts` (`expo-notifications`): permiso
+  (`granted`, `undetermined`, `denied`, `blocked`, igual que la ubicación) y
+  notificación inmediata de cada alerta de proximidad ("Tu micro se acerca").
+  Las notificaciones se muestran también con la app abierta. En Android hay dos
+  canales, con y sin vibración, según la preferencia **Vibración**.
+- `src/hooks/useNotificationPreference.ts`: el interruptor de Configuración pide el
+  permiso al activarlo y solo guarda la preferencia si se concede. Si el permiso
+  está bloqueado, ofrece **Abrir ajustes**. Al volver a la app revisa el permiso:
+  si el usuario lo quitó desde el teléfono, lo avisa.
+- Son **notificaciones locales**: las crea la app mientras está abierta y consulta
+  las micros, y funcionan en Expo Go. Con la app cerrada no llegan. Para eso harían
+  falta notificaciones push enviadas desde el servidor, que requieren un build con
+  EAS (Expo Go en Android ya no las permite) y un endpoint en backend-go para
+  registrar el token del dispositivo.
 
 ## Perfil
 

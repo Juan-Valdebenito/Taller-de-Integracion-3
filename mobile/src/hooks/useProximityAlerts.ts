@@ -11,8 +11,16 @@ import {
   type ProximityAlert,
 } from '../alerts/proximityAlerts';
 import { fetchActiveBuses } from '../api/busesApi';
+import { notifyProximityAlert } from '../notifications/notificationService';
 import { ALERT_RADIUS_M, BUS_LOCATION_MAX_AGE_MS, BUS_POLL_INTERVAL_MS } from '../config';
 import type { ProximityResult, Stop } from '../location/geo';
+
+export interface ProximityAlertOptions {
+  /** Vibrar con cada alerta nueva (preferencia "Vibración"). Por defecto sí. */
+  vibrate?: boolean;
+  /** Mostrar además una notificación del teléfono (preferencia "Notificaciones push"). Por defecto no. */
+  notify?: boolean;
+}
 
 export interface UseProximityAlertsResult {
   /** true solo si la geolocalización confirmó que el usuario está en un paradero. */
@@ -39,7 +47,10 @@ export interface UseProximityAlertsResult {
  * confirmado, consulta las posiciones cada BUS_POLL_INTERVAL_MS (solo con la
  * app en primer plano) y alerta una vez por micro que entra al radio.
  */
-export function useProximityAlerts(proximity: ProximityResult | null): UseProximityAlertsResult {
+export function useProximityAlerts(
+  proximity: ProximityResult | null,
+  { vibrate = true, notify = false }: ProximityAlertOptions = {},
+): UseProximityAlertsResult {
   const stop = alertStop(proximity);
   const stopId = stop?.id ?? null;
   const [approaching, setApproaching] = useState<ApproachingBus[]>([]);
@@ -50,6 +61,9 @@ export function useProximityAlerts(proximity: ProximityResult | null): UseProxim
   const stopRef = useRef<Stop | null>(stop);
   stopRef.current = stop;
   const notified = useRef<Set<string>>(new Set());
+  /** Preferencias vigentes, leídas al emitir la alerta (sin reiniciar la consulta periódica). */
+  const options = useRef({ vibrate, notify });
+  options.current = { vibrate, notify };
   const mounted = useRef(true);
 
   useEffect(() => {
@@ -77,8 +91,17 @@ export function useProximityAlerts(proximity: ProximityResult | null): UseProxim
       setApproaching(list);
       setError(null);
       if (fresh.length > 0) {
-        setAlert({ ...fresh[0], stop: current, message: alertMessage(current, fresh[0]) });
-        Vibration.vibrate();
+        const next = { ...fresh[0], stop: current, message: alertMessage(current, fresh[0]) };
+        setAlert(next);
+        const { vibrate: shouldVibrate, notify: shouldNotify } = options.current;
+        if (shouldNotify) {
+          // La notificación ya vibra según su canal; no se vibra dos veces.
+          notifyProximityAlert(next, { vibrate: shouldVibrate }).catch(() => {
+            if (shouldVibrate) Vibration.vibrate();
+          });
+        } else if (shouldVibrate) {
+          Vibration.vibrate();
+        }
       }
     } catch {
       if (mounted.current && stopRef.current?.id === current.id) {

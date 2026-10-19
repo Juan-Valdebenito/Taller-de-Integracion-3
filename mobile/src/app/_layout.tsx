@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo } from 'react';
 
 import { AuthProvider, useAuth } from '../auth/AuthContext';
+import { setupNotifications } from '../notifications/notificationService';
 import { SettingsProvider, useSettings } from '../settings/SettingsContext';
 import { ThemeProvider, useTheme } from '../theme';
 import { navigationTheme } from '../theme/navigationTheme';
@@ -44,6 +45,12 @@ function RootNavigator() {
 /** Navegación y barra de estado con el tema elegido en Configuración. */
 function ThemedApp() {
   const theme = useTheme();
+
+  useEffect(() => {
+    // Canales de Android y notificaciones visibles con la app abierta.
+    setupNotifications().catch(() => {});
+  }, []);
+
   const navTheme = useMemo(() => navigationTheme(theme), [theme]);
   return (
     <NavigationThemeProvider value={navTheme}>

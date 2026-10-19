@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import * as Notifications from 'expo-notifications';
 import { Alert, StyleSheet, type AlertButton } from 'react-native';
 
 import { SettingsProvider } from '../../settings/SettingsContext';
@@ -128,5 +129,32 @@ describe('SettingsScreen', () => {
     await fireEvent.press(radio('Muy grande'));
 
     expect(fontSize()).toBe(21);
+  });
+  describe('notificaciones push', () => {
+    const getPermissions = Notifications.getPermissionsAsync as jest.Mock;
+    const blocked = { status: 'denied', granted: false, canAskAgain: false, expires: 'never' };
+
+    afterEach(() => getPermissions.mockImplementation(async () => ({ status: 'granted', granted: true, canAskAgain: true, expires: 'never' })));
+
+    it('permiso bloqueado: el interruptor no se activa y ofrece abrir los ajustes', async () => {
+      getPermissions.mockImplementation(async () => blocked);
+      await renderScreen();
+
+      await fireEvent(screen.getByRole('switch', { name: 'Notificaciones push' }), 'valueChange', true);
+
+      await waitFor(() => expect(screen.getByText(/desactivadas para TransitHub/)).toBeTruthy());
+      expect(screen.getByRole('switch', { name: 'Notificaciones push' }).props.value).toBe(false);
+      expect(screen.getByRole('button', { name: 'Abrir ajustes' })).toBeTruthy();
+      await expect(loadSettings()).resolves.toMatchObject({ notificationsEnabled: false });
+    });
+
+    it('avisa si se quitó el permiso desde el teléfono', async () => {
+      getPermissions.mockImplementation(async () => blocked);
+      await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify({ notificationsEnabled: true }));
+      await renderScreen();
+
+      await waitFor(() => expect(screen.getByText(/Quitaste el permiso de notificaciones/)).toBeTruthy());
+      expect(screen.getByRole('switch', { name: 'Notificaciones push' }).props.value).toBe(false);
+    });
   });
 });

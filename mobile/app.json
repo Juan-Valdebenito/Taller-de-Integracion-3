@@ -32,6 +32,12 @@
           "locationAlwaysAndWhenInUsePermission": false,
           "locationAlwaysPermission": false
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#1d4ed8"
+        }
       ]
     ],
     "scheme": "transithub"
