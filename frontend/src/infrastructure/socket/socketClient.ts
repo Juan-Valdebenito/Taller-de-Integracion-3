@@ -27,6 +27,14 @@ export interface PublishMessage {
     speed: number;
     currentPassengers: number;
     capacity: number;
+    // Campos de aforo opcionales (matches BusLocationData en Go)
+    boardings?: number;
+    alightings?: number;
+    studentBoardings?: number;
+    rejectedBoardings?: number;
+    totalBoardings?: number;
+    totalAlightings?: number;
+    totalStudents?: number;
   };
 }
 

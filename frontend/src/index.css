@@ -127,6 +127,41 @@ input, textarea, select {
   font-family: inherit;
 }
 
+/* The company portal keeps its desktop sidebar but becomes a compact top
+   navigation on phones, where the driver workflow is designed to run. */
+@media (max-width: 700px) {
+  .company-layout {
+    display: block !important;
+  }
+
+  .company-layout > aside {
+    width: 100% !important;
+    padding: var(--space-3) var(--space-4) !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid var(--color-border);
+    flex-direction: row !important;
+    flex-wrap: wrap;
+  }
+
+  .company-layout > aside > div:first-child {
+    width: 100%;
+    margin-bottom: var(--space-3) !important;
+  }
+
+  .company-layout > aside > a {
+    display: inline-flex !important;
+    padding: var(--space-2) var(--space-3) !important;
+  }
+
+  .company-layout > aside > div:last-child {
+    display: none;
+  }
+
+  .company-layout > main {
+    padding: var(--space-5) var(--space-4) !important;
+  }
+}
+
 /* ── Scrollbar personalizada ───────────────────────────────── */
 ::-webkit-scrollbar {
   width: 6px;
