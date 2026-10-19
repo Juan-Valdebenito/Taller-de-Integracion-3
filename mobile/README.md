@@ -160,6 +160,13 @@ al cerrar la app y al cerrar sesión.
   la app y se muestra un aviso (`saveError`).
 - La pantalla de carga espera a leer las preferencias (además de la sesión), para
   que la app no se muestre un instante con el tema equivocado.
+- `src/screens/SettingsScreen.tsx` (pestaña **Configuración**): sección
+  *Notificaciones* (interruptores de notificaciones push y vibración) y sección
+  *Interfaz* (tema Sistema / Claro / Oscuro y tamaño del texto Normal / Grande /
+  Muy grande), más **Restablecer valores por defecto** con confirmación.
+- Componentes reutilizables: `SettingSwitchRow` (fila con interruptor) y
+  `SegmentedControl` (elegir una opción entre pocas; para el lector de pantalla
+  es un grupo de radios).
 
 ## Perfil
 

@@ -3,7 +3,7 @@ import { Tabs } from 'expo-router/js-tabs';
 
 import { colors } from '../../theme';
 
-/** Rutas con sesión iniciada (protegidas en src/app/_layout.tsx): pestañas Inicio y Perfil. */
+/** Rutas con sesión iniciada (protegidas en src/app/_layout.tsx): pestañas Inicio, Perfil y Configuración. */
 export default function AppLayout() {
   return (
     <Tabs
@@ -30,6 +30,16 @@ export default function AppLayout() {
           headerTitle: 'Mi perfil',
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons name={focused ? 'person-circle' : 'person-circle-outline'} size={size} color={color as string} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: 'Configuración',
+          headerTitle: 'Configuración',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'settings' : 'settings-outline'} size={size} color={color as string} />
           ),
         }}
       />
