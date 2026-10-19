@@ -157,4 +157,22 @@ describe('SettingsScreen', () => {
       expect(screen.getByRole('switch', { name: 'Notificaciones push' }).props.value).toBe(false);
     });
   });
+
+  describe('notificación de prueba', () => {
+    it('sin notificaciones activas no se muestra el botón', async () => {
+      await renderScreen();
+      expect(screen.queryByRole('button', { name: 'Enviar notificación de prueba' })).toBeNull();
+    });
+
+    it('con notificaciones activas la envía y confirma', async () => {
+      await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify({ notificationsEnabled: true }));
+      await renderScreen();
+      const button = await waitFor(() => screen.getByRole('button', { name: 'Enviar notificación de prueba' }));
+
+      await fireEvent.press(button);
+
+      await waitFor(() => expect(screen.getByText('Listo: revisa la notificación en tu teléfono.')).toBeTruthy());
+      expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledTimes(1);
+    });
+  });
 });

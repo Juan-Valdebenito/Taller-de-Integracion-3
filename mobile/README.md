@@ -219,6 +219,9 @@ al cerrar la app y al cerrar sesión.
   permiso al activarlo y solo guarda la preferencia si se concede. Si el permiso
   está bloqueado, ofrece **Abrir ajustes**. Al volver a la app revisa el permiso:
   si el usuario lo quitó desde el teléfono, lo avisa.
+- Con las notificaciones activas, **Enviar notificación de prueba** muestra una de
+  ejemplo al instante, con o sin vibración según la preferencia. Sirve para
+  comprobar el permiso sin esperar una micro real.
 - Son **notificaciones locales**: las crea la app mientras está abierta y consulta
   las micros, y funcionan en Expo Go. Con la app cerrada no llegan. Para eso harían
   falta notificaciones push enviadas desde el servidor, que requieren un build con

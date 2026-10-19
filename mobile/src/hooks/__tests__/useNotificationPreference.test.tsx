@@ -118,4 +118,37 @@ describe('useNotificationPreference', () => {
 
     await waitFor(() => expect(result.current.pref.revoked).toBe(true));
   });
+
+  describe('notificación de prueba', () => {
+    const schedule = Notifications.scheduleNotificationAsync as jest.Mock;
+
+    it('la envía y avisa que se envió', async () => {
+      const { result } = await renderPreference();
+      expect(result.current.pref.testStatus).toBe('idle');
+
+      await act(() => result.current.pref.sendTest());
+
+      expect(schedule).toHaveBeenCalledTimes(1);
+      expect(schedule.mock.calls[0][0].content.title).toBe('Notificación de prueba');
+      expect(result.current.pref.testStatus).toBe('sent');
+    });
+
+    it('usa la preferencia de vibración vigente', async () => {
+      await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify({ notificationsEnabled: true, vibrationEnabled: false }));
+      const { result } = await renderPreference();
+
+      await act(() => result.current.pref.sendTest());
+
+      expect(schedule.mock.calls[0][0].content.sound).toBe(false);
+    });
+
+    it('informa si no se pudo enviar', async () => {
+      schedule.mockRejectedValueOnce(new Error('sin permiso'));
+      const { result } = await renderPreference();
+
+      await act(() => result.current.pref.sendTest());
+
+      expect(result.current.pref.testStatus).toBe('error');
+    });
+  });
 });

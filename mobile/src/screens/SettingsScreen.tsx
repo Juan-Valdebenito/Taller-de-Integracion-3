@@ -31,6 +31,12 @@ export function SettingsScreen() {
     ? 'Quitaste el permiso de notificaciones en los ajustes del teléfono. Actívalo de nuevo para recibir alertas.'
     : notifications.message;
   const showOpenSettings = notifications.revoked || notifications.permission === 'blocked';
+  const testFeedback =
+    notifications.testStatus === 'sent'
+      ? 'Listo: revisa la notificación en tu teléfono.'
+      : notifications.testStatus === 'error'
+        ? 'No se pudo enviar la notificación de prueba.'
+        : null;
 
   const confirmReset = useCallback(() => {
     Alert.alert('Restablecer configuración', '¿Volver a los valores por defecto? Las notificaciones quedarán desactivadas.', [
@@ -70,6 +76,24 @@ export function SettingsScreen() {
                 <View style={styles.noticeAction}>
                   <Button title="Abrir ajustes" variant="secondary" onPress={notifications.openSettings} />
                 </View>
+              ) : null}
+            </View>
+          ) : null}
+          {notifications.enabled ? (
+            <View style={styles.test}>
+              <Button
+                title="Enviar notificación de prueba"
+                variant="secondary"
+                onPress={notifications.sendTest}
+                loading={notifications.testStatus === 'sending'}
+              />
+              {testFeedback ? (
+                <Text
+                  style={[styles.testFeedback, notifications.testStatus === 'error' && styles.testError]}
+                  accessibilityLiveRegion="polite"
+                >
+                  {testFeedback}
+                </Text>
               ) : null}
             </View>
           ) : null}
@@ -133,6 +157,9 @@ const useStyles = makeStyles((colors, font) => ({
   notice: { backgroundColor: colors.warningBg, borderRadius: radius.md, padding: spacing.sm, marginTop: spacing.xs },
   noticeText: { fontSize: font(13), lineHeight: font(18), color: colors.text },
   noticeAction: { alignItems: 'flex-start' },
+  test: { alignItems: 'flex-start' },
+  testFeedback: { fontSize: font(13), color: colors.muted, marginTop: spacing.xs },
+  testError: { color: colors.danger },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginVertical: spacing.sm },
   label: { fontSize: font(16), fontWeight: '600', color: colors.text, marginTop: spacing.xs },
   description: { marginTop: 2, fontSize: font(13), color: colors.muted, lineHeight: font(18) },

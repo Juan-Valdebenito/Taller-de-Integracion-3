@@ -75,17 +75,42 @@ export async function setupNotifications(): Promise<void> {
   }
 }
 
-/** Muestra la alerta de proximidad como notificación del teléfono (inmediata). */
-export async function notifyProximityAlert(alert: ProximityAlert, { vibrate }: { vibrate: boolean }): Promise<void> {
+/** Notificación inmediata en el canal que corresponde a la preferencia de vibración. */
+async function showNow(
+  { title, body, data }: { title: string; body: string; data: Record<string, unknown> },
+  vibrate: boolean,
+): Promise<void> {
   await Notifications.scheduleNotificationAsync({
-    content: {
-      title: 'Tu micro se acerca',
-      body: alert.message,
-      sound: vibrate ? 'default' : false,
-      data: { type: 'proximity-alert', busId: alert.bus.id, stopId: alert.stop.id },
-    },
+    content: { title, body, sound: vibrate ? 'default' : false, data },
     trigger: Platform.OS === 'android' ? { channelId: vibrate ? ALERTS_CHANNEL_ID : SILENT_ALERTS_CHANNEL_ID } : null,
   });
+}
+
+/** Muestra la alerta de proximidad como notificación del teléfono (inmediata). */
+export async function notifyProximityAlert(alert: ProximityAlert, { vibrate }: { vibrate: boolean }): Promise<void> {
+  await showNow(
+    {
+      title: 'Tu micro se acerca',
+      body: alert.message,
+      data: { type: 'proximity-alert', busId: alert.bus.id, stopId: alert.stop.id },
+    },
+    vibrate,
+  );
+}
+
+/**
+ * Notificación de ejemplo (botón de Configuración): permite comprobar el permiso,
+ * el sonido y la vibración sin esperar una micro real.
+ */
+export async function sendTestNotification({ vibrate }: { vibrate: boolean }): Promise<void> {
+  await showNow(
+    {
+      title: 'Notificación de prueba',
+      body: 'Así te avisaremos cuando una micro se acerque a tu paradero.',
+      data: { type: 'test' },
+    },
+    vibrate,
+  );
 }
 
 /** Testing: permite volver a ejecutar setupNotifications. */

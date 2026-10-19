@@ -9,6 +9,7 @@ import {
   getNotificationPermission,
   notifyProximityAlert,
   requestNotificationPermission,
+  sendTestNotification,
   setupNotifications,
 } from '../notificationService';
 
@@ -119,4 +120,27 @@ describe('notifyProximityAlert', () => {
     await notifyProximityAlert(alert, { vibrate });
     expect(m(Notifications.scheduleNotificationAsync).mock.calls[0][0].trigger).toEqual({ channelId });
   });
+
+describe('sendTestNotification', () => {
+  it('envía una notificación de ejemplo inmediata', async () => {
+    jest.replaceProperty(Platform, 'OS', 'ios');
+    await sendTestNotification({ vibrate: true });
+
+    expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledWith({
+      content: {
+        title: 'Notificación de prueba',
+        body: 'Así te avisaremos cuando una micro se acerque a tu paradero.',
+        sound: 'default',
+        data: { type: 'test' },
+      },
+      trigger: null,
+    });
+  });
+
+  it('en Android respeta la preferencia de vibración (canal silencioso)', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    await sendTestNotification({ vibrate: false });
+    expect(m(Notifications.scheduleNotificationAsync).mock.calls[0][0].trigger).toEqual({ channelId: SILENT_ALERTS_CHANNEL_ID });
+  });
+});
 });

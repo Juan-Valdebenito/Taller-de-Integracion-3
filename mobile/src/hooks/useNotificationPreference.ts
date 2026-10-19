@@ -4,9 +4,13 @@ import { AppState, Linking } from 'react-native';
 import {
   getNotificationPermission,
   requestNotificationPermission,
+  sendTestNotification,
   type NotificationPermission,
 } from '../notifications/notificationService';
 import { useSettings } from '../settings/SettingsContext';
+
+/** Estado del botón "Enviar notificación de prueba". */
+export type TestNotificationStatus = 'idle' | 'sending' | 'sent' | 'error';
 
 export interface UseNotificationPreferenceResult {
   /** Valor del interruptor: preferencia activa y permiso no rechazado. */
@@ -21,6 +25,9 @@ export interface UseNotificationPreferenceResult {
   message: string | null;
   setEnabled: (value: boolean) => Promise<void>;
   openSettings: () => Promise<void>;
+  testStatus: TestNotificationStatus;
+  /** Envía una notificación de ejemplo (con o sin vibración según la preferencia). */
+  sendTest: () => Promise<void>;
 }
 
 /**
@@ -33,6 +40,7 @@ export function useNotificationPreference(): UseNotificationPreferenceResult {
   const [permission, setPermission] = useState<NotificationPermission | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [testStatus, setTestStatus] = useState<TestNotificationStatus>('idle');
   const mounted = useRef(true);
 
   const refresh = useCallback(async () => {
@@ -59,6 +67,7 @@ export function useNotificationPreference(): UseNotificationPreferenceResult {
   const setEnabled = useCallback(
     async (value: boolean) => {
       setMessage(null);
+      setTestStatus('idle');
       if (!value) {
         await updateSettings({ notificationsEnabled: false });
         return;
@@ -91,6 +100,17 @@ export function useNotificationPreference(): UseNotificationPreferenceResult {
     await Linking.openSettings();
   }, []);
 
+  const vibrate = settings.vibrationEnabled;
+  const sendTest = useCallback(async () => {
+    setTestStatus('sending');
+    try {
+      await sendTestNotification({ vibrate });
+      if (mounted.current) setTestStatus('sent');
+    } catch {
+      if (mounted.current) setTestStatus('error');
+    }
+  }, [vibrate]);
+
   const rejected = permission === 'denied' || permission === 'blocked';
   return {
     enabled: settings.notificationsEnabled && !rejected,
@@ -100,5 +120,7 @@ export function useNotificationPreference(): UseNotificationPreferenceResult {
     message,
     setEnabled,
     openSettings,
+    testStatus,
+    sendTest,
   };
 }
