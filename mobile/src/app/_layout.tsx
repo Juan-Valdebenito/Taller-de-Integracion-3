@@ -1,9 +1,11 @@
-import { SplashScreen, Stack } from 'expo-router';
+import { ThemeProvider as NavigationThemeProvider, SplashScreen, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 
 import { AuthProvider, useAuth } from '../auth/AuthContext';
 import { SettingsProvider, useSettings } from '../settings/SettingsContext';
+import { ThemeProvider, useTheme } from '../theme';
+import { navigationTheme } from '../theme/navigationTheme';
 
 // Mantener la pantalla de carga mientras se recuperan la sesión y las preferencias guardadas.
 SplashScreen.preventAutoHideAsync();
@@ -39,13 +41,27 @@ function RootNavigator() {
   );
 }
 
+/** Navegación y barra de estado con el tema elegido en Configuración. */
+function ThemedApp() {
+  const theme = useTheme();
+  const navTheme = useMemo(() => navigationTheme(theme), [theme]);
+  return (
+    <NavigationThemeProvider value={navTheme}>
+      <RootNavigator />
+      {/* Íconos de la barra de estado claros sobre fondo oscuro y viceversa. */}
+      <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} />
+    </NavigationThemeProvider>
+  );
+}
+
 export default function RootLayout() {
   return (
     <SettingsProvider>
-      <AuthProvider>
-        <RootNavigator />
-        <StatusBar style="dark" />
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <ThemedApp />
+        </AuthProvider>
+      </ThemeProvider>
     </SettingsProvider>
   );
 }

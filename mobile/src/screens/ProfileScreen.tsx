@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Button } from '../components/Button';
-import { colors, radius, spacing } from '../theme';
+import { makeStyles, radius, spacing, useTheme } from '../theme';
 import { formatLongDate, initials, roleLabel } from '../utils/format';
 
 function InfoRow({ label, value }: { label: string; value: string }) {
+  const styles = useStyles();
   return (
     <View style={styles.row} accessible accessibilityLabel={`${label}: ${value}`}>
       <Text style={styles.rowLabel}>{label}</Text>
@@ -22,6 +23,8 @@ function InfoRow({ label, value }: { label: string; value: string }) {
  * actualizan al entrar y al deslizar hacia abajo.
  */
 export function ProfileScreen() {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const { user, refreshUser, signOut } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -117,7 +120,7 @@ export function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xl },
   header: { alignItems: 'center', marginBottom: spacing.lg },
@@ -130,7 +133,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: spacing.md,
   },
-  avatarText: { color: colors.background, fontSize: 32, fontWeight: '700' },
+  avatarText: { color: colors.onPrimary, fontSize: 32, fontWeight: '700' },
   name: { fontSize: 22, fontWeight: '700', color: colors.text, textAlign: 'center' },
   badge: {
     marginTop: spacing.sm,
@@ -157,4 +160,4 @@ const styles = StyleSheet.create({
   securityText: { fontSize: 14, color: colors.text, lineHeight: 20 },
   signOut: { marginTop: spacing.md },
   signOutHint: { marginTop: spacing.sm, fontSize: 13, color: colors.muted, textAlign: 'center' },
-});
+}));

@@ -1,9 +1,9 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { MAX_LOCATION_ACCURACY_M, STOP_SEARCH_RADIUS_M } from '../config';
 import type { UseNearestStopResult } from '../hooks/useNearestStop';
 import { formatDistance } from '../location/geo';
-import { colors, radius, spacing } from '../theme';
+import { makeStyles, radius, spacing } from '../theme';
 import { Button } from './Button';
 
 /**
@@ -12,6 +12,7 @@ import { Button } from './Button';
  * ubicación ya guía al usuario).
  */
 export function NearbyStopCard({ nearby, hasPosition }: { nearby: UseNearestStopResult; hasPosition: boolean }) {
+  const styles = useStyles();
   if (!hasPosition) return null;
   const { proximity, loading, error, reload } = nearby;
 
@@ -66,7 +67,7 @@ export function NearbyStopCard({ nearby, hasPosition }: { nearby: UseNearestStop
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, marginTop: spacing.md },
   ok: { backgroundColor: colors.successBg },
   warning: { backgroundColor: colors.warningBg },
@@ -74,4 +75,4 @@ const styles = StyleSheet.create({
   description: { marginTop: spacing.xs, fontSize: 14, color: colors.muted, lineHeight: 20 },
   error: { marginTop: spacing.sm, fontSize: 14, color: colors.danger },
   action: { marginTop: spacing.sm, alignItems: 'flex-start' },
-});
+}));

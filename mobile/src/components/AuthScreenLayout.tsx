@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { colors, radius, spacing } from '../theme';
+import { makeStyles, radius, spacing } from '../theme';
 
 export interface AuthScreenLayoutProps {
   title: string;
@@ -15,6 +15,7 @@ export interface AuthScreenLayoutProps {
 
 /** Estructura común de Login y Registro: título, aviso y formulario con teclado seguro. */
 export function AuthScreenLayout({ title, subtitle, message, messageTone = 'error', children }: AuthScreenLayoutProps) {
+  const styles = useStyles();
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -40,7 +41,7 @@ export function AuthScreenLayout({ title, subtitle, message, messageTone = 'erro
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   safe: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
   content: { flexGrow: 1, justifyContent: 'center', padding: spacing.lg },
@@ -52,4 +53,4 @@ const styles = StyleSheet.create({
   warning: { backgroundColor: colors.warningBg },
   errorText: { color: colors.danger, fontSize: 14 },
   warningText: { color: colors.warning, fontSize: 14 },
-});
+}));

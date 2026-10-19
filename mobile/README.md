@@ -168,6 +168,31 @@ al cerrar la app y al cerrar sesión.
   `SegmentedControl` (elegir una opción entre pocas; para el lector de pantalla
   es un grupo de radios).
 
+### Tema claro / oscuro
+
+- `src/theme/colors.ts`: paletas `lightColors` y `darkColors` con los mismos nombres
+  de color. Todos los pares de texto y fondo cumplen contraste WCAG AA (≥ 4.5:1),
+  comprobado en `colors.test.ts`. En oscuro el azul se aclara y el texto sobre él
+  (`onPrimary`) se oscurece.
+- `src/theme/ThemeContext.tsx`: `ThemeProvider` aplica la preferencia de
+  Configuración; con **Sistema** sigue el modo del teléfono en vivo
+  (`app.json` → `"userInterfaceStyle": "automatic"`). `useTheme()` entrega
+  `{ scheme, colors }` (sin provider, tema claro).
+- Estilos con el tema: `makeStyles` reemplaza a `StyleSheet.create`. Los estilos se
+  crean una vez por paleta:
+
+  ```tsx
+  const useStyles = makeStyles((colors) => ({ title: { color: colors.text } }));
+
+  function Titulo() {
+    const styles = useStyles();
+    return <Text style={styles.title}>Hola</Text>;
+  }
+  ```
+
+- La navegación (cabeceras, pestañas, fondo entre pantallas), la barra de estado y
+  el teclado de iOS también siguen el tema.
+
 ## Perfil
 
 La pestaña **Perfil** muestra avatar con iniciales, nombre, tipo de cuenta, correo,

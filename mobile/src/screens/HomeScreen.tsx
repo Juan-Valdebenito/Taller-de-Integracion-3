@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '../auth/AuthContext';
@@ -8,11 +8,12 @@ import { ProximityAlertsCard } from '../components/ProximityAlertsCard';
 import { useLocation } from '../hooks/useLocation';
 import { useNearestStop } from '../hooks/useNearestStop';
 import { useProximityAlerts } from '../hooks/useProximityAlerts';
-import { colors, radius, spacing } from '../theme';
+import { makeStyles, radius, spacing } from '../theme';
 import { roleLabel } from '../utils/format';
 
 /** Pantalla inicial con sesión iniciada. El cierre de sesión está en la pestaña Perfil. */
 export function HomeScreen() {
+  const styles = useStyles();
   const { user } = useAuth();
   const location = useLocation();
   const nearby = useNearestStop(location.position);
@@ -39,7 +40,7 @@ export function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { flexGrow: 1, padding: spacing.lg },
   greeting: { fontSize: 26, fontWeight: '700', color: colors.text, marginBottom: spacing.lg },
@@ -48,4 +49,4 @@ const styles = StyleSheet.create({
   value: { fontSize: 16, color: colors.text, fontWeight: '600', marginTop: 2 },
   spaced: { marginTop: spacing.md },
   hint: { marginTop: spacing.md, color: colors.muted, fontSize: 13 },
-});
+}));

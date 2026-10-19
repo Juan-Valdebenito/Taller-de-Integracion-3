@@ -1,10 +1,11 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router/js-tabs';
 
-import { colors } from '../../theme';
+import { useTheme } from '../../theme';
 
 /** Rutas con sesión iniciada (protegidas en src/app/_layout.tsx): pestañas Inicio, Perfil y Configuración. */
 export default function AppLayout() {
+  const { colors } = useTheme();
   return (
     <Tabs
       screenOptions={{

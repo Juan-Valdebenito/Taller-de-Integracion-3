@@ -7,7 +7,7 @@ import { SegmentedControl, type SegmentedOption } from '../components/SegmentedC
 import { SettingSwitchRow } from '../components/SettingSwitchRow';
 import { useSettings } from '../settings/SettingsContext';
 import type { TextSizePreference, ThemePreference } from '../settings/settingsStorage';
-import { colors, radius, spacing } from '../theme';
+import { makeStyles, radius, spacing } from '../theme';
 
 export const THEME_OPTIONS: readonly SegmentedOption<ThemePreference>[] = [
   { value: 'system', label: 'Sistema' },
@@ -23,6 +23,7 @@ export const TEXT_SIZE_OPTIONS: readonly SegmentedOption<TextSizePreference>[] =
 
 /** Configuración del pasajero: notificaciones y preferencias de interfaz. */
 export function SettingsScreen() {
+  const styles = useStyles();
   const { settings, saveError, updateSettings, resetSettings } = useSettings();
 
   const confirmReset = useCallback(() => {
@@ -93,7 +94,7 @@ export function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xl },
   error: { backgroundColor: colors.dangerBg, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
@@ -112,4 +113,4 @@ const styles = StyleSheet.create({
   description: { marginTop: 2, fontSize: 13, color: colors.muted, lineHeight: 18 },
   reset: { marginTop: spacing.sm, alignItems: 'center' },
   hint: { marginTop: spacing.sm, fontSize: 13, color: colors.muted, textAlign: 'center' },
-});
+}));

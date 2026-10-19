@@ -1,7 +1,7 @@
 import { forwardRef } from 'react';
-import { StyleSheet, Text, TextInput, View, type TextInputInstance, type TextInputProps } from 'react-native';
+import { Text, TextInput, View, type TextInputInstance, type TextInputProps } from 'react-native';
 
-import { colors, radius, spacing } from '../theme';
+import { makeStyles, radius, spacing, useTheme } from '../theme';
 
 export interface TextFieldProps extends TextInputProps {
   label: string;
@@ -10,6 +10,8 @@ export interface TextFieldProps extends TextInputProps {
 
 /** Campo de texto con etiqueta y mensaje de error accesibles. */
 export const TextField = forwardRef<TextInputInstance, TextFieldProps>(function TextField({ label, error, style, ...props }, ref) {
+  const { colors, scheme } = useTheme();
+  const styles = useStyles();
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
@@ -17,6 +19,7 @@ export const TextField = forwardRef<TextInputInstance, TextFieldProps>(function 
         ref={ref}
         accessibilityLabel={label}
         placeholderTextColor={colors.muted}
+        keyboardAppearance={scheme}
         style={[styles.input, error ? styles.inputError : null, style]}
         {...props}
       />
@@ -29,7 +32,7 @@ export const TextField = forwardRef<TextInputInstance, TextFieldProps>(function 
   );
 });
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   container: { marginBottom: spacing.md },
   label: { fontSize: 14, fontWeight: '600', color: colors.text, marginBottom: spacing.xs },
   input: {
@@ -44,4 +47,4 @@ const styles = StyleSheet.create({
   },
   inputError: { borderColor: colors.danger },
   error: { marginTop: spacing.xs, color: colors.danger, fontSize: 13 },
-});
+}));

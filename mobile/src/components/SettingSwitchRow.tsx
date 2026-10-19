@@ -1,6 +1,6 @@
-import { StyleSheet, Switch, Text, View } from 'react-native';
+import { Switch, Text, View } from 'react-native';
 
-import { colors, spacing } from '../theme';
+import { makeStyles, spacing, useTheme } from '../theme';
 
 export interface SettingSwitchRowProps {
   label: string;
@@ -12,6 +12,8 @@ export interface SettingSwitchRowProps {
 
 /** Fila de configuración con título, descripción e interruptor. */
 export function SettingSwitchRow({ label, description, value, onValueChange, disabled = false }: SettingSwitchRowProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <View style={styles.row}>
       <View style={styles.text}>
@@ -30,9 +32,9 @@ export function SettingSwitchRow({ label, description, value, onValueChange, dis
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.sm, gap: spacing.md },
   text: { flex: 1 },
   label: { fontSize: 16, fontWeight: '600', color: colors.text },
   description: { marginTop: 2, fontSize: 13, color: colors.muted, lineHeight: 18 },
-});
+}));

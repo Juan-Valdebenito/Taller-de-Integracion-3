@@ -1,6 +1,6 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
-import { colors, radius, spacing } from '../theme';
+import { makeStyles, radius, spacing } from '../theme';
 
 export interface SegmentedOption<T extends string> {
   value: T;
@@ -17,6 +17,7 @@ export interface SegmentedControlProps<T extends string> {
 
 /** Selector de una opción entre pocas (ej. Sistema / Claro / Oscuro). */
 export function SegmentedControl<T extends string>({ label, options, value, onChange }: SegmentedControlProps<T>) {
+  const styles = useStyles();
   return (
     <View style={styles.group} accessibilityRole="radiogroup" accessibilityLabel={label}>
       {options.map((option) => {
@@ -42,7 +43,7 @@ export function SegmentedControl<T extends string>({ label, options, value, onCh
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   group: {
     flexDirection: 'row',
     backgroundColor: colors.background,
@@ -55,5 +56,5 @@ const styles = StyleSheet.create({
   option: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md - 3 },
   selected: { backgroundColor: colors.primary },
   text: { fontSize: 14, fontWeight: '600', color: colors.text },
-  selectedText: { color: colors.background },
-});
+  selectedText: { color: colors.onPrimary },
+}));

@@ -1,6 +1,6 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, Pressable, Text } from 'react-native';
 
-import { colors, radius, spacing } from '../theme';
+import { makeStyles, radius, spacing, useTheme } from '../theme';
 
 export interface ButtonProps {
   title: string;
@@ -12,6 +12,8 @@ export interface ButtonProps {
 }
 
 export function Button({ title, onPress, loading = false, disabled = false, variant = 'primary' }: ButtonProps) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const isDisabled = disabled || loading;
   const primary = variant !== 'secondary';
   return (
@@ -30,7 +32,7 @@ export function Button({ title, onPress, loading = false, disabled = false, vari
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={primary ? colors.background : colors.primary} />
+        <ActivityIndicator color={primary ? colors.onPrimary : colors.primary} />
       ) : (
         <Text style={[styles.text, primary ? styles.textPrimary : styles.textSecondary]}>{title}</Text>
       )}
@@ -38,7 +40,7 @@ export function Button({ title, onPress, loading = false, disabled = false, vari
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   base: {
     borderRadius: radius.md,
     paddingVertical: 14,
@@ -50,10 +52,10 @@ const styles = StyleSheet.create({
   primary: { backgroundColor: colors.primary },
   primaryPressed: { backgroundColor: colors.primaryPressed },
   danger: { backgroundColor: colors.danger },
-  dangerPressed: { backgroundColor: '#991b1b' },
+  dangerPressed: { backgroundColor: colors.dangerPressed },
   secondary: { backgroundColor: 'transparent' },
   disabled: { opacity: 0.6 },
   text: { fontSize: 16, fontWeight: '600' },
-  textPrimary: { color: colors.background },
+  textPrimary: { color: colors.onPrimary },
   textSecondary: { color: colors.primary },
-});
+}));
