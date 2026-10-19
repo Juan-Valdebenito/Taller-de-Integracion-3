@@ -3,10 +3,9 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-
-	//"fmt"
+	"hash/fnv"
 	"log"
-	"math/rand"
+	"math"
 	"net/http"
 	"os"
 	"os/signal"
@@ -85,7 +84,7 @@ func (m *WeatherManager) StartStation(config StationConfig, stopChan <-chan stru
 	for {
 		select {
 		case <-ticker.C:
-			// Generar lectura simulated
+			// Generar lectura simulada
 			payload := m.generateReadings(config)
 			// Enviar al backend HTTP
 			m.sendTelemetry(payload)
@@ -96,16 +95,22 @@ func (m *WeatherManager) StartStation(config StationConfig, stopChan <-chan stru
 	}
 }
 
-// Generador temporal de lecturas (se mejorará con el algoritmo de humo de Temuco)
 func (m *WeatherManager) generateReadings(config StationConfig) WeatherPayload {
-	now := time.Now()
-	hour := now.Hour()
+	return m.generateReadingsAt(config, time.Now())
+}
 
-	// Simulación básica de humo MP2.5 en horas frías (18:00 - 23:00)
-	basePM25 := 25.0
-	if hour >= 18 || hour <= 2 {
-		basePM25 = 85.0 + rand.Float64()*40.0 // Pico por humo de leña
-	}
+func (m *WeatherManager) generateReadingsAt(config StationConfig, now time.Time) WeatherPayload {
+	dayFraction := float64(now.Hour()) + float64(now.Minute())/60.0 + float64(now.Second())/3600.0
+	dailyPhase := 2 * math.Pi * (dayFraction - 8) / 24
+	stationOffset := stationClimateOffset(config.StationID)
+
+	// La temperatura alcanza su máximo durante la tarde y el material particulado durante la noche.
+	temperature := 11.0 + 7.0*math.Sin(dailyPhase) + stationOffset*2.0
+	daylight := clamp(math.Sin(math.Pi*(dayFraction-6)/12), 0, 1)
+	night := 1 - daylight
+	humidity := clamp(78.0-1.8*(temperature-8.0)+4.0*math.Sin(dailyPhase+math.Pi/3), 35, 98)
+	wind := clamp(8.0+3.0*math.Sin(dailyPhase+stationOffset*math.Pi)+stationOffset*2.0, 1, 24)
+	pm25 := clamp(18.0+68.0*math.Pow(night, 1.5)+stationOffset*8.0, 5, 180)
 
 	return WeatherPayload{
 		StationID: config.StationID,
@@ -115,15 +120,25 @@ func (m *WeatherManager) generateReadings(config StationConfig) WeatherPayload {
 			Sector:    config.Sector,
 		},
 		Readings: SensorReadings{
-			TemperatureC: 8.0 + rand.Float64()*4.0,
-			HumidityPct:  85.0 + rand.Float64()*10.0,
-			WindSpeedKMH: 5.0 + rand.Float64()*15.0,
-			PM25:         basePM25,
-			PM10:         basePM25 * 1.4,
+			TemperatureC: temperature,
+			HumidityPct:  humidity,
+			WindSpeedKMH: wind,
+			PM25:         pm25,
+			PM10:         pm25 * 1.45,
 		},
 		Status:    "OPERATIONAL",
 		Timestamp: now.Unix(),
 	}
+}
+
+func stationClimateOffset(stationID string) float64 {
+	hasher := fnv.New32a()
+	_, _ = hasher.Write([]byte(stationID))
+	return (float64(hasher.Sum32()%2001)/1000.0 - 1.0) * 0.5
+}
+
+func clamp(value, minimum, maximum float64) float64 {
+	return math.Max(minimum, math.Min(maximum, value))
 }
 
 // Envió HTTP POST

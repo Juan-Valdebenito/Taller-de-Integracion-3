@@ -34,7 +34,6 @@ FOUNDATION_FILES=(
   services/nats-jetstream.yml
   services/clima_service/clima-deployment.yaml
   services/micro_service/micros-deployment.yaml
-  services/clima_simulator/clima-simulator-deployment.yaml
   transporte-db-configmap.yaml
   transporte-db-secret.yaml
   services/transporte_db/transporte-db-init-scripts.yaml
@@ -60,6 +59,7 @@ REALTIME_FILES=(
   services/micro_telemetry/micro-telemetry-db.yml
   services/micro_telemetry/micro-telemetry-deployment.yaml
   services/micro_telemetry/micro-telemetry-hpa.yaml
+  services/clima_simulator/clima-simulator-deployment.yaml
   services/realtime/realtime-deployment.yaml
   ingress/realtime-ingress.yaml
 )
@@ -221,9 +221,11 @@ cmd_build() {
   docker build -f backend-go/Dockerfile -t "$DOCKERHUB_USER/backend-go:$IMAGE_TAG" .
   docker build -t "$DOCKERHUB_USER/transithub-realtime:$IMAGE_TAG" backend/
   docker build -t "$DOCKERHUB_USER/transithub-frontend:$IMAGE_TAG" frontend/
+  docker build -t "$DOCKERHUB_USER/clima-simulator:$IMAGE_TAG" kubernetes/services/clima_simulator/
   docker push "$DOCKERHUB_USER/backend-go:$IMAGE_TAG"
   docker push "$DOCKERHUB_USER/transithub-realtime:$IMAGE_TAG"
   docker push "$DOCKERHUB_USER/transithub-frontend:$IMAGE_TAG"
+  docker push "$DOCKERHUB_USER/clima-simulator:$IMAGE_TAG"
   ok "Imágenes publicadas"
 }
 
