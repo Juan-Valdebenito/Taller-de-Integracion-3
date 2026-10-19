@@ -16,6 +16,18 @@ type: Opaque
 stringData:
   POSTGRES_PASSWORD: climate_pass
 ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: clima-db-pvc
+  namespace: student-jvaldebenito
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -25,6 +37,8 @@ metadata:
     app: clima-db
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: clima-db
@@ -64,13 +78,13 @@ spec:
               cpu: "400m"
           volumeMounts:
             - name: clima-db-data
-              mountPath: /var/lib/postgresql/data
+              mountPath: /home/postgres/pgdata
             - name: init-scripts
               mountPath: /docker-entrypoint-initdb.d
       volumes:
-        # Temporary laboratory storage. Replace with a PVC before production.
         - name: clima-db-data
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: clima-db-pvc
         - name: init-scripts
           configMap:
             name: clima-db-init-scripts

@@ -1,25 +1,8 @@
-# Bridge local para que el Ingress de student-tpenroz alcance backend-go en
-# student-jvaldebenito. Kubernetes no permite que un Ingress use un Service de
-# otro namespace directamente.
 apiVersion: v1
 kind: Service
 metadata:
-  name: backend-go-ingress-svc
+  name: bridge-to-backend
   namespace: student-tpenroz
 spec:
-  ports:
-    - name: http
-      port: 3001
-      targetPort: 3001
----
-apiVersion: v1
-kind: Endpoints
-metadata:
-  name: backend-go-ingress-svc
-  namespace: student-tpenroz
-subsets:
-  - addresses:
-      - ip: <BACKEND_GO_IP>
-    ports:
-      - name: http
-        port: 3001
+  type: ExternalName
+  externalName: backend-go-svc.<FOUNDATION_NAMESPACE>.svc.cluster.local

@@ -34,10 +34,12 @@ FOUNDATION_FILES=(
   services/nats-jetstream.yml
   services/clima_service/clima-deployment.yaml
   services/micro_service/micros-deployment.yaml
+  services/clima_simulator/clima-simulator-deployment.yaml
   transporte-db-configmap.yaml
   transporte-db-secret.yaml
   services/transporte_db/transporte-db-init-scripts.yaml
   services/transporte_db/transporte-db-deployment.yaml
+  services/redis_server/redis-server-deployment.yml
   services/backend-go/backend-go-deployment.yaml
   services/backend-go/backend-go-service.yaml
 )
@@ -47,6 +49,7 @@ APP_FILES=(
   services/frontend/frontend-deployment.yaml
   ingress/backend-go-ingress.yaml
   ingress/backend-go-bridge.yaml
+  ingress/frontend-ingress.yaml
 )
 
 # ── Stack "realtime": student-iglausser ──────────────────────
@@ -196,7 +199,7 @@ cmd_check() {
       warn "No se pudieron listar todos los servicios foundation en $FOUNDATION_NAMESPACE"
     fi
   elif [ "$STACK" = "app" ]; then
-    warn "backend-go vive en $FOUNDATION_NAMESPACE; verifica el bridge backend-go-ingress-svc antes de aplicar"
+    warn "backend-go vive en $FOUNDATION_NAMESPACE; se accede mediante bridge-to-backend usando DNS interno de Kubernetes"
   elif [ "$STACK" = "realtime" ]; then
     if "${KUBECTL[@]}" get svc nats-svc -n "$FOUNDATION_NAMESPACE" >/dev/null 2>&1; then
       ok "NATS visible en $FOUNDATION_NAMESPACE"

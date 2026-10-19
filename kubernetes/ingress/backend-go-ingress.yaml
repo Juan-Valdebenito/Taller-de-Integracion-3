@@ -8,7 +8,6 @@
 #
 # Rutas (un solo host = mismo origen, sin CORS entre frontend y API):
 #   https://<host>/api/...       → backend-go-svc (API REST)
-#   https://<host>/              → frontend-svc   (React)
 #
 # deploy.sh reemplaza namespace y host según kubernetes/cluster.env.
 apiVersion: networking.k8s.io/v1
@@ -18,25 +17,16 @@ metadata:
   namespace: student-jvaldebenito
   annotations:
     external-dns.alpha.kubernetes.io/target: proxy.inf.uct.cl
-    # Límite de body para los POST (reclamos, etc.)
-    nginx.ingress.kubernetes.io/proxy-body-size: "2m"
 spec:
   ingressClassName: nginx
   rules:
-    - host: <APP_HOST>
+    - host: api-backend-tpenroz.dev.censei.cl # usa un hostname permitido y exclusivo
       http:
         paths:
-          - path: /api
+          - path: /
             pathType: Prefix
             backend:
               service:
                 name: backend-go-ingress-svc
                 port:
                   number: 3001
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: frontend-svc
-                port:
-                  number: 80
