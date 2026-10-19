@@ -1,9 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { Alert, type AlertButton } from 'react-native';
+import { Alert, StyleSheet, type AlertButton } from 'react-native';
 
 import { SettingsProvider } from '../../settings/SettingsContext';
 import { DEFAULT_SETTINGS, SETTINGS_KEY, loadSettings } from '../../settings/settingsStorage';
+import { ThemeProvider } from '../../theme';
 import { SettingsScreen } from '../SettingsScreen';
 
 async function renderScreen() {
@@ -111,5 +112,21 @@ describe('SettingsScreen', () => {
     await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
     expect(screen.getByText(/No se pudo guardar la configuración/)).toBeTruthy();
     expect(radio('Claro').props.accessibilityState.checked).toBe(true);
+  });
+  it('elegir "Muy grande" agranda el texto de la app al instante (vista previa)', async () => {
+    await render(
+      <SettingsProvider>
+        <ThemeProvider>
+          <SettingsScreen />
+        </ThemeProvider>
+      </SettingsProvider>,
+    );
+    await waitFor(() => expect(radio('Normal').props.accessibilityState.checked).toBe(true));
+    const fontSize = () => StyleSheet.flatten(screen.getByLabelText('Vista previa del tamaño del texto').props.style).fontSize;
+    expect(fontSize()).toBe(16);
+
+    await fireEvent.press(radio('Muy grande'));
+
+    expect(fontSize()).toBe(21);
   });
 });

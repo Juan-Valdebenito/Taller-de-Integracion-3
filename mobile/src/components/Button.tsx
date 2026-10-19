@@ -40,7 +40,7 @@ export function Button({ title, onPress, loading = false, disabled = false, vari
   );
 }
 
-const useStyles = makeStyles((colors) => ({
+const useStyles = makeStyles((colors, font) => ({
   base: {
     borderRadius: radius.md,
     paddingVertical: 14,
@@ -55,7 +55,7 @@ const useStyles = makeStyles((colors) => ({
   dangerPressed: { backgroundColor: colors.dangerPressed },
   secondary: { backgroundColor: 'transparent' },
   disabled: { opacity: 0.6 },
-  text: { fontSize: 16, fontWeight: '600' },
+  text: { fontSize: font(16), fontWeight: '600' },
   textPrimary: { color: colors.onPrimary },
   textSecondary: { color: colors.primary },
 }));

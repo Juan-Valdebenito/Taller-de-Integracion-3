@@ -6,7 +6,7 @@ import { SettingsProvider, useSettings } from '../../settings/SettingsContext';
 import { SETTINGS_KEY } from '../../settings/settingsStorage';
 import { darkColors, lightColors } from '../colors';
 import { navigationTheme } from '../navigationTheme';
-import { ThemeProvider, makeStyles, resolveScheme, themeFor, useTheme } from '../ThemeContext';
+import { TEXT_SCALES, ThemeProvider, makeStyles, resolveScheme, themeFor, useTheme } from '../ThemeContext';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({ __esModule: true, default: jest.fn(() => 'light') }));
 
@@ -49,13 +49,14 @@ describe('resolveScheme', () => {
 describe('ThemeProvider', () => {
   it('sin provider usa el tema claro', async () => {
     const { result } = await renderHook(() => useTheme());
-    expect(result.current).toEqual({ scheme: 'light', colors: lightColors });
+    expect(result.current).toMatchObject({ scheme: 'light', colors: lightColors, textSize: 'normal' });
+    expect(result.current.font(16)).toBe(16);
   });
 
   it('con "Sistema" sigue el modo oscuro del teléfono', async () => {
     systemScheme.mockReturnValue('dark');
     const { result } = await renderTheme();
-    expect(result.current.theme).toEqual({ scheme: 'dark', colors: darkColors });
+    expect(result.current.theme).toMatchObject({ scheme: 'dark', colors: darkColors });
   });
 
   it('aplica la preferencia guardada aunque el teléfono esté en otro modo', async () => {
@@ -77,6 +78,36 @@ describe('ThemeProvider', () => {
   });
 });
 
+describe('tamaño del texto', () => {
+  it('multiplicadores: normal ×1, grande ×1.15, muy grande ×1.3', () => {
+    expect(TEXT_SCALES).toEqual({ normal: 1, large: 1.15, extraLarge: 1.3 });
+  });
+
+  it.each([
+    ['normal', 16, 16],
+    ['large', 16, 18],
+    ['extraLarge', 16, 21],
+    ['extraLarge', 13, 17],
+  ] as const)('%s: font(%p) = %p (redondeado)', (textSize, size, expected) => {
+    expect(themeFor('light', textSize).font(size)).toBe(expected);
+  });
+
+  it('la misma combinación de tema y tamaño devuelve el mismo objeto', () => {
+    expect(themeFor('dark', 'large')).toBe(themeFor('dark', 'large'));
+    expect(themeFor('dark', 'large')).not.toBe(themeFor('dark', 'normal'));
+  });
+
+  it('aplica el tamaño guardado y los cambios en Configuración al instante', async () => {
+    await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify({ textSize: 'large' }));
+    const { result } = await renderTheme();
+    expect(result.current.theme.font(20)).toBe(23);
+
+    await act(() => result.current.settings.updateSettings({ textSize: 'extraLarge' }));
+    expect(result.current.theme.textSize).toBe('extraLarge');
+    expect(result.current.theme.font(20)).toBe(26);
+  });
+});
+
 describe('makeStyles', () => {
   const useStyles = makeStyles((colors) => ({ title: { color: colors.text, fontWeight: '700' } }));
 
@@ -84,6 +115,15 @@ describe('makeStyles', () => {
     systemScheme.mockReturnValue('dark');
     const { result } = await renderHook(() => useStyles(), { wrapper });
     await waitFor(() => expect(result.current.title.color).toBe(darkColors.text));
+  });
+
+  it('escala fontSize y lineHeight con el tamaño de texto elegido', async () => {
+    const useText = makeStyles((colors, font) => ({ body: { fontSize: font(16), lineHeight: font(22), color: colors.text } }));
+    await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify({ textSize: 'extraLarge' }));
+    const { result } = await renderHook(() => ({ styles: useText(), settings: useSettings() }), { wrapper });
+    await waitFor(() => expect(result.current.settings.loaded).toBe(true));
+
+    expect(result.current.styles.body).toMatchObject({ fontSize: 21, lineHeight: 29 });
   });
 
   it('reutiliza los mismos estilos para la misma paleta', async () => {

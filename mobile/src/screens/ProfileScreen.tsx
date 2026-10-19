@@ -78,7 +78,10 @@ export function ProfileScreen() {
       >
         <View style={styles.header}>
           <View style={styles.avatar} accessibilityLabel={`Avatar de ${user.name}`}>
-            <Text style={styles.avatarText}>{initials(user.name)}</Text>
+            {/* Círculo de tamaño fijo: se limita el aumento de letra del sistema para que las iniciales quepan. */}
+            <Text style={styles.avatarText} maxFontSizeMultiplier={1.3}>
+              {initials(user.name)}
+            </Text>
           </View>
           <Text style={styles.name} accessibilityRole="header">
             {user.name}
@@ -120,7 +123,7 @@ export function ProfileScreen() {
   );
 }
 
-const useStyles = makeStyles((colors) => ({
+const useStyles = makeStyles((colors, font) => ({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xl },
   header: { alignItems: 'center', marginBottom: spacing.lg },
@@ -133,8 +136,8 @@ const useStyles = makeStyles((colors) => ({
     justifyContent: 'center',
     marginBottom: spacing.md,
   },
-  avatarText: { color: colors.onPrimary, fontSize: 32, fontWeight: '700' },
-  name: { fontSize: 22, fontWeight: '700', color: colors.text, textAlign: 'center' },
+  avatarText: { color: colors.onPrimary, fontSize: font(32), fontWeight: '700' },
+  name: { fontSize: font(22), fontWeight: '700', color: colors.text, textAlign: 'center' },
   badge: {
     marginTop: spacing.sm,
     backgroundColor: colors.surface,
@@ -142,11 +145,11 @@ const useStyles = makeStyles((colors) => ({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
   },
-  badgeText: { color: colors.primary, fontWeight: '600', fontSize: 13 },
+  badgeText: { color: colors.primary, fontWeight: '600', fontSize: font(13) },
   error: { backgroundColor: colors.dangerBg, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
-  errorText: { color: colors.danger, fontSize: 14 },
+  errorText: { color: colors.danger, fontSize: font(14) },
   sectionTitle: {
-    fontSize: 13,
+    fontSize: font(13),
     fontWeight: '600',
     color: colors.muted,
     textTransform: 'uppercase',
@@ -155,9 +158,9 @@ const useStyles = makeStyles((colors) => ({
   },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md },
   row: { paddingVertical: spacing.sm },
-  rowLabel: { fontSize: 13, color: colors.muted },
-  rowValue: { fontSize: 16, color: colors.text, fontWeight: '600', marginTop: 2 },
-  securityText: { fontSize: 14, color: colors.text, lineHeight: 20 },
+  rowLabel: { fontSize: font(13), color: colors.muted },
+  rowValue: { fontSize: font(16), color: colors.text, fontWeight: '600', marginTop: 2 },
+  securityText: { fontSize: font(14), color: colors.text, lineHeight: font(20) },
   signOut: { marginTop: spacing.md },
-  signOutHint: { marginTop: spacing.sm, fontSize: 13, color: colors.muted, textAlign: 'center' },
+  signOutHint: { marginTop: spacing.sm, fontSize: font(13), color: colors.muted, textAlign: 'center' },
 }));

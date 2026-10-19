@@ -83,6 +83,9 @@ export function SettingsScreen() {
             value={settings.textSize}
             onChange={(textSize) => updateSettings({ textSize })}
           />
+          <Text style={styles.preview} accessibilityLabel="Vista previa del tamaño del texto">
+            Así se verá el texto en la app: la micro ABCD12 está a 350 m de tu paradero.
+          </Text>
         </View>
 
         <View style={styles.reset}>
@@ -94,13 +97,13 @@ export function SettingsScreen() {
   );
 }
 
-const useStyles = makeStyles((colors) => ({
+const useStyles = makeStyles((colors, font) => ({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xl },
   error: { backgroundColor: colors.dangerBg, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
-  errorText: { color: colors.danger, fontSize: 14 },
+  errorText: { color: colors.danger, fontSize: font(14) },
   sectionTitle: {
-    fontSize: 13,
+    fontSize: font(13),
     fontWeight: '600',
     color: colors.muted,
     textTransform: 'uppercase',
@@ -109,8 +112,14 @@ const useStyles = makeStyles((colors) => ({
   },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginVertical: spacing.sm },
-  label: { fontSize: 16, fontWeight: '600', color: colors.text, marginTop: spacing.xs },
-  description: { marginTop: 2, fontSize: 13, color: colors.muted, lineHeight: 18 },
+  label: { fontSize: font(16), fontWeight: '600', color: colors.text, marginTop: spacing.xs },
+  description: { marginTop: 2, fontSize: font(13), color: colors.muted, lineHeight: font(18) },
+  preview: {
+    marginTop: spacing.sm,
+    fontSize: font(16),
+    lineHeight: font(22),
+    color: colors.text,
+  },
   reset: { marginTop: spacing.sm, alignItems: 'center' },
-  hint: { marginTop: spacing.sm, fontSize: 13, color: colors.muted, textAlign: 'center' },
+  hint: { marginTop: spacing.sm, fontSize: font(13), color: colors.muted, textAlign: 'center' },
 }));

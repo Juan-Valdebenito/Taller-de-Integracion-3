@@ -67,12 +67,12 @@ export function NearbyStopCard({ nearby, hasPosition }: { nearby: UseNearestStop
   );
 }
 
-const useStyles = makeStyles((colors) => ({
+const useStyles = makeStyles((colors, font) => ({
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, marginTop: spacing.md },
   ok: { backgroundColor: colors.successBg },
   warning: { backgroundColor: colors.warningBg },
-  title: { fontSize: 16, fontWeight: '700', color: colors.text },
-  description: { marginTop: spacing.xs, fontSize: 14, color: colors.muted, lineHeight: 20 },
-  error: { marginTop: spacing.sm, fontSize: 14, color: colors.danger },
+  title: { fontSize: font(16), fontWeight: '700', color: colors.text },
+  description: { marginTop: spacing.xs, fontSize: font(14), color: colors.muted, lineHeight: font(20) },
+  error: { marginTop: spacing.sm, fontSize: font(14), color: colors.danger },
   action: { marginTop: spacing.sm, alignItems: 'flex-start' },
 }));

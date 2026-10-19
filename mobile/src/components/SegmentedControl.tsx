@@ -33,7 +33,8 @@ export function SegmentedControl<T extends string>({ label, options, value, onCh
             }}
             style={[styles.option, selected && styles.selected]}
           >
-            <Text style={[styles.text, selected && styles.selectedText]} numberOfLines={1}>
+            {/* Sin límite de líneas: con texto grande la etiqueta puede ocupar dos. */}
+            <Text style={[styles.text, selected && styles.selectedText]}>
               {option.label}
             </Text>
           </Pressable>
@@ -43,7 +44,7 @@ export function SegmentedControl<T extends string>({ label, options, value, onCh
   );
 }
 
-const useStyles = makeStyles((colors) => ({
+const useStyles = makeStyles((colors, font) => ({
   group: {
     flexDirection: 'row',
     backgroundColor: colors.background,
@@ -53,8 +54,16 @@ const useStyles = makeStyles((colors) => ({
     padding: 3,
     marginTop: spacing.sm,
   },
-  option: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md - 3 },
+  option: {
+    flex: 1,
+    minHeight: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.md - 3,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.xs,
+  },
   selected: { backgroundColor: colors.primary },
-  text: { fontSize: 14, fontWeight: '600', color: colors.text },
+  text: { fontSize: font(14), fontWeight: '600', color: colors.text, textAlign: 'center' },
   selectedText: { color: colors.onPrimary },
 }));

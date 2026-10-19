@@ -32,19 +32,19 @@ export const TextField = forwardRef<TextInputInstance, TextFieldProps>(function 
   );
 });
 
-const useStyles = makeStyles((colors) => ({
+const useStyles = makeStyles((colors, font) => ({
   container: { marginBottom: spacing.md },
-  label: { fontSize: 14, fontWeight: '600', color: colors.text, marginBottom: spacing.xs },
+  label: { fontSize: font(14), fontWeight: '600', color: colors.text, marginBottom: spacing.xs },
   input: {
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
     paddingVertical: 12,
-    fontSize: 16,
+    fontSize: font(16),
     color: colors.text,
     backgroundColor: colors.background,
   },
   inputError: { borderColor: colors.danger },
-  error: { marginTop: spacing.xs, color: colors.danger, fontSize: 13 },
+  error: { marginTop: spacing.xs, color: colors.danger, fontSize: font(13) },
 }));

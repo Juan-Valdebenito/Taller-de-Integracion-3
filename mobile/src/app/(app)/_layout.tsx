@@ -5,13 +5,14 @@ import { useTheme } from '../../theme';
 
 /** Rutas con sesión iniciada (protegidas en src/app/_layout.tsx): pestañas Inicio, Perfil y Configuración. */
 export default function AppLayout() {
-  const { colors } = useTheme();
+  const { colors, font } = useTheme();
   return (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.muted,
-        headerTitleStyle: { fontWeight: '700' },
+        headerTitleStyle: { fontWeight: '700', fontSize: font(17) },
+        tabBarLabelStyle: { fontSize: font(11) },
       }}
     >
       <Tabs.Screen

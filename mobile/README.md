@@ -178,11 +178,14 @@ al cerrar la app y al cerrar sesión.
   Configuración; con **Sistema** sigue el modo del teléfono en vivo
   (`app.json` → `"userInterfaceStyle": "automatic"`). `useTheme()` entrega
   `{ scheme, colors }` (sin provider, tema claro).
-- Estilos con el tema: `makeStyles` reemplaza a `StyleSheet.create`. Los estilos se
-  crean una vez por paleta:
+- Estilos con el tema: `makeStyles` reemplaza a `StyleSheet.create`. Recibe los
+  colores y `font(n)`, que escala tamaños de letra e interlineados. Los estilos se
+  crean una vez por combinación de tema y tamaño de texto:
 
   ```tsx
-  const useStyles = makeStyles((colors) => ({ title: { color: colors.text } }));
+  const useStyles = makeStyles((colors, font) => ({
+    title: { color: colors.text, fontSize: font(16) },
+  }));
 
   function Titulo() {
     const styles = useStyles();
@@ -192,6 +195,16 @@ al cerrar la app y al cerrar sesión.
 
 - La navegación (cabeceras, pestañas, fondo entre pantallas), la barra de estado y
   el teclado de iOS también siguen el tema.
+
+### Tamaño del texto
+
+- Normal ×1, Grande ×1.15, Muy grande ×1.3 (`TEXT_SCALES`). Se suma al tamaño de
+  letra configurado en el teléfono (Accesibilidad), que React Native ya respeta.
+- Todos los `fontSize` y `lineHeight` usan `font(n)`, también el título de la
+  cabecera y las etiquetas de las pestañas. No hay contenedores de alto fijo con
+  texto. En el selector de opciones las etiquetas pueden usar dos líneas, y las
+  iniciales del avatar (círculo fijo de 88 px) limitan el aumento del sistema.
+- En Configuración, una vista previa muestra el tamaño elegido.
 
 ## Perfil
 

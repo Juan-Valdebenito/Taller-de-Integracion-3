@@ -40,13 +40,13 @@ export function HomeScreen() {
   );
 }
 
-const useStyles = makeStyles((colors) => ({
+const useStyles = makeStyles((colors, font) => ({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { flexGrow: 1, padding: spacing.lg },
-  greeting: { fontSize: 26, fontWeight: '700', color: colors.text, marginBottom: spacing.lg },
+  greeting: { fontSize: font(26), fontWeight: '700', color: colors.text, marginBottom: spacing.lg },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md },
-  label: { fontSize: 13, color: colors.muted },
-  value: { fontSize: 16, color: colors.text, fontWeight: '600', marginTop: 2 },
+  label: { fontSize: font(13), color: colors.muted },
+  value: { fontSize: font(16), color: colors.text, fontWeight: '600', marginTop: 2 },
   spaced: { marginTop: spacing.md },
-  hint: { marginTop: spacing.md, color: colors.muted, fontSize: 13 },
+  hint: { marginTop: spacing.md, color: colors.muted, fontSize: font(13) },
 }));
