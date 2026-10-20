@@ -79,3 +79,11 @@ func TestCreateRejectsInvalidAttachmentWithoutQuerying(t *testing.T) {
 		t.Fatalf("want ErrAttachmentUnsupportedType, got %v", err)
 	}
 }
+
+func TestCreateWithinLimitRejectsInvalidAttachmentWithoutQuerying(t *testing.T) {
+	repo := NewComplaintAttachmentRepository(nil)
+	_, err := repo.CreateWithinLimit(context.Background(), domain.ComplaintAttachment{ComplaintID: "complaint-1"})
+	if !errors.Is(err, domain.ErrAttachmentInvalid) {
+		t.Fatalf("want ErrAttachmentInvalid, got %v", err)
+	}
+}

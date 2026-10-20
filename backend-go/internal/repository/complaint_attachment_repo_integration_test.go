@@ -139,3 +139,133 @@ func TestAttachmentRepositoryCreateErrors(t *testing.T) {
 		t.Fatalf("want ErrAttachmentComplaintNotFound, got %v", err)
 	}
 }
+
+func TestAttachmentRepositoryFindByIDIsScopedToComplaint(t *testing.T) {
+	pool := attachmentTestPool(t)
+	repo := NewComplaintAttachmentRepository(pool)
+	ctx := context.Background()
+	complaintID, userID := seedComplaint(t, pool)
+	otherComplaintID, _ := seedComplaint(t, pool)
+
+	created, err := repo.Create(ctx, newAttachment(complaintID, userID, "complaints/"+complaintID+"/a.jpg", "e"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	found, err := repo.FindByID(ctx, complaintID, created.ID)
+	if err != nil || found == nil || found.ID != created.ID || found.StorageKey != created.StorageKey {
+		t.Fatalf("debe encontrar la imagen de su reclamo: %+v, %v", found, err)
+	}
+
+	// La misma imagen pedida desde otro reclamo no existe.
+	if found, err := repo.FindByID(ctx, otherComplaintID, created.ID); err != nil || found != nil {
+		t.Fatalf("no debe acceder a la imagen de otro reclamo: %+v, %v", found, err)
+	}
+	if found, err := repo.FindByID(ctx, complaintID, "no-existe"); err != nil || found != nil {
+		t.Fatalf("id inexistente debe devolver nil: %+v, %v", found, err)
+	}
+}
+
+func TestAttachmentRepositoryCountAndDelete(t *testing.T) {
+	pool := attachmentTestPool(t)
+	repo := NewComplaintAttachmentRepository(pool)
+	ctx := context.Background()
+	complaintID, userID := seedComplaint(t, pool)
+	otherComplaintID, _ := seedComplaint(t, pool)
+
+	if n, err := repo.CountByComplaintID(ctx, complaintID); err != nil || n != 0 {
+		t.Fatalf("sin imágenes: want 0, got %d, %v", n, err)
+	}
+	a, err := repo.Create(ctx, newAttachment(complaintID, userID, "complaints/"+complaintID+"/a.jpg", "1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.Create(ctx, newAttachment(complaintID, userID, "complaints/"+complaintID+"/b.jpg", "2")); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := repo.CountByComplaintID(ctx, complaintID); err != nil || n != 2 {
+		t.Fatalf("want 2, got %d, %v", n, err)
+	}
+
+	// Borrar desde otro reclamo no borra nada.
+	if _, err := repo.Delete(ctx, otherComplaintID, a.ID); !errors.Is(err, ErrAttachmentNotFound) {
+		t.Fatalf("borrar desde otro reclamo: want ErrAttachmentNotFound, got %v", err)
+	}
+
+	deleted, err := repo.Delete(ctx, complaintID, a.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Devuelve el nombre interno para poder borrar el archivo del almacenamiento.
+	if deleted.ID != a.ID || deleted.StorageKey != "complaints/"+complaintID+"/a.jpg" {
+		t.Fatalf("Delete debe devolver la imagen borrada: %+v", deleted)
+	}
+	if n, _ := repo.CountByComplaintID(ctx, complaintID); n != 1 {
+		t.Fatalf("después de borrar: want 1, got %d", n)
+	}
+	if _, err := repo.Delete(ctx, complaintID, a.ID); !errors.Is(err, ErrAttachmentNotFound) {
+		t.Fatalf("borrar dos veces: want ErrAttachmentNotFound, got %v", err)
+	}
+}
+
+func TestAttachmentRepositoryCreateWithinLimit(t *testing.T) {
+	pool := attachmentTestPool(t)
+	repo := NewComplaintAttachmentRepository(pool)
+	ctx := context.Background()
+	complaintID, userID := seedComplaint(t, pool)
+
+	for i := 0; i < domain.MaxAttachmentsPerComplaint; i++ {
+		hash := string(rune('a' + i))
+		if _, err := repo.CreateWithinLimit(ctx, newAttachment(complaintID, userID, "complaints/"+complaintID+"/"+hash+".jpg", hash)); err != nil {
+			t.Fatalf("imagen %d: %v", i+1, err)
+		}
+	}
+	_, err := repo.CreateWithinLimit(ctx, newAttachment(complaintID, userID, "complaints/"+complaintID+"/extra.jpg", "f"))
+	if !errors.Is(err, domain.ErrAttachmentLimitReached) {
+		t.Fatalf("la imagen %d debe rechazarse: want ErrAttachmentLimitReached, got %v", domain.MaxAttachmentsPerComplaint+1, err)
+	}
+
+	_, err = repo.CreateWithinLimit(ctx, newAttachment("no-existe", userID, "complaints/no-existe/a.jpg", "0"))
+	if !errors.Is(err, ErrAttachmentComplaintNotFound) {
+		t.Fatalf("reclamo inexistente: want ErrAttachmentComplaintNotFound, got %v", err)
+	}
+}
+
+// Subidas simultáneas al mismo reclamo: el bloqueo del reclamo impide pasar el límite.
+func TestAttachmentRepositoryCreateWithinLimitConcurrent(t *testing.T) {
+	pool := attachmentTestPool(t)
+	repo := NewComplaintAttachmentRepository(pool)
+	ctx := context.Background()
+	complaintID, userID := seedComplaint(t, pool)
+
+	const uploads = 6
+	errs := make(chan error, uploads)
+	start := make(chan struct{})
+	for i := 0; i < uploads; i++ {
+		go func(i int) {
+			<-start
+			hash := string(rune('a' + i))
+			_, err := repo.CreateWithinLimit(ctx, newAttachment(complaintID, userID, "complaints/"+complaintID+"/c"+hash+".jpg", hash))
+			errs <- err
+		}(i)
+	}
+	close(start)
+
+	ok, limited := 0, 0
+	for i := 0; i < uploads; i++ {
+		switch err := <-errs; {
+		case err == nil:
+			ok++
+		case errors.Is(err, domain.ErrAttachmentLimitReached):
+			limited++
+		default:
+			t.Errorf("error inesperado: %v", err)
+		}
+	}
+	if ok != domain.MaxAttachmentsPerComplaint || limited != uploads-domain.MaxAttachmentsPerComplaint {
+		t.Fatalf("want %d guardadas y %d rechazadas, got %d y %d", domain.MaxAttachmentsPerComplaint, uploads-domain.MaxAttachmentsPerComplaint, ok, limited)
+	}
+	if n, _ := repo.CountByComplaintID(ctx, complaintID); n != domain.MaxAttachmentsPerComplaint {
+		t.Fatalf("en la base quedaron %d imágenes, máximo %d", n, domain.MaxAttachmentsPerComplaint)
+	}
+}
