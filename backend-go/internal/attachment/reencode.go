@@ -60,7 +60,8 @@ func encodeImage(img image.Image, mimeType string) ([]byte, error) {
 
 // reencode decodifica la imagen validada y la vuelve a codificar desde cero en
 // el mismo formato. Es la base de la sanitización. En los JPEG aplica antes la
-// orientación EXIF a los píxeles, porque el EXIF no se conserva.
+// orientación EXIF a los píxeles, porque el EXIF no se conserva, y reduce las
+// imágenes cuyo lado mayor supera MaxStoredDimension.
 func reencode(v *ValidatedImage) ([]byte, image.Image, error) {
 	img, err := decodeImage(v.Data, v.MimeType)
 	if err != nil {
@@ -69,6 +70,7 @@ func reencode(v *ValidatedImage) ([]byte, image.Image, error) {
 	if v.MimeType == domain.MimeTypeJPEG {
 		img = applyOrientation(img, jpegOrientation(v.Data))
 	}
+	img = limitSize(img)
 	data, err := encodeImage(img, v.MimeType)
 	if err != nil {
 		return nil, nil, err
