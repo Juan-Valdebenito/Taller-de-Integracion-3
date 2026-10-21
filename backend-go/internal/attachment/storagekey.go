@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain"
 )
@@ -24,9 +25,14 @@ const (
 	maxComplaintIDLength = 64
 )
 
-// ErrInvalidComplaintID: el id del reclamo tiene caracteres que no pueden ir en
-// una ruta de archivo.
-var ErrInvalidComplaintID = errors.New("el identificador del reclamo no es válido")
+var (
+	// ErrInvalidComplaintID: el id del reclamo tiene caracteres que no pueden ir
+	// en una ruta de archivo.
+	ErrInvalidComplaintID = errors.New("el identificador del reclamo no es válido")
+	// ErrInvalidStorageKey: el nombre interno no tiene el formato que genera
+	// NewStorageKey (posible manipulación o dato dañado).
+	ErrInvalidStorageKey = errors.New("attachment: nombre interno de archivo inválido")
+)
 
 // randomSource es la fuente de aleatoriedad criptográfica (se reemplaza en tests).
 var randomSource io.Reader = rand.Reader
@@ -61,4 +67,63 @@ func NewStorageKey(complaintID, mimeType string) (string, error) {
 		return "", fmt.Errorf("attachment: no se pudo generar el nombre del archivo: %w", err)
 	}
 	return storageKeyPrefix + complaintID + "/" + hex.EncodeToString(token) + ext, nil
+}
+
+// StorageKeyInfo son los datos que se deducen de un nombre interno válido.
+type StorageKeyInfo struct {
+	ComplaintID string
+	MimeType    string
+}
+
+// ParseStorageKey comprueba que un nombre interno tenga exactamente el formato
+// de NewStorageKey antes de usarlo para leer o borrar un archivo. Es una defensa
+// adicional: aunque un nombre manipulado llegara a la base de datos, nunca podría
+// apuntar fuera de la carpeta de imágenes ("../", rutas absolutas, "\").
+func ParseStorageKey(key string) (StorageKeyInfo, error) {
+	rest, ok := strings.CutPrefix(key, storageKeyPrefix)
+	if !ok {
+		return StorageKeyInfo{}, ErrInvalidStorageKey
+	}
+	complaintID, file, ok := strings.Cut(rest, "/")
+	if !ok || !validComplaintID(complaintID) {
+		return StorageKeyInfo{}, ErrInvalidStorageKey
+	}
+	token, ext, ok := strings.Cut(file, ".")
+	if !ok || len(token) != hex.EncodedLen(tokenBytes) || !isLowerHex(token) {
+		return StorageKeyInfo{}, ErrInvalidStorageKey
+	}
+	mimeType, ok := mimeTypeForExtension["."+ext]
+	if !ok {
+		return StorageKeyInfo{}, ErrInvalidStorageKey
+	}
+	return StorageKeyInfo{ComplaintID: complaintID, MimeType: mimeType}, nil
+}
+
+// ValidateStorageKeyFor comprueba que el nombre interno sea válido y pertenezca
+// al reclamo indicado (una imagen no puede apuntar al archivo de otro reclamo).
+func ValidateStorageKeyFor(key, complaintID string) error {
+	info, err := ParseStorageKey(key)
+	if err != nil {
+		return err
+	}
+	if info.ComplaintID != complaintID {
+		return ErrInvalidStorageKey
+	}
+	return nil
+}
+
+// mimeTypeForExtension: extensiones que genera NewStorageKey y su tipo.
+var mimeTypeForExtension = map[string]string{
+	".jpg": domain.MimeTypeJPEG,
+	".png": domain.MimeTypePNG,
+}
+
+func isLowerHex(s string) bool {
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
+			return false
+		}
+	}
+	return true
 }
