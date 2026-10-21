@@ -67,6 +67,8 @@ var clientErrors = []error{
 	domain.ErrAttachmentDimensions,
 	ErrAttachmentCorrupt,
 	ErrAttachmentRead,
+	ErrTooManyMaskRegions,
+	ErrInvalidMaskRegion,
 }
 
 // IsClientError indica si el error de ValidateUpload se debe al archivo enviado
