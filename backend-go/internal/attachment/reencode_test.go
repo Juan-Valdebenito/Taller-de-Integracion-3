@@ -5,6 +5,7 @@ import (
 	"errors"
 	"image"
 	"image/color"
+	"image/draw"
 	"image/jpeg"
 	"image/png"
 	"testing"
@@ -150,5 +151,71 @@ func TestReencodeRejectsUnsupportedType(t *testing.T) {
 	_, _, err := reencode(&ValidatedImage{Data: []byte("x"), MimeType: "image/gif"})
 	if !errors.Is(err, domain.ErrAttachmentUnsupportedType) {
 		t.Fatalf("want ErrAttachmentUnsupportedType, got %v", err)
+	}
+}
+
+// Las zonas marcadas quedan pixeladas en el archivo codificado y el resto no.
+func TestReencodeWithMasksHidesTheZones(t *testing.T) {
+	src := detailed(image.Rect(0, 0, 200, 100))
+	v := validated(t, src, domain.MimeTypePNG) // PNG: sin pérdida, se compara exacto
+	zone := MaskRegion{X: 0.25, Y: 0.2, Width: 0.5, Height: 0.6}
+
+	data, img, masked, err := reencodeWithMasks(v, []MaskRegion{zone})
+	if err != nil || masked != 1 {
+		t.Fatalf("masked=%d, err=%v", masked, err)
+	}
+	decoded, err := png.Decode(bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Bounds() != img.Bounds() {
+		t.Fatalf("el archivo y la imagen devuelta deben coincidir: %v vs %v", decoded.Bounds(), img.Bounds())
+	}
+	asRGBA := image.NewRGBA(decoded.Bounds())
+	draw.Draw(asRGBA, asRGBA.Bounds(), decoded, image.Point{}, draw.Src)
+
+	px := zone.ToPixels(200, 100) // (50,20)-(150,80): 100×60 px, bloques de 13 px
+	if n := distinctColors(asRGBA, px); n > 8*5 {
+		t.Errorf("la zona oculta conserva %d colores en el archivo", n)
+	}
+	if asRGBA.RGBAAt(10, 10) != src.RGBAAt(10, 10) || asRGBA.RGBAAt(190, 90) != src.RGBAAt(190, 90) {
+		t.Error("fuera de la zona la imagen debe quedar igual")
+	}
+}
+
+func TestReencodeWithoutMasksCountsZero(t *testing.T) {
+	v := validated(t, gradient(32, 32, false), domain.MimeTypeJPEG)
+	_, _, masked, err := reencodeWithMasks(v, nil)
+	if err != nil || masked != 0 {
+		t.Fatalf("sin zonas: masked=%d, err=%v", masked, err)
+	}
+}
+
+// Zonas inválidas: no se genera ningún archivo.
+func TestReencodeWithMasksRejectsInvalidZones(t *testing.T) {
+	v := validated(t, gradient(32, 32, false), domain.MimeTypePNG)
+	data, img, masked, err := reencodeWithMasks(v, []MaskRegion{{X: 0.9, Y: 0, Width: 0.5, Height: 0.5}})
+	if !errors.Is(err, ErrInvalidMaskRegion) || data != nil || img != nil || masked != 0 {
+		t.Fatalf("want ErrInvalidMaskRegion sin resultado, got %d bytes, masked=%d, %v", len(data), masked, err)
+	}
+}
+
+// Las zonas se aplican después de reducir: sus coordenadas relativas siguen
+// cubriendo la misma parte de la foto.
+func TestReencodeWithMasksAfterResize(t *testing.T) {
+	big := detailed(image.Rect(0, 0, 4096, 1024)) // se reduce a 2048×512
+	v := validated(t, big, domain.MimeTypePNG)
+	zone := MaskRegion{X: 0.5, Y: 0.5, Width: 0.25, Height: 0.5}
+
+	_, img, masked, err := reencodeWithMasks(v, []MaskRegion{zone})
+	if err != nil || masked != 1 {
+		t.Fatalf("masked=%d, err=%v", masked, err)
+	}
+	if img.Bounds() != image.Rect(0, 0, 2048, 512) {
+		t.Fatalf("la imagen debe reducirse a 2048x512, quedó %v", img.Bounds())
+	}
+	px := zone.ToPixels(2048, 512) // (1024,256)-(1536,512)
+	if n := distinctColors(img.(*image.RGBA), px); n > 8*4 {
+		t.Errorf("la zona en la imagen reducida conserva %d colores", n)
 	}
 }
