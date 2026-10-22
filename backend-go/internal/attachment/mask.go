@@ -3,6 +3,7 @@ package attachment
 import (
 	"errors"
 	"fmt"
+	"image"
 	"math"
 )
 
@@ -64,6 +65,38 @@ func (r MaskRegion) Validate() error {
 		return errors.New("sale de la imagen")
 	}
 	return nil
+}
+
+// ToPixels convierte la zona relativa en un rectángulo de píxeles para una
+// imagen de width×height. Redondea hacia afuera (inicio hacia abajo, final
+// hacia arriba) para que la zona cubra siempre todo lo marcado: es preferible
+// ocultar un píxel de más que dejar sin ocultar el borde de una patente.
+// El resultado queda recortado a los límites de la imagen.
+func (r MaskRegion) ToPixels(width, height int) image.Rectangle {
+	x0 := floorPixel(r.X * float64(width))
+	y0 := floorPixel(r.Y * float64(height))
+	x1 := ceilPixel((r.X + r.Width) * float64(width))
+	y1 := ceilPixel((r.Y + r.Height) * float64(height))
+	return image.Rect(x0, y0, x1, y1).Intersect(image.Rect(0, 0, width, height))
+}
+
+// pixelTolerance: un valor a menos de una millonésima de un entero es ese
+// entero. Evita que el ruido de float64 (0.4+0.2 = 0.6000000000000001) agregue
+// un píxel de más; las fracciones reales (ej. 66.7) se siguen redondeando.
+const pixelTolerance = 1e-6
+
+func floorPixel(v float64) int {
+	if n := math.Round(v); math.Abs(v-n) < pixelTolerance {
+		return int(n)
+	}
+	return int(math.Floor(v))
+}
+
+func ceilPixel(v float64) int {
+	if n := math.Round(v); math.Abs(v-n) < pixelTolerance {
+		return int(n)
+	}
+	return int(math.Ceil(v))
 }
 
 // ValidateMaskRegions comprueba la lista completa de zonas de una imagen. Una
