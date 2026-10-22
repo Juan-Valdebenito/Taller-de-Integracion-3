@@ -69,6 +69,8 @@ var clientErrors = []error{
 	ErrAttachmentRead,
 	ErrTooManyMaskRegions,
 	ErrInvalidMaskRegion,
+	ErrMaskRegionsTooLarge,
+	ErrInvalidMaskRegionsFormat,
 }
 
 // IsClientError indica si el error de ValidateUpload se debe al archivo enviado
