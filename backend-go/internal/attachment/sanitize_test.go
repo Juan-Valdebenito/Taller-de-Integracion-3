@@ -5,9 +5,13 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"hash/crc32"
+	"image"
+	"image/draw"
 	"image/jpeg"
 	"image/png"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -169,5 +173,108 @@ func TestSanitizeOutputPassesValidationAgain(t *testing.T) {
 func TestSanitizeNil(t *testing.T) {
 	if _, err := Sanitize(nil); err == nil || !strings.Contains(err.Error(), "nil") {
 		t.Fatalf("want error por imagen nil, got %v", err)
+	}
+}
+
+func TestSanitizeWithMasksCountsAndHidesZones(t *testing.T) {
+	v := validated(t, detailed(image.Rect(0, 0, 160, 120)), domain.MimeTypePNG)
+	regions := []MaskRegion{
+		{X: 0.1, Y: 0.1, Width: 0.3, Height: 0.3},
+		{X: 0.6, Y: 0.5, Width: 0.3, Height: 0.4},
+	}
+
+	s, err := SanitizeWithMasks(v, regions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.MaskedRegions != 2 {
+		t.Errorf("MaskedRegions = %d, want 2", s.MaskedRegions)
+	}
+	decoded, err := png.Decode(bytes.NewReader(s.Data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rgba := image.NewRGBA(decoded.Bounds())
+	draw.Draw(rgba, rgba.Bounds(), decoded, image.Point{}, draw.Src)
+	for i, r := range regions {
+		if n := distinctColors(rgba, r.ToPixels(160, 120)); n > 8*8 {
+			t.Errorf("zona %d: conserva %d colores en el archivo guardado", i+1, n)
+		}
+	}
+}
+
+// El tamaño y el hash corresponden al archivo ya pixelado (el que se guarda).
+func TestSanitizeWithMasksReportsTheMaskedFile(t *testing.T) {
+	v := validated(t, detailed(image.Rect(0, 0, 80, 80)), domain.MimeTypePNG)
+	plain, err := Sanitize(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	masked, err := SanitizeWithMasks(v, []MaskRegion{{X: 0, Y: 0, Width: 0.5, Height: 0.5}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(masked.Data)
+	if masked.SHA256 != hex.EncodeToString(sum[:]) || masked.SizeBytes != int64(len(masked.Data)) {
+		t.Error("hash y tamaño deben ser los del archivo pixelado")
+	}
+	if masked.SHA256 == plain.SHA256 {
+		t.Error("ocultar una zona debe producir un archivo distinto al de la foto sin ocultar")
+	}
+}
+
+// Sanitize sin zonas sigue funcionando igual: mismo archivo y MaskedRegions = 0.
+func TestSanitizeIsSanitizeWithMasksWithoutZones(t *testing.T) {
+	v := validated(t, gradient(40, 30, true), domain.MimeTypePNG)
+	a, err := Sanitize(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := SanitizeWithMasks(v, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.SHA256 != b.SHA256 || a.MaskedRegions != 0 || b.MaskedRegions != 0 {
+		t.Fatalf("sin zonas deben ser iguales: %s/%d vs %s/%d", a.SHA256, a.MaskedRegions, b.SHA256, b.MaskedRegions)
+	}
+}
+
+func TestSanitizeWithMasksRejectsInvalidZones(t *testing.T) {
+	v := validated(t, gradient(40, 30, false), domain.MimeTypeJPEG)
+	s, err := SanitizeWithMasks(v, []MaskRegion{{X: 0, Y: 0, Width: 0.001, Height: 0.5}})
+	if !errors.Is(err, ErrInvalidMaskRegion) || s != nil {
+		t.Fatalf("want ErrInvalidMaskRegion, got %v, %v", s, err)
+	}
+	if !IsClientError(err) {
+		t.Error("una zona inválida es error del cliente (4xx)")
+	}
+}
+
+// ToAttachment arma el registro de la base con todos los datos de la imagen guardada.
+func TestSanitizedImageToAttachment(t *testing.T) {
+	v := validated(t, detailed(image.Rect(0, 0, 64, 48)), domain.MimeTypePNG)
+	s, err := SanitizeWithMasks(v, []MaskRegion{{X: 0.25, Y: 0.25, Width: 0.5, Height: 0.5}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := NewStorageKey("complaint-1", s.MimeType)
+	if err != nil {
+		t.Fatal(err)
+	}
+	user := "user-1"
+
+	att := s.ToAttachment("complaint-1", key, &user)
+
+	want := domain.ComplaintAttachment{
+		ComplaintID: "complaint-1", StorageKey: key, MimeType: domain.MimeTypePNG,
+		SizeBytes: s.SizeBytes, Width: 64, Height: 48, SHA256: s.SHA256,
+		MaskedRegions: 1, UploadedBy: &user,
+	}
+	if !reflect.DeepEqual(att, want) {
+		t.Fatalf("got %+v\nwant %+v", att, want)
+	}
+	// Cumple las reglas del dominio: el repositorio lo puede guardar.
+	if err := att.Validate(); err != nil {
+		t.Fatalf("el registro debe ser válido: %v", err)
 	}
 }
