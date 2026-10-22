@@ -1,6 +1,7 @@
 package attachment
 
 import (
+	"errors"
 	"image"
 	"image/color"
 	"testing"
@@ -204,5 +205,104 @@ func TestPixelateZoneHandlesTransparency(t *testing.T) {
 	got := color.NRGBAModel.Convert(img.RGBAAt(0, 0)).(color.NRGBA)
 	if got.R < 250 || got.A < 126 || got.A > 129 {
 		t.Fatalf("want rojo puro con ~50%% de opacidad, got %v", got)
+	}
+}
+
+func TestApplyMasksWithoutRegionsReturnsTheSameImage(t *testing.T) {
+	img := detailed(image.Rect(0, 0, 40, 40))
+	for _, regions := range [][]MaskRegion{nil, {}} {
+		out, masked, err := applyMasks(img, regions)
+		if err != nil || masked != 0 || out != image.Image(img) {
+			t.Fatalf("sin zonas debe devolver la misma imagen: masked=%d, err=%v", masked, err)
+		}
+	}
+}
+
+// La zona relativa se aplica en la parte correcta de la foto y el resto queda igual.
+func TestApplyMasksHidesTheMarkedArea(t *testing.T) {
+	img := detailed(image.Rect(0, 0, 300, 120))
+	plate := MaskRegion{X: 50.0 / 300, Y: 30.0 / 120, Width: 200.0 / 300, Height: 60.0 / 120}
+
+	out, masked, err := applyMasks(img, []MaskRegion{plate})
+	if err != nil || masked != 1 {
+		t.Fatalf("masked=%d, err=%v", masked, err)
+	}
+	rgba := out.(*image.RGBA)
+	zone := plate.ToPixels(300, 120)
+	if zone != image.Rect(50, 30, 250, 90) {
+		t.Fatalf("zona en píxeles: %v", zone)
+	}
+	if n := distinctColors(rgba, zone); n > 8*3 {
+		t.Errorf("la patente conserva %d colores, máximo %d", n, 8*3)
+	}
+	for _, p := range []image.Point{{10, 10}, {290, 110}, {49, 60}, {250, 60}} {
+		if rgba.RGBAAt(p.X, p.Y) != img.RGBAAt(p.X, p.Y) {
+			t.Errorf("%v fuera de la zona cambió", p)
+		}
+	}
+}
+
+// La imagen original no se modifica (se trabaja sobre una copia).
+func TestApplyMasksDoesNotModifyTheInput(t *testing.T) {
+	img := detailed(image.Rect(0, 0, 64, 64))
+	before := detailed(image.Rect(0, 0, 64, 64))
+	if _, _, err := applyMasks(img, []MaskRegion{{X: 0, Y: 0, Width: 1, Height: 1}}); err != nil {
+		t.Fatal(err)
+	}
+	if string(img.Pix) != string(before.Pix) {
+		t.Fatal("applyMasks no debe modificar la imagen recibida")
+	}
+}
+
+// Zonas superpuestas: ambas quedan ocultas y se cuentan las dos.
+func TestApplyMasksOverlappingRegions(t *testing.T) {
+	img := detailed(image.Rect(0, 0, 200, 200))
+	regions := []MaskRegion{
+		{X: 0.1, Y: 0.1, Width: 0.5, Height: 0.5},
+		{X: 0.4, Y: 0.4, Width: 0.5, Height: 0.5},
+	}
+	out, masked, err := applyMasks(img, regions)
+	if err != nil || masked != 2 {
+		t.Fatalf("masked=%d, err=%v", masked, err)
+	}
+	rgba := out.(*image.RGBA)
+	for i, r := range regions {
+		zone := r.ToPixels(200, 200)
+		// 100×100 px con bloques de 13 px: como mucho 8×8 bloques (más los de la
+		// otra zona que se superponen encima).
+		if n := distinctColors(rgba, zone); n > 2*8*8 {
+			t.Errorf("zona %d conserva %d colores", i+1, n)
+		}
+	}
+}
+
+// Funciona con las imágenes que entrega el decodificador de JPEG (YCbCr) y con
+// las que tienen transparencia (NRGBA).
+func TestApplyMasksWithDecodedImageTypes(t *testing.T) {
+	jpgImg := validated(t, gradient(64, 64, false), "image/jpeg")
+	decoded, err := decodeImage(jpgImg.Data, jpgImg.MimeType)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, img := range []image.Image{decoded, gradient(64, 64, true)} {
+		out, masked, err := applyMasks(img, []MaskRegion{{X: 0, Y: 0, Width: 0.5, Height: 0.5}})
+		if err != nil || masked != 1 || out.Bounds() != image.Rect(0, 0, 64, 64) {
+			t.Fatalf("%T: masked=%d, bounds=%v, err=%v", img, masked, out.Bounds(), err)
+		}
+	}
+}
+
+// Las zonas se validan otra vez: una inválida no se aplica a medias.
+func TestApplyMasksRejectsInvalidRegions(t *testing.T) {
+	img := detailed(image.Rect(0, 0, 40, 40))
+	_, masked, err := applyMasks(img, []MaskRegion{
+		{X: 0, Y: 0, Width: 0.5, Height: 0.5},
+		{X: 0.9, Y: 0, Width: 0.5, Height: 0.5}, // sale de la imagen
+	})
+	if !errors.Is(err, ErrInvalidMaskRegion) || masked != 0 {
+		t.Fatalf("want ErrInvalidMaskRegion sin aplicar nada, got masked=%d, %v", masked, err)
+	}
+	if _, _, err := applyMasks(img, make([]MaskRegion, MaxMaskRegions+1)); !errors.Is(err, ErrTooManyMaskRegions) {
+		t.Fatalf("want ErrTooManyMaskRegions, got %v", err)
 	}
 }

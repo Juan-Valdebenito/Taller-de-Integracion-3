@@ -1,6 +1,9 @@
 package attachment
 
-import "image"
+import (
+	"image"
+	"image/draw"
+)
 
 // Tamaño de los bloques del pixelado. Cada zona queda dividida en, como mucho,
 // MaxBlocksAcross bloques en su lado mayor: una patente de 200×60 px queda en
@@ -22,6 +25,35 @@ func blockSize(zone image.Rectangle) int {
 	// División redondeada hacia arriba: nunca más de MaxBlocksAcross bloques.
 	size := (longest + MaxBlocksAcross - 1) / MaxBlocksAcross
 	return max(size, MinBlockSize)
+}
+
+// applyMasks pixela todas las zonas indicadas por el pasajero y devuelve la
+// imagen resultante y cuántas zonas se ocultaron. Las coordenadas relativas se
+// convierten a píxeles del tamaño actual de la imagen. Las zonas se validan otra
+// vez (defensa adicional a ParseMaskRegions). No modifica la imagen recibida:
+// trabaja sobre una copia; sin zonas, devuelve la misma imagen.
+func applyMasks(img image.Image, regions []MaskRegion) (image.Image, int, error) {
+	if err := ValidateMaskRegions(regions); err != nil {
+		return nil, 0, err
+	}
+	if len(regions) == 0 {
+		return img, 0, nil
+	}
+
+	b := img.Bounds()
+	out := image.NewRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))
+	draw.Draw(out, out.Bounds(), img, b.Min, draw.Src)
+
+	masked := 0
+	for _, r := range regions {
+		zone := r.ToPixels(b.Dx(), b.Dy())
+		if zone.Empty() {
+			continue
+		}
+		pixelateZone(out, zone)
+		masked++
+	}
+	return out, masked, nil
 }
 
 // pixelateZone reemplaza, dentro de la zona, cada bloque por su color promedio.
