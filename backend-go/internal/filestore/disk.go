@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -106,6 +107,46 @@ func (d *DiskStore) Put(ctx context.Context, key string, data []byte) error {
 	}
 	syncDir(dir)
 	return nil
+}
+
+// Open abre la imagen para leerla (por ejemplo, para enviarla en una descarga
+// sin cargarla entera en memoria) y devuelve su tamaño. Quien llama debe
+// cerrarla. Solo abre archivos normales: una carpeta o un enlace simbólico con
+// ese nombre se trata como inexistente, para que un enlace nunca haga leer un
+// archivo de fuera de la carpeta de imágenes.
+func (d *DiskStore) Open(ctx context.Context, key string) (io.ReadCloser, int64, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, 0, err
+	}
+	p, err := d.path(key)
+	if err != nil {
+		return nil, 0, err
+	}
+	info, err := os.Lstat(p)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, 0, ErrFileNotFound
+		}
+		return nil, 0, fmt.Errorf("filestore: no se pudo leer el archivo: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return nil, 0, ErrFileNotFound
+	}
+	f, err := os.Open(p)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, 0, ErrFileNotFound
+		}
+		return nil, 0, fmt.Errorf("filestore: no se pudo abrir el archivo: %w", err)
+	}
+	// El archivo abierto debe ser el mismo que se revisó: si entre la revisión y
+	// la apertura lo reemplazaron (por ejemplo, por un enlace), no se entrega.
+	opened, err := f.Stat()
+	if err != nil || !os.SameFile(info, opened) {
+		f.Close()
+		return nil, 0, ErrFileNotFound
+	}
+	return f, opened.Size(), nil
 }
 
 // writeAndSync escribe todo, lo fuerza a disco y cierra el archivo.
