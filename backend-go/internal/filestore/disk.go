@@ -76,16 +76,13 @@ func (d *DiskStore) Put(ctx context.Context, key string, data []byte) error {
 		return err
 	}
 	dir := filepath.Dir(final)
-	if err := os.MkdirAll(dir, dirPerm); err != nil {
-		return fmt.Errorf("filestore: no se pudo crear la carpeta del reclamo: %w", err)
-	}
 	if _, err := os.Lstat(final); err == nil {
 		return ErrFileExists
 	}
 
-	tmp, err := os.CreateTemp(dir, tempPattern)
+	tmp, err := createTemp(dir)
 	if err != nil {
-		return fmt.Errorf("filestore: no se pudo crear el archivo temporal: %w", err)
+		return err
 	}
 	tmpName := tmp.Name()
 	defer os.Remove(tmpName) // tras publicar, el nombre final sigue apuntando a los datos
@@ -106,6 +103,63 @@ func (d *DiskStore) Put(ctx context.Context, key string, data []byte) error {
 		return fmt.Errorf("filestore: no se pudo publicar el archivo: %w", err)
 	}
 	syncDir(dir)
+	return nil
+}
+
+// createTemp crea la carpeta del reclamo (si falta) y un temporal dentro. Si un
+// Delete simultáneo borró la carpeta vacía justo entre ambos pasos, la vuelve a
+// crear y reintenta. Una vez creado el temporal la carpeta ya no está vacía, así
+// que Delete no puede borrarla mientras dura la subida.
+func createTemp(dir string) (*os.File, error) {
+	const attempts = 3
+	var err error
+	for i := 0; i < attempts; i++ {
+		if err = os.MkdirAll(dir, dirPerm); err != nil {
+			return nil, fmt.Errorf("filestore: no se pudo crear la carpeta del reclamo: %w", err)
+		}
+		var tmp *os.File
+		if tmp, err = os.CreateTemp(dir, tempPattern); err == nil {
+			return tmp, nil
+		}
+		if !errors.Is(err, fs.ErrNotExist) {
+			break
+		}
+	}
+	return nil, fmt.Errorf("filestore: no se pudo crear el archivo temporal: %w", err)
+}
+
+// Delete borra la imagen y, si la carpeta de su reclamo queda vacía, también la
+// carpeta. Como Open, solo borra archivos normales: una carpeta o un enlace
+// simbólico con ese nombre se trata como inexistente.
+func (d *DiskStore) Delete(ctx context.Context, key string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	p, err := d.path(key)
+	if err != nil {
+		return err
+	}
+	info, err := os.Lstat(p)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return ErrFileNotFound
+		}
+		return fmt.Errorf("filestore: no se pudo leer el archivo: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return ErrFileNotFound
+	}
+	if err := os.Remove(p); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return ErrFileNotFound
+		}
+		return fmt.Errorf("filestore: no se pudo borrar el archivo: %w", err)
+	}
+	dir := filepath.Dir(p)
+	// Solo se borra si quedó vacía: os.Remove falla con una carpeta con archivos
+	// (otras imágenes o una subida en curso), y ese error se ignora a propósito.
+	_ = os.Remove(dir)
+	syncDir(filepath.Dir(dir))
 	return nil
 }
 
