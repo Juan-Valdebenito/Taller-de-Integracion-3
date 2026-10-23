@@ -209,6 +209,12 @@ func maskJSONRecursive(node interface{}) interface{} {
 					result[k] = MaskIdentifier(strVal)
 					continue
 				}
+			// Quién subió una imagen adjunta a un reclamo (id del usuario).
+			case lowerKey == "uploadedby" || lowerKey == "uploaded_by":
+				if strVal, ok := val.(string); ok {
+					result[k] = MaskIdentifier(strVal)
+					continue
+				}
 			}
 			result[k] = maskJSONRecursive(val)
 		}
