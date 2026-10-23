@@ -215,6 +215,10 @@ func maskJSONRecursive(node interface{}) interface{} {
 					result[k] = MaskIdentifier(strVal)
 					continue
 				}
+			// Ruta interna del archivo de una imagen: el modelo ya no la serializa
+			// (json:"-"); si una respuesta armada a mano la incluyera, se elimina.
+			case lowerKey == "storagekey" || lowerKey == "storage_key":
+				continue
 			}
 			result[k] = maskJSONRecursive(val)
 		}

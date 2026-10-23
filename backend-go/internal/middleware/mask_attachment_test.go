@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -62,5 +64,62 @@ func TestMaskJSONMasksUploaderInsideComplaintAttachments(t *testing.T) {
 	}
 	if a := attachments[1].(map[string]interface{}); a["uploadedBy"] != "a296****79a6" {
 		t.Errorf("imagen 2: %v", a)
+	}
+}
+
+// Defensa extra: si una respuesta incluyera la ruta interna de un archivo, con
+// ?mask=true se elimina (en cualquier nivel y sin importar mayúsculas).
+func TestMaskJSONRemovesInternalFilePaths(t *testing.T) {
+	cases := []map[string]interface{}{
+		{"id": "att-1", "storageKey": "complaints/comp-1/9f3c.jpg"},
+		{"id": "att-1", "storage_key": "complaints/comp-1/9f3c.jpg"},
+		{"id": "att-1", "StorageKey": "complaints/comp-1/9f3c.jpg"},
+		{"id": "att-1", "storageKey": nil},
+	}
+	for _, attachment := range cases {
+		got := maskJSONRecursive(attachment).(map[string]interface{})
+		want := map[string]interface{}{"id": "att-1"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("%v: got %v, want %v", attachment, got, want)
+		}
+	}
+}
+
+func TestMaskJSONRemovesFilePathsInsideComplaintAttachments(t *testing.T) {
+	complaint := map[string]interface{}{
+		"id": "comp-1",
+		"attachments": []interface{}{
+			map[string]interface{}{"id": "att-1", "storageKey": "complaints/comp-1/a.jpg", "uploadedBy": "usr-pass-01"},
+			map[string]interface{}{"id": "att-2", "storageKey": "complaints/comp-1/b.png"},
+		},
+	}
+	got := maskJSONRecursive(complaint).(map[string]interface{})
+	raw, err := json.Marshal(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, leaked := range []string{"storageKey", "complaints/comp-1/a.jpg", "complaints/comp-1/b.png"} {
+		if strings.Contains(string(raw), leaked) {
+			t.Errorf("la respuesta enmascarada todavía contiene %q: %s", leaked, raw)
+		}
+	}
+	// El resto se mantiene (y uploadedBy queda enmascarado, 4e1).
+	first := got["attachments"].([]interface{})[0].(map[string]interface{})
+	if first["id"] != "att-1" || first["uploadedBy"] != "usr-****-01" {
+		t.Errorf("imagen 1: %v", first)
+	}
+}
+
+// Solo se elimina esa clave exacta: otros campos que contienen "key" o "storage"
+// no se tocan.
+func TestMaskJSONOnlyRemovesTheStorageKeyField(t *testing.T) {
+	data := map[string]interface{}{
+		"apiKeyName":   "x",
+		"storageUsage": float64(10),
+		"keyword":      "patente",
+	}
+	got := maskJSONRecursive(data)
+	if !reflect.DeepEqual(got, data) {
+		t.Fatalf("no debe eliminar otros campos: got %v", got)
 	}
 }
