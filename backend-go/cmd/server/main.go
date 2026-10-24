@@ -10,6 +10,7 @@ import (
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/config"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/db"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain/service"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/filestore"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/handler"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/infrastructure/grpcclient"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/logger"
@@ -159,6 +160,19 @@ func main() {
 			Msg("GPS simulation active")
 	} else {
 		log.Info().Str("event", "simulation_disabled").Msg("GPS simulation disabled")
+	}
+
+	// Almacenamiento de imágenes de reclamos (ATTACHMENTS_DIR). Si la carpeta no
+	// sirve, el backend sigue funcionando con las imágenes desactivadas.
+	attachmentStore, err := filestore.OpenDisk(ctx, cfg.AttachmentsDir)
+	if err != nil {
+		log.Warn().Err(err).Str("event", "attachments_storage_unavailable").
+			Str("dir", cfg.AttachmentsDir).
+			Msg("Complaint image storage unavailable; image uploads disabled")
+	} else {
+		log.Info().Str("event", "attachments_storage_ready").
+			Str("dir", attachmentStore.Root()).
+			Msg("Complaint image storage ready")
 	}
 
 	// â”€â”€ Router â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

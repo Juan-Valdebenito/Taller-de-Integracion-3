@@ -85,3 +85,43 @@ func TestCheckWritableCancelledContext(t *testing.T) {
 		t.Fatalf("want context.Canceled, got %v", err)
 	}
 }
+
+// Al iniciar: crea la carpeta (con sus carpetas intermedias) y comprueba que se
+// pueda escribir.
+func TestOpenDiskCreatesAndChecksTheFolder(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "data", "attachments")
+	s, err := OpenDisk(context.Background(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		t.Fatalf("la carpeta debe crearse: %v", err)
+	}
+	if !filepath.IsAbs(s.Root()) {
+		t.Errorf("la raíz debe ser absoluta: %q", s.Root())
+	}
+	if entries, _ := os.ReadDir(dir); len(entries) != 0 {
+		t.Errorf("no deben quedar archivos de prueba: %v", entries)
+	}
+}
+
+// Si la carpeta no sirve, devuelve error (y el backend sigue sin imágenes).
+func TestOpenDiskFailsWhenTheFolderIsUnusable(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "soy-un-archivo")
+	if err := os.WriteFile(file, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// Una carpeta "dentro" de un archivo no se puede crear.
+	s, err := OpenDisk(context.Background(), filepath.Join(file, "attachments"))
+	if err == nil || s != nil {
+		t.Fatalf("una ruta inválida debe fallar, got %v, %v", s, err)
+	}
+}
+
+func TestOpenDiskCancelledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if s, err := OpenDisk(ctx, t.TempDir()); !errors.Is(err, context.Canceled) || s != nil {
+		t.Fatalf("want context.Canceled, got %v, %v", s, err)
+	}
+}

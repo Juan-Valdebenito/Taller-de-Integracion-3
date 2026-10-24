@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/attachment"
 )
@@ -43,6 +44,26 @@ func NewDiskStore(root string) (*DiskStore, error) {
 
 // Root devuelve la carpeta raíz absoluta.
 func (d *DiskStore) Root() string { return d.root }
+
+// OpenTimeout limita cuánto espera OpenDisk por el disco al iniciar (un volumen
+// de red colgado no debe dejar el backend sin arrancar).
+const OpenTimeout = 5 * time.Second
+
+// OpenDisk prepara el almacenamiento al iniciar el backend: crea la carpeta si
+// no existe y comprueba que se pueda escribir en ella. Si devuelve error, el
+// backend debe seguir funcionando con las imágenes desactivadas.
+func OpenDisk(ctx context.Context, dir string) (*DiskStore, error) {
+	ctx, cancel := context.WithTimeout(ctx, OpenTimeout)
+	defer cancel()
+	store, err := NewDiskStore(dir)
+	if err != nil {
+		return nil, err
+	}
+	if err := store.CheckWritable(ctx); err != nil {
+		return nil, err
+	}
+	return store, nil
+}
 
 // ErrNotWritable: en la carpeta de imágenes no se puede escribir (solo lectura,
 // sin permisos, disco lleno o volumen mal montado).
