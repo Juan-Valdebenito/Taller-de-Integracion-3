@@ -8,7 +8,7 @@ y los aplica en orden.
 | Stack | Cuenta / namespace | Responsables | Qué despliega |
 |---|---|---|---|
 | `micro` | `student-jvaldebenito` | Ignacio | NATS · clima (BD, servicio, simulador) · micros (BD, servicio) · telemetría (BD, servicio) |
-| `app` | `student-tpenroz` | Tomás + Juan | Secrets/ConfigMaps · BD `transporte_db` · `backend-go` · `realtime` (Socket.io) · `frontend` · Ingress |
+| `app` | `student-tpenroz` | Tomás + Juan | frontend · bridge al backend remoto · Ingress |
 
 ```
                          Internet
@@ -16,15 +16,13 @@ y los aplica en orden.
                     proxy.inf.uct.cl
                             │
 ┌──────────────── student-tpenroz (app) ────────────────┐
-│ Ingress backend-go  (backend-tpenroz.dev.censei.cl)   │
-│   /socket.io → realtime-svc    /api → backend-go-svc  │
-│   /          → frontend-svc                           │
-│ backend-go ──► transporte-db-svc (PostgreSQL)         │
-└─────┼─────────────────────────────────────────────────┘
-      │ gRPC (clima-service-svc:9090, micros-service-svc:9091)
-┌─────▼────────── student-jvaldebenito (micro) ─────────┐
-│ clima-service ─ clima-db     micros-service ─ micros-db│
-│ clima-simulator   nats-svc   micro-telemetry ─ su BD  │
+│ Ingress backend-go ──► bridge-to-backend (ExternalName)│
+│ frontend-ingress ────► frontend-svc                    │
+└──────────────────────────┬────────────────────────────┘
+                           │ DNS interno de Kubernetes
+┌──────────────────────────▼ student-jvaldebenito ──────┐
+│ backend-go-svc ──► backend-go                         │
+│ clima-service · micros-service · NATS · telemetría    │
 └───────────────────────────────────────────────────────┘
 ```
 
@@ -125,7 +123,10 @@ requiere admin del cluster) y `services/micro_db/micros-db-storage.yml` (PVC de 
 
 ## Ingress con WebSocket
 
-`ingress/backend-go-ingress.yaml` (base: el Ingress de Tomás) usa el formato del
+`ingress/backend-go-ingress.yaml` se despliega en `student-tpenroz` y envía el
+tráfico al Service `bridge-to-backend`. El bridge resuelve `backend-go-svc` en
+`student-jvaldebenito`, donde permanecen el Deployment y Service del backend.
+El Ingress usa el formato del
 cluster de la UCT: `external-dns` → `proxy.inf.uct.cl`, clase `nginx`, sin `tls`
 (el HTTPS lo termina el proxy). Para el mapa en tiempo real agrega `proxy-http-version 1.1`,
 timeouts de 1 h, sin buffering y sesiones pegajosas por cookie.

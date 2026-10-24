@@ -47,8 +47,8 @@ FOUNDATION_FILES=(
 # ── Stack "app": student-tpenroz ──────────────────────────────
 APP_FILES=(
   services/frontend/frontend-deployment.yaml
-  ingress/backend-go-ingress.yaml
   ingress/backend-go-bridge.yaml
+  ingress/backend-go-ingress.yaml
   ingress/frontend-ingress.yaml
 )
 

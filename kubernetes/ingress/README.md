@@ -6,9 +6,13 @@ servidor Socket.io (`realtime`) sin cortarlo.
 
 ```
 Navegador ── https://<HOST>/            ──► frontend-svc   :80   (nginx + React)
-          ── https://<HOST>/api/...     ──► backend-go-svc :3001 (API REST)
+          ── https://<HOST>/api/...     ──► bridge-to-backend :3001 ──► backend-go-svc en student-jvaldebenito
           ── wss://<HOST>/socket.io/... ──► realtime-svc   :3001 (Socket.io)
 ```
+
+El Ingress y `bridge-to-backend` se despliegan en `student-tpenroz`. El backend y
+su Service `backend-go-svc` permanecen en `student-jvaldebenito`; el bridge es un
+Service `ExternalName` que resuelve el DNS completo del Service remoto.
 
 ## Qué hace cada archivo
 
