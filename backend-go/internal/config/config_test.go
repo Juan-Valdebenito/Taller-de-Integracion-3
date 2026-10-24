@@ -65,3 +65,25 @@ func TestCORSOrigins(t *testing.T) {
 		})
 	}
 }
+
+func TestAttachmentsDir(t *testing.T) {
+	cases := []struct {
+		name, env, want string
+	}{
+		{"por defecto, carpeta local excluida de Git", "", DefaultAttachmentsDir},
+		{"solo espacios usa el valor por defecto", "   ", DefaultAttachmentsDir},
+		{"ruta del volumen en el cluster", "/var/lib/transithub/attachments", "/var/lib/transithub/attachments"},
+		{"se recortan los espacios", "  ./imagenes  ", "./imagenes"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("ATTACHMENTS_DIR", tc.env)
+			if got := Load().AttachmentsDir; got != tc.want {
+				t.Fatalf("ATTACHMENTS_DIR=%q: got %q, want %q", tc.env, got, tc.want)
+			}
+		})
+	}
+	if DefaultAttachmentsDir != "./data/attachments" {
+		t.Errorf("valor por defecto inesperado: %q", DefaultAttachmentsDir)
+	}
+}

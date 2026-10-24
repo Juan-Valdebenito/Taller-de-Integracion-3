@@ -20,6 +20,10 @@ type Config struct {
 	CORSOrigins []string
 	Env         string
 
+	// AttachmentsDir es la carpeta donde se guardan las imágenes de los reclamos
+	// (ATTACHMENTS_DIR). En el cluster, un volumen persistente montado ahí.
+	AttachmentsDir string
+
 	// ── Duración de los JWT ────────────────────────────────────────────────
 	// El access token se usa en cada llamada a la API (vida corta); el refresh
 	// token solo sirve para pedir un par nuevo en POST /api/v1/auth/refresh.
@@ -116,6 +120,8 @@ func Load() *Config {
 		CORSOrigins: corsOrigins(),
 		Env:         getEnv("NODE_ENV", "development"),
 
+		AttachmentsDir: attachmentsDir(),
+
 		JWTAccessExpires:  accessDuration,
 		JWTRefreshExpires: refreshDuration,
 
@@ -150,6 +156,18 @@ func Load() *Config {
 		MicroAPIKey:       getEnv("MICRO_API_KEY", ""),
 		GRPCTimeout:       grpcTimeout,
 	}
+}
+
+// DefaultAttachmentsDir: carpeta de imágenes si no se define ATTACHMENTS_DIR
+// (relativa a donde se ejecuta el backend; está excluida de Git).
+const DefaultAttachmentsDir = "./data/attachments"
+
+// attachmentsDir lee ATTACHMENTS_DIR; vacío o solo espacios usa el valor por defecto.
+func attachmentsDir() string {
+	if dir := strings.TrimSpace(os.Getenv("ATTACHMENTS_DIR")); dir != "" {
+		return dir
+	}
+	return DefaultAttachmentsDir
 }
 
 // corsOrigins lee CORS_ORIGIN (uno o varios orígenes separados por coma).
