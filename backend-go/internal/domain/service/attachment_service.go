@@ -10,6 +10,7 @@ import (
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/attachment"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/filestore"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/repository"
 )
 
 // ComplaintFinder busca reclamos (lo implementa repository.ComplaintRepository).
@@ -37,6 +38,8 @@ var (
 	// ErrAttachmentStorageUnavailable: el almacenamiento de imágenes no está
 	// disponible (ver ATTACHMENTS_DIR); la API responde 503.
 	ErrAttachmentStorageUnavailable = errors.New("el almacenamiento de imágenes no está disponible en este momento")
+	// ErrAttachmentNotFound: la imagen no existe en ese reclamo.
+	ErrAttachmentNotFound = errors.New("imagen no encontrada")
 )
 
 // cleanupTimeout limita cuánto se espera al borrar un archivo que quedó sin registrar.
@@ -132,9 +135,86 @@ func (s *AttachmentService) Upload(
 	return saved, nil
 }
 
-// removeOrphan borra un archivo que se guardó pero no quedó registrado en la
-// base. Se hace aunque la petición se haya cancelado (ej. el usuario cerró la
-// app a mitad de la subida): por eso usa un contexto propio con tiempo límite.
+// List devuelve las imágenes del reclamo en orden de subida (lista vacía si no
+// tiene). Pueden verlas el dueño y los administradores.
+func (s *AttachmentService) List(ctx context.Context, actor domain.Actor, complaintID string) ([]domain.ComplaintAttachment, error) {
+	complaint, err := s.authorize(ctx, complaintID, actor, domain.CanViewAttachments)
+	if err != nil {
+		return nil, err
+	}
+	attachments, err := s.repo.FindByComplaintID(ctx, complaint.ID)
+	if err != nil {
+		return nil, fmt.Errorf("AttachmentService.List: %w", err)
+	}
+	if attachments == nil {
+		attachments = []domain.ComplaintAttachment{}
+	}
+	return attachments, nil
+}
+
+// Open abre una imagen del reclamo para descargarla y devuelve también sus
+// datos (tipo, tamaño). Quien llama debe cerrar el archivo.
+func (s *AttachmentService) Open(ctx context.Context, actor domain.Actor, complaintID, attachmentID string) (*domain.ComplaintAttachment, io.ReadCloser, error) {
+	if s.store == nil {
+		return nil, nil, ErrAttachmentStorageUnavailable
+	}
+	complaint, err := s.authorize(ctx, complaintID, actor, domain.CanViewAttachments)
+	if err != nil {
+		return nil, nil, err
+	}
+	att, err := s.repo.FindByID(ctx, complaint.ID, attachmentID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("AttachmentService.Open: %w", err)
+	}
+	if att == nil {
+		return nil, nil, ErrAttachmentNotFound
+	}
+	// Defensa adicional: el nombre interno debe ser válido y de este reclamo.
+	if err := attachment.ValidateStorageKeyFor(att.StorageKey, complaint.ID); err != nil {
+		return nil, nil, fmt.Errorf("AttachmentService.Open: imagen %s: %w", att.ID, err)
+	}
+	file, _, err := s.store.Open(ctx, att.StorageKey)
+	if err != nil {
+		if errors.Is(err, filestore.ErrFileNotFound) {
+			// El registro existe pero el archivo no: para el usuario, no hay imagen.
+			return nil, nil, ErrAttachmentNotFound
+		}
+		return nil, nil, fmt.Errorf("AttachmentService.Open: %w", err)
+	}
+	return att, file, nil
+}
+
+// Delete borra una imagen del reclamo (el dueño o un administrador). Primero
+// borra el registro y después el archivo: si el archivo no se pudiera borrar,
+// queda un archivo suelto e inalcanzable (inofensivo), en vez de un registro
+// que apunta a un archivo inexistente.
+func (s *AttachmentService) Delete(ctx context.Context, actor domain.Actor, complaintID, attachmentID string) error {
+	if s.store == nil {
+		return ErrAttachmentStorageUnavailable
+	}
+	complaint, err := s.authorize(ctx, complaintID, actor, domain.CanDeleteAttachment)
+	if err != nil {
+		return err
+	}
+	deleted, err := s.repo.Delete(ctx, complaint.ID, attachmentID)
+	if err != nil {
+		if errors.Is(err, repository.ErrAttachmentNotFound) {
+			return ErrAttachmentNotFound
+		}
+		return fmt.Errorf("AttachmentService.Delete: %w", err)
+	}
+	// Solo se toca el archivo si su nombre interno es válido y de este reclamo.
+	if attachment.ValidateStorageKeyFor(deleted.StorageKey, complaint.ID) == nil {
+		_ = s.removeOrphan(ctx, deleted.StorageKey)
+	}
+	return nil
+}
+
+// removeOrphan borra un archivo que ya no tiene registro en la base: el de una
+// subida que no se pudo registrar, o el de una imagen recién borrada. Se hace
+// aunque la petición se haya cancelado (ej. el usuario cerró la app a mitad):
+// por eso usa un contexto propio con tiempo límite. Si el archivo ya no existe,
+// no es un error.
 func (s *AttachmentService) removeOrphan(ctx context.Context, key string) error {
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
 	defer cancel()
