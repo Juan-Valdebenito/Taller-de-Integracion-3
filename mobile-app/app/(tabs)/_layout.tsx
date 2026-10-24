@@ -21,6 +21,12 @@ export default function TabLayout() {
           height: Platform.OS === 'ios' ? 88 : 64,
           paddingBottom: Platform.OS === 'ios' ? 28 : 8,
           paddingTop: 8,
+          // Subtle shadow for elevation
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.15,
+          shadowRadius: 12,
+          elevation: 12,
         },
         tabBarLabelStyle: {
           fontSize: 11,
@@ -93,6 +99,20 @@ export default function TabLayout() {
             />
           ),
           headerTitle: 'Estado de Rutas',
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Perfil',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons
+              name={'person-outline' as IoniconsName}
+              size={size}
+              color={typeof color === 'string' ? color : theme.textMuted}
+            />
+          ),
+          headerTitle: 'Mi Perfil',
         }}
       />
     </Tabs>
