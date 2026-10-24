@@ -44,6 +44,33 @@ func NewDiskStore(root string) (*DiskStore, error) {
 // Root devuelve la carpeta raíz absoluta.
 func (d *DiskStore) Root() string { return d.root }
 
+// ErrNotWritable: en la carpeta de imágenes no se puede escribir (solo lectura,
+// sin permisos, disco lleno o volumen mal montado).
+var ErrNotWritable = errors.New("filestore: no se puede escribir en la carpeta de imágenes")
+
+// CheckWritable comprueba que en la carpeta raíz realmente se pueda escribir:
+// crea un archivo de prueba, lo fuerza a disco y lo borra. Que la carpeta exista
+// no basta (puede estar en solo lectura); así el problema se detecta al iniciar
+// el backend y no cuando un pasajero sube su primera foto.
+func (d *DiskStore) CheckWritable(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	f, err := os.CreateTemp(d.root, ".write-check-*.tmp")
+	if err != nil {
+		return fmt.Errorf("%w (%s): %v", ErrNotWritable, d.root, err)
+	}
+	name := f.Name()
+	defer os.Remove(name)
+	if err := writeAndSync(f, []byte("ok")); err != nil {
+		return fmt.Errorf("%w (%s): %v", ErrNotWritable, d.root, err)
+	}
+	if err := os.Remove(name); err != nil {
+		return fmt.Errorf("%w (%s): no se pudo borrar el archivo de prueba: %v", ErrNotWritable, d.root, err)
+	}
+	return nil
+}
+
 // path convierte el nombre interno en la ruta del archivo. Además de validar el
 // nombre (3d2), comprueba que la ruta final quede dentro de la carpeta raíz.
 func (d *DiskStore) path(key string) (string, error) {
