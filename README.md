@@ -255,6 +255,10 @@ Base URL: `http://localhost:3001/api/v1`
 | Reclamos | POST | `/complaints` | PASSENGER |
 | Reclamos | PUT | `/complaints/:id/status` | ADMIN, COMPANY |
 | Reclamos | DELETE | `/complaints/:id` | ADMIN |
+| Imágenes de reclamos | POST | `/complaints/:id/attachments` | PASSENGER (dueño del reclamo) |
+| Imágenes de reclamos | GET | `/complaints/:id/attachments` | Dueño, ADMIN |
+| Imágenes de reclamos | GET | `/complaints/:id/attachments/:attachmentId/file` | Dueño, ADMIN |
+| Imágenes de reclamos | DELETE | `/complaints/:id/attachments/:attachmentId` | Dueño, ADMIN |
 
 ### Autenticación
 
@@ -264,6 +268,98 @@ Authorization: Bearer <token>
 ```
 
 El token se obtiene desde `POST /auth/login` o `POST /auth/register`.
+
+### Imágenes de reclamos
+
+El pasajero puede adjuntar hasta **3 fotos** a cada reclamo (por ejemplo, desde la app
+móvil). El backend Go las valida, quita los datos personales que traen y oculta las
+zonas que el pasajero marque (rostros, patentes) **antes** de guardarlas.
+
+**Permisos.** Sube solo el pasajero dueño del reclamo; ven, descargan y borran el dueño
+y los administradores. A cualquier otro usuario se le responde `404 reclamo no
+encontrado`, para no revelar que el reclamo existe. Todas las rutas requieren
+`Authorization: Bearer <token>`.
+
+**Subir** — `POST /complaints/:id/attachments`, formulario `multipart/form-data`:
+
+| Campo | Obligatorio | Contenido |
+|-------|-------------|-----------|
+| `file` | Sí | La foto: JPEG o PNG, máximo 5 MB, una por solicitud |
+| `maskRegions` | No | JSON con las zonas a ocultar, en coordenadas relativas de 0 a 1 sobre la foto tal como la ve el usuario: `[{"x":0.2,"y":0.3,"width":0.25,"height":0.1}]` (máximo 10 zonas) |
+
+```bash
+curl -X POST http://localhost:3001/api/v1/complaints/<id>/attachments \
+  -H "Authorization: Bearer <token>" \
+  -F "file=@foto.jpg" \
+  -F 'maskRegions=[{"x":0.2,"y":0.3,"width":0.25,"height":0.1}]'
+```
+
+Responde `201` con los datos de la imagen (sin la ruta interna ni el nombre original
+del archivo):
+
+```json
+{
+  "id": "…", "complaintId": "…", "mimeType": "image/jpeg", "sizeBytes": 245000,
+  "width": 1536, "height": 2048, "sha256": "…", "maskedRegions": 1,
+  "uploadedBy": "…", "createdAt": "2026-10-25T15:00:00Z"
+}
+```
+
+**Qué se hace con cada foto** (`backend-go/internal/attachment`):
+
+1. Se lee con límite de tamaño y se detecta el tipo real por su contenido (no por la
+   extensión): solo JPEG y PNG.
+2. Se revisan las dimensiones en la cabecera (máx. 8000 px por lado y 24 megapíxeles)
+   para frenar "bombas" de descompresión.
+3. Se gira según la orientación EXIF del celular y se reduce a 2048 px en su lado mayor.
+4. Se pixelan las zonas marcadas (bloques grandes: no se puede leer ni reconocer).
+5. Se vuelve a codificar desde cero: **desaparecen los metadatos EXIF, la ubicación GPS,
+   los comentarios y cualquier dato escondido** en el archivo.
+6. Se guarda con un nombre interno aleatorio (`ATTACHMENTS_DIR`) y se registra en la
+   tabla `complaint_attachments`. Si el registro falla, el archivo se borra.
+
+**Listar** — `GET /complaints/:id/attachments` → `200` con la lista (o `[]`).
+Con `?mask=true`, `uploadedBy` se enmascara.
+
+**Descargar** — `GET /complaints/:id/attachments/:attachmentId/file` → la imagen, con
+`X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none';
+sandbox` y `Cache-Control: private, no-store` (no se guarda en cachés intermedias).
+
+**Borrar** — `DELETE /complaints/:id/attachments/:attachmentId` → `204`.
+
+**Errores** (siempre `{"error": "mensaje en español"}`, sin detalles internos):
+
+| Código | Cuándo |
+|--------|--------|
+| 400 | Formulario mal armado, imagen vacía, dañada o demasiado grande en píxeles, zonas inválidas ("la zona 2 sale de la imagen") |
+| 401 | Sin sesión |
+| 403 | Puede ver las imágenes pero no hacer esa acción (ej. un administrador subiendo) |
+| 404 | El reclamo o la imagen no existen, o el usuario no tiene acceso |
+| 409 | La misma imagen ya está en el reclamo, o el reclamo ya tiene 3 imágenes |
+| 413 | La foto supera los 5 MB |
+| 415 | No es JPEG ni PNG |
+| 429 | Demasiadas subidas seguidas desde la misma IP |
+| 503 | Sin base de datos o sin almacenamiento de imágenes disponible |
+
+**Configuración** (`backend-go/.env`):
+
+| Variable | Por defecto | Uso |
+|----------|-------------|-----|
+| `ATTACHMENTS_DIR` | `./data/attachments` | Carpeta de las imágenes (excluida de Git). En el cluster, un volumen persistente |
+| `RATE_LIMIT_UPLOAD_PER_MIN` | `10` | Subidas por minuto por IP |
+| `RATE_LIMIT_UPLOAD_BURST` | `3` | Subidas seguidas permitidas por IP |
+
+Si la carpeta no se puede usar, el backend arranca igual y las rutas de imágenes
+responden `503` (se avisa en el log con el evento `attachments_storage_unavailable`).
+
+> **Base de datos:** el backend todavía no aplica las migraciones al iniciar. En una base
+> creada con `database_setup.sql`, aplicar una vez la tabla de imágenes:
+> `psql -U postgres -d transporte_db -f backend-go/internal/migrations/000002_complaint_attachments.up.sql`
+
+**Pruebas.** `go test ./...` corre las pruebas unitarias. La prueba de punta a punta
+(`internal/router/attachments_e2e_test.go`) y las del repositorio usan PostgreSQL real
+y solo corren con `TEST_DATABASE_URL` apuntando a una base de prueba con
+`database_setup.sql` más la migración 000002.
 
 ---
 
