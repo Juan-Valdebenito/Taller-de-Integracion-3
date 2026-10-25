@@ -75,6 +75,10 @@ type Config struct {
 	// Rotación de tokens (refresh, logout, revoke): solicitudes por minuto y ráfaga por IP.
 	TokenRateLimitPerMin int
 	TokenRateLimitBurst  int
+	// Subida de imágenes a reclamos: solicitudes por minuto y ráfaga por IP
+	// (también se desactiva con RATE_LIMIT_ENABLED=false).
+	UploadRateLimitPerMin int
+	UploadRateLimitBurst  int
 	// TrustedProxies son las IPs o rangos CIDR de los proxies (ej. el Ingress)
 	// de los que se acepta X-Forwarded-For para saber la IP real del cliente.
 	// Vacío = comportamiento por defecto de Gin (confía en cualquier proxy).
@@ -148,6 +152,9 @@ func Load() *Config {
 		TokenRateLimitPerMin: getEnvInt("RATE_LIMIT_TOKEN_PER_MIN", 30),
 		TokenRateLimitBurst:  getEnvInt("RATE_LIMIT_TOKEN_BURST", 10),
 		TrustedProxies:       getEnvList("TRUSTED_PROXIES"),
+
+		UploadRateLimitPerMin: getEnvInt("RATE_LIMIT_UPLOAD_PER_MIN", 10),
+		UploadRateLimitBurst:  getEnvInt("RATE_LIMIT_UPLOAD_BURST", 3),
 
 		// Proxies gRPC
 		ClimateGRPCTarget: getEnv("CLIMATE_GRPC_TARGET", "localhost:9090"),

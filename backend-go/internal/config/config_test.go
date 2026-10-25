@@ -87,3 +87,19 @@ func TestAttachmentsDir(t *testing.T) {
 		t.Errorf("valor por defecto inesperado: %q", DefaultAttachmentsDir)
 	}
 }
+
+func TestUploadRateLimit(t *testing.T) {
+	t.Setenv("RATE_LIMIT_UPLOAD_PER_MIN", "")
+	t.Setenv("RATE_LIMIT_UPLOAD_BURST", "")
+	cfg := Load()
+	if cfg.UploadRateLimitPerMin != 10 || cfg.UploadRateLimitBurst != 3 {
+		t.Fatalf("valores por defecto: %d/min, ráfaga %d", cfg.UploadRateLimitPerMin, cfg.UploadRateLimitBurst)
+	}
+
+	t.Setenv("RATE_LIMIT_UPLOAD_PER_MIN", "20")
+	t.Setenv("RATE_LIMIT_UPLOAD_BURST", "5")
+	cfg = Load()
+	if cfg.UploadRateLimitPerMin != 20 || cfg.UploadRateLimitBurst != 5 {
+		t.Fatalf("desde el entorno: %d/min, ráfaga %d", cfg.UploadRateLimitPerMin, cfg.UploadRateLimitBurst)
+	}
+}

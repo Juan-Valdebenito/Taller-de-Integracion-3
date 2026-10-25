@@ -175,6 +175,29 @@ func main() {
 			Msg("Complaint image storage ready")
 	}
 
+	// Servicio y endpoints de imágenes: requieren base de datos y almacenamiento.
+	// Sin alguno de los dos, attachmentH queda nil y las rutas responden 503.
+	var attachmentH *handler.AttachmentHandler
+	if dbAvailable && attachmentStore != nil {
+		attachmentSvc := service.NewAttachmentService(
+			repository.NewComplaintRepository(pool),
+			repository.NewComplaintAttachmentRepository(pool),
+			attachmentStore,
+		)
+		attachmentH = handler.NewAttachmentHandler(attachmentSvc)
+	}
+
+	// Límite de subidas de imágenes por IP (se desactiva con RATE_LIMIT_ENABLED=false).
+	var uploadLimiter *middleware.IPRateLimiter
+	if cfg.RateLimitEnabled {
+		uploadLimiter = middleware.NewIPRateLimiter(middleware.RateLimitConfig{
+			Name:              "attachment_upload",
+			RequestsPerMinute: cfg.UploadRateLimitPerMin,
+			Burst:             cfg.UploadRateLimitBurst,
+		})
+		uploadLimiter.StartCleanup(ctx, time.Minute)
+	}
+
 	// â”€â”€ Router â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 	// ── Clientes gRPC hacia microservicios ─────────────────────────────────
 	climateClient, err := grpcclient.NewClimateClient(cfg.ClimateGRPCTarget, cfg.ClimateAPIKey, cfg.GRPCTimeout)
@@ -225,6 +248,8 @@ func main() {
 		recaudoH,
 		healthH,
 		authLimits,
+		attachmentH,
+		uploadLimiter,
 	)
 
 	// IP real del cliente detrás del Ingress: solo se acepta X-Forwarded-For de
