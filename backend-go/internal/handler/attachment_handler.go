@@ -114,6 +114,58 @@ func clientErrorMessage(err error) string {
 	return "la imagen enviada no es válida"
 }
 
+// Campos del formulario multipart de subida.
+const (
+	uploadFileField  = "file"
+	uploadMaskField  = "maskRegions"
+	multipartMargin  = 64 << 10 // cabeceras y separadores del formulario
+	maxUploadRequest = domain.MaxAttachmentSizeBytes + attachment.MaxMaskRegionsJSONBytes + multipartMargin
+)
+
+// Upload godoc
+// POST /api/v1/complaints/:id/attachments — sube una foto al reclamo.
+// Formulario multipart: "file" (la imagen, obligatoria) y "maskRegions"
+// (opcional, JSON con las zonas a ocultar). Responde 201 con la imagen creada.
+func (h *AttachmentHandler) Upload(c *gin.Context) {
+	// Toda la solicitud se lee con límite: si alguien envía más, se corta sin
+	// cargarla entera. Como el límite es menor que la memoria permitida para el
+	// formulario, nunca se escriben archivos temporales.
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxUploadRequest)
+	if err := c.Request.ParseMultipartForm(maxUploadRequest + 1); err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": domain.ErrAttachmentTooLarge.Error()})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": `la imagen debe enviarse como formulario multipart con el campo "file"`})
+		return
+	}
+	defer c.Request.MultipartForm.RemoveAll()
+
+	files := c.Request.MultipartForm.File[uploadFileField]
+	switch {
+	case len(files) == 0:
+		c.JSON(http.StatusBadRequest, gin.H{"error": `falta la imagen: envíala en el campo "file"`})
+		return
+	case len(files) > 1:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "envía una sola imagen por solicitud"})
+		return
+	}
+	file, err := files[0].Open()
+	if err != nil {
+		respondAttachmentError(c, err)
+		return
+	}
+	defer file.Close()
+
+	saved, err := h.svc.Upload(c.Request.Context(), actorFrom(c), c.Param("id"), file, c.Request.FormValue(uploadMaskField))
+	if err != nil {
+		respondAttachmentError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, saved)
+}
+
 // respondAttachmentError responde el error con su código y mensaje; los
 // errores internos (5xx) se registran en el log con su detalle.
 func respondAttachmentError(c *gin.Context, err error) {
