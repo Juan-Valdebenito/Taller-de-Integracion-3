@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -164,6 +165,66 @@ func (h *AttachmentHandler) Upload(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, saved)
+}
+
+// List godoc
+// GET /api/v1/complaints/:id/attachments — imágenes del reclamo, en orden de subida.
+func (h *AttachmentHandler) List(c *gin.Context) {
+	attachments, err := h.svc.List(c.Request.Context(), actorFrom(c), c.Param("id"))
+	if err != nil {
+		respondAttachmentError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, attachments)
+}
+
+// Download godoc
+// GET /api/v1/complaints/:id/attachments/:attachmentId/file — descarga la imagen.
+// Se envía por partes (sin cargarla entera en memoria) y con encabezados que
+// impiden que el navegador la interprete como otra cosa o que la guarde una
+// caché intermedia (es un dato personal).
+func (h *AttachmentHandler) Download(c *gin.Context) {
+	att, file, err := h.svc.Open(c.Request.Context(), actorFrom(c), c.Param("id"), c.Param("attachmentId"))
+	if err != nil {
+		respondAttachmentError(c, err)
+		return
+	}
+	defer file.Close()
+
+	// El tipo viene de la base, pero se revisa igual: solo se sirven JPEG y PNG.
+	ext, err := domain.AttachmentExtension(att.MimeType)
+	if err != nil {
+		respondAttachmentError(c, fmt.Errorf("imagen %s con tipo inesperado %q: %w", att.ID, att.MimeType, errUnexpectedType))
+		return
+	}
+	c.DataFromReader(http.StatusOK, att.SizeBytes, att.MimeType, file, map[string]string{
+		"X-Content-Type-Options":  "nosniff",
+		"Content-Security-Policy": "default-src 'none'; sandbox",
+		"Cache-Control":           "private, no-store",
+		// Nombre genérico: nunca el nombre original del archivo.
+		"Content-Disposition": fmt.Sprintf(`inline; filename="reclamo-imagen-%s%s"`, safeFilenamePart(att.ID), ext),
+	})
+}
+
+// errUnexpectedType: una imagen guardada con un tipo que no es JPEG ni PNG
+// (dato inconsistente); se responde como error interno.
+var errUnexpectedType = errors.New("tipo de imagen inesperado")
+
+// safeFilenamePart deja solo letras ASCII, dígitos y "-" para el nombre del
+// archivo descargado (el id viene de la base, pero no se arma una cabecera con
+// caracteres que puedan romperla).
+func safeFilenamePart(s string) string {
+	out := make([]byte, 0, len(s))
+	for i := 0; i < len(s) && len(out) < 64; i++ {
+		ch := s[i]
+		if ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || ch >= '0' && ch <= '9' || ch == '-' {
+			out = append(out, ch)
+		}
+	}
+	if len(out) == 0 {
+		return "archivo"
+	}
+	return string(out)
 }
 
 // respondAttachmentError responde el error con su código y mensaje; los
