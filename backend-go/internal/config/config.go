@@ -24,6 +24,10 @@ type Config struct {
 	// (ATTACHMENTS_DIR). En el cluster, un volumen persistente montado ahí.
 	AttachmentsDir string
 
+	// MigrationsEnabled: aplicar las migraciones de internal/migrations al
+	// iniciar (MIGRATIONS_ENABLED, por defecto true).
+	MigrationsEnabled bool
+
 	// ── Duración de los JWT ────────────────────────────────────────────────
 	// El access token se usa en cada llamada a la API (vida corta); el refresh
 	// token solo sirve para pedir un par nuevo en POST /api/v1/auth/refresh.
@@ -125,6 +129,8 @@ func Load() *Config {
 		Env:         getEnv("NODE_ENV", "development"),
 
 		AttachmentsDir: attachmentsDir(),
+
+		MigrationsEnabled: getEnvBool("MIGRATIONS_ENABLED", true),
 
 		JWTAccessExpires:  accessDuration,
 		JWTRefreshExpires: refreshDuration,

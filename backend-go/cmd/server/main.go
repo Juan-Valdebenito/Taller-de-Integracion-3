@@ -50,6 +50,21 @@ func main() {
 		}
 	}
 
+	// Migraciones (antes del seed: crea o completa las tablas que usa).
+	if dbAvailable && cfg.MigrationsEnabled {
+		res, err := db.RunMigrations(ctx, cfg.DatabaseURL)
+		if err != nil {
+			log.Fatal().Err(err).Str("event", "migrations_failed").
+				Msg("Could not apply database migrations (MIGRATIONS_ENABLED=false skips them)")
+		}
+		if res.Baseline > 0 {
+			log.Info().Str("event", "migrations_baseline").Uint("version", res.Baseline).
+				Msg("Existing schema without schema_migrations marked as migrated")
+		}
+		log.Info().Str("event", "migrations_ready").Uint("from", res.From).Uint("to", res.To).
+			Bool("changed", res.Changed()).Msg("Database schema up to date")
+	}
+
 	// â”€â”€ Datos de prueba (solo si hay BD y no es producciÃ³n) â”€â”€â”€â”€
 	if dbAvailable && cfg.Env != "production" {
 		if err := seed.Run(ctx, pool); err != nil {

@@ -33,16 +33,12 @@ import (
 // repositorios contra PostgreSQL y almacenamiento en disco, todo por HTTP.
 //
 // Solo corre si TEST_DATABASE_URL apunta a una base de PRUEBA (los datos se
-// crean y se borran) con el esquema de database_setup.sql más la migración
-// 000002 de imágenes, igual que la base real:
+// crean y se borran) ya migrada. Basta con iniciar el backend una vez contra
+// ella (aplica las migraciones al arrancar):
 //
-//	psql -d transithub_test -f database_setup.sql
-//	psql -d transithub_test -f backend-go/internal/migrations/000002_complaint_attachments.up.sql
+//	psql -c "CREATE DATABASE transithub_test;"
+//	DATABASE_URL=postgresql://postgres:postgres@localhost:5432/transithub_test go run ./cmd/server
 //	TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/transithub_test go test ./internal/router -run E2E
-//
-// Con solo las migraciones (000001 + 000002) falla al buscar el reclamo: el
-// repositorio de reclamos usa las columnas rating y lineName, que la 000001 no
-// crea (desajuste previo entre las migraciones y database_setup.sql).
 
 type e2eEnv struct {
 	router      *gin.Engine

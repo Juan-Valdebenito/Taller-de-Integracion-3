@@ -68,8 +68,9 @@ Las migraciones se encuentran en:
 backend-go/
 └── internal/
     └── migrations/
-        ├── 000001_init.up.sql
-        └── 000001_init.down.sql
+        ├── 000001_init.up.sql / .down.sql                    (esquema base)
+        ├── 000002_complaint_attachments.up.sql / .down.sql   (imágenes de reclamos)
+        └── 000003_sync_database_setup.up.sql / .down.sql     (valoración y línea en reclamos, recaudo)
 ```
 
 Al ejecutar el backend:
@@ -80,19 +81,13 @@ go run ./cmd/server
 
 las migraciones pendientes se ejecutan automáticamente antes de iniciar el servidor HTTP.
 
-Por ejemplo:
+En el log aparece el evento `migrations_ready` con la versión de la que partió y a la
+que llegó (`"from":1,"to":3,"changed":true`). Si la base ya está al día, `changed` es
+`false` y no se ejecuta nada.
 
-```text
-Migraciones ejecutadas correctamente
-Servidor escuchando en :3001
-```
-
-Si la base de datos ya está actualizada, no se ejecutan nuevamente:
-
-```text
-Base de datos ya está actualizada
-Servidor escuchando en :3001
-```
+Si una migración falla, el backend **no arranca** (evento `migrations_failed`) para no
+trabajar con un esquema a medias. Con `MIGRATIONS_ENABLED=false` se saltan las
+migraciones (por ejemplo, si el esquema se administra por fuera).
 
 `golang-migrate` utiliza la tabla `schema_migrations` para registrar la versión actual de la base de datos.
 
@@ -104,10 +99,10 @@ Se debe crear una nueva migración:
 
 ```text
 internal/migrations/
-├── 000001_init.up.sql
-├── 000001_init.down.sql
-├── 000002_nombre_del_cambio.up.sql
-└── 000002_nombre_del_cambio.down.sql
+├── ...
+├── 000003_sync_database_setup.down.sql
+├── 000004_nombre_del_cambio.up.sql
+└── 000004_nombre_del_cambio.down.sql
 ```
 
 El archivo `.up.sql` contiene los cambios que se aplicarán:
@@ -128,23 +123,17 @@ Al volver a iniciar el backend, `golang-migrate` detectará automáticamente la 
 
 ### Importante para una base de datos existente
 
-Si `transporte_db` ya fue creada anteriormente utilizando `database_setup.sql`, no se debe ejecutar `000001_init.up.sql` sobre esa base si las tablas ya existen.
+No hace falta borrarla. Si `transporte_db` ya tiene tablas pero no la tabla
+`schema_migrations` (porque se creó con `database_setup.sql` o aplicando la 000001 a
+mano), el backend lo detecta al iniciar:
 
-Para un entorno de desarrollo limpio, se recomienda recrear la base de datos:
+1. La marca como si ya tuviera la migración 000001 (o la 000002, si ya existe la tabla
+   `complaint_attachments`). En el log aparece el evento `migrations_baseline`.
+2. Aplica solo lo que falta. La 000003 es idempotente: agrega `rating`, `lineName`,
+   la categoría `FARES_PAYMENT` y la tabla `recaudo_transactions` solo si no existen.
 
-```bash
-psql -U postgres -c "DROP DATABASE transporte_db;"
-psql -U postgres -c "CREATE DATABASE transporte_db;"
-```
-
-Después:
-
-```bash
-cd backend-go
-go run ./cmd/server
-```
-
-La migración `000001_init.up.sql` creará automáticamente las tablas, tipos ENUM, índices, funciones y triggers.
+Los datos existentes no se tocan. Un candado de PostgreSQL evita que dos réplicas del
+backend migren la misma base al mismo tiempo.
 
 > `database_setup.sql` deja de ser el mecanismo principal para inicializar o actualizar la base de datos. Las migraciones de `internal/migrations/` pasan a ser la fuente oficial del esquema.
 
@@ -352,14 +341,14 @@ sandbox` y `Cache-Control: private, no-store` (no se guarda en cachés intermedi
 Si la carpeta no se puede usar, el backend arranca igual y las rutas de imágenes
 responden `503` (se avisa en el log con el evento `attachments_storage_unavailable`).
 
-> **Base de datos:** el backend todavía no aplica las migraciones al iniciar. En una base
-> creada con `database_setup.sql`, aplicar una vez la tabla de imágenes:
-> `psql -U postgres -d transporte_db -f backend-go/internal/migrations/000002_complaint_attachments.up.sql`
+La tabla `complaint_attachments` la crea la migración 000002 al iniciar el backend.
 
 **Pruebas.** `go test ./...` corre las pruebas unitarias. La prueba de punta a punta
 (`internal/router/attachments_e2e_test.go`) y las del repositorio usan PostgreSQL real
-y solo corren con `TEST_DATABASE_URL` apuntando a una base de prueba con
-`database_setup.sql` más la migración 000002.
+y solo corren con `TEST_DATABASE_URL` apuntando a una base de prueba ya migrada.
+Las pruebas de migraciones (`internal/db/migrate_integration_test.go`) crean y borran sus
+propias bases temporales: `TEST_DATABASE_URL` debe apuntar a un servidor de prueba con
+permiso para crear bases (por ejemplo `.../postgres`).
 
 ---
 
