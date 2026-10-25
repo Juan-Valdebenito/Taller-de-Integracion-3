@@ -206,6 +206,17 @@ func (h *AttachmentHandler) Download(c *gin.Context) {
 	})
 }
 
+// Delete godoc
+// DELETE /api/v1/complaints/:id/attachments/:attachmentId — borra una imagen del
+// reclamo (el dueño o un administrador). Responde 204 sin contenido.
+func (h *AttachmentHandler) Delete(c *gin.Context) {
+	if err := h.svc.Delete(c.Request.Context(), actorFrom(c), c.Param("id"), c.Param("attachmentId")); err != nil {
+		respondAttachmentError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 // errUnexpectedType: una imagen guardada con un tipo que no es JPEG ni PNG
 // (dato inconsistente); se responde como error interno.
 var errUnexpectedType = errors.New("tipo de imagen inesperado")
