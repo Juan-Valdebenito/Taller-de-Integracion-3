@@ -4,6 +4,8 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './LiveMap.css';
 import { HazardMarker } from './HazardMarker';
+import { StopMarker } from '../map/StopMarker';
+import type { MicroStop } from '../../../infrastructure/api/microStopsApi';
 
 // Fix for default Leaflet icon paths in React
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -45,6 +47,7 @@ export interface HazardData {
 
 interface LiveMapProps {
   buses: BusData[];
+  stops?: MicroStop[];
   hazards: HazardData[];
   onBusClick: (busId: string, lineName: string) => void;
   onMapClick: (lat: number, lng: number) => void;
@@ -152,6 +155,7 @@ const createBusIcon = (
 
 export const LiveMap: React.FC<LiveMapProps> = ({
   buses,
+  stops = [],
   hazards,
   onBusClick,
   onMapClick,
@@ -182,6 +186,10 @@ export const LiveMap: React.FC<LiveMapProps> = ({
         />
         
         <MapClickHandler />
+
+        {stops.map((stop) => (
+          <StopMarker key={stop.id} stop={stop} />
+        ))}
         
         {buses.map((bus) => {
           const pass = bus.currentPassengers ?? 0;

@@ -5,9 +5,10 @@ import { LiveMap, BusData, HazardData } from '../../components/passenger/LiveMap
 import { HazardModal } from '../../components/passenger/HazardModal';
 import { DevToolsSimulationPanel } from '../../components/passenger/DevToolsSimulationPanel';
 import { RealtimeStatusBadge, RealtimeStatus } from '../../components/map/RealtimeStatusBadge';
+import { microStopsApi, type MicroStop } from '../../../infrastructure/api/microStopsApi';
 import { io, Socket } from 'socket.io-client';
 
-// Micros iniciales en Temuco para garantizar visualización inmediata
+// Micros iniciales en Temuco para garantizar visualizaciï¿½n inmediata
 const INITIAL_BUSES: BusData[] = [
   {
     id: 'B-7A-01',
@@ -24,7 +25,7 @@ const INITIAL_BUSES: BusData[] = [
     isFull: false,
     lastEvent: {
       type: 'tap_in_normal',
-      description: 'Pasajero ingresó (Pago estándar $700 CLP)',
+      description: 'Pasajero ingresï¿½ (Pago estï¿½ndar $700 CLP)',
       timestamp: new Date().toLocaleTimeString(),
     },
   },
@@ -78,6 +79,7 @@ export function PassengerMapPage() {
   const [buses, setBuses] = useState<BusData[]>(INITIAL_BUSES);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [hazards, setHazards] = useState<HazardData[]>([]);
+  const [stops, setStops] = useState<MicroStop[]>([]);
   const [isHazardModalOpen, setIsHazardModalOpen] = useState(false);
   const [pendingLocation, setPendingLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('connecting');
@@ -86,7 +88,11 @@ export function PassengerMapPage() {
   const [lastUpdateAt, setLastUpdateAt] = useState<number | null>(null);
 
   useEffect(() => {
-    // Carga inicial vía REST
+    microStopsApi.getAll()
+      .then(({ stops: loadedStops }) => setStops(loadedStops))
+      .catch((err) => console.warn('Carga de paraderos:', err.message));
+
+    // Carga inicial vï¿½a REST
     axios.get('/api/v1/buses')
       .then((res) => {
         const rawList = Array.isArray(res.data) ? res.data : (res.data?.data || []);
@@ -177,7 +183,7 @@ export function PassengerMapPage() {
     socketInstance.on('bus:location:broadcast', updateBusState);
     socketInstance.on('bus:status:broadcast', updateBusState);
 
-    // Simulación de movimiento local suave si el backend no emite WebSockets
+    // Simulaciï¿½n de movimiento local suave si el backend no emite WebSockets
     const movementInterval = setInterval(() => {
       if (socketInstance.connected) return;
       setBuses((prev) =>
@@ -214,22 +220,22 @@ export function PassengerMapPage() {
         if (eventType === 'tap_in_normal') {
           pass = Math.min(b.capacity || 35, pass + 1);
           boardings += 1;
-          desc = 'Pasajero ingresó (Tarjeta Normal +$700)';
+          desc = 'Pasajero ingresï¿½ (Tarjeta Normal +$700)';
         } else if (eventType === 'tap_in_student') {
           pass = Math.min(b.capacity || 35, pass + 1);
           boardings += 1;
           school += 1;
-          desc = 'Estudiante ingresó (TNE +$240)';
+          desc = 'Estudiante ingresï¿½ (TNE +$240)';
         } else if (eventType === 'sensor_alight') {
           pass = Math.max(0, pass - 1);
           alight += 1;
-          desc = 'Pasajero descendió por puerta trasera (-1)';
+          desc = 'Pasajero descendiï¿½ por puerta trasera (-1)';
         } else if (eventType === 'fill_max' || eventType === 'fill_capacity') {
           pass = b.capacity || 35;
-          desc = 'Micro completó su capacidad máxima (35)';
+          desc = 'Micro completï¿½ su capacidad mï¿½xima (35)';
         } else if (eventType === 'reset_empty' || eventType === 'empty_capacity') {
           pass = 0;
-          desc = 'Microbús vaciado (0 pasajeros)';
+          desc = 'Microbï¿½s vaciado (0 pasajeros)';
         }
 
         const cap = b.capacity || 35;
@@ -300,9 +306,10 @@ export function PassengerMapPage() {
       padding: 'var(--space-4)',
       boxSizing: 'border-box'
     }}>
-      {/* Mapa Interactivo con Aforo Dinámico */}
+      {/* Mapa Interactivo con Aforo Dinï¿½mico */}
       <LiveMap 
         buses={buses} 
+        stops={stops}
         hazards={hazards}
         onBusClick={handleBusClick} 
         onMapClick={handleMapClick}
@@ -311,7 +318,7 @@ export function PassengerMapPage() {
         selectedBusId={selectedBus.busId}
       />
 
-      {/* Estado de la conexión en tiempo real */}
+      {/* Estado de la conexiï¿½n en tiempo real */}
       <RealtimeStatusBadge
         status={realtimeStatus}
         transport={transport}
@@ -319,7 +326,7 @@ export function PassengerMapPage() {
         lastUpdateAt={lastUpdateAt}
       />
 
-      {/* Panel Flotante DevTools para Simulación de Sensores y Pagos (Líneas 7A, 7B, 1C) */}
+      {/* Panel Flotante DevTools para Simulaciï¿½n de Sensores y Pagos (Lï¿½neas 7A, 7B, 1C) */}
       <DevToolsSimulationPanel
         socket={socket}
         buses={buses as any}
