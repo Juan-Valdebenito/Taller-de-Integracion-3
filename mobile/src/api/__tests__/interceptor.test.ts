@@ -1,8 +1,8 @@
 import * as SecureStore from 'expo-secure-store';
 
 import { clearTokens, getTokens, saveTokens } from '../../storage/tokenStorage';
-import { authHeaderOf, fakeResponse, installFetchMock, type FetchMock } from '../../test-utils/http';
-import { ApiError } from '../errors';
+import { authHeaderOf, bodyOf, fakeResponse, installFetchMock, type FetchMock } from '../../test-utils/http';
+import { ApiError, DEFAULT_MESSAGES } from '../errors';
 import { authFetch, INVALID_REFRESH_RESPONSE, isSessionInvalid, setSessionExpiredHandler } from '../interceptor';
 
 const mockStore = SecureStore as unknown as { __reset: () => void };
@@ -132,23 +132,6 @@ describe('authFetch', () => {
     await expect(getTokens()).resolves.toEqual({ accessToken: 'access-old', refreshToken: 'refresh-old' });
   });
 
-  it('si el refresh responde 503, devuelve ese error y no cierra la sesión', async () => {
-    const onExpired = jest.fn();
-    setSessionExpiredHandler(onExpired);
-    fetchMock
-      .mockResolvedValueOnce(fakeResponse({ status: 401 }))
-      .mockResolvedValueOnce(
-        fakeResponse({ status: 503, body: { error: 'No se pudo verificar el estado del token, intenta nuevamente' } }),
-      );
-
-    await expect(authFetch('/auth/me')).rejects.toMatchObject({
-      status: 503,
-      message: 'No se pudo verificar el estado del token, intenta nuevamente',
-    });
-    expect(onExpired).not.toHaveBeenCalled();
-    await expect(getTokens()).resolves.toEqual({ accessToken: 'access-old', refreshToken: 'refresh-old' });
-  });
-
   it.each([
     ['vacío', undefined],
     ['sin refresh token', { accessToken: 'access-new' }],
@@ -166,17 +149,98 @@ describe('authFetch', () => {
     expect(onExpired).not.toHaveBeenCalled();
     await expect(getTokens()).resolves.toEqual({ accessToken: 'access-old', refreshToken: 'refresh-old' });
   });
+});
 
-  it('si el refresh responde 400, cierra la sesión', async () => {
-    const onExpired = jest.fn();
+// Códigos de POST /auth/refresh en backend-go: 401, 400 y 503 los responde
+// handler.AuthHandler.Refresh (con esos mensajes), 429 el limitador de tokens,
+// y un 500/502 sin cuerpo puede venir de un panic recuperado o de un proxy.
+describe('authFetch cuando falla la renovación', () => {
+  const OLD_TOKENS = { accessToken: 'access-old', refreshToken: 'refresh-old' };
+  let onExpired: jest.Mock;
+
+  beforeEach(() => {
+    onExpired = jest.fn();
     setSessionExpiredHandler(onExpired);
-    fetchMock
-      .mockResolvedValueOnce(fakeResponse({ status: 401 }))
-      .mockResolvedValueOnce(fakeResponse({ status: 400, body: { error: 'refreshToken es requerido' } }));
+  });
+
+  /** La solicitud da 401 y la renovación responde `refresh`. */
+  function failRefreshWith(refresh: Response) {
+    fetchMock.mockResolvedValueOnce(fakeResponse({ status: 401 })).mockResolvedValueOnce(refresh);
+  }
+
+  it.each([
+    [401, 'Refresh token inválido o expirado'],
+    [401, 'Refresh token ya utilizado o revocado'],
+    [400, 'refreshToken es requerido'],
+  ])('un %i ("%s") cierra la sesión y borra los tokens', async (status, error) => {
+    failRefreshWith(fakeResponse({ status, body: { error } }));
 
     await expect(authFetch('/auth/me')).rejects.toMatchObject({ status: 401 });
     expect(onExpired).toHaveBeenCalledTimes(1);
     await expect(getTokens()).resolves.toBeNull();
+  });
+
+  it.each([
+    [503, 'No se pudo verificar el estado del token, intenta nuevamente'],
+    [500, undefined],
+    [502, undefined],
+  ])('un %i entrega ese error y conserva la sesión', async (status, error) => {
+    failRefreshWith(fakeResponse({ status, body: error ? { error } : undefined }));
+
+    const rejection = expect(authFetch('/auth/me')).rejects;
+    await rejection.toMatchObject({ status });
+    await rejection.not.toMatchObject({ message: DEFAULT_MESSAGES[401] });
+    if (error) {
+      await rejection.toMatchObject({ message: error });
+    }
+    expect(onExpired).not.toHaveBeenCalled();
+    await expect(getTokens()).resolves.toEqual(OLD_TOKENS);
+  });
+
+  it('un 429 conserva la sesión y entrega el tiempo de espera', async () => {
+    // Igual que middleware.IPRateLimiter: header Retry-After y retryAfter en el body.
+    const error = 'Demasiadas solicitudes. Intenta nuevamente en 30 segundos.';
+    failRefreshWith(
+      fakeResponse({ status: 429, headers: { 'Retry-After': '30' }, body: { error, retryAfter: 30 } }),
+    );
+
+    await expect(authFetch('/auth/me')).rejects.toMatchObject({ status: 429, retryAfter: 30, message: error });
+    expect(onExpired).not.toHaveBeenCalled();
+    await expect(getTokens()).resolves.toEqual(OLD_TOKENS);
+  });
+
+  it('cuando el backend se recupera, renueva con el mismo refresh token y la solicitud funciona', async () => {
+    failRefreshWith(fakeResponse({ status: 503 }));
+    await expect(authFetch('/auth/me')).rejects.toMatchObject({ status: 503 });
+
+    fetchMock
+      .mockResolvedValueOnce(fakeResponse({ status: 401 }))
+      .mockResolvedValueOnce(refreshed)
+      .mockResolvedValueOnce(fakeResponse({ body: { id: '1' } }));
+    const response = await authFetch('/auth/me');
+
+    expect(response.status).toBe(200);
+    expect(fetchMock.mock.calls[3][0]).toMatch(/\/auth\/refresh$/);
+    expect(bodyOf(fetchMock, 3)).toEqual({ refreshToken: 'refresh-old' });
+    expect(authHeaderOf(fetchMock, 4)).toBe('Bearer access-new');
+    expect(onExpired).not.toHaveBeenCalled();
+    await expect(getTokens()).resolves.toEqual({ accessToken: 'access-new', refreshToken: 'refresh-new' });
+  });
+
+  it('con solicitudes simultáneas, una sola renovación fallida rechaza todas sin cerrar la sesión', async () => {
+    fetchMock.mockImplementation(async (url) =>
+      url.endsWith('/auth/refresh') ? fakeResponse({ status: 503 }) : fakeResponse({ status: 401 }),
+    );
+
+    const results = await Promise.allSettled([authFetch('/a'), authFetch('/b'), authFetch('/c')]);
+
+    expect(results.map((r) => r.status)).toEqual(['rejected', 'rejected', 'rejected']);
+    for (const r of results) {
+      expect((r as PromiseRejectedResult).reason).toMatchObject({ status: 503 });
+    }
+    expect(fetchMock.mock.calls.filter(([url]) => url.endsWith('/auth/refresh'))).toHaveLength(1);
+    expect(onExpired).not.toHaveBeenCalled();
+    await expect(getTokens()).resolves.toEqual(OLD_TOKENS);
   });
 });
 
