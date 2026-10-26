@@ -74,6 +74,19 @@ function withAccessToken(init: RequestInit, accessToken: string | null): Request
   return { ...init, headers: { ...headersToRecord(init.headers), Authorization: `Bearer ${accessToken}` } };
 }
 
+/**
+ * Indica si un fallo de POST /auth/refresh significa que la sesión ya no sirve.
+ *
+ * backend-go responde 401 si el refresh token es inválido, venció o ya se usó,
+ * y 400 si no se envió: en esos casos hay que volver al login. Un 429 (límite
+ * de intentos), un 5xx (ej. 503 si no puede consultar la lista de revocados) o
+ * la falta de conexión son pasajeros: el refresh token no se consumió y sigue
+ * sirviendo, así que no se cierra la sesión.
+ */
+export function isSessionInvalid(error: unknown): boolean {
+  return error instanceof ApiError && (error.status === 401 || error.status === 400);
+}
+
 let refreshInFlight: Promise<string> | null = null;
 
 /**

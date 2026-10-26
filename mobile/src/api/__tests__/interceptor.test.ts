@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import { clearTokens, getTokens, saveTokens } from '../../storage/tokenStorage';
 import { authHeaderOf, fakeResponse, installFetchMock, type FetchMock } from '../../test-utils/http';
 import { ApiError } from '../errors';
-import { authFetch, setSessionExpiredHandler } from '../interceptor';
+import { authFetch, isSessionInvalid, setSessionExpiredHandler } from '../interceptor';
 
 const mockStore = SecureStore as unknown as { __reset: () => void };
 let fetchMock: FetchMock;
@@ -130,5 +130,20 @@ describe('authFetch', () => {
     await expect(authFetch('/auth/me')).rejects.toMatchObject({ status: 0 });
     expect(onExpired).not.toHaveBeenCalled();
     await expect(getTokens()).resolves.toEqual({ accessToken: 'access-old', refreshToken: 'refresh-old' });
+  });
+});
+
+describe('isSessionInvalid', () => {
+  it.each([401, 400])('un %i del refresh significa que la sesión ya no sirve', (status) => {
+    expect(isSessionInvalid(new ApiError(status, 'x'))).toBe(true);
+  });
+
+  it.each([0, 429, 500, 502, 503])('un %i del refresh es pasajero: la sesión se conserva', (status) => {
+    expect(isSessionInvalid(new ApiError(status, 'x'))).toBe(false);
+  });
+
+  it('un error que no viene de la API no cierra la sesión', () => {
+    expect(isSessionInvalid(new Error('SecureStore no disponible'))).toBe(false);
+    expect(isSessionInvalid(undefined)).toBe(false);
   });
 });
