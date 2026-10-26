@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import { clearTokens, getTokens, saveTokens } from '../../storage/tokenStorage';
 import { authHeaderOf, fakeResponse, installFetchMock, type FetchMock } from '../../test-utils/http';
 import { ApiError } from '../errors';
-import { authFetch, isSessionInvalid, setSessionExpiredHandler } from '../interceptor';
+import { authFetch, INVALID_REFRESH_RESPONSE, isSessionInvalid, setSessionExpiredHandler } from '../interceptor';
 
 const mockStore = SecureStore as unknown as { __reset: () => void };
 let fetchMock: FetchMock;
@@ -145,6 +145,24 @@ describe('authFetch', () => {
       status: 503,
       message: 'No se pudo verificar el estado del token, intenta nuevamente',
     });
+    expect(onExpired).not.toHaveBeenCalled();
+    await expect(getTokens()).resolves.toEqual({ accessToken: 'access-old', refreshToken: 'refresh-old' });
+  });
+
+  it.each([
+    ['vacío', undefined],
+    ['sin refresh token', { accessToken: 'access-new' }],
+    ['con tokens vacíos', { accessToken: '', refreshToken: '' }],
+    ['con tokens que no son texto', { accessToken: 123, refreshToken: null }],
+  ])('si el refresh responde 200 con un cuerpo %s, no guarda nada y conserva la sesión', async (_kind, body) => {
+    const onExpired = jest.fn();
+    setSessionExpiredHandler(onExpired);
+    fetchMock
+      .mockResolvedValueOnce(fakeResponse({ status: 401 }))
+      .mockResolvedValueOnce(fakeResponse({ status: 200, body }));
+
+    await expect(authFetch('/auth/me')).rejects.toMatchObject({ status: 502, message: INVALID_REFRESH_RESPONSE });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(onExpired).not.toHaveBeenCalled();
     await expect(getTokens()).resolves.toEqual({ accessToken: 'access-old', refreshToken: 'refresh-old' });
   });

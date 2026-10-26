@@ -87,6 +87,18 @@ export function isSessionInvalid(error: unknown): boolean {
   return error instanceof ApiError && (error.status === 401 || error.status === 400);
 }
 
+export const INVALID_REFRESH_RESPONSE = 'El servidor respondió de forma inesperada. Inténtalo más tarde.';
+
+function hasTokenPair(data: unknown): data is Pick<AuthResponse, 'accessToken' | 'refreshToken'> {
+  const tokens = data as Partial<AuthResponse> | null;
+  return (
+    typeof tokens?.accessToken === 'string' &&
+    tokens.accessToken !== '' &&
+    typeof tokens.refreshToken === 'string' &&
+    tokens.refreshToken !== ''
+  );
+}
+
 let refreshInFlight: Promise<string> | null = null;
 
 /**
@@ -109,9 +121,13 @@ export function refreshAccessToken(): Promise<string> {
       if (!response.ok) {
         throw toApiError(response, data);
       }
-      const tokens = data as AuthResponse;
-      await saveTokens({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken });
-      return tokens.accessToken;
+      if (!hasTokenPair(data)) {
+        // Un 200 sin tokens (cuerpo vacío o cortado por un proxy) es una falla
+        // del servidor: no se guarda nada y la sesión se conserva (no es 401/400).
+        throw new ApiError(502, INVALID_REFRESH_RESPONSE);
+      }
+      await saveTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken });
+      return data.accessToken;
     })().finally(() => {
       refreshInFlight = null;
     });
