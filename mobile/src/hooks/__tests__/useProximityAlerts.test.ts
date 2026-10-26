@@ -1,4 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
+import * as Notifications from 'expo-notifications';
 import { Vibration } from 'react-native';
 
 import * as busesApi from '../../api/busesApi';
@@ -215,6 +216,52 @@ describe('useProximityAlerts', () => {
       await act(async () => respond([bus('b1', PLAZA, 300)]));
       expect(result.current.alert?.bus.id).toBe('b9');
       expect(result.current.stop).toBe(OTHER);
+    });
+  });
+  describe('preferencias de Configuración', () => {
+    const schedule = Notifications.scheduleNotificationAsync as jest.Mock;
+
+    it('por defecto vibra y no muestra notificación', async () => {
+      fetchActiveBuses.mockResolvedValue([bus('b1', PLAZA, 300)]);
+      const { result } = await renderHook(() => useProximityAlerts(proximity('inside')));
+      await waitFor(() => expect(result.current.alert).not.toBeNull());
+
+      expect(vibrate).toHaveBeenCalledTimes(1);
+      expect(schedule).not.toHaveBeenCalled();
+    });
+
+    it('con la vibración desactivada no vibra (la alerta en la app se muestra igual)', async () => {
+      fetchActiveBuses.mockResolvedValue([bus('b1', PLAZA, 300)]);
+      const { result } = await renderHook(() => useProximityAlerts(proximity('inside'), { vibrate: false }));
+      await waitFor(() => expect(result.current.alert).not.toBeNull());
+
+      expect(vibrate).not.toHaveBeenCalled();
+    });
+
+    it('con notificaciones activas muestra la alerta como notificación del teléfono', async () => {
+      fetchActiveBuses.mockResolvedValue([bus('b1', PLAZA, 350)]);
+      const { result } = await renderHook(() => useProximityAlerts(proximity('inside'), { notify: true, vibrate: true }));
+      await waitFor(() => expect(schedule).toHaveBeenCalledTimes(1));
+
+      expect(schedule.mock.calls[0][0].content.body).toBe('La micro B1 está a 350 m de Plaza de Armas.');
+      expect(result.current.alert).not.toBeNull();
+      // La notificación ya vibra según su canal: no se vibra dos veces.
+      expect(vibrate).not.toHaveBeenCalled();
+    });
+
+    it('si la notificación falla, igual vibra', async () => {
+      schedule.mockRejectedValueOnce(new Error('sin permiso'));
+      fetchActiveBuses.mockResolvedValue([bus('b1', PLAZA, 300)]);
+      await renderHook(() => useProximityAlerts(proximity('inside'), { notify: true, vibrate: true }));
+
+      await waitFor(() => expect(vibrate).toHaveBeenCalledTimes(1));
+    });
+
+    it('fuera del radio del paradero tampoco hay notificaciones', async () => {
+      fetchActiveBuses.mockResolvedValue([bus('b1', PLAZA, 300)]);
+      await renderHook(() => useProximityAlerts(proximity('outside'), { notify: true }));
+
+      expect(schedule).not.toHaveBeenCalled();
     });
   });
 });

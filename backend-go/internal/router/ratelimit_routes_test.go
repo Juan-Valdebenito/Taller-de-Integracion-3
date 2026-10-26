@@ -21,7 +21,7 @@ func setupWithAuthLimits(t *testing.T, limits *middleware.AuthRateLimiters) *gin
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	authH := handler.NewAuthHandler(nil, "test-secret", 15*time.Minute, time.Hour, nil)
-	return Setup("http://localhost:5173", "test-secret", nil, nil, authH,
+	return Setup([]string{"http://localhost:5173"}, "test-secret", nil, nil, authH,
 		nil, nil, nil, nil, nil, nil, nil, limits)
 }
 

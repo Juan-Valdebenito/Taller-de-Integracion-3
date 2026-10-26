@@ -1,7 +1,8 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import type { UseLocationResult } from '../hooks/useLocation';
-import { colors, radius, spacing } from '../theme';
+import { makeStyles, radius, spacing } from '../theme';
+import { isWeb } from '../utils/platform';
 import { Button } from './Button';
 
 /** Coordenadas con 5 decimales (~1 m de resolución). */
@@ -14,6 +15,7 @@ export function formatPosition(latitude: number, longitude: number): string {
  * cuando el usuario lo decide y guía a Ajustes si quedó bloqueado.
  */
 export function LocationCard({ location }: { location: UseLocationResult }) {
+  const styles = useStyles();
   const { permission, position, locating, error, requestAndLocate, refresh, openSettings } = location;
 
   let title = 'Ubicación';
@@ -28,6 +30,9 @@ export function LocationCard({ location }: { location: UseLocationResult }) {
   } else if (permission === 'denied') {
     description = 'Sin permiso de ubicación no podemos verificar si estás cerca de un paradero.';
     action = { title: 'Permitir ubicación', onPress: requestAndLocate };
+  } else if (permission === 'blocked' && isWeb()) {
+    // El navegador no permite abrir sus ajustes desde la página.
+    description = 'El navegador bloqueó la ubicación. Permítela desde el ícono junto a la dirección de la página y recarga.';
   } else if (permission === 'blocked') {
     description = 'El permiso de ubicación está desactivado para TransitHub. Puedes activarlo desde los ajustes del teléfono.';
     action = { title: 'Abrir ajustes', onPress: openSettings };
@@ -59,10 +64,10 @@ export function LocationCard({ location }: { location: UseLocationResult }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors, font) => ({
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, marginTop: spacing.md },
-  title: { fontSize: 16, fontWeight: '700', color: colors.text },
-  description: { marginTop: spacing.xs, fontSize: 14, color: colors.muted, lineHeight: 20 },
-  error: { marginTop: spacing.sm, fontSize: 14, color: colors.danger },
+  title: { fontSize: font(16), fontWeight: '700', color: colors.text },
+  description: { marginTop: spacing.xs, fontSize: font(14), color: colors.muted, lineHeight: font(20) },
+  error: { marginTop: spacing.sm, fontSize: font(14), color: colors.danger },
   action: { marginTop: spacing.sm, alignItems: 'flex-start' },
-});
+}));

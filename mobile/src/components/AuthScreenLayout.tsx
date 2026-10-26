@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { colors, radius, spacing } from '../theme';
+import { makeStyles, radius, spacing } from '../theme';
 
 export interface AuthScreenLayoutProps {
   title: string;
@@ -15,6 +15,7 @@ export interface AuthScreenLayoutProps {
 
 /** Estructura común de Login y Registro: título, aviso y formulario con teclado seguro. */
 export function AuthScreenLayout({ title, subtitle, message, messageTone = 'error', children }: AuthScreenLayoutProps) {
+  const styles = useStyles();
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -40,16 +41,16 @@ export function AuthScreenLayout({ title, subtitle, message, messageTone = 'erro
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors, font) => ({
   safe: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
   content: { flexGrow: 1, justifyContent: 'center', padding: spacing.lg },
-  brand: { fontSize: 16, fontWeight: '700', color: colors.primary, marginBottom: spacing.sm },
-  title: { fontSize: 28, fontWeight: '700', color: colors.text },
-  subtitle: { fontSize: 15, color: colors.muted, marginTop: spacing.xs, marginBottom: spacing.lg },
+  brand: { fontSize: font(16), fontWeight: '700', color: colors.primary, marginBottom: spacing.sm },
+  title: { fontSize: font(28), fontWeight: '700', color: colors.text },
+  subtitle: { fontSize: font(15), color: colors.muted, marginTop: spacing.xs, marginBottom: spacing.lg },
   message: { borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
   error: { backgroundColor: colors.dangerBg },
   warning: { backgroundColor: colors.warningBg },
-  errorText: { color: colors.danger, fontSize: 14 },
-  warningText: { color: colors.warning, fontSize: 14 },
-});
+  errorText: { color: colors.danger, fontSize: font(14) },
+  warningText: { color: colors.warning, fontSize: font(14) },
+}));

@@ -1,22 +1,28 @@
-import { SplashScreen, Stack } from 'expo-router';
+import { ThemeProvider as NavigationThemeProvider, SplashScreen, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 
 import { AuthProvider, useAuth } from '../auth/AuthContext';
+import { setupNotifications } from '../notifications/notificationService';
+import { SettingsProvider, useSettings } from '../settings/SettingsContext';
+import { ThemeProvider, useTheme } from '../theme';
+import { navigationTheme } from '../theme/navigationTheme';
 
-// Mantener la pantalla de carga mientras se recupera la sesión guardada.
+// Mantener la pantalla de carga mientras se recuperan la sesión y las preferencias guardadas.
 SplashScreen.preventAutoHideAsync();
 
 function RootNavigator() {
   const { status } = useAuth();
+  const { loaded: settingsLoaded } = useSettings();
+  const ready = status !== 'loading' && settingsLoaded;
 
   useEffect(() => {
-    if (status !== 'loading') {
+    if (ready) {
       SplashScreen.hideAsync();
     }
-  }, [status]);
+  }, [ready]);
 
-  if (status === 'loading') {
+  if (!ready) {
     return null;
   }
 
@@ -36,11 +42,33 @@ function RootNavigator() {
   );
 }
 
+/** Navegación y barra de estado con el tema elegido en Configuración. */
+function ThemedApp() {
+  const theme = useTheme();
+
+  useEffect(() => {
+    // Canales de Android y notificaciones visibles con la app abierta.
+    setupNotifications().catch(() => {});
+  }, []);
+
+  const navTheme = useMemo(() => navigationTheme(theme), [theme]);
+  return (
+    <NavigationThemeProvider value={navTheme}>
+      <RootNavigator />
+      {/* Íconos de la barra de estado claros sobre fondo oscuro y viceversa. */}
+      <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} />
+    </NavigationThemeProvider>
+  );
+}
+
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <RootNavigator />
-      <StatusBar style="dark" />
-    </AuthProvider>
+    <SettingsProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <ThemedApp />
+        </AuthProvider>
+      </ThemeProvider>
+    </SettingsProvider>
   );
 }

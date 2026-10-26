@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 
 import {
   ACCESS_TOKEN_KEY,
@@ -59,6 +60,45 @@ describe('tokenStorage', () => {
     await clearTokens();
 
     expect(mockStore.__dump()).toEqual({});
+    await expect(getTokens()).resolves.toBeNull();
+  });
+});
+
+describe('vista previa web', () => {
+  let session: Map<string, string>;
+
+  beforeEach(() => {
+    jest.replaceProperty(Platform, 'OS', 'web');
+    session = new Map();
+    // sessionStorage del navegador, simulado.
+    Object.defineProperty(globalThis, 'sessionStorage', {
+      configurable: true,
+      value: {
+        getItem: (key: string) => session.get(key) ?? null,
+        setItem: (key: string, value: string) => void session.set(key, value),
+        removeItem: (key: string) => void session.delete(key),
+      },
+    });
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+    delete (globalThis as { sessionStorage?: unknown }).sessionStorage;
+  });
+
+  it('guarda la sesión en sessionStorage (el navegador no tiene almacenamiento cifrado)', async () => {
+    await saveTokens({ accessToken: 'access-web', refreshToken: 'refresh-web' });
+
+    expect(Object.fromEntries(session)).toEqual({ [ACCESS_TOKEN_KEY]: 'access-web', [REFRESH_TOKEN_KEY]: 'refresh-web' });
+    expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+    await expect(getTokens()).resolves.toEqual({ accessToken: 'access-web', refreshToken: 'refresh-web' });
+  });
+
+  it('cerrar sesión borra los tokens del navegador', async () => {
+    await saveTokens({ accessToken: 'a', refreshToken: 'r' });
+    await clearTokens();
+
+    expect(session.size).toBe(0);
     await expect(getTokens()).resolves.toBeNull();
   });
 });

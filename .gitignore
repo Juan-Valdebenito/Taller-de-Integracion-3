@@ -40,3 +40,6 @@ kubernetes/.rendered/
 
 # Binarios compilados de los microservicios (los genera el Dockerfile)
 kubernetes/services/micro_telemetry/micro_telemetry
+
+# ── Imágenes de reclamos guardadas en local (fotos de usuarios, no se suben) ─
+backend-go/data/

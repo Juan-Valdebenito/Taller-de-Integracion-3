@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '../auth/AuthContext';
@@ -8,15 +8,21 @@ import { ProximityAlertsCard } from '../components/ProximityAlertsCard';
 import { useLocation } from '../hooks/useLocation';
 import { useNearestStop } from '../hooks/useNearestStop';
 import { useProximityAlerts } from '../hooks/useProximityAlerts';
-import { colors, radius, spacing } from '../theme';
+import { useSettings } from '../settings/SettingsContext';
+import { makeStyles, radius, spacing } from '../theme';
 import { roleLabel } from '../utils/format';
 
 /** Pantalla inicial con sesión iniciada. El cierre de sesión está en la pestaña Perfil. */
 export function HomeScreen() {
+  const styles = useStyles();
   const { user } = useAuth();
   const location = useLocation();
   const nearby = useNearestStop(location.position);
-  const alerts = useProximityAlerts(nearby.proximity);
+  const { settings } = useSettings();
+  const alerts = useProximityAlerts(nearby.proximity, {
+    vibrate: settings.vibrationEnabled,
+    notify: settings.notificationsEnabled,
+  });
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom', 'left', 'right']}>
@@ -39,13 +45,13 @@ export function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors, font) => ({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { flexGrow: 1, padding: spacing.lg },
-  greeting: { fontSize: 26, fontWeight: '700', color: colors.text, marginBottom: spacing.lg },
+  greeting: { fontSize: font(26), fontWeight: '700', color: colors.text, marginBottom: spacing.lg },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md },
-  label: { fontSize: 13, color: colors.muted },
-  value: { fontSize: 16, color: colors.text, fontWeight: '600', marginTop: 2 },
+  label: { fontSize: font(13), color: colors.muted },
+  value: { fontSize: font(16), color: colors.text, fontWeight: '600', marginTop: 2 },
   spaced: { marginTop: spacing.md },
-  hint: { marginTop: spacing.md, color: colors.muted, fontSize: 13 },
-});
+  hint: { marginTop: spacing.md, color: colors.muted, fontSize: font(13) },
+}));
