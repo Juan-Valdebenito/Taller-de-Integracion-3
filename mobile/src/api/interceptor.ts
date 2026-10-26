@@ -1,0 +1,144 @@
+/**
+ * Interceptor HTTP global de las solicitudes autenticadas a backend-go.
+ *
+ * - Agrega "Authorization: Bearer <accessToken>".
+ * - Si la respuesta es 401 (access token vencido, ~15 min), pide un par nuevo
+ *   en POST /auth/refresh (rotación de tokens) y reintenta UNA vez.
+ * - Las renovaciones simultáneas comparten una sola llamada: backend-go rota el
+ *   refresh token (cada uno sirve una vez), así que dos refresh en paralelo
+ *   invalidarían la sesión.
+ * - Si la renovación falla, borra los tokens y avisa con onSessionExpired.
+ *
+ * Trabaja con Response y RequestInit, sin asumir JSON: sirve también para
+ * subir archivos (FormData) o descargar imágenes.
+ */
+import { API_URL, REQUEST_TIMEOUT_MS } from '../config';
+import type { AuthResponse } from '../auth/types';
+import { clearTokens, getAccessToken, getRefreshToken, saveTokens } from '../storage/tokenStorage';
+import { ApiError, DEFAULT_MESSAGES, readJson, toApiError } from './errors';
+
+/**
+ * Opciones de la solicitud. Puede ser una función: se evalúa en cada intento,
+ * para que el reintento tras renovar tokens envíe un cuerpo nuevo (un FormData
+ * o un body con el refresh token actualizado).
+ */
+export type RequestInitSource = RequestInit | (() => RequestInit | Promise<RequestInit>);
+
+export interface AuthFetchOptions {
+  /** Enviar el access token y renovarlo si venció. Por defecto true. */
+  auth?: boolean;
+}
+
+type SessionExpiredHandler = () => void;
+let onSessionExpired: SessionExpiredHandler | null = null;
+
+/** Registra quién reacciona cuando la sesión ya no se puede renovar (ej. volver al login). */
+export function setSessionExpiredHandler(handler: SessionExpiredHandler | null): void {
+  onSessionExpired = handler;
+}
+
+/** fetch a la API con timeout; un fallo de red se traduce a ApiError(0). */
+export async function rawFetch(path: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(`${API_URL}${path}`, { ...init, signal: controller.signal });
+  } catch {
+    throw new ApiError(0, 'No se pudo conectar con el servidor. Revisa tu conexión a internet.');
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function headersToRecord(headers: HeadersInit | undefined): Record<string, string> {
+  if (!headers) {
+    return {};
+  }
+  if (Array.isArray(headers)) {
+    return Object.fromEntries(headers);
+  }
+  if (typeof (headers as Headers).forEach === 'function') {
+    const record: Record<string, string> = {};
+    (headers as Headers).forEach((value, key) => {
+      record[key] = value;
+    });
+    return record;
+  }
+  return { ...(headers as Record<string, string>) };
+}
+
+function withAccessToken(init: RequestInit, accessToken: string | null): RequestInit {
+  if (!accessToken) {
+    return init;
+  }
+  return { ...init, headers: { ...headersToRecord(init.headers), Authorization: `Bearer ${accessToken}` } };
+}
+
+let refreshInFlight: Promise<string> | null = null;
+
+/**
+ * Renueva el par de tokens con el refresh token guardado y devuelve el nuevo
+ * access token. Llamadas simultáneas reutilizan la misma solicitud.
+ */
+export function refreshAccessToken(): Promise<string> {
+  if (!refreshInFlight) {
+    refreshInFlight = (async () => {
+      const refreshToken = await getRefreshToken();
+      if (!refreshToken) {
+        throw new ApiError(401, DEFAULT_MESSAGES[401]);
+      }
+      const response = await rawFetch('/auth/refresh', {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+      const data = await readJson(response);
+      if (!response.ok) {
+        throw toApiError(response, data);
+      }
+      const tokens = data as AuthResponse;
+      await saveTokens({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken });
+      return tokens.accessToken;
+    })().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
+async function expireSession(): Promise<never> {
+  await clearTokens();
+  onSessionExpired?.();
+  throw new ApiError(401, DEFAULT_MESSAGES[401]);
+}
+
+/**
+ * fetch a la API pasando por el interceptor. Devuelve la Response tal cual
+ * (también si es un error distinto de 401): quien llama decide cómo leerla.
+ */
+export async function authFetch(path: string, init: RequestInitSource = {}, options: AuthFetchOptions = {}): Promise<Response> {
+  const { auth = true } = options;
+  const resolveInit = async () => (typeof init === 'function' ? await init() : init);
+
+  const accessToken = auth ? await getAccessToken() : null;
+  const response = await rawFetch(path, withAccessToken(await resolveInit(), accessToken));
+  if (!auth || response.status !== 401) {
+    return response;
+  }
+
+  let newToken: string;
+  try {
+    newToken = await refreshAccessToken();
+  } catch (error) {
+    // Sin conexión no es lo mismo que sesión inválida: no se cierra la sesión.
+    if (error instanceof ApiError && error.status === 0) {
+      throw error;
+    }
+    return expireSession();
+  }
+  const retried = await rawFetch(path, withAccessToken(await resolveInit(), newToken));
+  if (retried.status === 401) {
+    return expireSession();
+  }
+  return retried;
+}
