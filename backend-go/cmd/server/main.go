@@ -10,6 +10,7 @@ import (
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/config"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/db"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain/service"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/filestore"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/handler"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/infrastructure/grpcclient"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/logger"
@@ -47,6 +48,21 @@ func main() {
 		if !cfg.SimulationEnabled {
 			log.Fatal().Str("event", "startup_failed").Msg("Database unavailable and simulation is disabled")
 		}
+	}
+
+	// Migraciones (antes del seed: crea o completa las tablas que usa).
+	if dbAvailable && cfg.MigrationsEnabled {
+		res, err := db.RunMigrations(ctx, cfg.DatabaseURL)
+		if err != nil {
+			log.Fatal().Err(err).Str("event", "migrations_failed").
+				Msg("Could not apply database migrations (MIGRATIONS_ENABLED=false skips them)")
+		}
+		if res.Baseline > 0 {
+			log.Info().Str("event", "migrations_baseline").Uint("version", res.Baseline).
+				Msg("Existing schema without schema_migrations marked as migrated")
+		}
+		log.Info().Str("event", "migrations_ready").Uint("from", res.From).Uint("to", res.To).
+			Bool("changed", res.Changed()).Msg("Database schema up to date")
 	}
 
 	// â”€â”€ Datos de prueba (solo si hay BD y no es producciÃ³n) â”€â”€â”€â”€
@@ -144,7 +160,7 @@ func main() {
 	hub := ws.NewHub(occupancySvc)
 	go hub.Run()
 
-	wsHandler := ws.NewWSHandler(hub, cfg.JWTSecret, []string{cfg.CORSOrigin})
+	wsHandler := ws.NewWSHandler(hub, cfg.JWTSecret, cfg.CORSOrigins)
 	log.Info().Str("event", "websocket_ready").Str("path", "/ws").Msg("WebSocket Pub/Sub active")
 
 	// â”€â”€ SimulaciÃ³n GPS (buses virtuales rutas 7A, 7B, 1C) â”€â”€â”€â”€â”€
@@ -159,6 +175,42 @@ func main() {
 			Msg("GPS simulation active")
 	} else {
 		log.Info().Str("event", "simulation_disabled").Msg("GPS simulation disabled")
+	}
+
+	// Almacenamiento de imágenes de reclamos (ATTACHMENTS_DIR). Si la carpeta no
+	// sirve, el backend sigue funcionando con las imágenes desactivadas.
+	attachmentStore, err := filestore.OpenDisk(ctx, cfg.AttachmentsDir)
+	if err != nil {
+		log.Warn().Err(err).Str("event", "attachments_storage_unavailable").
+			Str("dir", cfg.AttachmentsDir).
+			Msg("Complaint image storage unavailable; image uploads disabled")
+	} else {
+		log.Info().Str("event", "attachments_storage_ready").
+			Str("dir", attachmentStore.Root()).
+			Msg("Complaint image storage ready")
+	}
+
+	// Servicio y endpoints de imágenes: requieren base de datos y almacenamiento.
+	// Sin alguno de los dos, attachmentH queda nil y las rutas responden 503.
+	var attachmentH *handler.AttachmentHandler
+	if dbAvailable && attachmentStore != nil {
+		attachmentSvc := service.NewAttachmentService(
+			repository.NewComplaintRepository(pool),
+			repository.NewComplaintAttachmentRepository(pool),
+			attachmentStore,
+		)
+		attachmentH = handler.NewAttachmentHandler(attachmentSvc)
+	}
+
+	// Límite de subidas de imágenes por IP (se desactiva con RATE_LIMIT_ENABLED=false).
+	var uploadLimiter *middleware.IPRateLimiter
+	if cfg.RateLimitEnabled {
+		uploadLimiter = middleware.NewIPRateLimiter(middleware.RateLimitConfig{
+			Name:              "attachment_upload",
+			RequestsPerMinute: cfg.UploadRateLimitPerMin,
+			Burst:             cfg.UploadRateLimitBurst,
+		})
+		uploadLimiter.StartCleanup(ctx, time.Minute)
 	}
 
 	// â”€â”€ Router â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -193,7 +245,7 @@ func main() {
 
 	// ── Router ────────────────────────────────────────────────
 	r := router.Setup(
-		cfg.CORSOrigin,
+		cfg.CORSOrigins,
 		cfg.JWTSecret,
 		pool,
 		revStore,
@@ -211,6 +263,8 @@ func main() {
 		recaudoH,
 		healthH,
 		authLimits,
+		attachmentH,
+		uploadLimiter,
 	)
 
 	// IP real del cliente detrás del Ingress: solo se acepta X-Forwarded-For de

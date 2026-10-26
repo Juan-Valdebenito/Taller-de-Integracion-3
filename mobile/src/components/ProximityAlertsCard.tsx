@@ -1,9 +1,9 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { ALERT_RADIUS_M } from '../config';
 import type { UseProximityAlertsResult } from '../hooks/useProximityAlerts';
 import { formatDistance } from '../location/geo';
-import { colors, radius, spacing } from '../theme';
+import { makeStyles, radius, spacing } from '../theme';
 import { Button } from './Button';
 
 /** Cuántas micros cercanas se listan como máximo. */
@@ -14,6 +14,7 @@ const MAX_LISTED = 3;
  * geolocalización; si no, explica por qué están en pausa.
  */
 export function ProximityAlertsCard({ alerts }: { alerts: UseProximityAlertsResult }) {
+  const styles = useStyles();
   const { enabled, pausedReason, stop, approaching, alert, dismissAlert, loading, error, checkNow } = alerts;
 
   if (!enabled) {
@@ -58,13 +59,13 @@ export function ProximityAlertsCard({ alerts }: { alerts: UseProximityAlertsResu
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors, font) => ({
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, marginTop: spacing.md },
   banner: { backgroundColor: colors.warningBg, borderRadius: radius.md, padding: spacing.sm, marginBottom: spacing.md },
-  bannerText: { fontSize: 15, fontWeight: '700', color: colors.warning },
-  title: { fontSize: 16, fontWeight: '700', color: colors.text },
-  description: { marginTop: spacing.xs, fontSize: 14, color: colors.muted, lineHeight: 20 },
-  bus: { marginTop: spacing.xs, fontSize: 15, fontWeight: '600', color: colors.text },
-  error: { marginTop: spacing.sm, fontSize: 14, color: colors.danger },
+  bannerText: { fontSize: font(15), fontWeight: '700', color: colors.warning },
+  title: { fontSize: font(16), fontWeight: '700', color: colors.text },
+  description: { marginTop: spacing.xs, fontSize: font(14), color: colors.muted, lineHeight: font(20) },
+  bus: { marginTop: spacing.xs, fontSize: font(15), fontWeight: '600', color: colors.text },
+  error: { marginTop: spacing.sm, fontSize: font(14), color: colors.danger },
   action: { marginTop: spacing.sm, alignItems: 'flex-start' },
-});
+}));

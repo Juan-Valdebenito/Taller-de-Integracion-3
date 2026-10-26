@@ -45,3 +45,61 @@ func TestRateLimitFromEnvironment(t *testing.T) {
 		t.Fatalf("expected trusted proxies %v, got %v", want, cfg.TrustedProxies)
 	}
 }
+
+func TestCORSOrigins(t *testing.T) {
+	cases := []struct {
+		name string
+		env  string
+		want []string
+	}{
+		{"por defecto el frontend web", "", []string{"http://localhost:5173"}},
+		{"un solo origen (como en el cluster)", "https://backend-tpenroz.dev.censei.cl", []string{"https://backend-tpenroz.dev.censei.cl"}},
+		{"varios orígenes separados por coma", " http://localhost:5173, ,http://localhost:8081 ", []string{"http://localhost:5173", "http://localhost:8081"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("CORS_ORIGIN", tc.env)
+			if got := Load().CORSOrigins; !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("CORS_ORIGIN=%q: expected %v, got %v", tc.env, tc.want, got)
+			}
+		})
+	}
+}
+
+func TestAttachmentsDir(t *testing.T) {
+	cases := []struct {
+		name, env, want string
+	}{
+		{"por defecto, carpeta local excluida de Git", "", DefaultAttachmentsDir},
+		{"solo espacios usa el valor por defecto", "   ", DefaultAttachmentsDir},
+		{"ruta del volumen en el cluster", "/var/lib/transithub/attachments", "/var/lib/transithub/attachments"},
+		{"se recortan los espacios", "  ./imagenes  ", "./imagenes"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("ATTACHMENTS_DIR", tc.env)
+			if got := Load().AttachmentsDir; got != tc.want {
+				t.Fatalf("ATTACHMENTS_DIR=%q: got %q, want %q", tc.env, got, tc.want)
+			}
+		})
+	}
+	if DefaultAttachmentsDir != "./data/attachments" {
+		t.Errorf("valor por defecto inesperado: %q", DefaultAttachmentsDir)
+	}
+}
+
+func TestUploadRateLimit(t *testing.T) {
+	t.Setenv("RATE_LIMIT_UPLOAD_PER_MIN", "")
+	t.Setenv("RATE_LIMIT_UPLOAD_BURST", "")
+	cfg := Load()
+	if cfg.UploadRateLimitPerMin != 10 || cfg.UploadRateLimitBurst != 3 {
+		t.Fatalf("valores por defecto: %d/min, ráfaga %d", cfg.UploadRateLimitPerMin, cfg.UploadRateLimitBurst)
+	}
+
+	t.Setenv("RATE_LIMIT_UPLOAD_PER_MIN", "20")
+	t.Setenv("RATE_LIMIT_UPLOAD_BURST", "5")
+	cfg = Load()
+	if cfg.UploadRateLimitPerMin != 20 || cfg.UploadRateLimitBurst != 5 {
+		t.Fatalf("desde el entorno: %d/min, ráfaga %d", cfg.UploadRateLimitPerMin, cfg.UploadRateLimitBurst)
+	}
+}

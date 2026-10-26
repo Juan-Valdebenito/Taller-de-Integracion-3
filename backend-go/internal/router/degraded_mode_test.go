@@ -15,7 +15,7 @@ import (
 // terminaban en panic → 500; ahora deben responder 503.
 func TestDegradedModeReturns503InsteadOfPanicking(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	r := Setup("http://localhost:5173", "test-secret", nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	r := Setup([]string{"http://localhost:5173"}, "test-secret", nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	cases := []struct{ method, path string }{
 		{http.MethodPost, "/api/v1/auth/login"},
@@ -52,7 +52,7 @@ func TestDegradedModeReturns503InsteadOfPanicking(t *testing.T) {
 
 func TestDegradedModeKeepsInfrastructureEndpoints(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	r := Setup("http://localhost:5173", "test-secret", nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	r := Setup([]string{"http://localhost:5173"}, "test-secret", nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	for _, path := range []string{"/", "/health", "/healthz", "/readyz"} {
 		w := httptest.NewRecorder()

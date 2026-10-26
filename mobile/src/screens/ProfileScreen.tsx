@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Button } from '../components/Button';
-import { colors, radius, spacing } from '../theme';
+import { makeStyles, radius, spacing, useTheme } from '../theme';
 import { formatLongDate, initials, roleLabel } from '../utils/format';
+import { confirmAction } from '../utils/platform';
 
 function InfoRow({ label, value }: { label: string; value: string }) {
+  const styles = useStyles();
   return (
     <View style={styles.row} accessible accessibilityLabel={`${label}: ${value}`}>
       <Text style={styles.rowLabel}>{label}</Text>
@@ -22,6 +24,8 @@ function InfoRow({ label, value }: { label: string; value: string }) {
  * actualizan al entrar y al deslizar hacia abajo.
  */
 export function ProfileScreen() {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const { user, refreshUser, signOut } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,10 +44,13 @@ export function ProfileScreen() {
   }, [signOut]);
 
   const confirmSignOut = useCallback(() => {
-    Alert.alert('Cerrar sesión', '¿Quieres cerrar tu sesión en este dispositivo?', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Cerrar sesión', style: 'destructive', onPress: doSignOut },
-    ]);
+    confirmAction({
+      title: 'Cerrar sesión',
+      message: '¿Quieres cerrar tu sesión en este dispositivo?',
+      confirmText: 'Cerrar sesión',
+      destructive: true,
+      onConfirm: doSignOut,
+    });
   }, [doSignOut]);
 
   const reload = useCallback(async () => {
@@ -75,7 +82,10 @@ export function ProfileScreen() {
       >
         <View style={styles.header}>
           <View style={styles.avatar} accessibilityLabel={`Avatar de ${user.name}`}>
-            <Text style={styles.avatarText}>{initials(user.name)}</Text>
+            {/* Círculo de tamaño fijo: se limita el aumento de letra del sistema para que las iniciales quepan. */}
+            <Text style={styles.avatarText} maxFontSizeMultiplier={1.3}>
+              {initials(user.name)}
+            </Text>
           </View>
           <Text style={styles.name} accessibilityRole="header">
             {user.name}
@@ -117,7 +127,7 @@ export function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors, font) => ({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xl },
   header: { alignItems: 'center', marginBottom: spacing.lg },
@@ -130,8 +140,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: spacing.md,
   },
-  avatarText: { color: colors.background, fontSize: 32, fontWeight: '700' },
-  name: { fontSize: 22, fontWeight: '700', color: colors.text, textAlign: 'center' },
+  avatarText: { color: colors.onPrimary, fontSize: font(32), fontWeight: '700' },
+  name: { fontSize: font(22), fontWeight: '700', color: colors.text, textAlign: 'center' },
   badge: {
     marginTop: spacing.sm,
     backgroundColor: colors.surface,
@@ -139,11 +149,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
   },
-  badgeText: { color: colors.primary, fontWeight: '600', fontSize: 13 },
+  badgeText: { color: colors.primary, fontWeight: '600', fontSize: font(13) },
   error: { backgroundColor: colors.dangerBg, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
-  errorText: { color: colors.danger, fontSize: 14 },
+  errorText: { color: colors.danger, fontSize: font(14) },
   sectionTitle: {
-    fontSize: 13,
+    fontSize: font(13),
     fontWeight: '600',
     color: colors.muted,
     textTransform: 'uppercase',
@@ -152,9 +162,9 @@ const styles = StyleSheet.create({
   },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md },
   row: { paddingVertical: spacing.sm },
-  rowLabel: { fontSize: 13, color: colors.muted },
-  rowValue: { fontSize: 16, color: colors.text, fontWeight: '600', marginTop: 2 },
-  securityText: { fontSize: 14, color: colors.text, lineHeight: 20 },
+  rowLabel: { fontSize: font(13), color: colors.muted },
+  rowValue: { fontSize: font(16), color: colors.text, fontWeight: '600', marginTop: 2 },
+  securityText: { fontSize: font(14), color: colors.text, lineHeight: font(20) },
   signOut: { marginTop: spacing.md },
-  signOutHint: { marginTop: spacing.sm, fontSize: 13, color: colors.muted, textAlign: 'center' },
-});
+  signOutHint: { marginTop: spacing.sm, fontSize: font(13), color: colors.muted, textAlign: 'center' },
+}));

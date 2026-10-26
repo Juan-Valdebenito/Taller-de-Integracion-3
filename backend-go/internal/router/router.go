@@ -17,7 +17,7 @@ import (
 
 // Setup configura y retorna el router Gin con todas las rutas registradas.
 func Setup(
-	corsOrigin string,
+	corsOrigins []string,
 	jwtSecret string,
 	pool *pgxpool.Pool,
 	revStore token.RevocationStore,
@@ -36,10 +36,17 @@ func Setup(
 	var aforoH *handler.AforoHandler
 	var recaudoH *handler.RecaudoHandler
 	var authLimits *middleware.AuthRateLimiters
+	var attachmentH *handler.AttachmentHandler
+	var uploadLimiter *middleware.IPRateLimiter
 	for _, extra := range extras {
 		switch value := extra.(type) {
 		case *middleware.AuthRateLimiters:
 			authLimits = value
+		case *handler.AttachmentHandler:
+			attachmentH = value
+		case *middleware.IPRateLimiter:
+			// Limitador de subidas de imágenes (por IP).
+			uploadLimiter = value
 		case *ws.WSHandler:
 			wsHandler = value
 		case *handler.GRPCProxyHandler:
@@ -57,7 +64,7 @@ func Setup(
 
 	// ── CORS ──────────────────────────────────────────────────
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{corsOrigin},
+		AllowOrigins:     corsOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
@@ -267,6 +274,10 @@ func Setup(
 		complaints.PUT("/:id/status", middleware.Authorize("ADMIN", "COMPANY"), complaintH.UpdateStatus)
 		complaints.PATCH("/:id/status", middleware.Authorize("ADMIN", "COMPANY"), complaintH.UpdateStatus)
 		complaints.DELETE("/:id", middleware.Authorize("ADMIN"), complaintH.Delete)
+
+		// Imágenes del reclamo: siempre con sesión (los permisos finos los
+		// aplica el servicio). Sin almacenamiento disponible responden 503.
+		registerAttachmentRoutes(complaints, attachmentH, uploadLimiter, auth)
 	}
 
 	return r

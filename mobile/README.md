@@ -26,6 +26,30 @@ npx expo start            # escanear el QR con Expo Go, o "a" / "i" para emulado
 
 Si cambias `.env`, reinicia con `npx expo start --clear`.
 
+## Ver la app en VS Code (vista previa web)
+
+Sin teléfono ni emulador: la app corre como página web y se abre en el navegador
+integrado de VS Code.
+
+1. Backend Go corriendo en el PC (`npm run dev` desde la raíz). En `backend-go/.env`,
+   `CORS_ORIGIN` debe incluir el origen de la vista previa:
+   `CORS_ORIGIN=http://localhost:5173,http://localhost:8081`
+2. En `mobile/.env`: `EXPO_PUBLIC_API_URL=http://localhost:3001/api/v1`
+3. `npx expo start --web --clear`
+4. En VS Code: `Ctrl+Shift+P` → **Simple Browser: Show** → `http://localhost:8081`
+
+Qué cambia en web (`src/utils/platform.ts`):
+
+- La sesión se guarda en `sessionStorage` (el navegador no tiene almacenamiento
+  cifrado) y se borra al cerrar la pestaña. Es solo para desarrollo.
+- Las confirmaciones (cerrar sesión, restablecer) usan el diálogo del navegador.
+- La ubicación usa el GPS del navegador (pide permiso). Si la bloquea, se habilita
+  desde el ícono junto a la dirección de la página.
+- Las notificaciones del teléfono no existen en web: el interruptor aparece
+  desactivado y las alertas se ven en la pantalla de Inicio.
+- El backend del cluster no acepta el origen `localhost:8081` (CORS), así que la
+  vista previa web se usa con el backend local.
+
 ## Comandos
 
 ```bash
@@ -136,7 +160,97 @@ app no consulta las micros y la tarjeta explica por qué las alertas están en p
   ("La micro ABCD12 está a 350 m de Plaza de Armas."), micros que se acercan y
   botón **Buscar micros ahora**.
 
-Son alertas dentro de la app (no notificaciones push con la app cerrada).
+Las alertas siempre se muestran en la app. Además respetan la Configuración:
+**Vibración** (vibrar o no) y **Notificaciones push** (también como notificación
+del teléfono). Ver "Notificaciones" más abajo.
+
+## Configuración del pasajero
+
+Preferencias guardadas en el teléfono con AsyncStorage (no son datos sensibles,
+por eso no van en SecureStore como los tokens). Son del dispositivo: se mantienen
+al cerrar la app y al cerrar sesión.
+
+| Preferencia            | Valores                         | Por defecto |
+| ---------------------- | ------------------------------- | ----------- |
+| `notificationsEnabled` | `true` / `false`                | `false`     |
+| `vibrationEnabled`     | `true` / `false`                | `true`      |
+| `theme`                | `system`, `light`, `dark`       | `system`    |
+| `textSize`             | `normal`, `large`, `extraLarge` | `normal`    |
+
+- `src/settings/settingsStorage.ts`: lee y guarda (`transithub.settings`). Valida
+  campo por campo: un valor dañado o desconocido vuelve a su valor por defecto sin
+  perder el resto.
+- `src/settings/SettingsContext.tsx`: `useSettings()` entrega `settings`,
+  `updateSettings(cambios)` y `resetSettings()`. Los cambios se aplican al instante
+  y se guardan en orden; si el guardado falla, el cambio se mantiene hasta cerrar
+  la app y se muestra un aviso (`saveError`).
+- La pantalla de carga espera a leer las preferencias (además de la sesión), para
+  que la app no se muestre un instante con el tema equivocado.
+- `src/screens/SettingsScreen.tsx` (pestaña **Configuración**): sección
+  *Notificaciones* (interruptores de notificaciones push y vibración) y sección
+  *Interfaz* (tema Sistema / Claro / Oscuro y tamaño del texto Normal / Grande /
+  Muy grande), más **Restablecer valores por defecto** con confirmación.
+- Componentes reutilizables: `SettingSwitchRow` (fila con interruptor) y
+  `SegmentedControl` (elegir una opción entre pocas; para el lector de pantalla
+  es un grupo de radios).
+
+### Tema claro / oscuro
+
+- `src/theme/colors.ts`: paletas `lightColors` y `darkColors` con los mismos nombres
+  de color. Todos los pares de texto y fondo cumplen contraste WCAG AA (≥ 4.5:1),
+  comprobado en `colors.test.ts`. En oscuro el azul se aclara y el texto sobre él
+  (`onPrimary`) se oscurece.
+- `src/theme/ThemeContext.tsx`: `ThemeProvider` aplica la preferencia de
+  Configuración; con **Sistema** sigue el modo del teléfono en vivo
+  (`app.json` → `"userInterfaceStyle": "automatic"`). `useTheme()` entrega
+  `{ scheme, colors }` (sin provider, tema claro).
+- Estilos con el tema: `makeStyles` reemplaza a `StyleSheet.create`. Recibe los
+  colores y `font(n)`, que escala tamaños de letra e interlineados. Los estilos se
+  crean una vez por combinación de tema y tamaño de texto:
+
+  ```tsx
+  const useStyles = makeStyles((colors, font) => ({
+    title: { color: colors.text, fontSize: font(16) },
+  }));
+
+  function Titulo() {
+    const styles = useStyles();
+    return <Text style={styles.title}>Hola</Text>;
+  }
+  ```
+
+- La navegación (cabeceras, pestañas, fondo entre pantallas), la barra de estado y
+  el teclado de iOS también siguen el tema.
+
+### Tamaño del texto
+
+- Normal ×1, Grande ×1.15, Muy grande ×1.3 (`TEXT_SCALES`). Se suma al tamaño de
+  letra configurado en el teléfono (Accesibilidad), que React Native ya respeta.
+- Todos los `fontSize` y `lineHeight` usan `font(n)`, también el título de la
+  cabecera y las etiquetas de las pestañas. No hay contenedores de alto fijo con
+  texto. En el selector de opciones las etiquetas pueden usar dos líneas, y las
+  iniciales del avatar (círculo fijo de 88 px) limitan el aumento del sistema.
+- En Configuración, una vista previa muestra el tamaño elegido.
+
+### Notificaciones
+
+- `src/notifications/notificationService.ts` (`expo-notifications`): permiso
+  (`granted`, `undetermined`, `denied`, `blocked`, igual que la ubicación) y
+  notificación inmediata de cada alerta de proximidad ("Tu micro se acerca").
+  Las notificaciones se muestran también con la app abierta. En Android hay dos
+  canales, con y sin vibración, según la preferencia **Vibración**.
+- `src/hooks/useNotificationPreference.ts`: el interruptor de Configuración pide el
+  permiso al activarlo y solo guarda la preferencia si se concede. Si el permiso
+  está bloqueado, ofrece **Abrir ajustes**. Al volver a la app revisa el permiso:
+  si el usuario lo quitó desde el teléfono, lo avisa.
+- Con las notificaciones activas, **Enviar notificación de prueba** muestra una de
+  ejemplo al instante, con o sin vibración según la preferencia. Sirve para
+  comprobar el permiso sin esperar una micro real.
+- Son **notificaciones locales**: las crea la app mientras está abierta y consulta
+  las micros, y funcionan en Expo Go. Con la app cerrada no llegan. Para eso harían
+  falta notificaciones push enviadas desde el servidor, que requieren un build con
+  EAS (Expo Go en Android ya no las permite) y un endpoint en backend-go para
+  registrar el token del dispositivo.
 
 ## Perfil
 

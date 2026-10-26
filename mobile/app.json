@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true
     },
@@ -31,6 +31,12 @@
           "locationWhenInUsePermission": "TransitHub usa tu ubicación para comprobar si estás cerca de un paradero antes de enviarte alertas de proximidad.",
           "locationAlwaysAndWhenInUsePermission": false,
           "locationAlwaysPermission": false
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#1d4ed8"
         }
       ]
     ],
