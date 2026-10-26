@@ -131,6 +131,35 @@ describe('authFetch', () => {
     expect(onExpired).not.toHaveBeenCalled();
     await expect(getTokens()).resolves.toEqual({ accessToken: 'access-old', refreshToken: 'refresh-old' });
   });
+
+  it('si el refresh responde 503, devuelve ese error y no cierra la sesión', async () => {
+    const onExpired = jest.fn();
+    setSessionExpiredHandler(onExpired);
+    fetchMock
+      .mockResolvedValueOnce(fakeResponse({ status: 401 }))
+      .mockResolvedValueOnce(
+        fakeResponse({ status: 503, body: { error: 'No se pudo verificar el estado del token, intenta nuevamente' } }),
+      );
+
+    await expect(authFetch('/auth/me')).rejects.toMatchObject({
+      status: 503,
+      message: 'No se pudo verificar el estado del token, intenta nuevamente',
+    });
+    expect(onExpired).not.toHaveBeenCalled();
+    await expect(getTokens()).resolves.toEqual({ accessToken: 'access-old', refreshToken: 'refresh-old' });
+  });
+
+  it('si el refresh responde 400, cierra la sesión', async () => {
+    const onExpired = jest.fn();
+    setSessionExpiredHandler(onExpired);
+    fetchMock
+      .mockResolvedValueOnce(fakeResponse({ status: 401 }))
+      .mockResolvedValueOnce(fakeResponse({ status: 400, body: { error: 'refreshToken es requerido' } }));
+
+    await expect(authFetch('/auth/me')).rejects.toMatchObject({ status: 401 });
+    expect(onExpired).toHaveBeenCalledTimes(1);
+    await expect(getTokens()).resolves.toBeNull();
+  });
 });
 
 describe('isSessionInvalid', () => {

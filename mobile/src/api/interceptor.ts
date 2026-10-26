@@ -143,11 +143,13 @@ export async function authFetch(path: string, init: RequestInitSource = {}, opti
   try {
     newToken = await refreshAccessToken();
   } catch (error) {
-    // Sin conexión no es lo mismo que sesión inválida: no se cierra la sesión.
-    if (error instanceof ApiError && error.status === 0) {
-      throw error;
+    // Solo se cierra la sesión si el refresh token ya no sirve. Con una falla
+    // pasajera (sin conexión, 429, 5xx) se conservan los tokens y quien llama
+    // recibe ese error, con su mensaje, para reintentar más tarde.
+    if (isSessionInvalid(error)) {
+      return expireSession();
     }
-    return expireSession();
+    throw error;
   }
   const retried = await rawFetch(path, withAccessToken(await resolveInit(), newToken));
   if (retried.status === 401) {
