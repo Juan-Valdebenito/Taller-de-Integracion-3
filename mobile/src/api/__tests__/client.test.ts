@@ -2,7 +2,9 @@ import * as SecureStore from 'expo-secure-store';
 
 import { getTokens, saveTokens } from '../../storage/tokenStorage';
 import { authHeaderOf, bodyOf, fakeResponse, installFetchMock, type FetchMock } from '../../test-utils/http';
-import { ApiError, apiRequest, setSessionExpiredHandler } from '../client';
+import { apiRequest } from '../client';
+import { ApiError } from '../errors';
+import { setSessionExpiredHandler } from '../interceptor';
 
 const mockStore = SecureStore as unknown as { __reset: () => void };
 let fetchMock: FetchMock;

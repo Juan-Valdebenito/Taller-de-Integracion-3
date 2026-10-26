@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ApiError } from '../api/client';
+import { ApiError } from '../api/errors';
 import { useAuth } from '../auth/AuthContext';
 import { Button } from '../components/Button';
 import { makeStyles, radius, spacing, useTheme } from '../theme';

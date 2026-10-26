@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
-import { ApiError } from '../../api/client';
+import { ApiError } from '../../api/errors';
 import { useAuth } from '../../auth/AuthContext';
 import { mockAuthValue } from '../../test-utils/auth';
 import { RegisterScreen } from '../RegisterScreen';

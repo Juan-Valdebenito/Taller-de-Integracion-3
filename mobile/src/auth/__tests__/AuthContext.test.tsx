@@ -2,12 +2,13 @@ import { act, render, screen } from '@testing-library/react-native';
 import { Text } from 'react-native';
 
 import * as authApi from '../../api/authApi';
-import { ApiError, setSessionExpiredHandler } from '../../api/client';
+import { ApiError } from '../../api/errors';
+import { setSessionExpiredHandler } from '../../api/interceptor';
 import { AuthProvider, useAuth, type AuthContextValue } from '../AuthContext';
 
 jest.mock('../../api/authApi');
-jest.mock('../../api/client', () => {
-  const actual = jest.requireActual('../../api/client');
+jest.mock('../../api/interceptor', () => {
+  const actual = jest.requireActual('../../api/interceptor');
   return { ...actual, setSessionExpiredHandler: jest.fn() };
 });
 

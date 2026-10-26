@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { StyleSheet, View, type TextInputInstance } from 'react-native';
 
-import { ApiError } from '../api/client';
+import { ApiError } from '../api/errors';
 import { useAuth } from '../auth/AuthContext';
 import { MIN_PASSWORD_LENGTH, hasErrors, validateRegister, type FieldErrors, type RegisterFormInput } from '../auth/validation';
 import { AuthScreenLayout } from '../components/AuthScreenLayout';

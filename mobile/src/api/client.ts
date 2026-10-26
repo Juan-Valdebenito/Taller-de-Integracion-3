@@ -8,9 +8,6 @@
 import { readJson, toApiError } from './errors';
 import { authFetch } from './interceptor';
 
-export { ApiError } from './errors';
-export { refreshAccessToken, setSessionExpiredHandler } from './interceptor';
-
 export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   /**

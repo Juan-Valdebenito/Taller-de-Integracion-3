@@ -1,6 +1,6 @@
 import { act, render, screen } from '@testing-library/react-native';
 
-import { ApiError } from '../../api/client';
+import { ApiError } from '../../api/errors';
 import { useAuth } from '../../auth/AuthContext';
 import type { AuthUser } from '../../auth/types';
 import { mockAuthValue } from '../../test-utils/auth';

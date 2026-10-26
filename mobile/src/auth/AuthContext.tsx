@@ -9,7 +9,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import * as authApi from '../api/authApi';
-import { ApiError, setSessionExpiredHandler } from '../api/client';
+import { ApiError } from '../api/errors';
+import { setSessionExpiredHandler } from '../api/interceptor';
 import type { AuthUser, LoginInput, RegisterInput } from './types';
 
 export type AuthStatus = 'loading' | 'signedOut' | 'signedIn';

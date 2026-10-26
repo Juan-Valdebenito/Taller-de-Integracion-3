@@ -75,7 +75,10 @@ src/
 │   ├── AuthContext.tsx     Estado de sesión: restaurar al abrir, signIn, signUp, signOut
 │   └── validation.ts       Mismas reglas que backend-go (email, contraseña ≥ 8)
 ├── api/
-│   ├── client.ts           fetch + Bearer token + renovación automática ante 401
+│   ├── interceptor.ts      Interceptor global: Bearer token, ante un 401 renueva en
+│   │                       /auth/refresh y reintenta (sirve para JSON, FormData, imágenes)
+│   ├── client.ts           apiRequest: solicitudes JSON sobre el interceptor
+│   ├── errors.ts           ApiError y mensajes de error en español
 │   └── authApi.ts          login, register, restoreSession, logout
 └── storage/
     └── tokenStorage.ts     accessToken y refreshToken en expo-secure-store
@@ -87,9 +90,12 @@ src/
   pasan a respaldos ni a otro dispositivo. Nunca se usa AsyncStorage.
 - **Al abrir la app** se recupera la sesión guardada (`GET /auth/me`). Sin conexión,
   se muestra el login con la opción de reintentar y los tokens se conservan.
-- **Renovación:** el access token dura ~15 min. Ante un 401 el cliente llama a
-  `POST /auth/refresh`, guarda el par nuevo (backend-go rota el refresh token) y
-  reintenta. Las renovaciones simultáneas comparten una sola llamada.
+- **Renovación:** el access token dura ~15 min. Toda solicitud autenticada pasa por
+  `authFetch` (`api/interceptor.ts`): ante un 401 llama a `POST /auth/refresh`, guarda
+  el par nuevo (backend-go rota el refresh token) y reintenta una vez. Las renovaciones
+  simultáneas comparten una sola llamada. Para JSON se usa `apiRequest` (`api/client.ts`);
+  para subir archivos se llama a `authFetch` con una función que arma el `FormData`, así
+  el reintento envía uno nuevo.
 - **Sesión expirada:** si la renovación falla, se borran los tokens y la app vuelve al login.
 - **Cerrar sesión** (botón en la pestaña Perfil, con confirmación): `POST /auth/logout`
   envía el access token (header) y el refresh token (body) a la **lista negra** de

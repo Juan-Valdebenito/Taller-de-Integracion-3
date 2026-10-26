@@ -4,7 +4,8 @@
  */
 import type { AuthResponse, AuthUser, LoginInput, RegisterInput } from '../auth/types';
 import { clearTokens, getRefreshToken, getTokens, saveTokens } from '../storage/tokenStorage';
-import { ApiError, apiRequest } from './client';
+import { apiRequest } from './client';
+import { ApiError } from './errors';
 
 async function storeSession(response: AuthResponse): Promise<AuthUser> {
   await saveTokens({ accessToken: response.accessToken, refreshToken: response.refreshToken });

@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { StyleSheet, View, type TextInputInstance } from 'react-native';
 
-import { ApiError } from '../api/client';
+import { ApiError } from '../api/errors';
 import { useAuth } from '../auth/AuthContext';
 import type { LoginInput } from '../auth/types';
 import { hasErrors, validateLogin, type FieldErrors } from '../auth/validation';
