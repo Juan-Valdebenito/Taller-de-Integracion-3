@@ -56,6 +56,61 @@ describe('AuthProvider', () => {
     expect(auth.restoreError).toBe('No se pudo conectar con el servidor.');
   });
 
+  it.each([
+    [503, 'No se pudo verificar el estado del token, intenta nuevamente'],
+    [429, 'Demasiadas solicitudes. Intenta nuevamente en 30 segundos.'],
+    [500, 'Error del servidor. Inténtalo más tarde.'],
+  ])('con una falla pasajera (%i) al recuperar la sesión, muestra el aviso del servidor', async (status, message) => {
+    mockedApi.restoreSession.mockRejectedValue(new ApiError(status, message));
+    await renderProvider();
+
+    expect(await screen.findByText('estado:signedOut')).toBeTruthy();
+    expect(auth.restoreError).toBe(message);
+    expect(auth.user).toBeNull();
+  });
+
+  it('al reintentar cuando el backend se recupera, entra sin pedir la contraseña', async () => {
+    mockedApi.restoreSession
+      .mockRejectedValueOnce(new ApiError(503, 'No se pudo verificar el estado del token, intenta nuevamente'))
+      .mockResolvedValueOnce(user);
+    await renderProvider();
+    await screen.findByText('estado:signedOut');
+
+    await act(() => auth.retryRestore());
+
+    expect(screen.getByText('estado:signedIn')).toBeTruthy();
+    expect(auth.user).toEqual(user);
+    expect(auth.restoreError).toBeNull();
+    expect(mockedApi.login).not.toHaveBeenCalled();
+  });
+
+  it('si el reintento vuelve a fallar, sigue sin sesión con el aviso nuevo', async () => {
+    mockedApi.restoreSession
+      .mockRejectedValueOnce(new ApiError(503, 'No se pudo verificar el estado del token, intenta nuevamente'))
+      .mockRejectedValueOnce(new ApiError(0, 'No se pudo conectar con el servidor.'));
+    await renderProvider();
+    await screen.findByText('estado:signedOut');
+
+    await act(() => auth.retryRestore());
+
+    expect(screen.getByText('estado:signedOut')).toBeTruthy();
+    expect(auth.restoreError).toBe('No se pudo conectar con el servidor.');
+  });
+
+  it('una falla pasajera durante la sesión no saca al usuario', async () => {
+    mockedApi.restoreSession.mockResolvedValue(user);
+    mockedApi.getCurrentUser.mockRejectedValue(new ApiError(503, 'El servicio no está disponible en este momento.'));
+    await renderProvider();
+    await screen.findByText('estado:signedIn');
+
+    await act(async () => {
+      await expect(auth.refreshUser()).rejects.toMatchObject({ status: 503 });
+    });
+
+    expect(screen.getByText('estado:signedIn')).toBeTruthy();
+    expect(auth.user).toEqual(user);
+  });
+
   it('inicia y cierra sesión', async () => {
     mockedApi.restoreSession.mockResolvedValue(null);
     mockedApi.login.mockResolvedValue(user);
