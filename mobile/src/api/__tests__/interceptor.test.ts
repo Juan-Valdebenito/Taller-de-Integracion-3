@@ -75,6 +75,34 @@ describe('authFetch', () => {
     expect(headersOf(0)).toEqual({ accept: 'image/*', Authorization: 'Bearer access-old' });
   });
 
+  it('si el 401 llega cuando otra solicitud ya renovó, reintenta con el token nuevo sin otro refresh', async () => {
+    // /lenta sale con access-old y su 401 llega después de que /rapida renovó.
+    let answerSlow!: (response: Response) => void;
+    let slowSent!: () => void;
+    const slowWasSent = new Promise<void>((resolve) => (slowSent = resolve));
+    fetchMock.mockImplementation(async (url, init) => {
+      const auth = (init?.headers as Record<string, string>)?.Authorization;
+      if (url.endsWith('/auth/refresh')) return refreshed;
+      if (auth === 'Bearer access-new') return fakeResponse({ body: { ok: true } });
+      if (url.endsWith('/lenta')) {
+        slowSent();
+        return new Promise<Response>((resolve) => (answerSlow = resolve));
+      }
+      return fakeResponse({ status: 401 });
+    });
+
+    const slow = authFetch('/lenta');
+    await slowWasSent;
+    await expect(authFetch('/rapida')).resolves.toMatchObject({ status: 200 });
+    answerSlow(fakeResponse({ status: 401 }));
+
+    await expect(slow).resolves.toMatchObject({ status: 200 });
+    expect(fetchMock.mock.calls.filter(([url]) => url.endsWith('/auth/refresh'))).toHaveLength(1);
+    const slowCalls = fetchMock.mock.calls.filter(([url]) => url.endsWith('/lenta'));
+    expect((slowCalls[1][1]?.headers as Record<string, string>).Authorization).toBe('Bearer access-new');
+    await expect(getTokens()).resolves.toEqual({ accessToken: 'access-new', refreshToken: 'refresh-new' });
+  });
+
   it('no modifica las opciones que recibe', async () => {
     fetchMock.mockResolvedValueOnce(fakeResponse());
     const init = { method: 'GET', headers: { Accept: 'application/json' } };

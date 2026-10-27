@@ -135,6 +135,22 @@ export function refreshAccessToken(): Promise<string> {
   return refreshInFlight;
 }
 
+/**
+ * Access token para reintentar una solicitud que dio 401 con `sentToken`.
+ *
+ * Si el guardado ya no es el que se envió, otra solicitud lo renovó mientras
+ * esta esperaba su respuesta: se reintenta con ese, sin pedir otro refresh
+ * (cada refresh rota los tokens y cuenta para el límite de backend-go). Si es
+ * el mismo, se renueva; una renovación en curso se comparte.
+ */
+async function tokenForRetry(sentToken: string | null): Promise<string> {
+  const current = await getAccessToken();
+  if (current && current !== sentToken) {
+    return current;
+  }
+  return refreshAccessToken();
+}
+
 async function expireSession(): Promise<never> {
   await clearTokens();
   onSessionExpired?.();
@@ -157,7 +173,7 @@ export async function authFetch(path: string, init: RequestInitSource = {}, opti
 
   let newToken: string;
   try {
-    newToken = await refreshAccessToken();
+    newToken = await tokenForRetry(accessToken);
   } catch (error) {
     // Solo se cierra la sesión si el refresh token ya no sirve. Con una falla
     // pasajera (sin conexión, 429, 5xx) se conservan los tokens y quien llama
