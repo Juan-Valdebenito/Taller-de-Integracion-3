@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, type TextInputInstance } from 'react-native';
 
 import { ApiError } from '../api/errors';
@@ -14,8 +14,19 @@ import { spacing } from '../theme';
 
 export function LoginScreen() {
   const router = useRouter();
-  const { signIn, restoreError, signOutNotice, retryRestore } = useAuth();
+  const { signIn, restoreError, restoreRetryAfter, signOutNotice, retryRestore } = useAuth();
   const cooldown = useCooldown();
+  // Espera aparte para "Reintentar conexión": el 429 al recuperar la sesión
+  // viene del límite de renovación de tokens, no del de login, así que el
+  // formulario sigue disponible.
+  const restoreCooldown = useCooldown();
+  const startRestoreCooldown = restoreCooldown.start;
+
+  useEffect(() => {
+    if (restoreRetryAfter) {
+      startRestoreCooldown(restoreRetryAfter);
+    }
+  }, [restoreRetryAfter, startRestoreCooldown]);
   const passwordRef = useRef<TextInputInstance>(null);
 
   const [form, setForm] = useState<LoginInput>({ email: '', password: '' });
@@ -96,7 +107,14 @@ export function LoginScreen() {
           loading={submitting}
           disabled={cooldown.active}
         />
-        {restoreError && !message ? <Button title="Reintentar conexión" variant="secondary" onPress={retryRestore} /> : null}
+        {restoreError && !message ? (
+          <Button
+            title={restoreCooldown.active ? `Reintentar en ${restoreCooldown.secondsLeft} s` : 'Reintentar conexión'}
+            variant="secondary"
+            onPress={retryRestore}
+            disabled={restoreCooldown.active}
+          />
+        ) : null}
         <Button title="¿No tienes cuenta? Regístrate" variant="secondary" onPress={() => router.push('/register')} />
       </View>
     </AuthScreenLayout>

@@ -21,6 +21,11 @@ export interface AuthContextValue {
   /** Error al recuperar la sesión al abrir la app (ej. sin conexión). */
   restoreError: string | null;
   /**
+   * Segundos que pidió esperar backend-go (429) antes de reintentar la
+   * recuperación de la sesión; null si no hay que esperar.
+   */
+  restoreRetryAfter: number | null;
+  /**
    * Aviso tras cerrar sesión si el servidor no confirmó que los tokens quedaron
    * en la lista negra (se muestra en el login). Se limpia al volver a entrar.
    */
@@ -40,22 +45,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [user, setUser] = useState<AuthUser | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [restoreRetryAfter, setRestoreRetryAfter] = useState<number | null>(null);
   const [signOutNotice, setSignOutNotice] = useState<string | null>(null);
+
+  const clearRestoreError = useCallback(() => {
+    setRestoreError(null);
+    setRestoreRetryAfter(null);
+  }, []);
 
   const restore = useCallback(async () => {
     setStatus('loading');
-    setRestoreError(null);
+    clearRestoreError();
     try {
       const restored = await authApi.restoreSession();
       setUser(restored);
       setStatus(restored ? 'signedIn' : 'signedOut');
     } catch (error) {
-      // Sin conexión: los tokens se conservan y se puede reintentar.
+      // Falla pasajera (sin conexión, 429, 5xx): los tokens se conservan y se
+      // puede reintentar; con 429, después de la espera que pide el servidor.
       setUser(null);
       setStatus('signedOut');
       setRestoreError(error instanceof ApiError ? error.message : 'No se pudo recuperar la sesión.');
+      setRestoreRetryAfter(error instanceof ApiError && error.status === 429 ? (error.retryAfter ?? 60) : null);
     }
-  }, []);
+  }, [clearRestoreError]);
 
   useEffect(() => {
     setSessionExpiredHandler(() => {
@@ -68,23 +81,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = useCallback(async (input: LoginInput) => {
     const signedInUser = await authApi.login(input);
-    setRestoreError(null);
+    clearRestoreError();
     setSignOutNotice(null);
     setUser(signedInUser);
     setStatus('signedIn');
-  }, []);
+  }, [clearRestoreError]);
 
   const signUp = useCallback(async (input: RegisterInput) => {
     const newUser = await authApi.register(input);
-    setRestoreError(null);
+    clearRestoreError();
     setSignOutNotice(null);
     setUser(newUser);
     setStatus('signedIn');
-  }, []);
+  }, [clearRestoreError]);
 
   const signOut = useCallback(async () => {
     const { serverConfirmed } = await authApi.logout();
-    setRestoreError(null);
+    clearRestoreError();
     setSignOutNotice(
       serverConfirmed
         ? null
@@ -93,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
     setUser(null);
     setStatus('signedOut');
-  }, []);
+  }, [clearRestoreError]);
 
   const refreshUser = useCallback(async () => {
     // Si la sesión ya no es válida, el cliente avisa con onSessionExpired.
@@ -102,8 +115,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, restoreError, signOutNotice, signIn, signUp, signOut, retryRestore: restore, refreshUser }),
-    [status, user, restoreError, signOutNotice, signIn, signUp, signOut, restore, refreshUser],
+    () => ({
+      status,
+      user,
+      restoreError,
+      restoreRetryAfter,
+      signOutNotice,
+      signIn,
+      signUp,
+      signOut,
+      retryRestore: restore,
+      refreshUser,
+    }),
+    [status, user, restoreError, restoreRetryAfter, signOutNotice, signIn, signUp, signOut, restore, refreshUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

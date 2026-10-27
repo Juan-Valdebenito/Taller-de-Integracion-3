@@ -69,6 +69,38 @@ describe('AuthProvider', () => {
     expect(auth.user).toBeNull();
   });
 
+  it.each([
+    ['429 con Retry-After', new ApiError(429, 'Demasiadas solicitudes. Intenta nuevamente en 30 segundos.', 30), 30],
+    ['429 sin Retry-After', new ApiError(429, 'Demasiados intentos.'), 60],
+    ['503', new ApiError(503, 'El servicio no está disponible en este momento.'), null],
+    ['sin conexión', new ApiError(0, 'No se pudo conectar con el servidor.'), null],
+  ])('con %s al recuperar la sesión, indica cuánto esperar antes de reintentar', async (_kind, error, seconds) => {
+    mockedApi.restoreSession.mockRejectedValue(error);
+    await renderProvider();
+    await screen.findByText('estado:signedOut');
+
+    expect(auth.restoreRetryAfter).toBe(seconds);
+  });
+
+  it.each([
+    ['al recuperar la sesión con el reintento', () => auth.retryRestore()],
+    ['al iniciar sesión con la contraseña', () => auth.signIn({ email: 'ana@correo.cl', password: 'secreta123' })],
+  ])('limpia el aviso y la espera %s', async (_kind, action) => {
+    // Sin "Once" para el segundo valor: al iniciar sesión no se vuelve a llamar
+    // y quedaría en la cola para la prueba siguiente.
+    mockedApi.restoreSession.mockResolvedValue(user).mockRejectedValueOnce(new ApiError(429, 'Demasiadas solicitudes.', 30));
+    mockedApi.login.mockResolvedValue(user);
+    await renderProvider();
+    await screen.findByText('estado:signedOut');
+    expect(auth.restoreRetryAfter).toBe(30);
+
+    await act(action);
+
+    expect(screen.getByText('estado:signedIn')).toBeTruthy();
+    expect(auth.restoreRetryAfter).toBeNull();
+    expect(auth.restoreError).toBeNull();
+  });
+
   it('al reintentar cuando el backend se recupera, entra sin pedir la contraseña', async () => {
     mockedApi.restoreSession
       .mockRejectedValueOnce(new ApiError(503, 'No se pudo verificar el estado del token, intenta nuevamente'))

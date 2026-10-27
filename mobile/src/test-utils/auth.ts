@@ -6,6 +6,7 @@ export function mockAuthValue(overrides: Partial<AuthContextValue> = {}): AuthCo
     status: 'signedOut',
     user: null,
     restoreError: null,
+    restoreRetryAfter: null,
     signOutNotice: null,
     signIn: jest.fn(),
     signUp: jest.fn(),

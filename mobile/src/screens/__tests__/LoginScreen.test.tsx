@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
 import { ApiError } from '../../api/errors';
 import { useAuth, type AuthContextValue } from '../../auth/AuthContext';
@@ -69,6 +69,53 @@ describe('LoginScreen', () => {
     expect(screen.getByText('No se pudo conectar con el servidor.')).toBeTruthy();
     await fireEvent.press(screen.getByRole('button', { name: 'Reintentar conexión' }));
     expect(retryRestore).toHaveBeenCalledTimes(1);
+  });
+
+  describe('con límite de intentos (429) al recuperar la sesión', () => {
+    const restoreError = 'Demasiadas solicitudes. Intenta nuevamente en 3 segundos.';
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('el botón de reintentar espera la cuenta regresiva y después reintenta', async () => {
+      jest.useFakeTimers();
+      const retryRestore = jest.fn();
+      mockAuth({ restoreError, restoreRetryAfter: 3, retryRestore });
+      await render(<LoginScreen />);
+
+      expect(screen.getByText(restoreError)).toBeTruthy();
+      const waiting = screen.getByRole('button', { name: 'Reintentar en 3 s' });
+      expect(waiting).toBeDisabled();
+      await fireEvent.press(waiting);
+      expect(retryRestore).not.toHaveBeenCalled();
+
+      // useCooldown descuenta de a un segundo (un setTimeout por render).
+      for (const left of [2, 1]) {
+        await act(async () => {
+          jest.advanceTimersByTime(1000);
+        });
+        expect(screen.getByRole('button', { name: `Reintentar en ${left} s` })).toBeDisabled();
+      }
+      await act(async () => {
+        jest.advanceTimersByTime(1000);
+      });
+
+      const retry = screen.getByRole('button', { name: 'Reintentar conexión' });
+      expect(retry).toBeEnabled();
+      await fireEvent.press(retry);
+      expect(retryRestore).toHaveBeenCalledTimes(1);
+    });
+
+    it('el formulario de login sigue disponible (el límite es el de renovar tokens)', async () => {
+      signIn.mockResolvedValue(undefined);
+      mockAuth({ restoreError, restoreRetryAfter: 3 });
+      await render(<LoginScreen />);
+
+      expect(screen.getByRole('button', { name: 'Iniciar sesión' })).toBeEnabled();
+      await fillAndSubmit('ana@correo.cl', 'secreta123');
+      expect(signIn).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('muestra el aviso si el cierre de sesión no se confirmó con el servidor', async () => {
