@@ -88,15 +88,34 @@ src/
   (Keychain en iOS, cifrado con Android Keystore en Android), con
   `WHEN_UNLOCKED_THIS_DEVICE_ONLY`: solo se leen con el teléfono desbloqueado y no
   pasan a respaldos ni a otro dispositivo. Nunca se usa AsyncStorage.
-- **Al abrir la app** se recupera la sesión guardada (`GET /auth/me`). Sin conexión,
-  se muestra el login con la opción de reintentar y los tokens se conservan.
+- **Al abrir la app** se recupera la sesión guardada (`GET /auth/me`). Si no se puede
+  por una falla pasajera (sin conexión, 429 o 5xx, ver la tabla de abajo), se muestra
+  el login con el aviso y el botón **Reintentar conexión**, y los tokens se conservan:
+  al reintentar con el backend disponible se entra sin escribir la contraseña. Con 429
+  el botón muestra "Reintentar en N s" hasta que pasa el `Retry-After`; el formulario
+  de login sigue disponible, porque ese límite es el de renovar tokens, no el de login.
 - **Renovación:** el access token dura ~15 min. Toda solicitud autenticada pasa por
   `authFetch` (`api/interceptor.ts`): ante un 401 llama a `POST /auth/refresh`, guarda
   el par nuevo (backend-go rota el refresh token) y reintenta una vez. Las renovaciones
   simultáneas comparten una sola llamada. Para JSON se usa `apiRequest` (`api/client.ts`);
   para subir archivos se llama a `authFetch` con una función que arma el `FormData`, así
   el reintento envía uno nuevo.
-- **Sesión expirada:** si la renovación falla, se borran los tokens y la app vuelve al login.
+- **Sesión expirada:** la sesión se cierra solo si el refresh token ya no sirve. Una
+  falla pasajera del servidor no saca al usuario (`isSessionInvalid` en
+  `api/interceptor.ts`):
+
+  | Respuesta de `POST /auth/refresh` | Qué significa | Qué hace la app |
+  |---|---|---|
+  | 401 | Refresh token inválido, vencido, ya usado o revocado | Borra los tokens y vuelve al login (sin aviso de error) |
+  | 400 | No se envió el refresh token | Igual que 401 |
+  | 429 | Límite de renovaciones del backend | Conserva la sesión; muestra el mensaje y cuántos segundos esperar |
+  | 500, 502, 503 | Falla del servidor (ej. 503 si no puede consultar la lista de revocados) | Conserva la sesión y muestra el mensaje del servidor |
+  | Sin respuesta | Sin conexión o timeout | Conserva la sesión; "No se pudo conectar con el servidor…" |
+  | 200 sin tokens | Respuesta incompleta (cuerpo vacío o cortado) | No guarda nada, conserva la sesión y lo trata como 502 |
+
+  Con una falla pasajera el refresh token no se consumió: la siguiente solicitud
+  vuelve a renovar con el mismo token. Si el reintento después de renovar vuelve a
+  dar 401, también se cierra la sesión.
 - **Cerrar sesión** (botón en la pestaña Perfil, con confirmación): `POST /auth/logout`
   envía el access token (header) y el refresh token (body) a la **lista negra** de
   backend-go, que los rechaza desde ese momento aunque no hayan vencido. Los tokens
