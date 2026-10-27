@@ -180,18 +180,28 @@ describe('authFetch', () => {
 // La respuesta 401 de una solicitud llega después de que otra ya renovó los
 // tokens: se reintenta con el token guardado, sin otro refresh (tarea 3).
 describe('authFetch con respuestas 401 tardías', () => {
-  /** Responde con el token renovado; las rutas de `held` (con el token viejo) esperan. */
+  /**
+   * backend-go simulado. El primer intento a cada ruta de `held` queda esperando
+   * hasta que el test lo responde; el resto acepta solo los tokens válidos.
+   * `refresh` da la respuesta de cada llamada a /auth/refresh.
+   */
   function backend(
     held: Record<string, ReturnType<typeof heldResponse>>,
-    isValid: (auth?: string) => boolean = (auth) => auth === 'Bearer access-new',
+    {
+      isValid = (auth?: string) => auth === 'Bearer access-new',
+      refresh = () => refreshed,
+    }: { isValid?: (auth?: string) => boolean; refresh?: () => Response } = {},
   ) {
+    const waiting = { ...held };
     fetchMock.mockImplementation(async (url, init) => {
       const auth = (init?.headers as Record<string, string> | undefined)?.Authorization;
-      if (url.endsWith('/auth/refresh')) return refreshed;
-      if (isValid(auth)) return fakeResponse({ body: { ok: true } });
-      const path = Object.keys(held).find((p) => url.endsWith(p));
-      if (path && auth === 'Bearer access-old') return held[path].respond();
-      return fakeResponse({ status: 401 });
+      if (url.endsWith('/auth/refresh')) return refresh();
+      const path = Object.keys(waiting).find((p) => url.endsWith(p));
+      if (path) {
+        delete waiting[path];
+        return held[path].respond();
+      }
+      return isValid(auth) ? fakeResponse({ body: { ok: true } }) : fakeResponse({ status: 401 });
     });
   }
 
@@ -235,7 +245,7 @@ describe('authFetch con respuestas 401 tardías', () => {
     setSessionExpiredHandler(onExpired);
     const slow = heldResponse();
     let newTokenRevoked = false;
-    backend({ '/lenta': slow }, (auth) => auth === 'Bearer access-new' && !newTokenRevoked);
+    backend({ '/lenta': slow }, { isValid: (auth) => auth === 'Bearer access-new' && !newTokenRevoked });
 
     const pending = authFetch('/lenta');
     await slow.sent;
@@ -249,6 +259,65 @@ describe('authFetch con respuestas 401 tardías', () => {
     expect(authsTo('/lenta')).toEqual(['Bearer access-old', 'Bearer access-new']);
     expect(onExpired).toHaveBeenCalledTimes(1);
     await expect(getTokens()).resolves.toBeNull();
+  });
+  it('una solicitud que salió sin token reintenta con el que se guardó mientras tanto', async () => {
+    await clearTokens();
+    const slow = heldResponse();
+    backend({ '/lenta': slow });
+
+    const pending = authFetch('/lenta');
+    await slow.sent;
+    // Mientras tanto se inicia sesión (login guarda un par nuevo).
+    await saveTokens({ accessToken: 'access-new', refreshToken: 'refresh-new' });
+    slow.answer(fakeResponse({ status: 401 }));
+
+    await expect(pending).resolves.toMatchObject({ status: 200 });
+    expect(authsTo('/lenta')).toEqual([undefined, 'Bearer access-new']);
+    expect(refreshCalls()).toBe(0);
+  });
+
+  it('si la renovación de la otra solicitud falló, el 401 tardío vuelve a renovar', async () => {
+    const onExpired = jest.fn();
+    setSessionExpiredHandler(onExpired);
+    const slow = heldResponse();
+    const refreshes = [fakeResponse({ status: 503 }), refreshed];
+    backend({ '/lenta': slow }, { refresh: () => refreshes.shift()! });
+
+    const pending = authFetch('/lenta');
+    await slow.sent;
+    await expect(authFetch('/rapida')).rejects.toMatchObject({ status: 503 });
+    // Nadie renovó: el token guardado sigue siendo el que envió /lenta.
+    await expect(getTokens()).resolves.toEqual({ accessToken: 'access-old', refreshToken: 'refresh-old' });
+    slow.answer(fakeResponse({ status: 401 }));
+
+    await expect(pending).resolves.toMatchObject({ status: 200 });
+    expect(refreshCalls()).toBe(2);
+    expect(bodyOf(fetchMock, fetchMock.mock.calls.findLastIndex(([url]) => url.endsWith('/auth/refresh')))).toEqual({
+      refreshToken: 'refresh-old',
+    });
+    expect(authsTo('/lenta')).toEqual(['Bearer access-old', 'Bearer access-new']);
+    expect(onExpired).not.toHaveBeenCalled();
+  });
+
+  it('si la sesión ya expiró, el 401 tardío no llama a /auth/refresh', async () => {
+    const onExpired = jest.fn();
+    setSessionExpiredHandler(onExpired);
+    const slow = heldResponse();
+    backend({ '/lenta': slow }, { refresh: () => fakeResponse({ status: 401, body: { error: 'Refresh token ya utilizado o revocado' } }) });
+
+    const pending = authFetch('/lenta');
+    await slow.sent;
+    await expect(authFetch('/rapida')).rejects.toMatchObject({ status: 401 });
+    await expect(getTokens()).resolves.toBeNull();
+    slow.answer(fakeResponse({ status: 401 }));
+
+    await expect(pending).rejects.toMatchObject({ status: 401, message: DEFAULT_MESSAGES[401] });
+    // Sin tokens guardados no hay nada que renovar ni con qué reintentar.
+    expect(refreshCalls()).toBe(1);
+    expect(authsTo('/lenta')).toEqual(['Bearer access-old']);
+    // Cada solicitud avisa al cerrar la sesión. Es inofensivo: AuthContext solo
+    // deja el estado en "signedOut", y repetirlo no cambia nada.
+    expect(onExpired).toHaveBeenCalledTimes(2);
   });
 });
 
