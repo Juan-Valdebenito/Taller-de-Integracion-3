@@ -100,6 +100,14 @@ src/
   simultáneas comparten una sola llamada. Para JSON se usa `apiRequest` (`api/client.ts`);
   para subir archivos se llama a `authFetch` con una función que arma el `FormData`, así
   el reintento envía uno nuevo.
+- **401 que llega tarde:** si una solicitud salió con un token que otra ya renovó
+  mientras esta esperaba su respuesta, al recibir el 401 se reintenta con el token
+  guardado, **sin** pedir otro refresh (`tokenForRetry` en `api/interceptor.ts`). Así
+  se evita rotar los tokens de más y sumar intentos al límite de renovaciones de
+  backend-go (429), algo fácil de alcanzar con varias pantallas consultando a la vez.
+  Solo se vuelve a renovar si el token guardado sigue siendo el que se envió (por
+  ejemplo, porque la renovación anterior falló). Si el reintento con el token ya
+  renovado también da 401, la sesión se cierra.
 - **Sesión expirada:** la sesión se cierra solo si el refresh token ya no sirve. Una
   falla pasajera del servidor no saca al usuario (`isSessionInvalid` en
   `api/interceptor.ts`):
