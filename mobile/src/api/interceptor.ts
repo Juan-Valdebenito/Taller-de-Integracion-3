@@ -7,7 +7,13 @@
  * - Las renovaciones simultáneas comparten una sola llamada: backend-go rota el
  *   refresh token (cada uno sirve una vez), así que dos refresh en paralelo
  *   invalidarían la sesión.
- * - Si la renovación falla, borra los tokens y avisa con onSessionExpired.
+ * - Si el 401 llega cuando otra solicitud ya renovó (el token guardado no es el
+ *   que se envió), reintenta con el guardado sin pedir otro refresh: cada
+ *   refresh rota los tokens y cuenta para el límite de backend-go (tokenForRetry).
+ * - Solo cierra la sesión (borra los tokens y avisa con onSessionExpired) si el
+ *   refresh token ya no sirve: refresh con 401/400, o el reintento con el token
+ *   nuevo da 401. Con una falla pasajera (sin conexión, 429, 5xx) conserva los
+ *   tokens y entrega ese error (isSessionInvalid).
  *
  * Trabaja con Response y RequestInit, sin asumir JSON: sirve también para
  * subir archivos (FormData) o descargar imágenes.
