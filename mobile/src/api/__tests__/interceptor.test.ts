@@ -9,6 +9,8 @@ import {
   INVALID_REFRESH_RESPONSE,
   isProactiveRenewalEnabled,
   isSessionInvalid,
+  refreshAccessToken,
+  renewIfExpiringSoon,
   resetProactiveRenewal,
   setSessionExpiredHandler,
 } from '../interceptor';
@@ -615,6 +617,88 @@ describe('authFetch cuando falla la renovación', () => {
     expect(fetchMock.mock.calls.filter(([url]) => url.endsWith('/auth/refresh'))).toHaveLength(1);
     expect(onExpired).not.toHaveBeenCalled();
     await expect(getTokens()).resolves.toEqual(OLD_TOKENS);
+  });
+});
+
+// Renovación en segundo plano (ej. al volver la app a primer plano): nunca
+// lanza, y solo cierra la sesión si el refresh token ya no sirve (tarea 4).
+describe('renewIfExpiringSoon', () => {
+  let onExpired: jest.Mock;
+
+  beforeEach(() => {
+    onExpired = jest.fn();
+    setSessionExpiredHandler(onExpired);
+  });
+
+  async function storeAccessTokenExpiringIn(seconds: number) {
+    const token = accessTokenExpiringIn(seconds);
+    await saveTokens({ accessToken: token, refreshToken: 'refresh-old' });
+    return token;
+  }
+
+  it('si el token vence pronto, lo renueva y guarda el par nuevo', async () => {
+    await storeAccessTokenExpiringIn(30);
+    fetchMock.mockResolvedValueOnce(refreshed);
+
+    await expect(renewIfExpiringSoon()).resolves.toBe(true);
+
+    expect(refreshCalls()).toBe(1);
+    expect(bodyOf(fetchMock, 0)).toEqual({ refreshToken: 'refresh-old' });
+    await expect(getTokens()).resolves.toEqual({ accessToken: 'access-new', refreshToken: 'refresh-new' });
+  });
+
+  it.each([
+    ['al token le queda tiempo', () => storeAccessTokenExpiringIn(15 * 60)],
+    ['no hay sesión guardada', () => clearTokens()],
+    ['no se puede leer el vencimiento del token', () => saveTokens({ accessToken: 'no-es-jwt', refreshToken: 'refresh-old' })],
+  ])('no hace nada si %s', async (_kind, prepare) => {
+    await prepare();
+
+    await expect(renewIfExpiringSoon()).resolves.toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('no hace nada si la renovación anticipada está desactivada (reloj desajustado)', async () => {
+    // Un refresh que entrega un token ya "por vencer" la desactiva.
+    await saveTokens({ accessToken: 'access-old', refreshToken: 'refresh-old' });
+    fetchMock.mockResolvedValueOnce(fakeResponse({ body: { accessToken: accessTokenExpiringIn(-300), refreshToken: 'refresh-new' } }));
+    await refreshAccessToken();
+    expect(isProactiveRenewalEnabled()).toBe(false);
+
+    await expect(renewIfExpiringSoon()).resolves.toBe(false);
+    expect(refreshCalls()).toBe(1);
+  });
+
+  it.each([
+    ['sin conexión', () => fetchMock.mockRejectedValueOnce(new TypeError('Network request failed'))],
+    ['con 503', () => fetchMock.mockResolvedValueOnce(fakeResponse({ status: 503 }))],
+    ['con 429', () => fetchMock.mockResolvedValueOnce(fakeResponse({ status: 429, body: { retryAfter: 30 } }))],
+  ])('si el refresh falla %s, no lanza ni cierra la sesión', async (_kind, failRefresh) => {
+    const token = await storeAccessTokenExpiringIn(30);
+    failRefresh();
+
+    await expect(renewIfExpiringSoon()).resolves.toBe(false);
+    expect(onExpired).not.toHaveBeenCalled();
+    await expect(getTokens()).resolves.toEqual({ accessToken: token, refreshToken: 'refresh-old' });
+  });
+
+  it('si el refresh token ya no sirve, cierra la sesión sin lanzar', async () => {
+    await storeAccessTokenExpiringIn(30);
+    fetchMock.mockResolvedValueOnce(fakeResponse({ status: 401, body: { error: 'Refresh token ya utilizado o revocado' } }));
+
+    await expect(renewIfExpiringSoon()).resolves.toBe(false);
+    expect(onExpired).toHaveBeenCalledTimes(1);
+    await expect(getTokens()).resolves.toBeNull();
+  });
+
+  it('comparte la renovación con una solicitud que sale al mismo tiempo', async () => {
+    await storeAccessTokenExpiringIn(30);
+    fetchMock.mockImplementation(async (url) => (url.endsWith('/auth/refresh') ? refreshed : fakeResponse({ body: {} })));
+
+    await Promise.all([renewIfExpiringSoon(), authFetch('/a')]);
+
+    expect(refreshCalls()).toBe(1);
+    expect(authsTo('/a')).toEqual(['Bearer access-new']);
   });
 });
 

@@ -204,10 +204,38 @@ async function renewAhead(accessToken: string): Promise<string> {
   }
 }
 
-async function expireSession(): Promise<never> {
+/** Borra los tokens y avisa que la sesión ya no se puede renovar. */
+async function endSession(): Promise<void> {
   await clearTokens();
   onSessionExpired?.();
+}
+
+async function expireSession(): Promise<never> {
+  await endSession();
   throw new ApiError(401, DEFAULT_MESSAGES[401]);
+}
+
+/**
+ * Renueva en segundo plano si el access token guardado vence pronto (ej. al
+ * volver la app a primer plano), para que la próxima solicitud no espere el
+ * refresh. Nunca lanza: con una falla pasajera no hace nada (la próxima
+ * solicitud lo vuelve a intentar); si el refresh token ya no sirve, cierra la
+ * sesión y avisa con onSessionExpired. Devuelve true si renovó.
+ */
+export async function renewIfExpiringSoon(): Promise<boolean> {
+  try {
+    const accessToken = await getAccessToken();
+    if (!accessToken || !proactiveRenewal || !isExpiringSoon(accessToken)) {
+      return false;
+    }
+    await refreshAccessToken();
+    return true;
+  } catch (error) {
+    if (isSessionInvalid(error)) {
+      await endSession().catch(() => undefined);
+    }
+    return false;
+  }
 }
 
 /**
