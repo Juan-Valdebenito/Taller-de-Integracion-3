@@ -1,9 +1,11 @@
-import { act, render, screen } from '@testing-library/react-native';
+import { act, render, screen, waitFor } from '@testing-library/react-native';
 import * as SecureStore from 'expo-secure-store';
 import { Text } from 'react-native';
 
 import { getTokens, saveTokens } from '../../storage/tokenStorage';
 import { bodyOf, fakeResponse, installFetchMock, type FetchMock } from '../../test-utils/http';
+import { mockAppState } from '../../test-utils/appState';
+import { accessTokenExpiringIn } from '../../test-utils/jwt';
 import { AuthProvider, useAuth, type AuthContextValue } from '../AuthContext';
 
 // Cadena completa al abrir la app: AuthProvider → authApi.restoreSession →
@@ -71,5 +73,31 @@ describe('abrir la app con el access token vencido', () => {
     // Sesión inválida no es un error de conexión: se muestra el login normal.
     expect(auth.restoreError).toBeNull();
     await expect(getTokens()).resolves.toBeNull();
+  });
+});
+
+describe('volver a la app con la sesión iniciada', () => {
+  it('si el access token está por vencer, lo renueva en segundo plano', async () => {
+    const appState = mockAppState();
+    try {
+      // Al abrir la app al token le quedan 15 min: entra sin renovar.
+      await saveTokens({ accessToken: accessTokenExpiringIn(15 * 60), refreshToken: 'refresh-1' });
+      fetchMock.mockResolvedValueOnce(fakeResponse({ body: user }));
+      await openApp();
+      expect(await screen.findByText('estado:signedIn')).toBeTruthy();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      // La app quedó en segundo plano y al volver le quedan 30 s.
+      await saveTokens({ accessToken: accessTokenExpiringIn(30), refreshToken: 'refresh-1' });
+      fetchMock.mockResolvedValueOnce(fakeResponse({ body: { accessToken: 'access-2', refreshToken: 'refresh-2', user } }));
+      await act(async () => appState.emit('active'));
+
+      await waitFor(async () => expect(await getTokens()).toEqual({ accessToken: 'access-2', refreshToken: 'refresh-2' }));
+      expect(fetchMock.mock.calls[1][0]).toMatch(/\/auth\/refresh$/);
+      expect(bodyOf(fetchMock, 1)).toEqual({ refreshToken: 'refresh-1' });
+      expect(screen.getByText('estado:signedIn')).toBeTruthy();
+    } finally {
+      appState.restore();
+    }
   });
 });

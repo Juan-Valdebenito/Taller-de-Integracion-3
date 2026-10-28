@@ -3,13 +3,14 @@ import { Text } from 'react-native';
 
 import * as authApi from '../../api/authApi';
 import { ApiError } from '../../api/errors';
-import { setSessionExpiredHandler } from '../../api/interceptor';
+import { renewIfExpiringSoon, setSessionExpiredHandler } from '../../api/interceptor';
+import { mockAppState } from '../../test-utils/appState';
 import { AuthProvider, useAuth, type AuthContextValue } from '../AuthContext';
 
 jest.mock('../../api/authApi');
 jest.mock('../../api/interceptor', () => {
   const actual = jest.requireActual('../../api/interceptor');
-  return { ...actual, setSessionExpiredHandler: jest.fn() };
+  return { ...actual, setSessionExpiredHandler: jest.fn(), renewIfExpiringSoon: jest.fn() };
 });
 
 const mockedApi = jest.mocked(authApi);
@@ -197,5 +198,70 @@ describe('AuthProvider', () => {
 
     expect(screen.getByText('estado:signedOut')).toBeTruthy();
     expect(auth.user).toBeNull();
+  });
+});
+
+describe('AuthProvider al volver a primer plano', () => {
+  let appState: ReturnType<typeof mockAppState>;
+
+  async function appBecomes(state: 'active' | 'background') {
+    await act(async () => appState.emit(state));
+  }
+
+  beforeEach(() => {
+    appState = mockAppState();
+    jest.mocked(renewIfExpiringSoon).mockResolvedValue(false);
+  });
+
+  afterEach(() => {
+    appState.restore();
+  });
+
+  it('con sesión, renueva el token si está por vencer al volver a la app', async () => {
+    mockedApi.restoreSession.mockResolvedValue(user);
+    await renderProvider();
+    await screen.findByText('estado:signedIn');
+
+    await appBecomes('background');
+    expect(renewIfExpiringSoon).not.toHaveBeenCalled();
+
+    await appBecomes('active');
+    expect(renewIfExpiringSoon).toHaveBeenCalledTimes(1);
+  });
+
+  it('sin sesión no intenta renovar', async () => {
+    mockedApi.restoreSession.mockResolvedValue(null);
+    await renderProvider();
+    await screen.findByText('estado:signedOut');
+
+    await appBecomes('active');
+
+    expect(renewIfExpiringSoon).not.toHaveBeenCalled();
+  });
+
+  it('al cerrar sesión deja de escuchar el regreso a la app', async () => {
+    mockedApi.restoreSession.mockResolvedValue(user);
+    mockedApi.logout.mockResolvedValue({ serverConfirmed: true });
+    await renderProvider();
+    await screen.findByText('estado:signedIn');
+
+    await act(() => auth.signOut());
+    await appBecomes('active');
+
+    expect(appState.counts().registered).toBeGreaterThan(0);
+    expect(appState.counts().active).toBe(0);
+    expect(renewIfExpiringSoon).not.toHaveBeenCalled();
+  });
+
+  it('al iniciar sesión empieza a escuchar el regreso a la app', async () => {
+    mockedApi.restoreSession.mockResolvedValue(null);
+    mockedApi.login.mockResolvedValue(user);
+    await renderProvider();
+    await screen.findByText('estado:signedOut');
+
+    await act(() => auth.signIn({ email: 'ana@correo.cl', password: 'secreta123' }));
+    await appBecomes('active');
+
+    expect(renewIfExpiringSoon).toHaveBeenCalledTimes(1);
   });
 });

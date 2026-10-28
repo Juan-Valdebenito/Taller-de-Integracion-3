@@ -5,12 +5,15 @@
  * - signIn / signUp guardan los tokens cifrados y dejan al usuario dentro.
  * - signOut revoca los tokens en el servidor y los borra del dispositivo.
  * - Si la API no puede renovar los tokens (sesión expirada), vuelve a "signedOut".
+ * - Al volver la app a primer plano con sesión, renueva el access token si está
+ *   por vencer (renewIfExpiringSoon).
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { AppState } from 'react-native';
 
 import * as authApi from '../api/authApi';
 import { ApiError } from '../api/errors';
-import { setSessionExpiredHandler } from '../api/interceptor';
+import { renewIfExpiringSoon, setSessionExpiredHandler } from '../api/interceptor';
 import type { AuthUser, LoginInput, RegisterInput } from './types';
 
 export type AuthStatus = 'loading' | 'signedOut' | 'signedIn';
@@ -78,6 +81,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     restore();
     return () => setSessionExpiredHandler(null);
   }, [restore]);
+
+  // Al volver a primer plano con la sesión iniciada, renueva el access token si
+  // está por vencer: dura ~15 min y la app pudo quedar mucho rato en segundo
+  // plano. Así la primera solicitud no espera el refresh. Nunca lanza.
+  useEffect(() => {
+    if (status !== 'signedIn') {
+      return;
+    }
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        void renewIfExpiringSoon();
+      }
+    });
+    return () => subscription.remove();
+  }, [status]);
 
   const signIn = useCallback(async (input: LoginInput) => {
     const signedInUser = await authApi.login(input);
