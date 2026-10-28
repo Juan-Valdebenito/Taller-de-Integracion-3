@@ -2,6 +2,11 @@
  * Interceptor HTTP global de las solicitudes autenticadas a backend-go.
  *
  * - Agrega "Authorization: Bearer <accessToken>".
+ * - Si el access token vence en 1 minuto o menos (según su "exp"), lo renueva
+ *   antes de enviar, para no gastar la solicitud en un 401 (renewAhead). Al
+ *   volver la app a primer plano, AuthContext hace lo mismo en segundo plano
+ *   (renewIfExpiringSoon). Si un token recién emitido ya parece "por vencer"
+ *   (reloj del teléfono adelantado), esto se desactiva y queda solo el 401.
  * - Si la respuesta es 401 (access token vencido, ~15 min), pide un par nuevo
  *   en POST /auth/refresh (rotación de tokens) y reintenta UNA vez.
  * - Las renovaciones simultáneas comparten una sola llamada: backend-go rota el
@@ -11,9 +16,9 @@
  *   que se envió), reintenta con el guardado sin pedir otro refresh: cada
  *   refresh rota los tokens y cuenta para el límite de backend-go (tokenForRetry).
  * - Solo cierra la sesión (borra los tokens y avisa con onSessionExpired) si el
- *   refresh token ya no sirve: refresh con 401/400, o el reintento con el token
- *   nuevo da 401. Con una falla pasajera (sin conexión, 429, 5xx) conserva los
- *   tokens y entrega ese error (isSessionInvalid).
+ *   refresh token ya no sirve: refresh con 401/400, o una solicitud enviada con
+ *   un token recién renovado da 401. Con una falla pasajera (sin conexión, 429,
+ *   5xx) conserva los tokens y entrega ese error (isSessionInvalid).
  *
  * Trabaja con Response y RequestInit, sin asumir JSON: sirve también para
  * subir archivos (FormData) o descargar imágenes.
