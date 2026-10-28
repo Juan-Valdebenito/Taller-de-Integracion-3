@@ -37,11 +37,16 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "test": "jest",
+    "test:live": "jest -c jest.live.config.js",
     "typecheck": "tsc --noEmit"
   },
   "private": true,
   "jest": {
     "preset": "jest-expo",
-    "testTimeout": 20000
+    "testTimeout": 20000,
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "\\.live\\.test\\.ts$"
+    ]
   }
 }
