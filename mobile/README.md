@@ -73,10 +73,11 @@ src/
 │       └── profile.tsx     → screens/ProfileScreen (pestaña Perfil)
 ├── auth/
 │   ├── AuthContext.tsx     Estado de sesión: restaurar al abrir, signIn, signUp, signOut
+│   ├── jwt.ts              Lee el vencimiento ("exp") del access token, sin verificar firma
 │   └── validation.ts       Mismas reglas que backend-go (email, contraseña ≥ 8)
 ├── api/
-│   ├── interceptor.ts      Interceptor global: Bearer token, ante un 401 renueva en
-│   │                       /auth/refresh y reintenta (sirve para JSON, FormData, imágenes)
+│   ├── interceptor.ts      Interceptor global: Bearer token, renueva antes de que venza
+│   │                       o ante un 401 en /auth/refresh y reintenta (JSON, FormData, imágenes)
 │   ├── client.ts           apiRequest: solicitudes JSON sobre el interceptor
 │   ├── errors.ts           ApiError y mensajes de error en español
 │   └── authApi.ts          login, register, restoreSession, logout
@@ -108,6 +109,25 @@ src/
   Solo se vuelve a renovar si el token guardado sigue siendo el que se envió (por
   ejemplo, porque la renovación anterior falló). Si el reintento con el token ya
   renovado también da 401, la sesión se cierra.
+- **Renovación anticipada:** para no gastar una solicitud en un 401, el access token se
+  renueva **antes** de que venza, leyendo su vencimiento (`exp`) en `auth/jwt.ts`. La
+  app no verifica la firma: es solo una pista, y la validez real la decide backend-go.
+  - **Antes de enviar** (`renewAhead`): si le queda 1 minuto o menos
+    (`EXPIRY_MARGIN_MS`), primero se renueva y la solicitud sale una sola vez con el
+    token nuevo. Si el refresh falla por algo pasajero y el token todavía no vence, se
+    envía igual con él; si ya venció, se entrega el error sin enviar una solicitud que
+    daría 401. Si el refresh responde que la sesión no sirve, se cierra.
+  - **Al volver a la app** (`AuthContext`, con `AppState`): si hay sesión y el token
+    está por vencer, se renueva en segundo plano (`renewIfExpiringSoon`). Nunca muestra
+    errores: con una falla pasajera no hace nada y la próxima solicitud lo reintenta.
+  - **Reloj del teléfono desajustado:** el vencimiento se compara con la hora del
+    teléfono. Si está adelantada, todo token parecería vencido y se pediría un refresh
+    antes de cada solicitud. Por eso, si un token **recién emitido** ya aparece "por
+    vencer", la renovación anticipada se desactiva y se renueva solo ante el 401, que
+    no depende del reloj. Se reactiva sola cuando un refresh entrega un token con tiempo
+    normal. Lo mismo pasa si backend-go emite tokens de menos de 1 minuto
+    (`JWT_ACCESS_EXPIRES_IN`).
+  - Si no se puede leer el vencimiento del token, no se renueva antes: queda el 401.
 - **Sesión expirada:** la sesión se cierra solo si el refresh token ya no sirve. Una
   falla pasajera del servidor no saca al usuario (`isSessionInvalid` en
   `api/interceptor.ts`):
