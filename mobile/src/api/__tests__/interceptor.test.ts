@@ -4,7 +4,14 @@ import { clearTokens, getTokens, saveTokens } from '../../storage/tokenStorage';
 import { authHeaderOf, bodyOf, fakeResponse, installFetchMock, type FetchMock } from '../../test-utils/http';
 import { accessTokenExpiringIn } from '../../test-utils/jwt';
 import { ApiError, DEFAULT_MESSAGES } from '../errors';
-import { authFetch, INVALID_REFRESH_RESPONSE, isSessionInvalid, setSessionExpiredHandler } from '../interceptor';
+import {
+  authFetch,
+  INVALID_REFRESH_RESPONSE,
+  isProactiveRenewalEnabled,
+  isSessionInvalid,
+  resetProactiveRenewal,
+  setSessionExpiredHandler,
+} from '../interceptor';
 
 const mockStore = SecureStore as unknown as { __reset: () => void };
 let fetchMock: FetchMock;
@@ -13,6 +20,7 @@ beforeEach(async () => {
   mockStore.__reset();
   fetchMock = installFetchMock();
   setSessionExpiredHandler(null);
+  resetProactiveRenewal();
   await saveTokens({ accessToken: 'access-old', refreshToken: 'refresh-old' });
 });
 
@@ -429,6 +437,91 @@ describe('authFetch con renovación anticipada', () => {
 
     expect(urls()).toEqual(['/auth/login']);
     expect(authHeaderOf(fetchMock, 0)).toBeUndefined();
+  });
+});
+
+// Si el reloj del teléfono está adelantado, todo token parece vencido: renovar
+// antes de tiempo pediría un refresh antes de cada solicitud. Se detecta porque
+// un token recién emitido ya aparece "por vencer" y se vuelve al 401 (tarea 4).
+describe('authFetch con el reloj del teléfono desajustado', () => {
+  /** Respuesta de /auth/refresh con el access token dado. */
+  const refreshedWith = (accessToken: string) =>
+    fakeResponse({ body: { accessToken, refreshToken: 'refresh-new', user: { id: '1' } } });
+
+  // Tokens de 15 min vistos con el reloj 20 min adelantado: vencieron hace 5 min.
+  const AHEAD_TOKEN_SECONDS = 15 * 60 - 20 * 60;
+
+  it('si el token recién renovado ya parece vencido, deja de renovar antes de cada solicitud', async () => {
+    await saveTokens({ accessToken: accessTokenExpiringIn(AHEAD_TOKEN_SECONDS), refreshToken: 'refresh-old' });
+    const fresh = accessTokenExpiringIn(AHEAD_TOKEN_SECONDS);
+    fetchMock.mockImplementation(async (url) => (url.endsWith('/auth/refresh') ? refreshedWith(fresh) : fakeResponse({ body: {} })));
+
+    for (const path of ['/a', '/b', '/c']) {
+      await expect(authFetch(path)).resolves.toMatchObject({ status: 200 });
+    }
+
+    expect(refreshCalls()).toBe(1);
+    expect(isProactiveRenewalEnabled()).toBe(false);
+    // El backend sí acepta el token (su reloj está bien): se usa tal cual.
+    expect(['/a', '/b', '/c'].map((path) => authsTo(path))).toEqual([[`Bearer ${fresh}`], [`Bearer ${fresh}`], [`Bearer ${fresh}`]]);
+  });
+
+  it('lo mismo si el backend emite tokens más cortos que el margen', async () => {
+    await saveTokens({ accessToken: accessTokenExpiringIn(20), refreshToken: 'refresh-old' });
+    fetchMock.mockImplementation(async (url) =>
+      url.endsWith('/auth/refresh') ? refreshedWith(accessTokenExpiringIn(30)) : fakeResponse({ body: {} }),
+    );
+
+    await authFetch('/a');
+    await authFetch('/b');
+
+    expect(refreshCalls()).toBe(1);
+    expect(isProactiveRenewalEnabled()).toBe(false);
+  });
+
+  it('sin renovación anticipada, igual renueva ante un 401', async () => {
+    await saveTokens({ accessToken: accessTokenExpiringIn(AHEAD_TOKEN_SECONDS), refreshToken: 'refresh-old' });
+    const refreshes = [accessTokenExpiringIn(AHEAD_TOKEN_SECONDS), accessTokenExpiringIn(AHEAD_TOKEN_SECONDS)];
+    let rejectNext = false;
+    fetchMock.mockImplementation(async (url) => {
+      if (url.endsWith('/auth/refresh')) return refreshedWith(refreshes.shift()!);
+      if (rejectNext) {
+        rejectNext = false;
+        return fakeResponse({ status: 401 });
+      }
+      return fakeResponse({ body: {} });
+    });
+    await authFetch('/a');
+    expect(isProactiveRenewalEnabled()).toBe(false);
+
+    // Más tarde el token vence de verdad en el backend.
+    rejectNext = true;
+    await expect(authFetch('/b')).resolves.toMatchObject({ status: 200 });
+
+    expect(refreshCalls()).toBe(2);
+    expect(authsTo('/b')).toHaveLength(2);
+  });
+
+  it('se vuelve a activar cuando un refresh entrega un token con tiempo normal', async () => {
+    await saveTokens({ accessToken: accessTokenExpiringIn(AHEAD_TOKEN_SECONDS), refreshToken: 'refresh-old' });
+    const refreshes = [accessTokenExpiringIn(AHEAD_TOKEN_SECONDS), accessTokenExpiringIn(15 * 60)];
+    let rejectNext = false;
+    fetchMock.mockImplementation(async (url) => {
+      if (url.endsWith('/auth/refresh')) return refreshedWith(refreshes.shift()!);
+      if (rejectNext) {
+        rejectNext = false;
+        return fakeResponse({ status: 401 });
+      }
+      return fakeResponse({ body: {} });
+    });
+    await authFetch('/a');
+    expect(isProactiveRenewalEnabled()).toBe(false);
+
+    // Se corrigió el reloj: el refresh por 401 entrega un token de 15 min.
+    rejectNext = true;
+    await authFetch('/b');
+
+    expect(isProactiveRenewalEnabled()).toBe(true);
   });
 });
 

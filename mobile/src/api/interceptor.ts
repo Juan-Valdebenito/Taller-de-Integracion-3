@@ -109,6 +109,25 @@ function hasTokenPair(data: unknown): data is Pick<AuthResponse, 'accessToken' |
 let refreshInFlight: Promise<string> | null = null;
 
 /**
+ * Renovación anticipada activa. Se desactiva si un token recién emitido ya
+ * aparece "por vencer": el reloj del teléfono está adelantado (o el backend
+ * emite tokens más cortos que el margen) y se pediría un refresh antes de cada
+ * solicitud. Sin ella se renueva ante el 401, que no depende del reloj. Se
+ * vuelve a activar cuando un refresh entrega un token con tiempo normal.
+ */
+let proactiveRenewal = true;
+
+/** Indica si se está renovando antes de tiempo (false si el reloj no es confiable). */
+export function isProactiveRenewalEnabled(): boolean {
+  return proactiveRenewal;
+}
+
+/** Vuelve a activar la renovación anticipada (para pruebas). */
+export function resetProactiveRenewal(): void {
+  proactiveRenewal = true;
+}
+
+/**
  * Renueva el par de tokens con el refresh token guardado y devuelve el nuevo
  * access token. Llamadas simultáneas reutilizan la misma solicitud.
  */
@@ -134,6 +153,7 @@ export function refreshAccessToken(): Promise<string> {
         throw new ApiError(502, INVALID_REFRESH_RESPONSE);
       }
       await saveTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken });
+      proactiveRenewal = !isExpiringSoon(data.accessToken);
       return data.accessToken;
     })().finally(() => {
       refreshInFlight = null;
@@ -167,7 +187,7 @@ async function tokenForRetry(sentToken: string | null): Promise<string> {
  * entrega el error sin enviarla.
  */
 async function renewAhead(accessToken: string): Promise<string> {
-  if (!isExpiringSoon(accessToken)) {
+  if (!proactiveRenewal || !isExpiringSoon(accessToken)) {
     return accessToken;
   }
   try {
