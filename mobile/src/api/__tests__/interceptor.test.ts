@@ -2,6 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 
 import { clearTokens, getTokens, saveTokens } from '../../storage/tokenStorage';
 import { authHeaderOf, bodyOf, fakeResponse, installFetchMock, type FetchMock } from '../../test-utils/http';
+import { accessTokenExpiringIn } from '../../test-utils/jwt';
 import { ApiError, DEFAULT_MESSAGES } from '../errors';
 import { authFetch, INVALID_REFRESH_RESPONSE, isSessionInvalid, setSessionExpiredHandler } from '../interceptor';
 
@@ -318,6 +319,116 @@ describe('authFetch con respuestas 401 tardías', () => {
     // Cada solicitud avisa al cerrar la sesión. Es inofensivo: AuthContext solo
     // deja el estado en "signedOut", y repetirlo no cambia nada.
     expect(onExpired).toHaveBeenCalledTimes(2);
+  });
+});
+
+// Si el access token vence pronto (según su "exp"), se renueva antes de enviar
+// la solicitud en vez de esperar el 401 (tarea 4).
+describe('authFetch con renovación anticipada', () => {
+  const urls = () => fetchMock.mock.calls.map(([url]) => url.replace(/^.*\/api\/v1/, ''));
+  let onExpired: jest.Mock;
+
+  beforeEach(() => {
+    onExpired = jest.fn();
+    setSessionExpiredHandler(onExpired);
+  });
+
+  async function storeAccessTokenExpiringIn(seconds: number) {
+    const token = accessTokenExpiringIn(seconds);
+    await saveTokens({ accessToken: token, refreshToken: 'refresh-old' });
+    return token;
+  }
+
+  it('si el token vence pronto, renueva primero y envía una sola vez con el nuevo', async () => {
+    await storeAccessTokenExpiringIn(30);
+    fetchMock.mockResolvedValueOnce(refreshed).mockResolvedValueOnce(fakeResponse({ body: { id: '1' } }));
+
+    await expect(authFetch('/auth/me')).resolves.toMatchObject({ status: 200 });
+
+    expect(urls()).toEqual(['/auth/refresh', '/auth/me']);
+    expect(bodyOf(fetchMock, 0)).toEqual({ refreshToken: 'refresh-old' });
+    expect(authHeaderOf(fetchMock, 1)).toBe('Bearer access-new');
+    await expect(getTokens()).resolves.toEqual({ accessToken: 'access-new', refreshToken: 'refresh-new' });
+  });
+
+  it('si al token le queda tiempo, no renueva', async () => {
+    const token = await storeAccessTokenExpiringIn(15 * 60);
+    fetchMock.mockResolvedValueOnce(fakeResponse({ body: { id: '1' } }));
+
+    await authFetch('/auth/me');
+
+    expect(urls()).toEqual(['/auth/me']);
+    expect(authHeaderOf(fetchMock, 0)).toBe(`Bearer ${token}`);
+  });
+
+  it('si el refresh falla por algo pasajero y el token todavía sirve, envía igual con él', async () => {
+    const token = await storeAccessTokenExpiringIn(30);
+    fetchMock
+      .mockResolvedValueOnce(fakeResponse({ status: 503, body: { error: 'No se pudo verificar el estado del token, intenta nuevamente' } }))
+      .mockResolvedValueOnce(fakeResponse({ body: { id: '1' } }));
+
+    await expect(authFetch('/auth/me')).resolves.toMatchObject({ status: 200 });
+
+    expect(urls()).toEqual(['/auth/refresh', '/auth/me']);
+    expect(authHeaderOf(fetchMock, 1)).toBe(`Bearer ${token}`);
+    expect(onExpired).not.toHaveBeenCalled();
+    await expect(getTokens()).resolves.toEqual({ accessToken: token, refreshToken: 'refresh-old' });
+  });
+
+  it('si el refresh falla por algo pasajero y el token ya venció, entrega el error sin enviar la solicitud', async () => {
+    const token = await storeAccessTokenExpiringIn(-10);
+    fetchMock.mockResolvedValueOnce(fakeResponse({ status: 429, body: { error: 'Demasiadas solicitudes.', retryAfter: 30 } }));
+
+    await expect(authFetch('/auth/me')).rejects.toMatchObject({ status: 429, retryAfter: 30 });
+
+    expect(urls()).toEqual(['/auth/refresh']);
+    expect(onExpired).not.toHaveBeenCalled();
+    await expect(getTokens()).resolves.toEqual({ accessToken: token, refreshToken: 'refresh-old' });
+  });
+
+  it('si el refresh dice que la sesión no sirve, la cierra sin enviar la solicitud', async () => {
+    await storeAccessTokenExpiringIn(30);
+    fetchMock.mockResolvedValueOnce(fakeResponse({ status: 401, body: { error: 'Refresh token ya utilizado o revocado' } }));
+
+    await expect(authFetch('/auth/me')).rejects.toMatchObject({ status: 401, message: DEFAULT_MESSAGES[401] });
+
+    expect(urls()).toEqual(['/auth/refresh']);
+    expect(onExpired).toHaveBeenCalledTimes(1);
+    await expect(getTokens()).resolves.toBeNull();
+  });
+
+  it('con solicitudes simultáneas y el token por vencer, renueva una sola vez', async () => {
+    await storeAccessTokenExpiringIn(30);
+    fetchMock.mockImplementation(async (url) => (url.endsWith('/auth/refresh') ? refreshed : fakeResponse({ body: {} })));
+
+    await Promise.all([authFetch('/a'), authFetch('/b'), authFetch('/c')]);
+
+    expect(refreshCalls()).toBe(1);
+    expect(['/a', '/b', '/c'].map((path) => authsTo(path))).toEqual([
+      ['Bearer access-new'],
+      ['Bearer access-new'],
+      ['Bearer access-new'],
+    ]);
+  });
+
+  it('si después de renovar igual da 401, cierra la sesión sin otro refresh', async () => {
+    await storeAccessTokenExpiringIn(30);
+    fetchMock.mockResolvedValueOnce(refreshed).mockResolvedValueOnce(fakeResponse({ status: 401 }));
+
+    await expect(authFetch('/auth/me')).rejects.toMatchObject({ status: 401 });
+
+    expect(urls()).toEqual(['/auth/refresh', '/auth/me']);
+    expect(onExpired).toHaveBeenCalledTimes(1);
+  });
+
+  it('sin autenticación no renueva aunque haya un token por vencer', async () => {
+    await storeAccessTokenExpiringIn(30);
+    fetchMock.mockResolvedValueOnce(fakeResponse({ body: {} }));
+
+    await authFetch('/auth/login', { method: 'POST' }, { auth: false });
+
+    expect(urls()).toEqual(['/auth/login']);
+    expect(authHeaderOf(fetchMock, 0)).toBeUndefined();
   });
 });
 

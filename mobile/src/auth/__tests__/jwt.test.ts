@@ -1,31 +1,8 @@
+import { accessTokenExpiringIn, base64Url, makeJwt } from '../../test-utils/jwt';
 import { EXPIRY_MARGIN_MS, getTokenExpiry, isExpiringSoon } from '../jwt';
 
-/** Texto a base64url sin relleno (UTF-8), como codifica los JWT backend-go. */
-function base64Url(text: string): string {
-  const bytes = new TextEncoder().encode(text);
-  const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-/** JWT con el payload dado (la firma no se verifica en la app). */
-function makeJwt(payload: unknown, header: unknown = { alg: 'HS256', typ: 'JWT' }): string {
-  const encode = (value: unknown) => base64Url(JSON.stringify(value));
-  return `${encode(header)}.${encode(payload)}.firma`;
-}
-
-// Igual que backend-go (handler.AuthHandler): exp e iat en segundos.
 const NOW = Date.UTC(2026, 9, 27, 12, 0, 0);
-const accessToken = (expiresInSeconds: number, extra: object = {}) =>
-  makeJwt({
-    id: 'u1',
-    email: 'ana@correo.cl',
-    role: 'PASSENGER',
-    type: 'access',
-    jti: 'abc',
-    iat: NOW / 1000,
-    exp: NOW / 1000 + expiresInSeconds,
-    ...extra,
-  });
+const accessToken = (expiresInSeconds: number, extra: object = {}) => accessTokenExpiringIn(expiresInSeconds, NOW, extra);
 
 describe('getTokenExpiry', () => {
   it('lee el vencimiento de un access token de backend-go en milisegundos', () => {

@@ -20,6 +20,7 @@
  */
 import { API_URL, REQUEST_TIMEOUT_MS } from '../config';
 import type { AuthResponse } from '../auth/types';
+import { getTokenExpiry, isExpiringSoon } from '../auth/jwt';
 import { clearTokens, getAccessToken, getRefreshToken, saveTokens } from '../storage/tokenStorage';
 import { ApiError, DEFAULT_MESSAGES, readJson, toApiError } from './errors';
 
@@ -157,6 +158,32 @@ async function tokenForRetry(sentToken: string | null): Promise<string> {
   return refreshAccessToken();
 }
 
+/**
+ * Renueva antes de enviar si el access token vence pronto (según su "exp"),
+ * para no gastar una solicitud en un 401. Devuelve el token con que enviar.
+ *
+ * Si el refresh falla por algo pasajero y el token todavía no vence, se envía
+ * igual con él; si ya venció, la solicitud daría 401 con seguridad, así que se
+ * entrega el error sin enviarla.
+ */
+async function renewAhead(accessToken: string): Promise<string> {
+  if (!isExpiringSoon(accessToken)) {
+    return accessToken;
+  }
+  try {
+    return await refreshAccessToken();
+  } catch (error) {
+    if (isSessionInvalid(error)) {
+      return expireSession();
+    }
+    const expiry = getTokenExpiry(accessToken);
+    if (expiry !== null && expiry <= Date.now()) {
+      throw error;
+    }
+    return accessToken;
+  }
+}
+
 async function expireSession(): Promise<never> {
   await clearTokens();
   onSessionExpired?.();
@@ -171,10 +198,16 @@ export async function authFetch(path: string, init: RequestInitSource = {}, opti
   const { auth = true } = options;
   const resolveInit = async () => (typeof init === 'function' ? await init() : init);
 
-  const accessToken = auth ? await getAccessToken() : null;
+  const storedToken = auth ? await getAccessToken() : null;
+  const accessToken = storedToken ? await renewAhead(storedToken) : null;
   const response = await rawFetch(path, withAccessToken(await resolveInit(), accessToken));
   if (!auth || response.status !== 401) {
     return response;
+  }
+  // Si se envió con un token recién renovado y aun así da 401, renovar otra vez
+  // no sirve: igual que cuando el reintento tras renovar da 401.
+  if (accessToken !== storedToken) {
+    return expireSession();
   }
 
   let newToken: string;
