@@ -153,6 +153,81 @@ src/
 - **Límite de intentos:** si backend-go responde 429 (rate limiting), el formulario
   muestra el mensaje y bloquea el botón con cuenta regresiva hasta el `Retry-After`.
 
+## Pruebas en vivo contra backend-go
+
+Además de los tests unitarios (`npm test`, con `fetch` simulado), hay pruebas que
+usan el código real de la sesión (`authApi`, el interceptor y el almacenamiento de
+tokens) contra un **backend-go real** levantado con access tokens de 5 segundos. Así
+se comprueba de verdad el vencimiento, el 401, la rotación del refresh token y la
+lista negra.
+
+**Requisitos:** Go instalado, PostgreSQL corriendo y una base de datos **de prueba**
+vacía. El backend le aplica las migraciones y crea los usuarios de prueba (seed) al
+iniciar; no hace falta correr ningún SQL.
+
+```bash
+psql -U postgres -c "CREATE DATABASE transithub_live;"
+cd mobile
+LIVE_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/transithub_live npm run test:live:backend
+```
+
+En PowerShell:
+
+```powershell
+cd mobile
+$env:LIVE_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/transithub_live"
+npm run test:live:backend
+```
+
+Tarda alrededor de un minuto (compila el backend y algunas pruebas esperan a que el
+token venza). Para correr solo algunas, los argumentos pasan a Jest:
+`npm run test:live:backend -- -t "rotación"`.
+
+**Qué hace `scripts/live-backend.mjs`:**
+
+1. Compila backend-go a un ejecutable temporal.
+2. Lo levanta en `http://127.0.0.1:3995` desde una carpeta temporal, para **no leer
+   `backend-go/.env`**: usa siempre la base indicada, revocados en memoria (sin
+   Redis), sin simulación y `JWT_ACCESS_EXPIRES_IN=5s`.
+3. Espera a que responda `/health` y corre `jest -c jest.live.config.js`.
+4. Detiene el backend al terminar (también con Ctrl+C) y borra lo temporal. Si algo
+   falla, conserva el log del backend y muestra dónde quedó.
+
+**Protecciones:** no corre sin `LIVE_DATABASE_URL`, con una URL inválida ni contra
+`transporte_db` (la base de desarrollo). Conviene usar una base solo para esto: el
+seed y las migraciones la modifican.
+
+| Variable | Por defecto | Uso |
+|---|---|---|
+| `LIVE_DATABASE_URL` | (obligatoria) | Base de prueba |
+| `LIVE_PORT` | `3995` | Puerto del backend de prueba |
+| `LIVE_JWT_ACCESS_EXPIRES_IN` | `5s` | Duración del access token |
+
+**Diferencias con el backend normal:** los límites de intentos de login y de
+renovación de tokens se suben solo en este backend de prueba, porque las pruebas
+inician sesión y renuevan decenas de veces en segundos (un usuario real renueva cada
+~15 min). Los limitadores siguen activos; cómo reacciona la app a un 429 se prueba en
+los tests unitarios.
+
+**Qué cubren** (`src/**/*.live.test.ts`, de a un archivo porque comparten backend):
+
+| Archivo | Comprueba |
+|---|---|
+| `test-utils/__tests__/liveSetup.live.test.ts` | Que la configuración hace solicitudes HTTP reales (no necesita backend) |
+| `auth/__tests__/session.live.test.ts` | Login con el pasajero del seed, contraseña incorrecta, `GET /auth/me` y que tras el logout backend-go rechaza el access token |
+| `api/__tests__/refresh.live.test.ts` | Token vencido → 401 → refresh → reintento; solicitudes simultáneas con un solo refresh; el refresh token anterior queda rechazado; con uno ya usado se cierra la sesión |
+| `api/__tests__/proactive.live.test.ts` | Renovar antes de enviar (sin 401); la protección contra el reloj desajustado; renovar al volver a la app (`renewIfExpiringSoon`) |
+| `api/__tests__/revocation.live.test.ts` | Sesión cerrada desde otro dispositivo; logout con el access token vencido (revoca el par nuevo); logout con tokens ya revocados |
+
+Las pruebas revisan la secuencia exacta de solicitudes que recibe el backend (ej.
+`/auth/me 401` → `/auth/refresh 200` → `/auth/me 200`), no solo el resultado final.
+
+**Por qué una configuración de Jest aparte (`jest.live.config.js`):** en el preset
+`jest-expo`, el `fetch` global es el de Expo, que en Jest no hace solicitudes. La
+configuración en vivo usa Node puro, con su `fetch` real, y los mismos mocks de
+`__mocks__` (ej. `expo-secure-store` en memoria). `npm test` no incluye los
+`*.live.test.ts`, y `npm run test:live` a secas (sin backend) los omite.
+
 ## Ubicación
 
 Base para verificar si el usuario está cerca de un paradero antes de emitir
