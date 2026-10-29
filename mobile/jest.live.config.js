@@ -23,4 +23,6 @@ module.exports = {
   },
   // El backend real responde en segundos; los tokens cortos obligan a esperar.
   testTimeout: 60_000,
+  // De a un archivo: todos comparten el mismo backend y sus límites de intentos.
+  maxWorkers: 1,
 };

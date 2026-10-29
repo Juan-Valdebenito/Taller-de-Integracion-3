@@ -117,6 +117,10 @@ server = spawn(serverBin, [], {
     SIMULATION_ENABLED: 'false',
     REDIS_ADDR: '',
     ATTACHMENTS_DIR: join(workDir, 'attachments'),
+    // Las pruebas inician sesión muchas veces seguidas y no prueban el límite de
+    // login. El de renovar tokens (/auth/refresh) queda como en producción.
+    RATE_LIMIT_AUTH_PER_MIN: '600',
+    RATE_LIMIT_AUTH_BURST: '100',
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });

@@ -29,3 +29,37 @@ export function resetSecureStore(): void {
 export async function rawMe(accessToken: string): Promise<Response> {
   return fetch(`${API_URL}/auth/me`, { headers: { Authorization: `Bearer ${accessToken}` } });
 }
+
+export interface RecordedCall {
+  /** Ruta relativa a la API, ej. "/auth/refresh". */
+  path: string;
+  status: number;
+  authorization?: string;
+}
+
+/**
+ * Registra las solicitudes que salen hacia backend-go (y sus respuestas) sin
+ * cambiarlas: envuelve el fetch real. Llamar a stop() al terminar.
+ */
+export function recordRequests() {
+  const calls: RecordedCall[] = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const response = await realFetch(input, init);
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    const headers = (init?.headers ?? {}) as Record<string, string>;
+    calls.push({ path: url.replace(API_URL, ''), status: response.status, authorization: headers.Authorization });
+    return response;
+  }) as typeof fetch;
+  return {
+    calls,
+    stop: () => {
+      globalThis.fetch = realFetch;
+    },
+  };
+}
+
+/** Espera a que venza (de verdad, en backend-go) el access token recién emitido. */
+export function waitForAccessTokenExpiry(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, (ACCESS_TTL_SECONDS + 1.5) * 1000));
+}
