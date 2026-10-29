@@ -11,7 +11,6 @@ export default function AppLayout() {
   const canOperate = user?.role === 'COMPANY' || user?.role === 'ADMIN';
   return (
     <Tabs
-      initialRouteName={canOperate ? 'operations' : 'index'}
       screenOptions={{
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.muted,

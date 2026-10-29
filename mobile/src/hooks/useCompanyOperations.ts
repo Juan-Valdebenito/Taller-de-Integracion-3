@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import { ApiError } from '../api/client';
+import { ApiError } from '../api/errors';
 import { fetchCompanyBuses, fetchCompanyRoutes, type CompanyBus, type CompanyRoute } from '../api/companyApi';
 import { useAuth } from '../auth/AuthContext';
 

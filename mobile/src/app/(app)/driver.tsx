@@ -3,7 +3,7 @@ import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { Redirect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ApiError } from '../../api/client';
+import { ApiError } from '../../api/errors';
 import { updateCompanyBus } from '../../api/companyApi';
 import { useAuth } from '../../auth/AuthContext';
 import { useCompanyOperations } from '../../hooks/useCompanyOperations';
