@@ -1,8 +1,9 @@
 import { getCurrentUser, login } from '../../api/authApi';
-import { getTokens } from '../../storage/tokenStorage';
+import { getTokens, saveTokens } from '../../storage/tokenStorage';
 import {
   describeLive,
   rawMe,
+  rawRefresh,
   recordRequests,
   resetSecureStore,
   SEED_PASSENGER,
@@ -103,5 +104,43 @@ describeLive('renovación ante un 401 de backend-go real', () => {
     }
 
     expect(recorder.calls.map(({ path, status }) => `${path} ${status}`)).toEqual(['/auth/me 200']);
+  });
+});
+
+// Rotación: cada refresh token sirve una sola vez en backend-go.
+describeLive('rotación del refresh token en backend-go real', () => {
+  it('después de renovar, backend-go rechaza el refresh token anterior', async () => {
+    await login(SEED_PASSENGER);
+    const before = (await getTokens())!;
+
+    await refreshAccessToken();
+
+    const response = await rawRefresh(before.refreshToken);
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ error: 'Refresh token ya utilizado o revocado' });
+    // La app sigue funcionando con el par nuevo.
+    await expect(getCurrentUser()).resolves.toMatchObject({ email: SEED_PASSENGER.email });
+  });
+
+  it('si la app tiene un refresh token ya usado, cierra la sesión al necesitar renovar', async () => {
+    const onExpired = jest.fn();
+    setSessionExpiredHandler(onExpired);
+    await signInWithReactiveRenewalOnly();
+    const stale = (await getTokens())!;
+    // Otro refresh lo consume (ej. una copia vieja de los tokens que se restauró).
+    await refreshAccessToken();
+    await saveTokens(stale);
+    await waitForAccessTokenExpiry();
+
+    const recorder = recordRequests();
+    try {
+      await expect(getCurrentUser()).rejects.toMatchObject({ status: 401 });
+    } finally {
+      recorder.stop();
+    }
+
+    expect(recorder.calls.map(({ path, status }) => `${path} ${status}`)).toEqual(['/auth/me 401', '/auth/refresh 401']);
+    expect(onExpired).toHaveBeenCalledTimes(1);
+    await expect(getTokens()).resolves.toBeNull();
   });
 });

@@ -30,6 +30,15 @@ export async function rawMe(accessToken: string): Promise<Response> {
   return fetch(`${API_URL}/auth/me`, { headers: { Authorization: `Bearer ${accessToken}` } });
 }
 
+/** POST /auth/refresh con un refresh token dado, sin pasar por el interceptor. */
+export async function rawRefresh(refreshToken: string): Promise<Response> {
+  return fetch(`${API_URL}/auth/refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refreshToken }),
+  });
+}
+
 export interface RecordedCall {
   /** Ruta relativa a la API, ej. "/auth/refresh". */
   path: string;
