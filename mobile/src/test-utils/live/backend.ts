@@ -56,6 +56,8 @@ export interface RecordedCall {
   path: string;
   status: number;
   authorization?: string;
+  /** Cuerpo enviado (JSON), si lo hubo. */
+  body?: unknown;
 }
 
 /**
@@ -69,7 +71,8 @@ export function recordRequests() {
     const response = await realFetch(input, init);
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     const headers = (init?.headers ?? {}) as Record<string, string>;
-    calls.push({ path: url.replace(API_URL, ''), status: response.status, authorization: headers.Authorization });
+    const body = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined;
+    calls.push({ path: url.replace(API_URL, ''), status: response.status, authorization: headers.Authorization, body });
     return response;
   }) as typeof fetch;
   return {
