@@ -38,6 +38,7 @@
     "web": "expo start --web",
     "test": "jest",
     "test:live": "jest -c jest.live.config.js",
+    "test:live:backend": "node scripts/live-backend.mjs",
     "typecheck": "tsc --noEmit"
   },
   "private": true,
