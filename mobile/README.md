@@ -53,10 +53,15 @@ Qué cambia en web (`src/utils/platform.ts`):
 ## Comandos
 
 ```bash
-npm test             # tests (Jest + React Native Testing Library)
-npm run typecheck    # TypeScript
-npx expo-doctor      # compatibilidad de dependencias con el SDK
+npm test                   # tests (Jest + React Native Testing Library)
+npm run typecheck          # TypeScript
+npx expo-doctor            # compatibilidad de dependencias con el SDK
+npm run test:live:backend  # pruebas de sesión contra backend-go real (requiere LIVE_DATABASE_URL)
+npm run test:live          # las mismas sin levantar backend (solo corre la de configuración)
 ```
+
+Las pruebas en vivo están explicadas en
+[Pruebas en vivo contra backend-go](#pruebas-en-vivo-contra-backend-go).
 
 Para agregar dependencias usar siempre `npx expo install <paquete>` (elige la versión compatible con el SDK).
 

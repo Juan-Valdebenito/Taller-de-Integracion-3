@@ -258,6 +258,15 @@ Authorization: Bearer <token>
 
 El token se obtiene desde `POST /auth/login` o `POST /auth/register`.
 
+El access token dura 15 minutos (`JWT_ACCESS_EXPIRES_IN`). Con el refresh token se pide
+un par nuevo en `POST /auth/refresh`; cada refresh token sirve **una sola vez**
+(rotación) y `POST /auth/logout` deja en la lista negra el access token y, si viene
+en el body, el refresh token (la app móvil siempre lo envía). La app móvil
+renueva sola: antes de que venza el access token, ante un 401 y al volver a primer
+plano, y solo cierra la sesión si el refresh token ya no sirve. Detalle y pruebas en
+vivo contra backend-go real (`npm run test:live:backend`) en
+[mobile/README.md](mobile/README.md#cómo-funciona-la-autenticación).
+
 ### Imágenes de reclamos
 
 El pasajero puede adjuntar hasta **3 fotos** a cada reclamo (por ejemplo, desde la app
