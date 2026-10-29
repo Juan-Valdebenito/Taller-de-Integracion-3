@@ -39,6 +39,18 @@ export async function rawRefresh(refreshToken: string): Promise<Response> {
   });
 }
 
+/**
+ * POST /auth/logout con un par de tokens, sin pasar por la app: como si la
+ * sesión se cerrara desde otro dispositivo. backend-go revoca ambos tokens.
+ */
+export async function rawLogout(tokens: { accessToken: string; refreshToken: string }): Promise<Response> {
+  return fetch(`${API_URL}/auth/logout`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokens.accessToken}` },
+    body: JSON.stringify({ refreshToken: tokens.refreshToken }),
+  });
+}
+
 export interface RecordedCall {
   /** Ruta relativa a la API, ej. "/auth/refresh". */
   path: string;

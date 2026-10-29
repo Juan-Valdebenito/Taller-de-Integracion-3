@@ -117,10 +117,15 @@ server = spawn(serverBin, [], {
     SIMULATION_ENABLED: 'false',
     REDIS_ADDR: '',
     ATTACHMENTS_DIR: join(workDir, 'attachments'),
-    // Las pruebas inician sesión muchas veces seguidas y no prueban el límite de
-    // login. El de renovar tokens (/auth/refresh) queda como en producción.
+    // Las pruebas inician sesión y renuevan tokens decenas de veces en segundos
+    // (un usuario real renueva cada ~15 min) y no prueban los límites de
+    // intentos: se suben para que no respondan 429 según el orden de las
+    // pruebas. Los limitadores siguen activos; el 429 en la app se prueba en
+    // las pruebas unitarias.
     RATE_LIMIT_AUTH_PER_MIN: '600',
     RATE_LIMIT_AUTH_BURST: '100',
+    RATE_LIMIT_TOKEN_PER_MIN: '600',
+    RATE_LIMIT_TOKEN_BURST: '100',
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });

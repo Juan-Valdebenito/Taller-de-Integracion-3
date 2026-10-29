@@ -1,8 +1,20 @@
 import { getCurrentUser, login } from '../../api/authApi';
 import { getTokenExpiry } from '../../auth/jwt';
 import { getTokens } from '../../storage/tokenStorage';
-import { describeLive, rawRefresh, recordRequests, resetSecureStore, SEED_PASSENGER } from '../../test-utils/live/backend';
-import { isProactiveRenewalEnabled, resetProactiveRenewal, setSessionExpiredHandler } from '../interceptor';
+import {
+  describeLive,
+  rawLogout,
+  rawRefresh,
+  recordRequests,
+  resetSecureStore,
+  SEED_PASSENGER,
+} from '../../test-utils/live/backend';
+import {
+  isProactiveRenewalEnabled,
+  renewIfExpiringSoon,
+  resetProactiveRenewal,
+  setSessionExpiredHandler,
+} from '../interceptor';
 
 // Renovación anticipada contra backend-go real. El backend de prueba emite
 // access tokens de pocos segundos, menos que el margen de 1 minuto: recién
@@ -74,5 +86,78 @@ describeLive('renovación anticipada contra backend-go real', () => {
     expect(recorder.calls.filter((c) => c.path === '/auth/refresh')).toHaveLength(1);
     expect(flow(recorder.calls).filter((c) => c === '/auth/me 200')).toHaveLength(3);
     expect(recorder.calls.some((c) => c.status === 401)).toBe(false);
+  });
+});
+
+// Al volver la app a primer plano, AuthContext llama a renewIfExpiringSoon:
+// renueva en segundo plano y nunca lanza.
+describeLive('renovar al volver a la app (renewIfExpiringSoon) contra backend-go real', () => {
+  it('con el token por vencer, renueva y backend-go rota el par', async () => {
+    await login(SEED_PASSENGER);
+    const before = (await getTokens())!;
+
+    const recorder = recordRequests();
+    try {
+      await expect(renewIfExpiringSoon()).resolves.toBe(true);
+    } finally {
+      recorder.stop();
+    }
+
+    expect(flow(recorder.calls)).toEqual(['/auth/refresh 200']);
+    const renewed = (await getTokens())!;
+    expect(renewed.accessToken).not.toBe(before.accessToken);
+    expect((await rawRefresh(before.refreshToken)).status).toBe(401);
+    // La primera solicitud después ya no necesita renovar.
+    const next = recordRequests();
+    try {
+      await getCurrentUser();
+    } finally {
+      next.stop();
+    }
+    expect(flow(next.calls)).toEqual(['/auth/me 200']);
+  });
+
+  it('con la renovación anticipada apagada (tokens cortos), no hace ninguna solicitud', async () => {
+    await login(SEED_PASSENGER);
+    await renewIfExpiringSoon();
+    expect(isProactiveRenewalEnabled()).toBe(false);
+
+    const recorder = recordRequests();
+    try {
+      await expect(renewIfExpiringSoon()).resolves.toBe(false);
+    } finally {
+      recorder.stop();
+    }
+
+    expect(recorder.calls).toEqual([]);
+  });
+
+  it('sin sesión no hace ninguna solicitud', async () => {
+    const recorder = recordRequests();
+    try {
+      await expect(renewIfExpiringSoon()).resolves.toBe(false);
+    } finally {
+      recorder.stop();
+    }
+
+    expect(recorder.calls).toEqual([]);
+  });
+
+  it('si la sesión se cerró desde otro dispositivo, cierra la sesión sin lanzar', async () => {
+    const onExpired = jest.fn();
+    setSessionExpiredHandler(onExpired);
+    await login(SEED_PASSENGER);
+    expect((await rawLogout((await getTokens())!)).status).toBe(200);
+
+    const recorder = recordRequests();
+    try {
+      await expect(renewIfExpiringSoon()).resolves.toBe(false);
+    } finally {
+      recorder.stop();
+    }
+
+    expect(flow(recorder.calls)).toEqual(['/auth/refresh 401']);
+    expect(onExpired).toHaveBeenCalledTimes(1);
+    await expect(getTokens()).resolves.toBeNull();
   });
 });
