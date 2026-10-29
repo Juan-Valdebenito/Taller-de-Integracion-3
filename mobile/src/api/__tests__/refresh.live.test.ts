@@ -60,6 +60,36 @@ describeLive('renovación ante un 401 de backend-go real', () => {
     expect(onExpired).not.toHaveBeenCalled();
   });
 
+  it('varias solicitudes simultáneas con el token vencido terminan bien con un solo refresh', async () => {
+    const onExpired = jest.fn();
+    setSessionExpiredHandler(onExpired);
+    await signInWithReactiveRenewalOnly();
+    const expired = (await getTokens())!;
+    await waitForAccessTokenExpiry();
+
+    const recorder = recordRequests();
+    let users;
+    try {
+      users = await Promise.all([getCurrentUser(), getCurrentUser(), getCurrentUser()]);
+    } finally {
+      recorder.stop();
+    }
+
+    expect(users.map((u) => u.email)).toEqual([SEED_PASSENGER.email, SEED_PASSENGER.email, SEED_PASSENGER.email]);
+    const count = (path: string, status: number) => recorder.calls.filter((c) => c.path === path && c.status === status).length;
+    // backend-go rota el refresh token: un segundo refresh con el mismo token
+    // habría respondido 401 y cerrado la sesión.
+    expect(count('/auth/refresh', 200)).toBe(1);
+    expect(recorder.calls.filter((c) => c.path === '/auth/refresh')).toHaveLength(1);
+    expect(count('/auth/me', 401)).toBe(3);
+    expect(count('/auth/me', 200)).toBe(3);
+    const renewed = (await getTokens())!;
+    const retries = recorder.calls.filter((c) => c.path === '/auth/me' && c.status === 200);
+    expect(new Set(retries.map((c) => c.authorization))).toEqual(new Set([`Bearer ${renewed.accessToken}`]));
+    expect(renewed.accessToken).not.toBe(expired.accessToken);
+    expect(onExpired).not.toHaveBeenCalled();
+  });
+
   it('después de renovar, las solicitudes siguientes usan el token nuevo sin otro refresh', async () => {
     await signInWithReactiveRenewalOnly();
     await waitForAccessTokenExpiry();
