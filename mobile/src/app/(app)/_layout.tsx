@@ -1,13 +1,17 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router/js-tabs';
 
+import { useAuth } from '../../auth/AuthContext';
 import { useTheme } from '../../theme';
 
-/** Rutas con sesión iniciada (protegidas en src/app/_layout.tsx): pestañas Inicio, Perfil y Configuración. */
+/** Rutas con sesión iniciada: las cuentas de empresa también ven flota, rutas y modo conductor. */
 export default function AppLayout() {
   const { colors, font } = useTheme();
+  const { user } = useAuth();
+  const canOperate = user?.role === 'COMPANY' || user?.role === 'ADMIN';
   return (
     <Tabs
+      initialRouteName={canOperate ? 'operations' : 'index'}
       screenOptions={{
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.muted,
@@ -22,6 +26,28 @@ export default function AppLayout() {
           headerTitle: 'TransitHub',
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color as string} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="operations"
+        options={{
+          title: 'Empresa',
+          headerTitle: 'Operación de empresa',
+          href: canOperate ? undefined : null,
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'business' : 'business-outline'} size={size} color={color as string} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="driver"
+        options={{
+          title: 'Conductor',
+          headerTitle: 'Modo conductor',
+          href: canOperate ? undefined : null,
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'navigate' : 'navigate-outline'} size={size} color={color as string} />
           ),
         }}
       />
