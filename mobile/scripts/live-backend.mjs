@@ -136,7 +136,7 @@ try {
   const jest = spawnSync(process.execPath, [jestBin, '-c', 'jest.live.config.js', ...process.argv.slice(2)], {
     cwd: mobileDir,
     stdio: 'inherit',
-    env: { ...process.env, EXPO_PUBLIC_API_URL: `${baseUrl}/api/v1`, LIVE_JWT_ACCESS_EXPIRES_IN: accessTtl },
+    env: { ...process.env, LIVE_BACKEND: '1', EXPO_PUBLIC_API_URL: `${baseUrl}/api/v1`, LIVE_JWT_ACCESS_EXPIRES_IN: accessTtl },
   });
   exitCode = jest.status ?? 1;
   if (exitCode !== 0) {
