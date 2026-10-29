@@ -8,9 +8,9 @@ import (
 )
 
 type CompanySummary struct {
-	ID   		string `json: "id"`
-	Name 		string `json: "name"`
-	IsActive 	bool `json: "isActive"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	IsActive bool   `json:"isActive"`
 }
 
 type CompanyRepository struct {
@@ -38,12 +38,14 @@ func (r *CompanyRepository) FindAllActive(ctx context.Context) ([]CompanySummary
 
 	for rows.Next() {
 		var company CompanySummary
-		
+
 		if err := rows.Scan(
 			&company.ID,
 			&company.Name,
 			&company.IsActive,
-		); err != nil { return nil, fmt.Errorf("CompanyRepository.FindAllActive scan: %w", err,)}
+		); err != nil {
+			return nil, fmt.Errorf("CompanyRepository.FindAllActive scan: %w", err)
+		}
 
 		companies = append(companies, company)
 	}
