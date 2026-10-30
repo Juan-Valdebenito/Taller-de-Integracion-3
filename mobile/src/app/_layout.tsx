@@ -15,7 +15,7 @@ import { navigationTheme } from '../theme/navigationTheme';
 SplashScreen.preventAutoHideAsync();
 
 function RootNavigator() {
-  const { status } = useAuth();
+  const { status, user } = useAuth();
   const { loaded: settingsLoaded } = useSettings();
   // Si Inter no carga (fontError), la app sigue con la fuente del sistema.
   const [fontsLoaded, fontError] = useFonts(INTER_FONTS);
@@ -32,11 +32,22 @@ function RootNavigator() {
   }
 
   const signedIn = status === 'signedIn';
+  const role = signedIn ? user?.role : undefined;
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      {/* Con sesión: la app. Sin sesión, estas rutas redirigen al login. */}
-      <Stack.Protected guard={signedIn}>
+      {/*
+        Una sección por rol, como el web (/passenger, /company, /admin). Cada
+        usuario solo puede abrir la suya: al iniciar sesión Expo Router lo lleva
+        a la primera disponible, que es la de su rol.
+      */}
+      <Stack.Protected guard={role === 'PASSENGER'}>
         <Stack.Screen name="(app)" />
+      </Stack.Protected>
+      <Stack.Protected guard={role === 'COMPANY'}>
+        <Stack.Screen name="company" />
+      </Stack.Protected>
+      <Stack.Protected guard={role === 'ADMIN'}>
+        <Stack.Screen name="admin" />
       </Stack.Protected>
       {/* Sin sesión: login y registro. Con sesión, redirigen a la app. */}
       <Stack.Protected guard={!signedIn}>

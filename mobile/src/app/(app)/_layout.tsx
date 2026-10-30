@@ -1,23 +1,13 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router/js-tabs';
 
-import { useAuth } from '../../auth/AuthContext';
-import { useTheme } from '../../theme';
+import { useTabScreenOptions } from '../../navigation/useTabScreenOptions';
 
-/** Rutas con sesión iniciada: las cuentas de empresa también ven flota, rutas y modo conductor. */
+/** Sección del pasajero (rol PASSENGER). Empresa y administración tienen las suyas (app/company, app/admin). */
 export default function AppLayout() {
-  const { colors, font } = useTheme();
-  const { user } = useAuth();
-  const canOperate = user?.role === 'COMPANY' || user?.role === 'ADMIN';
+  const screenOptions = useTabScreenOptions();
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: colors.accent,
-        tabBarInactiveTintColor: colors.muted,
-        headerTitleStyle: { fontWeight: '700', fontSize: font(17) },
-        tabBarLabelStyle: { fontSize: font(11) },
-      }}
-    >
+    <Tabs screenOptions={screenOptions}>
       <Tabs.Screen
         name="index"
         options={{
@@ -25,28 +15,6 @@ export default function AppLayout() {
           headerTitle: 'TransitHub',
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color as string} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="operations"
-        options={{
-          title: 'Empresa',
-          headerTitle: 'Operación de empresa',
-          href: canOperate ? undefined : null,
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'business' : 'business-outline'} size={size} color={color as string} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="driver"
-        options={{
-          title: 'Conductor',
-          headerTitle: 'Modo conductor',
-          href: canOperate ? undefined : null,
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'navigate' : 'navigate-outline'} size={size} color={color as string} />
           ),
         }}
       />

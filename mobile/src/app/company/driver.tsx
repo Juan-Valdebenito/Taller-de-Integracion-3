@@ -1,18 +1,14 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
-import { Redirect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ApiError } from '../../api/errors';
 import { updateCompanyBus } from '../../api/companyApi';
-import { useAuth } from '../../auth/AuthContext';
 import { useCompanyOperations } from '../../hooks/useCompanyOperations';
 import { makeStyles, radius, spacing, useTheme } from '../../theme';
 
-const canDrive = (role?: string) => role === 'COMPANY' || role === 'ADMIN';
 
 export default function DriverModeScreen() {
-  const { user } = useAuth();
   const { buses, routes, loading, error, refresh } = useCompanyOperations();
   const { colors } = useTheme();
   const styles = useStyles();
@@ -53,7 +49,6 @@ export default function DriverModeScreen() {
     }
   }, [activeBus, busy, refresh]);
 
-  if (!canDrive(user?.role)) return <Redirect href="/(app)" />;
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom', 'left', 'right']}>
@@ -98,8 +93,8 @@ function Choice({ label, selected, onPress }: { label: string; selected: boolean
 const useStyles = makeStyles((colors, font) => ({
   safe: { flex: 1, backgroundColor: colors.background }, content: { padding: spacing.lg, gap: spacing.sm },
   heading: { color: colors.text, fontSize: font(25), fontWeight: '700' }, subtitle: { color: colors.muted, fontSize: font(14), marginBottom: spacing.md }, section: { color: colors.text, fontSize: font(16), fontWeight: '700', marginTop: spacing.md },
-  choice: { padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, choiceSelected: { borderColor: colors.primary },
-  choiceText: { color: colors.text, fontSize: font(14) }, choiceTextSelected: { color: colors.primary, fontWeight: '700' }, action: { marginTop: spacing.lg, backgroundColor: colors.primary, padding: spacing.md, borderRadius: radius.md, alignItems: 'center' },
+  choice: { padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, choiceSelected: { borderColor: colors.accent },
+  choiceText: { color: colors.text, fontSize: font(14) }, choiceTextSelected: { color: colors.accent, fontWeight: '700' }, action: { marginTop: spacing.lg, backgroundColor: colors.primary, padding: spacing.md, borderRadius: radius.md, alignItems: 'center' },
   stopAction: { backgroundColor: colors.danger }, actionText: { color: colors.onPrimary, fontSize: font(15), fontWeight: '700' }, disabled: { opacity: 0.55 }, activeCard: { padding: spacing.md, backgroundColor: colors.surface, borderRadius: radius.lg, gap: spacing.sm },
-  activeTitle: { color: colors.text, fontWeight: '700', fontSize: font(18) }, detail: { color: colors.muted, fontSize: font(14) }, error: { color: colors.danger, fontSize: font(14) }, empty: { color: colors.muted, fontSize: font(14), paddingVertical: spacing.lg }, retry: { color: colors.primary, fontWeight: '700', paddingVertical: spacing.sm },
+  activeTitle: { color: colors.text, fontWeight: '700', fontSize: font(18) }, detail: { color: colors.muted, fontSize: font(14) }, error: { color: colors.danger, fontSize: font(14) }, empty: { color: colors.muted, fontSize: font(14), paddingVertical: spacing.lg }, retry: { color: colors.accent, fontWeight: '700', paddingVertical: spacing.sm },
 }));

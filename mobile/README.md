@@ -1,8 +1,9 @@
 # TransitHub — App móvil (React Native + Expo)
 
-App para pasajeros y usuarios de empresa. Además de autenticación, perfil,
-paraderos y alertas, las cuentas `COMPANY` y `ADMIN` tienen panel de flota,
-consulta de rutas y modo conductor conectado a `backend-go`.
+App de pasajeros, empresas y administradores, con las mismas secciones que el
+frontend web. Además de autenticación, perfil, paraderos y alertas, las cuentas
+`COMPANY` tienen panel de flota, consulta de rutas y modo conductor conectado a
+`backend-go`.
 
 - Expo SDK 58 · React Native 0.88 · TypeScript · Expo Router
 - Tokens JWT guardados **cifrados** con `expo-secure-store`
@@ -27,10 +28,23 @@ npx expo start            # escanear el QR con Expo Go, o "a" / "i" para emulado
 
 Si cambias `.env`, reinicia con `npx expo start --clear`.
 
+## Secciones por rol
+
+Como el web, cada rol tiene su propia sección y solo puede abrir la suya
+(`Stack.Protected` en `app/_layout.tsx`). Al iniciar sesión, la app lleva a cada
+usuario a la de su rol:
+
+| Rol | Sección | Pestañas (como el menú del web) |
+|---|---|---|
+| `PASSENGER` | `/` (`app/(app)/`) | Inicio · Perfil · Configuración |
+| `COMPANY` | `/company` (`app/company/`) | 📊 Dashboard · 🎛️ Conductor · 🚍 Micros · 🗺️ Rutas · 📋 Reclamos |
+| `ADMIN` | `/admin` (`app/admin/`) | 📊 Dashboard · 🏢 Empresas · 🗺️ Rutas · 👥 Usuarios · 📋 Reclamos |
+
+Las pestañas marcadas con 🚧 en la app todavía son provisionales.
+
 ## Vistas de empresa y conductor
 
-Al iniciar sesión como `COMPANY` o `ADMIN`, la app abre el panel de empresa y
-muestra las pestañas Empresa y Conductor. La flota y las rutas se leen desde
+En la sección de empresa, la flota y las rutas se leen desde
 `GET /buses` y `GET /routes`; iniciar un recorrido asigna la ruta elegida y
 cambia la micro a `ACTIVE`, y finalizarlo la cambia a `INACTIVE` mediante
 `PATCH /buses/:id`. El backend actual no ofrece un recurso de viajes: el estado
@@ -80,12 +94,14 @@ Para agregar dependencias usar siempre `npx expo install <paquete>` (elige la ve
 ```
 src/
 ├── app/                    Rutas (Expo Router)
-│   ├── _layout.tsx         AuthProvider + Stack.Protected (qué rutas se ven con/sin sesión)
+│   ├── _layout.tsx         AuthProvider + Stack.Protected (una sección por rol; login sin sesión)
 │   ├── login.tsx           → screens/LoginScreen
 │   ├── register.tsx        → screens/RegisterScreen
-│   └── (app)/              Solo con sesión; pestañas inferiores (_layout.tsx)
-│       ├── index.tsx       → screens/HomeScreen   (pestaña Inicio)
-│       └── profile.tsx     → screens/ProfileScreen (pestaña Perfil)
+│   ├── (app)/              Pasajero; pestañas inferiores (_layout.tsx)
+│   │   ├── index.tsx       → screens/HomeScreen   (pestaña Inicio)
+│   │   └── profile.tsx     → screens/ProfileScreen (pestaña Perfil)
+│   ├── company/            Empresa: dashboard, modo conductor, micros, rutas, reclamos
+│   └── admin/              Administración: dashboard, empresas, rutas, usuarios, reclamos
 ├── auth/
 │   ├── AuthContext.tsx     Estado de sesión: restaurar al abrir, signIn, signUp, signOut
 │   ├── jwt.ts              Lee el vencimiento ("exp") del access token, sin verificar firma

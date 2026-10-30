@@ -1,28 +1,23 @@
 import { useCallback } from 'react';
 import { RefreshControl, ScrollView, Text, View } from 'react-native';
-import { Redirect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useAuth } from '../../auth/AuthContext';
 import { useCompanyOperations } from '../../hooks/useCompanyOperations';
 import { makeStyles, radius, spacing, useTheme } from '../../theme';
 
-const canManage = (role?: string) => role === 'COMPANY' || role === 'ADMIN';
 const statusLabel: Record<string, string> = {
   ACTIVE: 'En servicio', INACTIVE: 'Disponible', MAINTENANCE: 'Mantenimiento', OUT_OF_SERVICE: 'Fuera de servicio',
 };
 
 export default function CompanyBusesScreen() {
-  const { user } = useAuth();
   const { buses, loading, error, refresh } = useCompanyOperations();
   const styles = useStyles();
   const { colors } = useTheme();
   const onRefresh = useCallback(() => { void refresh(); }, [refresh]);
-  if (!canManage(user?.role)) return <Redirect href="/(app)" />;
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom', 'left', 'right']}>
-      <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={loading} onRefresh={onRefresh} tintColor={colors.primary} />}>
+      <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={loading} onRefresh={onRefresh} tintColor={colors.accent} />}>
         <Text style={styles.heading}>Flota de micros</Text>
         <Text style={styles.subheading}>{buses.length} unidades asociadas a la empresa</Text>
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -31,7 +26,7 @@ export default function CompanyBusesScreen() {
           <View key={bus.id} style={styles.card}>
             <View style={styles.row}>
               <Text style={styles.title}>{bus.patente}</Text>
-              <Text style={[styles.badge, { color: bus.status === 'ACTIVE' ? colors.primary : colors.muted }]}>{statusLabel[bus.status] ?? bus.status}</Text>
+              <Text style={[styles.badge, { color: bus.status === 'ACTIVE' ? colors.accent : colors.muted }]}>{statusLabel[bus.status] ?? bus.status}</Text>
             </View>
             <Text style={styles.detail}>Pasajeros: {bus.currentPassengers} / {bus.capacity}</Text>
             <Text style={styles.detail}>Ocupación: {bus.capacity > 0 ? Math.round((bus.currentPassengers / bus.capacity) * 100) : 0}%</Text>
