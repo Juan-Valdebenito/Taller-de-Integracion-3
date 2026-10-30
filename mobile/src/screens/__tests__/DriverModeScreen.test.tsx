@@ -104,7 +104,7 @@ describe('DriverModeScreen', () => {
   });
 
   it('con el recorrido iniciado muestra "En recorrido", la línea y Finalizar', async () => {
-    const driver = mockDriver({ trip: { bus: { ...buses[0], status: 'ACTIVE', routeId: 'r1' }, route: routes[0], startedAt: 0 } });
+    const driver = mockDriver({ trip: { bus: { ...buses[0], status: 'ACTIVE', routeId: 'r1' }, route: routes[0], startedAt: Date.now() } });
     await render(<DriverModeScreen />);
 
     expect(screen.getByText('En recorrido')).toBeTruthy();
@@ -113,5 +113,74 @@ describe('DriverModeScreen', () => {
     expect(screen.queryByRole('header', { name: 'Preparar recorrido' })).toBeNull();
     await fireEvent.press(screen.getByRole('button', { name: 'Finalizar' }));
     expect(driver.stop).toHaveBeenCalled();
+  });
+
+  describe('tarjeta "En recorrido"', () => {
+    // Paraderos en línea recta hacia el norte, separados ~1 km.
+    const north = (meters: number) => -38.75 + meters / 111_195;
+    const lineStops: RouteStop[] = [0, 1000, 2000, 3000].map((m, i) => ({
+      id: `s${i}`,
+      name: `Paradero ${i + 1}`,
+      latitude: north(m),
+      longitude: -72.6,
+      order: i + 1,
+    }));
+    const tripStartedMinutesAgo = (minutes: number) =>
+      mockDriver({
+        trip: { bus: { ...buses[0], status: 'ACTIVE', routeId: 'r1' }, route: routes[0], startedAt: Date.now() - minutes * 60_000 },
+      });
+
+    beforeEach(() => jest.mocked(useRouteStops).mockReturnValue({ stops: lineStops, loading: false, error: null, reload: jest.fn() }));
+
+    it('al empezar: 0%, próxima parada la primera, y pasajeros, minutos y paradas', async () => {
+      tripStartedMinutesAgo(12);
+      await render(<DriverModeScreen />);
+
+      expect(screen.getByLabelText('Progreso del recorrido: 0%')).toBeTruthy();
+      expect(screen.getByText('Inicio del recorrido')).toBeTruthy();
+      expect(screen.getByLabelText('Próxima parada: Paradero 1')).toBeTruthy();
+      expect(screen.getByLabelText('Pasajeros: 14')).toBeTruthy();
+      expect(screen.getByLabelText('Transcurrido: 12 min')).toBeTruthy();
+      expect(screen.getByLabelText('Paradas: 4')).toBeTruthy();
+      expect(useRouteStops).toHaveBeenCalledWith('r1');
+    });
+
+    it('con la posición de la micro avanza: pasó 2 paraderos → 50% y próxima la 3.ª', async () => {
+      tripStartedMinutesAgo(5);
+      await render(<DriverModeScreen position={{ latitude: north(1020), longitude: -72.6 }} />);
+
+      expect(screen.getByLabelText('Progreso del recorrido: 50%')).toBeTruthy();
+      expect(screen.getByLabelText('Próxima parada: Paradero 3')).toBeTruthy();
+    });
+
+    it('al llegar al último paradero dice "Fin del recorrido"', async () => {
+      tripStartedMinutesAgo(40);
+      await render(<DriverModeScreen position={{ latitude: north(3000), longitude: -72.6 }} />);
+
+      expect(screen.getByLabelText('Progreso del recorrido: 100%')).toBeTruthy();
+      expect(screen.getByText('Fin del recorrido')).toBeTruthy();
+      expect(screen.getByText('Pasaste por todas las paradas')).toBeTruthy();
+    });
+
+    it('si la ruta no tiene paraderos lo dice (sin barra de progreso)', async () => {
+      jest.mocked(useRouteStops).mockReturnValue({ stops: [], loading: false, error: null, reload: jest.fn() });
+      tripStartedMinutesAgo(1);
+      await render(<DriverModeScreen />);
+
+      expect(screen.getByText('Esta ruta no tiene paraderos registrados.')).toBeTruthy();
+      expect(screen.queryByText('Inicio del recorrido')).toBeNull();
+      expect(screen.getByLabelText('Paradas: 0')).toBeTruthy();
+    });
+
+    it('si fallan los paraderos se puede reintentar', async () => {
+      const reload = jest.fn();
+      jest.mocked(useRouteStops).mockReturnValue({ stops: [], loading: false, error: 'Error al obtener paradas', reload });
+      tripStartedMinutesAgo(1);
+      await render(<DriverModeScreen />);
+
+      expect(screen.getByText('Error al obtener paradas')).toBeTruthy();
+      await fireEvent.press(screen.getByRole('button', { name: 'Reintentar' }));
+      expect(reload).toHaveBeenCalled();
+    });
   });
 });

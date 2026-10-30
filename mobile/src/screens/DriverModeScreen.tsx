@@ -6,21 +6,28 @@ import { SelectField } from '../components/SelectField';
 import { busOptionLabel, canDrive, routeOptionLabel } from '../company/driverTrip';
 import { useDriverTrip } from '../hooks/useDriverTrip';
 import { useRouteStops } from '../hooks/useRouteStops';
+import { useElapsedMinutes, useTripProgress } from '../hooks/useTripProgress';
+import type { Coordinates } from '../location/geo';
 import { makeStyles, radius, spacing, useTheme } from '../theme';
 import { countLabel } from '../utils/format';
 
 // Colores del web: --color-primary-400 (íconos y antetítulo) y --color-success.
 const PRIMARY_400 = '#2b7cee';
+const PRIMARY_300 = '#5e9aed';
 const SUCCESS = '#22c55e';
+const INFO = '#0ea5e9';
 
 /**
  * Modo conductor, como CompanyDriverModePage del web: "Operación en terreno",
  * estado de conexión y la tarjeta "Preparar recorrido" (unidad, recorrido,
  * resumen e "Iniciar recorrido"). El web usa micros y rutas de ejemplo; aquí
  * son las de la empresa y el recorrido cambia el estado de la micro en
- * backend-go. Con el recorrido iniciado se muestra su encabezado y "Finalizar".
+ * backend-go. Con el recorrido iniciado muestra la tarjeta "En recorrido":
+ * progreso por los paraderos reales de la ruta, próxima parada, pasajeros,
+ * tiempo transcurrido y paradas. El avance sale de `position` (la posición de
+ * la micro); sin posición, el recorrido queda al inicio.
  */
-export function DriverModeScreen() {
+export function DriverModeScreen({ position = null }: { position?: Coordinates | null }) {
   const driver = useDriverTrip();
   const { colors } = useTheme();
   const styles = useStyles();
@@ -53,7 +60,7 @@ export function DriverModeScreen() {
           </View>
         ) : null}
 
-        {driver.trip ? <ActiveTripCard driver={driver} /> : <SetupCard driver={driver} />}
+        {driver.trip ? <ActiveTripCard driver={driver} position={position} /> : <SetupCard driver={driver} />}
       </ScrollView>
     </SafeAreaView>
   );
@@ -141,10 +148,17 @@ function SetupCard({ driver }: { driver: Driver }) {
   );
 }
 
-function ActiveTripCard({ driver }: { driver: Driver }) {
+function ActiveTripCard({ driver, position }: { driver: Driver; position: Coordinates | null }) {
   const styles = useStyles();
   const { colors } = useTheme();
   const trip = driver.trip!;
+  const { stops, loading, error, reload } = useRouteStops(trip.route.id);
+  const progress = useTripProgress(trip.route.id, stops, position);
+  const minutes = useElapsedMinutes(trip.startedAt);
+  // Pasajeros al día: la micro se vuelve a leer del backend al refrescar.
+  const passengers = driver.buses.find((bus) => bus.id === trip.bus.id)?.currentPassengers ?? trip.bus.currentPassengers;
+  const nextStop = progress.nextIndex === null ? null : stops[progress.nextIndex];
+
   return (
     <View style={styles.card}>
       <View style={styles.liveBadge}>
@@ -156,7 +170,7 @@ function ActiveTripCard({ driver }: { driver: Driver }) {
         {trip.route.name} · Unidad {trip.bus.patente}
       </Text>
       {driver.actionError ? (
-        <Text style={styles.actionError} accessibilityRole="alert">
+        <Text style={[styles.actionError, styles.spaced]} accessibilityRole="alert">
           {driver.actionError}
         </Text>
       ) : null}
@@ -170,6 +184,66 @@ function ActiveTripCard({ driver }: { driver: Driver }) {
         <Ionicons name="stop" size={14} color={colors.danger} />
         <Text style={styles.stopActionText}>{driver.busy ? 'Finalizando...' : 'Finalizar'}</Text>
       </Pressable>
+
+      {loading ? (
+        <Text style={[styles.muted, styles.spaced]}>Cargando paraderos...</Text>
+      ) : error ? (
+        <View style={[styles.inline, styles.spaced]} accessibilityRole="alert">
+          <Text style={[styles.muted, styles.errorInline]}>{error}</Text>
+          <Pressable onPress={() => void reload()} accessibilityRole="button" hitSlop={6}>
+            <Text style={styles.link}>Reintentar</Text>
+          </Pressable>
+        </View>
+      ) : stops.length === 0 ? (
+        <Text style={[styles.muted, styles.spaced]}>Esta ruta no tiene paraderos registrados.</Text>
+      ) : (
+        <>
+          <View style={styles.progress} accessible accessibilityLabel={`Progreso del recorrido: ${progress.percent}%`}>
+            <View style={styles.progressLabels}>
+              <Text style={styles.progressLabel}>Inicio del recorrido</Text>
+              <Text style={styles.progressPercent}>{progress.percent}%</Text>
+            </View>
+            <View style={styles.track}>
+              <View style={[styles.trackFill, { width: `${progress.percent}%` }]} />
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.progressStops}>
+              {stops.map((stop, index) => (
+                <Text key={stop.id} style={[styles.progressStop, progress.isPassed(index) && styles.progressStopPassed]} numberOfLines={2}>
+                  {stop.name}
+                </Text>
+              ))}
+            </ScrollView>
+          </View>
+
+          <View style={styles.nextStop} accessible accessibilityLabel={nextStop ? `Próxima parada: ${nextStop.name}` : 'Recorrido completado'}>
+            <View style={styles.nextStopIcon}>
+              <Ionicons name={nextStop ? 'location' : 'flag'} size={18} color={INFO} />
+            </View>
+            <View style={styles.nextStopText}>
+              <Text style={styles.nextStopLabel}>{nextStop ? 'Próxima parada' : 'Fin del recorrido'}</Text>
+              <Text style={styles.nextStopName}>{nextStop ? nextStop.name : 'Pasaste por todas las paradas'}</Text>
+            </View>
+            <Ionicons name="checkmark-circle" size={20} color={SUCCESS} />
+          </View>
+        </>
+      )}
+
+      <View style={styles.stats}>
+        <Stat icon="people" value={String(passengers)} label="Pasajeros" />
+        <Stat icon="time" value={`${minutes} min`} label="Transcurrido" />
+        <Stat icon="git-commit" value={String(stops.length)} label="Paradas" />
+      </View>
+    </View>
+  );
+}
+
+function Stat({ icon, value, label }: { icon: keyof typeof Ionicons.glyphMap; value: string; label: string }) {
+  const styles = useStyles();
+  return (
+    <View style={styles.stat} accessible accessibilityLabel={`${label}: ${value}`}>
+      <Ionicons name={icon} size={16} color={PRIMARY_400} />
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
 }
@@ -249,4 +323,41 @@ const useStyles = makeStyles((colors, font) => ({
     backgroundColor: 'rgba(239, 68, 68, 0.12)',
   },
   stopActionText: { color: colors.danger, fontSize: font(14), fontWeight: '700' },
+  spaced: { marginTop: spacing.md },
+  inline: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  errorInline: { flex: 1, color: colors.danger, marginBottom: 0 },
+  progress: { marginTop: spacing.xl, marginBottom: spacing.lg },
+  progressLabels: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.sm },
+  progressLabel: { color: colors.muted, fontSize: font(12) },
+  progressPercent: { color: PRIMARY_300, fontSize: font(12), fontWeight: '700' },
+  track: { height: 8, borderRadius: radius.full, backgroundColor: colors.field, overflow: 'hidden' },
+  trackFill: { height: '100%', borderRadius: radius.full, backgroundColor: PRIMARY_400 },
+  progressStops: { gap: spacing.sm, marginTop: spacing.sm },
+  progressStop: { width: 80, color: colors.placeholder, fontSize: font(10), textAlign: 'center' },
+  progressStopPassed: { color: colors.muted, fontWeight: '600' },
+  nextStop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(14, 165, 233, 0.35)',
+    backgroundColor: 'rgba(14, 165, 233, 0.08)',
+  },
+  nextStopIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(14, 165, 233, 0.15)',
+  },
+  nextStopText: { flex: 1 },
+  nextStopLabel: { color: colors.muted, fontSize: font(12) },
+  nextStopName: { marginTop: 2, color: colors.text, fontSize: font(16), fontWeight: '700' },
+  stats: { flexDirection: 'row', gap: 12, marginTop: 20 },
+  stat: { flex: 1, alignItems: 'center', gap: 2, padding: 12, borderRadius: radius.md, backgroundColor: colors.field },
+  statValue: { marginTop: spacing.xs, color: colors.text, fontSize: font(18), fontWeight: '700' },
+  statLabel: { color: colors.placeholder, fontSize: font(11) },
 }));
