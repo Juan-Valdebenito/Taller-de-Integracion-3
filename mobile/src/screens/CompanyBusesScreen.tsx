@@ -1,9 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useMemo, useState } from 'react';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { CompanyBus, CompanyRoute } from '../api/companyApi';
+import { useAuth } from '../auth/AuthContext';
+import { BusForm } from '../components/BusForm';
 import { SelectField } from '../components/SelectField';
 import {
   avgOccupancyColor,
@@ -27,13 +30,31 @@ const PRIMARY_400 = '#2b7cee';
  * Flota de micros de la empresa, como CompanyBusesPage del web: encabezado con
  * "Sincronizar", las 5 tarjetas de cifras, filtros por línea, estado y
  * patente, y una tarjeta por micro (la tabla del web no cabe en un teléfono).
- * A diferencia del web, nunca muestra micros de ejemplo si el backend falla.
+ * "+ Nueva Micro" y "Editar" abren el formulario del web. A diferencia del
+ * web, nunca muestra micros de ejemplo si el backend falla.
  */
 export function CompanyBusesScreen() {
   const { buses, routes, loading, error, refresh } = useCompanyOperations();
+  const { user } = useAuth();
   const { colors } = useTheme();
   const styles = useStyles();
   const [filters, setFilters] = useState<FleetFilters>(EMPTY_FLEET_FILTERS);
+  // Formulario: cerrado (false), nueva micro (null) o editando una.
+  const [editing, setEditing] = useState<CompanyBus | null | false>(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  // El aviso de éxito del web desaparece a los 3 s.
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  const onSaved = (message: string) => {
+    setEditing(false);
+    setToast(message);
+    void refresh();
+  };
   const stats = useMemo(() => fleetStats(buses), [buses]);
   const visible = useMemo(() => filterFleet(buses, filters), [buses, filters]);
   const routeOptions = useMemo(
@@ -52,6 +73,13 @@ export function CompanyBusesScreen() {
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void refresh()} tintColor={colors.accent} colors={[colors.primary]} />}
       >
+        {toast ? (
+          <LinearGradient colors={['#1f9d4f', '#167a3c']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.toast}>
+            <Ionicons name="checkmark-circle" size={18} color="#ffffff" />
+            <Text style={styles.toastText} accessibilityRole="alert">{toast}</Text>
+          </LinearGradient>
+        ) : null}
+
         <Text style={styles.title} accessibilityRole="header">Gestión de Flota de Micros</Text>
         <Text style={styles.subtitle}>Administración de vehículos, asignación de rutas operativas y control de aforo en tiempo real.</Text>
         <View style={styles.actions}>
@@ -64,6 +92,12 @@ export function CompanyBusesScreen() {
           >
             <Ionicons name="sync" size={15} color={colors.text} />
             <Text style={styles.syncText}>{loading ? 'Sincronizando...' : 'Sincronizar'}</Text>
+          </Pressable>
+          <Pressable onPress={() => setEditing(null)} accessibilityRole="button" accessibilityLabel="Nueva Micro" style={({ pressed }) => pressed && styles.dimmed}>
+            <LinearGradient colors={['#1d6fe0', '#0ea5e9']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.newButton}>
+              <Ionicons name="add" size={16} color="#ffffff" />
+              <Text style={styles.newText}>Nueva Micro</Text>
+            </LinearGradient>
           </Pressable>
         </View>
 
@@ -124,9 +158,19 @@ export function CompanyBusesScreen() {
             {buses.length === 0 && !error ? 'No hay micros registradas para esta empresa.' : 'No se encontraron micros con los criterios seleccionados.'}
           </Text>
         ) : (
-          visible.map((bus) => <BusCard key={bus.id} bus={bus} route={routes.find((route) => route.id === bus.routeId)} />)
+          visible.map((bus) => (
+            <BusCard key={bus.id} bus={bus} route={routes.find((route) => route.id === bus.routeId)} onEdit={() => setEditing(bus)} />
+          ))
         )}
       </ScrollView>
+      <BusForm
+        visible={editing !== false}
+        bus={editing || null}
+        routes={routes}
+        companyId={user?.companyId ?? null}
+        onClose={() => setEditing(false)}
+        onSaved={onSaved}
+      />
     </SafeAreaView>
   );
 }
@@ -161,8 +205,9 @@ function Kpi({
   );
 }
 
-function BusCard({ bus, route }: { bus: CompanyBus; route: CompanyRoute | undefined }) {
+function BusCard({ bus, route, onEdit }: { bus: CompanyBus; route: CompanyRoute | undefined; onEdit: () => void }) {
   const styles = useStyles();
+  const { colors } = useTheme();
   const status = FLEET_STATUS[bus.status] ?? FLEET_STATUS.INACTIVE;
   const pct = occupancyOf(bus);
   return (
@@ -183,6 +228,17 @@ function BusCard({ bus, route }: { bus: CompanyBus; route: CompanyRoute | undefi
       </View>
       <View style={styles.bar}>
         <View style={[styles.barFill, { width: `${Math.min(100, pct)}%`, backgroundColor: occupancyBarColor(pct) }]} />
+      </View>
+      <View style={styles.busActions}>
+        <Pressable
+          onPress={onEdit}
+          accessibilityRole="button"
+          accessibilityLabel={`Editar micro ${bus.patente}`}
+          style={({ pressed }) => [styles.iconButton, pressed && styles.dimmed]}
+        >
+          <Ionicons name="create-outline" size={15} color={colors.accent} />
+          <Text style={styles.iconButtonText}>Editar</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -207,6 +263,32 @@ const useStyles = makeStyles((colors, font) => ({
     backgroundColor: colors.field,
   },
   syncText: { color: colors.text, fontSize: font(13), fontWeight: '600' },
+  newButton: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 10, paddingHorizontal: 20, borderRadius: radius.md },
+  newText: { color: '#ffffff', fontSize: font(13), fontWeight: '700' },
+  toast: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: spacing.md,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  toastText: { flex: 1, color: '#ffffff', fontSize: font(14), fontWeight: '600' },
+  busActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.sm, marginTop: 12 },
+  iconButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  iconButtonText: { color: colors.accent, fontSize: font(13), fontWeight: '600' },
   dimmed: { opacity: 0.7 },
   error: { marginBottom: spacing.md, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.dangerBg },
   errorText: { color: colors.danger, fontSize: font(14), lineHeight: font(20) },

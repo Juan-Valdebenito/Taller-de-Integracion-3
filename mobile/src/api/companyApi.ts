@@ -31,6 +31,24 @@ export async function fetchCompanyRoutes(): Promise<CompanyRoute[]> {
   return Array.isArray(routes) ? routes : [];
 }
 
+/** Datos del formulario de micro (crear y editar, como el web). */
+export interface CompanyBusInput {
+  patente: string;
+  capacity: number;
+  /** null = sin ruta asignada. */
+  routeId: string | null;
+}
+
+/** Registra una micro en la empresa (POST /buses). backend-go la crea INACTIVE. */
+export function createCompanyBus(input: CompanyBusInput & { companyId: string }): Promise<CompanyBus> {
+  return apiRequest<CompanyBus>('/buses', { method: 'POST', body: input });
+}
+
+/** Reemplaza los datos de una micro (PUT /buses/:id: patente, capacidad, estado y ruta). */
+export function saveCompanyBus(id: string, input: CompanyBusInput & { status: CompanyBus['status'] }): Promise<CompanyBus> {
+  return apiRequest<CompanyBus>(`/buses/${encodeURIComponent(id)}`, { method: 'PUT', body: input });
+}
+
 export function updateCompanyBus(
   id: string,
   changes: { status?: CompanyBus['status']; routeId?: string },

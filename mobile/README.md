@@ -312,6 +312,7 @@ los tests unitarios.
 | `api/__tests__/companyRoutes.live.test.ts` | El administrador crea paraderos en la ruta del seed y la empresa los ve en el orden del recorrido (`GET /routes/:id/stops`) |
 | `api/__tests__/driverTrip.live.test.ts` | Modo conductor: iniciar un recorrido pone la micro del seed `ACTIVE` con su ruta y finalizarlo la deja `INACTIVE` (`PATCH /buses/:id`) |
 | `realtime/__tests__/driverPublish.live.test.ts` | La posición que publica la empresa por el WebSocket le llega a quien escucha esa ruta; un pasajero no puede publicar |
+| `api/__tests__/fleet.live.test.ts` | Flota: registrar una micro en la empresa (queda `INACTIVE`), aplicarle el estado elegido, editar patente, capacidad, ruta y estado, y que el backend rechace una patente inválida |
 
 Las pruebas revisan la secuencia exacta de solicitudes que recibe el backend (ej.
 `/auth/me 401` → `/auth/refresh 200` → `/auth/me 200`), no solo el resultado final.

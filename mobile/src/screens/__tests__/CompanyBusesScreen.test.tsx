@@ -1,10 +1,15 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
+import * as companyApi from '../../api/companyApi';
 import type { CompanyBus, CompanyRoute } from '../../api/companyApi';
+import { useAuth } from '../../auth/AuthContext';
 import { useCompanyOperations } from '../../hooks/useCompanyOperations';
+import { mockAuthValue } from '../../test-utils/auth';
 import { CompanyBusesScreen } from '../CompanyBusesScreen';
 
 jest.mock('../../hooks/useCompanyOperations', () => ({ useCompanyOperations: jest.fn() }));
+jest.mock('../../auth/AuthContext', () => ({ useAuth: jest.fn() }));
+jest.mock('../../api/companyApi', () => ({ createCompanyBus: jest.fn(), saveCompanyBus: jest.fn(), updateCompanyBus: jest.fn() }));
 
 const routes: CompanyRoute[] = [{ id: 'r7a', code: '7A', name: 'Cajón / Sta Rosa', isActive: true, companyId: 'co1' }];
 const buses: CompanyBus[] = [
@@ -18,7 +23,12 @@ function mockOperations(overrides: Partial<ReturnType<typeof useCompanyOperation
   return value;
 }
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  jest.clearAllMocks();
+  jest.mocked(useAuth).mockReturnValue(
+    mockAuthValue({ status: 'signedIn', user: { id: 'u1', name: 'Empresa', email: 'e@x.cl', role: 'COMPANY', companyId: 'co1' } }),
+  );
+});
 
 describe('CompanyBusesScreen', () => {
   it('muestra el encabezado y las 5 cifras del web', async () => {
@@ -84,5 +94,38 @@ describe('CompanyBusesScreen', () => {
     mockOperations({ buses: [] });
     await rerender(<CompanyBusesScreen />);
     expect(screen.getByText('No hay micros registradas para esta empresa.')).toBeTruthy();
+  });
+
+  it('"Nueva Micro" abre el formulario vacío y "Editar" lo abre con la micro', async () => {
+    mockOperations();
+    await render(<CompanyBusesScreen />);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Nueva Micro' }));
+    expect(screen.getByRole('header', { name: '➕ Registrar Nueva Micro' })).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Cancelar' }));
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Editar micro FGRT-33' }));
+    expect(screen.getByRole('header', { name: '✏️ Editar Micro FGRT-33' })).toBeTruthy();
+  });
+
+  it('al guardar muestra el aviso del web por 3 s y vuelve a pedir la flota', async () => {
+    jest.useFakeTimers();
+    try {
+      const operations = mockOperations();
+      jest.mocked(companyApi.saveCompanyBus).mockResolvedValue(buses[0]);
+      await render(<CompanyBusesScreen />);
+
+      await fireEvent.press(screen.getByRole('button', { name: 'Editar micro BGPK-45' }));
+      await fireEvent.press(screen.getByRole('button', { name: 'Guardar Cambios' }));
+
+      expect(await screen.findByText('Micro BGPK-45 actualizada exitosamente')).toBeTruthy();
+      expect(operations.refresh).toHaveBeenCalled();
+      expect(screen.queryByRole('header', { name: /Editar Micro/ })).toBeNull();
+
+      await act(async () => jest.advanceTimersByTime(3000));
+      expect(screen.queryByText('Micro BGPK-45 actualizada exitosamente')).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
