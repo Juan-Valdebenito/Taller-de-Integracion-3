@@ -11,6 +11,24 @@
   filter: brightness(0.72) saturate(0.85) hue-rotate(200deg);
 }
 
+/* Popup (ventanita de las paradas y micros) */
+.leaflet-popup-content-wrapper {
+  background: hsl(220, 20%, 14%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
+  color: #f1f5f9 !important;
+  padding: 0 !important;
+}
+
+.leaflet-popup-content {
+  margin: 14px 16px !important;
+}
+
+.leaflet-popup-tip-container {
+  display: none;
+}
+
 .leaflet-control-zoom a {
   background: hsl(220, 18%, 16%) !important;
   color: #94a3b8 !important;

@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LocationCard } from '../components/LocationCard';
 import { NearbyStopCard } from '../components/NearbyStopCard';
 import { ProximityAlertsCard } from '../components/ProximityAlertsCard';
+import { RouteNodesLayer } from '../components/map/RouteNodesLayer';
 import { TransitMap } from '../components/map/TransitMap';
 import { useLocation } from '../hooks/useLocation';
 import { useNearestStop } from '../hooks/useNearestStop';
@@ -28,7 +29,9 @@ export function MapScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
-      <TransitMap style={styles.map} />
+      <TransitMap style={styles.map}>
+        <RouteNodesLayer routeFilter="all" />
+      </TransitMap>
       <View style={styles.panel}>
         <ScrollView contentContainerStyle={styles.panelContent}>
           <LocationCard location={location} />
