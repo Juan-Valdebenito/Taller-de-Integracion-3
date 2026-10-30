@@ -1,7 +1,5 @@
-import { ComingSoonScreen } from '../../components/ComingSoonScreen';
+import { CompanyComplaintsScreen } from '../../screens/CompanyComplaintsScreen';
 
 export default function CompanyComplaintsRoute() {
-  return (
-    <ComingSoonScreen emoji="📋" title="Reclamos" description="Reclamos de los pasajeros sobre las micros y rutas de la empresa." />
-  );
+  return <CompanyComplaintsScreen />;
 }

@@ -111,6 +111,20 @@ export async function fetchMyComplaints({ category = '', status = '' }: Complain
     .filter((complaint): complaint is Complaint => complaint !== null);
 }
 
+/** Reclamos recibidos por una empresa, filtrados por categoría y estado. */
+export async function fetchCompanyComplaints(
+  companyId: string,
+  { category = '', status = '' }: ComplaintFilters = {},
+): Promise<Complaint[]> {
+  const params = new URLSearchParams({ companyId });
+  if (category) params.set('category', category);
+  if (status) params.set('status', status);
+  const response = await apiRequest<unknown[] | null>(`/complaints?${params.toString()}`);
+  return (Array.isArray(response) ? response : [])
+    .map((raw) => toComplaint((raw ?? {}) as Partial<Record<keyof Complaint, unknown>>))
+    .filter((complaint): complaint is Complaint => complaint !== null);
+}
+
 export interface RouteOption {
   id: string;
   name: string;

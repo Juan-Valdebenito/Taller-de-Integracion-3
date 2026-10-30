@@ -6,6 +6,7 @@ import {
   CATEGORY_OPTIONS,
   categoryLabel,
   createComplaint,
+  fetchCompanyComplaints,
   fetchComplaintOptions,
   fetchMyComplaints,
   STATUS_OPTIONS,
@@ -88,6 +89,21 @@ describe('fetchMyComplaints', () => {
   it('un error del backend llega como ApiError', async () => {
     fetchMock.mockResolvedValueOnce(fakeResponse({ status: 500, body: { error: 'Error al obtener reclamos' } }));
     await expect(fetchMyComplaints()).rejects.toMatchObject({ name: 'ApiError', status: 500 });
+  });
+});
+
+describe('fetchCompanyComplaints', () => {
+  it('consulta solo los reclamos de la empresa y envía sus filtros', async () => {
+    fetchMock.mockResolvedValueOnce(fakeResponse({ body: [complaint] }));
+
+    await expect(fetchCompanyComplaints('co 1', { category: 'DELAY', status: 'PENDING' })).resolves.toMatchObject([{ id: 'c1' }]);
+
+    const url = new URL(fetchMock.mock.calls[0][0]);
+    expect(url.pathname).toMatch(/\/complaints$/);
+    expect(url.searchParams.get('companyId')).toBe('co 1');
+    expect(url.searchParams.get('category')).toBe('DELAY');
+    expect(url.searchParams.get('status')).toBe('PENDING');
+    expect(authHeaderOf(fetchMock, 0)).toBe('Bearer access-1');
   });
 });
 
