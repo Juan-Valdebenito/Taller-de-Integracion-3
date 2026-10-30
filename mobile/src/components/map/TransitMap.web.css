@@ -29,6 +29,11 @@
   display: none;
 }
 
+/* Íconos de micro (SVG del web): Leaflet mueve el marcador, sin transición CSS */
+.bus-marker-icon {
+  transition: none;
+}
+
 .leaflet-control-zoom a {
   background: hsl(220, 18%, 16%) !important;
   color: #94a3b8 !important;
