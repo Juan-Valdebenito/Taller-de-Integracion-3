@@ -59,6 +59,11 @@ export function updateCompanyBus(
   });
 }
 
+/** Elimina definitivamente una micro y su historial de cobros asociado. */
+export function deleteCompanyBus(id: string): Promise<void> {
+  return apiRequest<void>(`/buses/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
 /** Resumen de reclamos de la empresa (GET /complaints/stats?companyId=…). */
 export interface CompanyComplaintStats {
   total: number;

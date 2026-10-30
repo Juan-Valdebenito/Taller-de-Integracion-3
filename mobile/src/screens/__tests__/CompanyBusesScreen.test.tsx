@@ -1,15 +1,16 @@
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import * as companyApi from '../../api/companyApi';
 import type { CompanyBus, CompanyRoute } from '../../api/companyApi';
 import { useAuth } from '../../auth/AuthContext';
 import { useCompanyOperations } from '../../hooks/useCompanyOperations';
 import { mockAuthValue } from '../../test-utils/auth';
+import { ApiError } from '../../api/errors';
 import { CompanyBusesScreen } from '../CompanyBusesScreen';
 
 jest.mock('../../hooks/useCompanyOperations', () => ({ useCompanyOperations: jest.fn() }));
 jest.mock('../../auth/AuthContext', () => ({ useAuth: jest.fn() }));
-jest.mock('../../api/companyApi', () => ({ createCompanyBus: jest.fn(), saveCompanyBus: jest.fn(), updateCompanyBus: jest.fn() }));
+jest.mock('../../api/companyApi', () => ({ createCompanyBus: jest.fn(), saveCompanyBus: jest.fn(), updateCompanyBus: jest.fn(), deleteCompanyBus: jest.fn() }));
 
 const routes: CompanyRoute[] = [{ id: 'r7a', code: '7A', name: 'Cajón / Sta Rosa', isActive: true, companyId: 'co1' }];
 const buses: CompanyBus[] = [
@@ -127,5 +128,34 @@ describe('CompanyBusesScreen', () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+
+  it('pide confirmación y elimina una micro solo cuando el backend responde correctamente', async () => {
+    const operations = mockOperations();
+    jest.mocked(companyApi.deleteCompanyBus).mockResolvedValue(undefined);
+    await render(<CompanyBusesScreen />);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Dar de baja micro BGPK-45' }));
+    expect(screen.getByRole('header', { name: 'Dar de baja la micro' })).toBeTruthy();
+    expect(screen.getByText('¿Dar de baja la micro BGPK-45?')).toBeTruthy();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Dar de baja' }));
+    await waitFor(() => expect(companyApi.deleteCompanyBus).toHaveBeenCalledWith('b1'));
+    expect(operations.refresh).toHaveBeenCalled();
+    expect(await screen.findByText('Micro BGPK-45 eliminada exitosamente')).toBeTruthy();
+  });
+
+  it('mantiene la micro visible y muestra el error si el backend no la puede eliminar', async () => {
+    const operations = mockOperations();
+    jest.mocked(companyApi.deleteCompanyBus).mockRejectedValue(new ApiError(500, 'No se pudo eliminar la micro.'));
+    await render(<CompanyBusesScreen />);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Dar de baja micro BGPK-45' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Dar de baja' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo eliminar la micro.');
+    expect(screen.getByLabelText(/Micro BGPK-45/)).toBeTruthy();
+    expect(operations.refresh).not.toHaveBeenCalled();
+    expect(screen.queryByText('Micro BGPK-45 eliminada exitosamente')).toBeNull();
   });
 });

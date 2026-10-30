@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import type { CompanyBus, CompanyRoute } from '../api/companyApi';
+import { deleteCompanyBus, type CompanyBus, type CompanyRoute } from '../api/companyApi';
 import { useAuth } from '../auth/AuthContext';
 import { BusForm } from '../components/BusForm';
+import { Button } from '../components/Button';
 import { SelectField } from '../components/SelectField';
 import {
   avgOccupancyColor,
@@ -21,6 +22,7 @@ import {
   type FleetFilters,
 } from '../company/fleet';
 import { useCompanyOperations } from '../hooks/useCompanyOperations';
+import { ApiError } from '../api/errors';
 import { makeStyles, radius, spacing, useTheme } from '../theme';
 
 const SKY = '#38bdf8';
@@ -41,6 +43,9 @@ export function CompanyBusesScreen() {
   const [filters, setFilters] = useState<FleetFilters>(EMPTY_FLEET_FILTERS);
   // Formulario: cerrado (false), nueva micro (null) o editando una.
   const [editing, setEditing] = useState<CompanyBus | null | false>(false);
+  const [pendingDeletion, setPendingDeletion] = useState<CompanyBus | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   // El aviso de éxito del web desaparece a los 3 s.
@@ -54,6 +59,21 @@ export function CompanyBusesScreen() {
     setEditing(false);
     setToast(message);
     void refresh();
+  };
+  const confirmDelete = async () => {
+    if (!pendingDeletion) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteCompanyBus(pendingDeletion.id);
+      setToast(`Micro ${pendingDeletion.patente} eliminada exitosamente`);
+      setPendingDeletion(null);
+      void refresh();
+    } catch (cause) {
+      setDeleteError(cause instanceof ApiError ? cause.message : 'No se pudo eliminar la micro. Inténtalo nuevamente.');
+    } finally {
+      setDeleting(false);
+    }
   };
   const stats = useMemo(() => fleetStats(buses), [buses]);
   const visible = useMemo(() => filterFleet(buses, filters), [buses, filters]);
@@ -159,7 +179,16 @@ export function CompanyBusesScreen() {
           </Text>
         ) : (
           visible.map((bus) => (
-            <BusCard key={bus.id} bus={bus} route={routes.find((route) => route.id === bus.routeId)} onEdit={() => setEditing(bus)} />
+            <BusCard
+              key={bus.id}
+              bus={bus}
+              route={routes.find((route) => route.id === bus.routeId)}
+              onEdit={() => setEditing(bus)}
+              onDelete={() => {
+                setDeleteError(null);
+                setPendingDeletion(bus);
+              }}
+            />
           ))
         )}
       </ScrollView>
@@ -171,6 +200,27 @@ export function CompanyBusesScreen() {
         onClose={() => setEditing(false)}
         onSaved={onSaved}
       />
+      <Modal
+        visible={pendingDeletion !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!deleting) setPendingDeletion(null);
+        }}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalSheet} accessibilityViewIsModal>
+            <Text style={styles.modalTitle} accessibilityRole="header">Dar de baja la micro</Text>
+            <Text style={styles.modalText}>¿Dar de baja la micro {pendingDeletion?.patente}?</Text>
+            <Text style={styles.modalWarning}>Esta acción eliminará definitivamente la micro y su historial de cobros.</Text>
+            {deleteError ? <Text style={styles.modalError} accessibilityRole="alert">{deleteError}</Text> : null}
+            <View style={styles.modalActions}>
+              <View style={styles.modalAction}><Button title="Cancelar" variant="secondary" onPress={() => setPendingDeletion(null)} disabled={deleting} /></View>
+              <View style={styles.modalAction}><Button title="Dar de baja" variant="danger" loadingTitle="Eliminando..." loading={deleting} onPress={() => void confirmDelete()} /></View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -205,7 +255,7 @@ function Kpi({
   );
 }
 
-function BusCard({ bus, route, onEdit }: { bus: CompanyBus; route: CompanyRoute | undefined; onEdit: () => void }) {
+function BusCard({ bus, route, onEdit, onDelete }: { bus: CompanyBus; route: CompanyRoute | undefined; onEdit: () => void; onDelete: () => void }) {
   const styles = useStyles();
   const { colors } = useTheme();
   const status = FLEET_STATUS[bus.status] ?? FLEET_STATUS.INACTIVE;
@@ -238,6 +288,15 @@ function BusCard({ bus, route, onEdit }: { bus: CompanyBus; route: CompanyRoute 
         >
           <Ionicons name="create-outline" size={15} color={colors.accent} />
           <Text style={styles.iconButtonText}>Editar</Text>
+        </Pressable>
+        <Pressable
+          onPress={onDelete}
+          accessibilityRole="button"
+          accessibilityLabel={`Dar de baja micro ${bus.patente}`}
+          style={({ pressed }) => [styles.iconButton, styles.deleteButton, pressed && styles.dimmed]}
+        >
+          <Ionicons name="trash-outline" size={15} color={colors.danger} />
+          <Text style={[styles.iconButtonText, { color: colors.danger }]}>Dar de baja</Text>
         </Pressable>
       </View>
     </View>
@@ -289,6 +348,7 @@ const useStyles = makeStyles((colors, font) => ({
     borderColor: colors.border,
   },
   iconButtonText: { color: colors.accent, fontSize: font(13), fontWeight: '600' },
+  deleteButton: { borderColor: colors.danger },
   dimmed: { opacity: 0.7 },
   error: { marginBottom: spacing.md, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.dangerBg },
   errorText: { color: colors.danger, fontSize: font(14), lineHeight: font(20) },
@@ -360,4 +420,12 @@ const useStyles = makeStyles((colors, font) => ({
   capacity: { color: colors.text, fontSize: font(13), fontWeight: '600' },
   occupancyLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.sm },
   occupancyText: { color: colors.text, fontSize: font(11), fontWeight: '600' },
+  modalBackdrop: { flex: 1, justifyContent: 'center', padding: spacing.md, backgroundColor: 'rgba(0, 0, 0, 0.6)' },
+  modalSheet: { width: '100%', maxWidth: 460, alignSelf: 'center', padding: spacing.lg, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  modalTitle: { color: colors.text, fontSize: font(18), fontWeight: '800' },
+  modalText: { marginTop: spacing.sm, color: colors.text, fontSize: font(15), lineHeight: font(22) },
+  modalWarning: { marginTop: spacing.sm, color: colors.muted, fontSize: font(13), lineHeight: font(19) },
+  modalError: { marginTop: spacing.md, color: colors.danger, fontSize: font(14), lineHeight: font(20) },
+  modalActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
+  modalAction: { flex: 1 },
 }));
