@@ -221,7 +221,8 @@ token venza). Para correr solo algunas, los argumentos pasan a Jest:
 1. Compila backend-go a un ejecutable temporal.
 2. Lo levanta en `http://127.0.0.1:3995` desde una carpeta temporal, para **no leer
    `backend-go/.env`**: usa siempre la base indicada, revocados en memoria (sin
-   Redis), sin simulación y `JWT_ACCESS_EXPIRES_IN=5s`.
+   Redis), la simulación de micros encendida (publica `bus:update` por `/ws`) y
+   `JWT_ACCESS_EXPIRES_IN=5s`.
 3. Espera a que responda `/health` y corre `jest -c jest.live.config.js`.
 4. Detiene el backend al terminar (también con Ctrl+C) y borra lo temporal. Si algo
    falla, conserva el log del backend y muestra dónde quedó.
@@ -251,6 +252,7 @@ los tests unitarios.
 | `api/__tests__/refresh.live.test.ts` | Token vencido → 401 → refresh → reintento; solicitudes simultáneas con un solo refresh; el refresh token anterior queda rechazado; con uno ya usado se cierra la sesión |
 | `api/__tests__/proactive.live.test.ts` | Renovar antes de enviar (sin 401); la protección contra el reloj desajustado; renovar al volver a la app (`renewIfExpiringSoon`) |
 | `api/__tests__/revocation.live.test.ts` | Sesión cerrada desde otro dispositivo; logout con el access token vencido (revoca el par nuevo); logout con tokens ya revocados |
+| `realtime/__tests__/realtime.live.test.ts` | Conexión al WebSocket `/ws`, suscripción a una línea y recepción de sus micros (`bus:update`) |
 
 Las pruebas revisan la secuencia exacta de solicitudes que recibe el backend (ej.
 `/auth/me 401` → `/auth/refresh 200` → `/auth/me 200`), no solo el resultado final.

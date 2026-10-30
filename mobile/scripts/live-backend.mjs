@@ -4,7 +4,8 @@
  * 1. Compila backend-go a un ejecutable temporal.
  * 2. Lo levanta con tokens cortos sobre una base de PRUEBA. Corre desde una
  *    carpeta temporal para no leer backend-go/.env: siempre usa la base
- *    indicada, sin Redis (revocados en memoria) y sin simulación. Al iniciar,
+ *    indicada, sin Redis (revocados en memoria) y con la simulación de micros
+ *    (publica bus:update por el WebSocket). Al iniciar,
  *    el backend aplica las migraciones y crea los usuarios de prueba (seed).
  * 3. Espera a que /health responda y corre jest -c jest.live.config.js.
  * 4. Detiene el backend siempre (también con Ctrl+C).
@@ -114,7 +115,9 @@ server = spawn(serverBin, [], {
     PORT: port,
     JWT_ACCESS_EXPIRES_IN: accessTtl,
     NODE_ENV: 'development',
-    SIMULATION_ENABLED: 'false',
+    // La simulación mueve micros y las publica por el WebSocket (/ws), como
+    // las ve el web: la usa la prueba en vivo del tiempo real.
+    SIMULATION_ENABLED: 'true',
     REDIS_ADDR: '',
     ATTACHMENTS_DIR: join(workDir, 'attachments'),
     // Las pruebas inician sesión y renuevan tokens decenas de veces en segundos
