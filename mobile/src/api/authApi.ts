@@ -22,12 +22,12 @@ export async function login({ email, password }: LoginInput): Promise<AuthUser> 
   return storeSession(response);
 }
 
-/** POST /auth/register (rol pasajero). Guarda los tokens y devuelve el usuario. */
-export async function register({ name, email, password }: RegisterInput): Promise<AuthUser> {
+/** POST /auth/register (pasajero o empresa, como el web). Guarda los tokens y devuelve el usuario. */
+export async function register({ name, email, password, role = 'PASSENGER' }: RegisterInput): Promise<AuthUser> {
   const response = await apiRequest<AuthResponse>('/auth/register', {
     method: 'POST',
     auth: false,
-    body: { name: name.trim(), email: email.trim().toLowerCase(), password },
+    body: { name: name.trim(), email: email.trim().toLowerCase(), password, role },
   });
   return storeSession(response);
 }

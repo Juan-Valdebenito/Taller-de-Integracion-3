@@ -41,8 +41,16 @@ describe('register', () => {
     await register({ name: ' Ana Pasajera ', email: 'ANA@correo.cl', password: 'secreta123' });
 
     expect(fetchMock.mock.calls[0][0]).toMatch(/\/auth\/register$/);
-    expect(bodyOf(fetchMock, 0)).toEqual({ name: 'Ana Pasajera', email: 'ana@correo.cl', password: 'secreta123' });
+    expect(bodyOf(fetchMock, 0)).toEqual({ name: 'Ana Pasajera', email: 'ana@correo.cl', password: 'secreta123', role: 'PASSENGER' });
     await expect(getTokens()).resolves.not.toBeNull();
+  });
+
+  it('registra una empresa si se elige ese tipo de usuario, como el web', async () => {
+    fetchMock.mockResolvedValueOnce(authResponse);
+
+    await register({ name: 'Buses Sur', email: 'buses@sur.cl', password: 'secreta123', role: 'COMPANY' });
+
+    expect(bodyOf(fetchMock, 0)).toMatchObject({ role: 'COMPANY' });
   });
 });
 

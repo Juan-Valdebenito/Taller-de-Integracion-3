@@ -44,7 +44,21 @@ describe('RegisterScreen', () => {
     await fill({ name: 'Ana', email: 'ana@correo.cl', password: 'secreta123' });
     await submit();
 
-    expect(signUp).toHaveBeenCalledWith({ name: 'Ana', email: 'ana@correo.cl', password: 'secreta123' });
+    // Por defecto "Pasajero Frecuente", como el select del web.
+    expect(signUp).toHaveBeenCalledWith({ name: 'Ana', email: 'ana@correo.cl', password: 'secreta123', role: 'PASSENGER' });
+  });
+
+  it('con "Operador / Empresa de Buses" registra una empresa', async () => {
+    signUp.mockResolvedValue(undefined);
+    await render(<RegisterScreen />);
+    await fill({ name: 'Buses Sur', email: 'buses@sur.cl', password: 'secreta123' });
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Tipo de Usuario: Pasajero Frecuente' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Operador / Empresa de Buses' }));
+    expect(screen.getByRole('button', { name: 'Tipo de Usuario: Operador / Empresa de Buses' })).toBeTruthy();
+    await submit();
+
+    expect(signUp).toHaveBeenCalledWith({ name: 'Buses Sur', email: 'buses@sur.cl', password: 'secreta123', role: 'COMPANY' });
   });
 
   it('muestra bajo cada campo los errores de validación del servidor', async () => {

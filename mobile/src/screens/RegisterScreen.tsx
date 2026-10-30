@@ -4,15 +4,23 @@ import { StyleSheet, View, type TextInputInstance } from 'react-native';
 
 import { ApiError } from '../api/errors';
 import { useAuth } from '../auth/AuthContext';
+import type { RegistrableRole } from '../auth/types';
 import { hasErrors, validateRegister, type FieldErrors, type RegisterFormInput } from '../auth/validation';
 import { AuthFooterLink } from '../components/AuthFooterLink';
 import { AuthScreenLayout } from '../components/AuthScreenLayout';
 import { Button } from '../components/Button';
+import { SelectField, type SelectOption } from '../components/SelectField';
 import { TextField } from '../components/TextField';
 import { useCooldown } from '../hooks/useCooldown';
 import { spacing } from '../theme';
 
-const EMPTY_FORM: RegisterFormInput = { name: '', email: '', password: '' };
+const EMPTY_FORM: Required<RegisterFormInput> = { name: '', email: '', password: '', role: 'PASSENGER' };
+
+/** Opciones del select "Tipo de Usuario" del registro del web. */
+const ROLE_OPTIONS: readonly SelectOption<RegistrableRole>[] = [
+  { value: 'PASSENGER', label: 'Pasajero Frecuente' },
+  { value: 'COMPANY', label: 'Operador / Empresa de Buses' },
+];
 
 export function RegisterScreen() {
   const router = useRouter();
@@ -21,12 +29,12 @@ export function RegisterScreen() {
   const emailRef = useRef<TextInputInstance>(null);
   const passwordRef = useRef<TextInputInstance>(null);
 
-  const [form, setForm] = useState<RegisterFormInput>(EMPTY_FORM);
+  const [form, setForm] = useState<Required<RegisterFormInput>>(EMPTY_FORM);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<RegisterFormInput>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const update = (field: keyof RegisterFormInput) => (value: string) => {
+  const update = (field: 'name' | 'email' | 'password') => (value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
     setFieldErrors((current) => ({ ...current, [field]: undefined }));
   };
@@ -100,6 +108,12 @@ export function RegisterScreen() {
         textContentType="newPassword"
         returnKeyType="go"
         onSubmitEditing={submit}
+      />
+      <SelectField
+        label="Tipo de Usuario"
+        value={form.role}
+        options={ROLE_OPTIONS}
+        onChange={(role) => setForm((current) => ({ ...current, role }))}
       />
       <View style={styles.actions}>
         <Button
