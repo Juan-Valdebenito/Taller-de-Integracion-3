@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 
+import { liveBusesToPositions } from '../alerts/proximityAlerts';
 import { LocationCard } from '../components/LocationCard';
 import { NearbyStopCard } from '../components/NearbyStopCard';
 import { ProximityAlertsCard } from '../components/ProximityAlertsCard';
@@ -51,9 +52,13 @@ export function MapScreen() {
   const [openPanel, setOpenPanel] = useState<'buses' | 'location' | null>(null);
   const nearby = useNearestStop(location.position);
   const { settings } = useSettings();
+  // Las alertas usan las micros del tiempo real; sin conexión consultan al
+  // servidor (nunca las simuladas, que no son micros reales).
+  const liveBuses = useMemo(() => (live ? liveBusesToPositions(buses) : null), [live, buses]);
   const alerts = useProximityAlerts(nearby.proximity, {
     vibrate: settings.vibrationEnabled,
     notify: settings.notificationsEnabled,
+    liveBuses,
   });
 
   const summary = location.position

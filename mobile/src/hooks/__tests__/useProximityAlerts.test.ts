@@ -265,3 +265,47 @@ describe('useProximityAlerts', () => {
     });
   });
 });
+
+describe('useProximityAlerts con tiempo real', () => {
+  it('alerta con las micros del WebSocket sin consultar al servidor ni repetir la alerta', async () => {
+    jest.useFakeTimers();
+    const { result, rerender } = await renderHook(
+      ({ live }: { live: BusPosition[] }) => useProximityAlerts(proximity('inside'), { liveBuses: live }),
+      { initialProps: { live: [bus('b1', PLAZA, 2000)] } },
+    );
+    expect(result.current.live).toBe(true);
+    expect(result.current.alert).toBeNull();
+
+    // La micro avanza: cada posición nueva se revisa al instante.
+    await rerender({ live: [bus('b1', PLAZA, 300)] });
+    expect(result.current.alert?.message).toBe('La micro B1 está a 300 m de Plaza de Armas.');
+    await rerender({ live: [bus('b1', PLAZA, 200)] });
+    expect(result.current.approaching[0].distanceMeters).toBeCloseTo(200, 0);
+    expect(vibrate).toHaveBeenCalledTimes(1);
+
+    await act(async () => jest.advanceTimersByTime(60_000));
+    expect(fetchActiveBuses).not.toHaveBeenCalled();
+  });
+
+  it('"Buscar micros ahora" revisa al instante las últimas posiciones recibidas', async () => {
+    const { result } = await renderHook(() => useProximityAlerts(proximity('inside'), { liveBuses: [] }));
+
+    await act(() => result.current.checkNow());
+    expect(fetchActiveBuses).not.toHaveBeenCalled();
+    expect(result.current.loading).toBe(false);
+  });
+
+  it('si se corta el tiempo real vuelve a consultar al servidor, sin repetir alertas ya dadas', async () => {
+    fetchActiveBuses.mockResolvedValue([bus('b1', PLAZA, 250)]);
+    const { result, rerender } = await renderHook(
+      ({ live }: { live: BusPosition[] | null }) => useProximityAlerts(proximity('inside'), { liveBuses: live }),
+      { initialProps: { live: [bus('b1', PLAZA, 300)] as BusPosition[] | null } },
+    );
+    expect(result.current.alert).not.toBeNull();
+
+    await rerender({ live: null });
+    await waitFor(() => expect(fetchActiveBuses).toHaveBeenCalledTimes(1));
+    expect(result.current.live).toBe(false);
+    expect(vibrate).toHaveBeenCalledTimes(1);
+  });
+});
