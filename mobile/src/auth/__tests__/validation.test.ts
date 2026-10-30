@@ -28,20 +28,16 @@ describe('validateLogin', () => {
 });
 
 describe('validateRegister', () => {
-  const valid = { name: 'Ana', email: 'ana@correo.cl', password: 'secreta123', confirmPassword: 'secreta123' };
+  const valid = { name: 'Ana', email: 'ana@correo.cl', password: 'secreta123' };
 
   it('acepta un formulario válido', () => {
     expect(validateRegister(valid)).toEqual({});
   });
 
   it('exige contraseña de al menos 8 caracteres, igual que backend-go', () => {
-    expect(validateRegister({ ...valid, password: '1234567', confirmPassword: '1234567' }).password).toBe(
+    expect(validateRegister({ ...valid, password: '1234567' }).password).toBe(
       'La contraseña debe tener al menos 8 caracteres.',
     );
-  });
-
-  it('detecta contraseñas que no coinciden', () => {
-    expect(validateRegister({ ...valid, confirmPassword: 'otra12345' }).confirmPassword).toBe('Las contraseñas no coinciden.');
   });
 
   it('exige nombre no vacío', () => {
