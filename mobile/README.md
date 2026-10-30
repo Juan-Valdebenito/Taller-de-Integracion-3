@@ -291,6 +291,7 @@ los tests unitarios.
 | `api/__tests__/complaints.live.test.ts` | "Mis reclamos" con cada filtro; crear un reclamo, que aparezca primero, adjuntarle 3 fotos y que el backend rechace la repetida y la cuarta |
 | `api/__tests__/companyDashboard.live.test.ts` | Con la cuenta de empresa del seed: sus micros y rutas, y que un reclamo nuevo de un pasajero por su ruta sume a sus pendientes (`GET /complaints/stats`) |
 | `api/__tests__/companyRoutes.live.test.ts` | El administrador crea paraderos en la ruta del seed y la empresa los ve en el orden del recorrido (`GET /routes/:id/stops`) |
+| `api/__tests__/driverTrip.live.test.ts` | Modo conductor: iniciar un recorrido pone la micro del seed `ACTIVE` con su ruta y finalizarlo la deja `INACTIVE` (`PATCH /buses/:id`) |
 
 Las pruebas revisan la secuencia exacta de solicitudes que recibe el backend (ej.
 `/auth/me 401` → `/auth/refresh 200` → `/auth/me 200`), no solo el resultado final.
