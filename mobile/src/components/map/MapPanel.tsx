@@ -11,17 +11,27 @@ export interface MapPanelProps {
   children: ReactNode;
   /** Abierto al empezar (por defecto plegado, para ver el mapa completo). */
   initiallyOpen?: boolean;
+  /** Para controlarlo desde afuera (p. ej. que al abrir un panel se pliegue el otro). */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Sin márgenes alrededor del contenido (filas de borde a borde, como una lista). */
+  flush?: boolean;
 }
 
 /**
- * Panel flotante y plegable sobre el mapa. En pantallas angostas el web oculta
- * su panel lateral y deja el mapa completo; aquí el contenido del panel sigue
- * a mano sin tapar el mapa mientras está plegado.
+ * Panel plegable sobre el mapa (quien lo usa decide dónde va). En pantallas
+ * angostas el web oculta su panel lateral y deja el mapa completo; aquí el
+ * contenido del panel sigue a mano sin tapar el mapa mientras está plegado.
  */
-export function MapPanel({ title, summary, children, initiallyOpen = false }: MapPanelProps) {
+export function MapPanel({ title, summary, children, initiallyOpen = false, open: controlledOpen, onOpenChange, flush = false }: MapPanelProps) {
   const { colors } = useTheme();
   const styles = useStyles();
-  const [open, setOpen] = useState(initiallyOpen);
+  const [ownOpen, setOwnOpen] = useState(initiallyOpen);
+  const open = controlledOpen ?? ownOpen;
+  const setOpen = (next: boolean) => {
+    setOwnOpen(next);
+    onOpenChange?.(next);
+  };
   return (
     <View style={styles.panel}>
       <Pressable
@@ -29,7 +39,7 @@ export function MapPanel({ title, summary, children, initiallyOpen = false }: Ma
         accessibilityLabel={title}
         accessibilityHint={open ? 'Pliega el panel' : 'Despliega el panel'}
         accessibilityState={{ expanded: open }}
-        onPress={() => setOpen((value) => !value)}
+        onPress={() => setOpen(!open)}
         style={styles.header}
       >
         <View style={styles.headerText}>
@@ -39,7 +49,7 @@ export function MapPanel({ title, summary, children, initiallyOpen = false }: Ma
         <Ionicons name={open ? 'chevron-down' : 'chevron-up'} size={18} color={colors.muted} />
       </Pressable>
       {open ? (
-        <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+        <ScrollView style={styles.body} contentContainerStyle={flush ? styles.bodyFlush : styles.bodyContent}>
           {children}
         </ScrollView>
       ) : null}
@@ -50,11 +60,7 @@ export function MapPanel({ title, summary, children, initiallyOpen = false }: Ma
 // Tarjeta del web (--color-surface-1, borde, radio 12) con la sombra de sus paneles.
 const useStyles = makeStyles((colors, font) => ({
   panel: {
-    position: 'absolute',
-    left: spacing.sm,
-    right: spacing.sm,
-    bottom: spacing.sm,
-    maxHeight: '60%',
+    flexShrink: 1,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
@@ -66,6 +72,7 @@ const useStyles = makeStyles((colors, font) => ({
   headerText: { flex: 1 },
   title: { fontSize: font(14), lineHeight: font(20), fontWeight: '600', color: colors.text },
   summary: { fontSize: font(12), lineHeight: font(18), color: colors.muted, marginTop: 2 },
-  body: { borderTopWidth: 1, borderTopColor: colors.border },
+  body: { flexShrink: 1, borderTopWidth: 1, borderTopColor: colors.border },
   bodyContent: { padding: spacing.md, gap: spacing.md },
+  bodyFlush: { paddingVertical: spacing.xs },
 }));

@@ -40,6 +40,25 @@ describe('MapPanel', () => {
 
     expect(screen.getByText('contenido del panel')).toBeTruthy();
   });
+
+  it('se puede controlar desde afuera: avisa al tocarlo y obedece a "open"', async () => {
+    const onOpenChange = jest.fn();
+    const panel = (open: boolean) => (
+      <MapPanel title="🚌 Micros activas" summary="3 en pantalla" open={open} onOpenChange={onOpenChange}>
+        <Text>lista</Text>
+      </MapPanel>
+    );
+    const { rerender } = await render(panel(false));
+
+    await fireEvent.press(screen.getByRole('button', { name: '🚌 Micros activas' }));
+    expect(onOpenChange).toHaveBeenLastCalledWith(true);
+    expect(screen.queryByText('lista')).toBeNull(); // sigue cerrado hasta que lo abran desde afuera
+
+    await rerender(panel(true));
+    expect(screen.getByText('lista')).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: '🚌 Micros activas' }));
+    expect(onOpenChange).toHaveBeenLastCalledWith(false);
+  });
 });
 
 describe('UserLocationLayer', () => {
