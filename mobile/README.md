@@ -1,7 +1,8 @@
 # TransitHub — App móvil (React Native + Expo)
 
-App para pasajeros. Por ahora incluye el **módulo de autenticación** (login,
-registro, sesión persistente y cierre de sesión) y la **vista de Perfil**, contra `backend-go`.
+App para pasajeros y usuarios de empresa. Además de autenticación, perfil,
+paraderos y alertas, las cuentas `COMPANY` y `ADMIN` tienen panel de flota,
+consulta de rutas y modo conductor conectado a `backend-go`.
 
 - Expo SDK 58 · React Native 0.88 · TypeScript · Expo Router
 - Tokens JWT guardados **cifrados** con `expo-secure-store`
@@ -25,6 +26,15 @@ npx expo start            # escanear el QR con Expo Go, o "a" / "i" para emulado
 | Cluster | `https://backend-tpenroz.dev.censei.cl/api/v1` |
 
 Si cambias `.env`, reinicia con `npx expo start --clear`.
+
+## Vistas de empresa y conductor
+
+Al iniciar sesión como `COMPANY` o `ADMIN`, la app abre el panel de empresa y
+muestra las pestañas Empresa y Conductor. La flota y las rutas se leen desde
+`GET /buses` y `GET /routes`; iniciar un recorrido asigna la ruta elegida y
+cambia la micro a `ACTIVE`, y finalizarlo la cambia a `INACTIVE` mediante
+`PATCH /buses/:id`. El backend actual no ofrece un recurso de viajes: el estado
+activo se guarda en la micro, pero el cronómetro del recorrido permanece local.
 
 ## Ver la app en VS Code (vista previa web)
 
