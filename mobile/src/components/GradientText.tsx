@@ -11,8 +11,10 @@ const MaskedView = MaskedViewClass as unknown as ComponentType<ViewProps & { mas
 export interface GradientTextProps {
   children: string;
   style?: StyleProp<TextStyle>;
-  /** Colores del degradado, de arriba-izquierda a abajo-derecha (135°, como el web). */
+  /** Colores del degradado. */
   colors: readonly [string, string, ...string[]];
+  /** diagonal: 135° (marca del web) · horizontal: 90° ("ADMINISTRACIÓN" del panel). */
+  direction?: 'diagonal' | 'horizontal';
 }
 
 /**
@@ -20,10 +22,10 @@ export interface GradientTextProps {
  * `background-clip: text`). En iOS y Android el texto sirve de máscara sobre
  * un LinearGradient; la versión web está en GradientText.web.tsx.
  */
-export function GradientText({ children, style, colors }: GradientTextProps) {
+export function GradientText({ children, style, colors, direction = 'diagonal' }: GradientTextProps) {
   return (
     <MaskedView accessible accessibilityLabel={children} maskElement={<Text style={style}>{children}</Text>}>
-      <LinearGradient colors={colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+      <LinearGradient colors={colors} start={{ x: 0, y: 0 }} end={direction === 'horizontal' ? { x: 1, y: 0 } : { x: 1, y: 1 }}>
         {/* Da el tamaño al degradado; invisible: lo que se ve es la máscara. */}
         <Text style={[style, { opacity: 0 }]} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
           {children}

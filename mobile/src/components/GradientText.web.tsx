@@ -6,9 +6,9 @@ import type { GradientTextProps } from './GradientText';
  * Versión web de GradientText: MaskedView no funciona en web, así que se usa
  * el mismo CSS que el frontend (`background-clip: text`).
  */
-export function GradientText({ children, style, colors }: GradientTextProps) {
+export function GradientText({ children, style, colors, direction = 'diagonal' }: GradientTextProps) {
   const gradient = {
-    backgroundImage: `linear-gradient(135deg, ${colors.join(', ')})`,
+    backgroundImage: `linear-gradient(${direction === 'horizontal' ? '90deg' : '135deg'}, ${colors.join(', ')})`,
     backgroundClip: 'text',
     WebkitBackgroundClip: 'text',
     color: 'transparent',

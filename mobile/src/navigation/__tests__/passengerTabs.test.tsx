@@ -2,6 +2,15 @@ import { Text } from 'react-native';
 import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 import PassengerLayout from '../../app/(app)/_layout';
+import { useAuth } from '../../auth/AuthContext';
+import { mockAuthValue } from '../../test-utils/auth';
+
+jest.mock('../../auth/AuthContext', () => ({ useAuth: jest.fn() }));
+
+beforeEach(() => {
+  // La barra superior (TopBar) usa la sesión para "Cerrar sesión".
+  jest.mocked(useAuth).mockReturnValue(mockAuthValue({ status: 'signedIn' }));
+});
 
 // Pestañas del pasajero con el layout real: el menú del web (🗺️ Mapa,
 // 📋 Reclamos) más Perfil y Configuración.

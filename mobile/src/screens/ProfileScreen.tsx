@@ -6,8 +6,8 @@ import { ApiError } from '../api/errors';
 import { useAuth } from '../auth/AuthContext';
 import { Button } from '../components/Button';
 import { makeStyles, radius, spacing, useTheme } from '../theme';
+import { useSignOut } from '../hooks/useSignOut';
 import { formatLongDate, initials, roleLabel } from '../utils/format';
-import { confirmAction } from '../utils/platform';
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   const styles = useStyles();
@@ -26,32 +26,10 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 export function ProfileScreen() {
   const { colors } = useTheme();
   const styles = useStyles();
-  const { user, refreshUser, signOut } = useAuth();
+  const { user, refreshUser } = useAuth();
+  const { signingOut, confirmSignOut } = useSignOut();
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [signingOut, setSigningOut] = useState(false);
-
-  // Envía el access y el refresh token a la lista negra del backend Go
-  // (POST /auth/logout) y borra la sesión del dispositivo. Al cambiar la
-  // sesión, Stack.Protected lleva al login.
-  const doSignOut = useCallback(async () => {
-    setSigningOut(true);
-    try {
-      await signOut();
-    } finally {
-      setSigningOut(false);
-    }
-  }, [signOut]);
-
-  const confirmSignOut = useCallback(() => {
-    confirmAction({
-      title: 'Cerrar sesión',
-      message: '¿Quieres cerrar tu sesión en este dispositivo?',
-      confirmText: 'Cerrar sesión',
-      destructive: true,
-      onConfirm: doSignOut,
-    });
-  }, [doSignOut]);
 
   const reload = useCallback(async () => {
     setRefreshing(true);

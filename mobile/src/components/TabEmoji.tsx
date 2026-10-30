@@ -7,7 +7,9 @@ import { Text } from 'react-native';
 export function tabEmoji(emoji: string) {
   return function TabEmojiIcon({ focused }: { focused: boolean }) {
     return (
-      <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.55 }} importantForAccessibility="no" accessibilityElementsHidden>
+      // Alto de línea fijo: con el de por defecto el emoji ocupa tanto que la
+      // etiqueta de la pestaña queda cortada abajo.
+      <Text style={{ fontSize: 18, lineHeight: 22, opacity: focused ? 1 : 0.55 }} importantForAccessibility="no" accessibilityElementsHidden>
         {emoji}
       </Text>
     );
