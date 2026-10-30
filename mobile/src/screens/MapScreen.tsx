@@ -4,6 +4,7 @@ import { View } from 'react-native';
 import { LocationCard } from '../components/LocationCard';
 import { NearbyStopCard } from '../components/NearbyStopCard';
 import { ProximityAlertsCard } from '../components/ProximityAlertsCard';
+import { BusDetailCard } from '../components/map/BusDetailCard';
 import { BusMarkersLayer } from '../components/map/BusMarkersLayer';
 import { ConnectionOverlay } from '../components/map/ConnectionOverlay';
 import { MapPanel } from '../components/map/MapPanel';
@@ -27,7 +28,8 @@ import { makeStyles } from '../theme';
  * web) y tu ubicación, con la barra de estado de la conexión y el filtro por
  * línea (micros y paradas de la línea elegida) arriba, y el
  * aviso de conexión perdida sobre el mapa. La ubicación, el paradero más
- * cercano y las alertas de proximidad quedan en un panel flotante plegable.
+ * cercano y las alertas de proximidad quedan en un panel flotante plegable;
+ * al tocar una micro, su ficha ocupa ese lugar hasta cerrarla.
  */
 export function MapScreen() {
   const styles = useStyles();
@@ -38,6 +40,8 @@ export function MapScreen() {
   const selectBus = (id: string) => setSelectedBusId((current) => (current === id ? null : id));
   const [routeFilter, setRouteFilter] = useState<RouteFilterValue>('all');
   const visibleBuses = filterBusesByRoute(buses, routeFilter);
+  // La ficha se cierra sola si la micro elegida queda fuera del filtro o deja de existir.
+  const selectedBus = visibleBuses.find((bus) => bus.id === selectedBusId) ?? null;
   const nearby = useNearestStop(location.position);
   const { settings } = useSettings();
   const alerts = useProximityAlerts(nearby.proximity, {
@@ -60,11 +64,15 @@ export function MapScreen() {
           <UserLocationLayer position={location.position} />
         </TransitMap>
         <ConnectionOverlay status={realtime.status} />
-        <MapPanel title="📍 Tu ubicación y alertas" summary={summary}>
-          <LocationCard location={location} />
-          <NearbyStopCard nearby={nearby} hasPosition={location.position !== null} />
-          <ProximityAlertsCard alerts={alerts} />
-        </MapPanel>
+        {selectedBus ? (
+          <BusDetailCard bus={selectedBus} live={source === 'realtime'} onClose={() => setSelectedBusId(null)} />
+        ) : (
+          <MapPanel title="📍 Tu ubicación y alertas" summary={summary}>
+            <LocationCard location={location} />
+            <NearbyStopCard nearby={nearby} hasPosition={location.position !== null} />
+            <ProximityAlertsCard alerts={alerts} />
+          </MapPanel>
+        )}
       </View>
     </View>
   );
