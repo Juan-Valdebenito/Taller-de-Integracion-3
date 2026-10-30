@@ -2,7 +2,8 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import type { CompanyDashboardStats } from '../../company/dashboardStats';
 import { useCompanyDashboard, type UseCompanyDashboardResult } from '../../hooks/useCompanyDashboard';
-import { CompanyDashboardScreen, countLabel, dashboardCards } from '../CompanyDashboardScreen';
+import { countLabel } from '../../utils/format';
+import { CompanyDashboardScreen, dashboardCards } from '../CompanyDashboardScreen';
 
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));

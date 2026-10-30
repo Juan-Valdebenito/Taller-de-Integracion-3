@@ -8,6 +8,7 @@ import { PageTitle } from '../components/PageTitle';
 import type { CompanyDashboardStats } from '../company/dashboardStats';
 import { useCompanyDashboard } from '../hooks/useCompanyDashboard';
 import { makeStyles, radius, spacing, useTheme } from '../theme';
+import { countLabel } from '../utils/format';
 
 export interface DashboardCard {
   icon: string;
@@ -17,9 +18,6 @@ export interface DashboardCard {
   /** Contexto bajo el número ("de 5 micros"). */
   detail: string | null;
 }
-
-/** "1 micro", "3 micros", "1 ruta activa", "2 rutas activas". */
-export const countLabel = (n: number, singular: string, plural: string) => `${n} ${n === 1 ? singular : plural}`;
 
 /** Las 4 tarjetas del dashboard del web, en su orden, con íconos y nombres iguales. */
 export function dashboardCards(stats: CompanyDashboardStats, loading: boolean): DashboardCard[] {

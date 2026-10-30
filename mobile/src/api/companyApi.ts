@@ -61,3 +61,28 @@ export async function fetchCompanyComplaintStats(companyId: string): Promise<Com
     rejected: count(raw?.rejectedCount),
   };
 }
+
+/** Paradero de una ruta (GET /routes/:id/stops). */
+export interface RouteStop {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  /** Posición en el recorrido (1, 2, 3…). */
+  order: number;
+}
+
+/** Paraderos de la ruta en el orden del recorrido. */
+export async function fetchRouteStops(routeId: string): Promise<RouteStop[]> {
+  const raw = await apiRequest<Array<Partial<RouteStop>> | null>(`/routes/${encodeURIComponent(routeId)}/stops`);
+  return (Array.isArray(raw) ? raw : [])
+    .filter((stop) => stop?.id)
+    .map((stop) => ({
+      id: String(stop.id),
+      name: String(stop.name ?? '').trim() || 'Paradero sin nombre',
+      latitude: Number(stop.latitude ?? 0),
+      longitude: Number(stop.longitude ?? 0),
+      order: Number(stop.order ?? 0),
+    }))
+    .sort((a, b) => a.order - b.order);
+}

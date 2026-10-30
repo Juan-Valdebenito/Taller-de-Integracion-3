@@ -22,6 +22,9 @@ export const SEED_COMPANY = { email: 'empresa@transporte.cl', password: 'empresa
 export const SEED_COMPANY_ID = 'company-demo';
 export const SEED_ROUTE_ID = 'route-demo';
 
+/** Administrador del seed (crea paraderos en las pruebas de rutas). */
+export const SEED_ADMIN = { email: 'admin@transporte.cl', password: 'admin12345' };
+
 /** Duración del access token con que se levantó el backend (LIVE_JWT_ACCESS_EXPIRES_IN). */
 export const ACCESS_TTL_SECONDS = Number.parseInt(process.env.LIVE_JWT_ACCESS_EXPIRES_IN ?? '5s', 10);
 
