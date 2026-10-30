@@ -7,6 +7,8 @@ import { makeStyles, radius, spacing, useTheme } from '../theme';
 export interface SelectOption<T extends string> {
   value: T;
   label: string;
+  /** Se ve en la lista pero no se puede elegir (como <option disabled> del web). */
+  disabled?: boolean;
 }
 
 export interface SelectFieldProps<T extends string> {
@@ -52,14 +54,16 @@ export function SelectField<T extends string>({ label, value, options, onChange 
             <Text style={styles.sheetTitle}>{label}</Text>
             {options.map((option) => {
               const checked = option.value === value;
+              const disabled = option.disabled === true;
               return (
                 <Pressable
                   key={option.value}
                   accessibilityRole="radio"
-                  accessibilityState={{ checked }}
+                  accessibilityState={{ checked, disabled }}
                   accessibilityLabel={option.label}
+                  disabled={disabled}
                   onPress={() => choose(option.value)}
-                  style={[styles.option, checked ? styles.optionChecked : null]}
+                  style={[styles.option, checked ? styles.optionChecked : null, disabled ? styles.optionDisabled : null]}
                 >
                   <Text style={[styles.optionText, checked ? styles.optionTextChecked : null]}>{option.label}</Text>
                   {checked ? <Ionicons name="checkmark" size={18} color={colors.accent} /> : null}
@@ -110,6 +114,7 @@ const useStyles = makeStyles((colors, font) => ({
     borderRadius: radius.md,
   },
   optionChecked: { backgroundColor: colors.field },
+  optionDisabled: { opacity: 0.45 },
   optionText: { fontSize: font(14), color: colors.text },
   optionTextChecked: { color: colors.accent, fontWeight: '600' },
 }));

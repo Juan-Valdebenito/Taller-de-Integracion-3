@@ -62,4 +62,25 @@ describe('SelectField', () => {
     expect(onChange).not.toHaveBeenCalled();
     expect(screen.queryByRole('radio')).toBeNull();
   });
+
+  it('una opción deshabilitada se ve pero no se puede elegir', async () => {
+    const onChange = jest.fn();
+    await render(
+      <SelectField
+        label="Unidad asignada"
+        value="a"
+        options={[
+          { value: 'a', label: 'BGPK-45 · Disponible' },
+          { value: 'm', label: 'FGRT-33 · Mantenimiento', disabled: true },
+        ]}
+        onChange={onChange}
+      />,
+    );
+    await fireEvent.press(screen.getByRole('button', { name: 'Unidad asignada: BGPK-45 · Disponible' }));
+
+    const disabled = screen.getByRole('radio', { name: 'FGRT-33 · Mantenimiento' });
+    expect(disabled).toBeDisabled();
+    await fireEvent.press(disabled);
+    expect(onChange).not.toHaveBeenCalled();
+  });
 });
