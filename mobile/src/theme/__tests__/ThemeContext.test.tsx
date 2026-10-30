@@ -133,6 +133,11 @@ describe('makeStyles', () => {
     expect(second).toBe(first);
     expect(first.title.color).toBe(lightColors.text);
   });
+
+  it('aplica Inter con el grosor de cada estilo de texto (como el web)', async () => {
+    const { result } = await renderHook(() => useStyles());
+    expect(result.current.title).toEqual({ color: lightColors.text, fontFamily: 'Inter_700Bold' });
+  });
 });
 
 describe('navigationTheme', () => {

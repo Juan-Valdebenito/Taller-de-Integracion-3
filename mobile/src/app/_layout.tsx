@@ -1,3 +1,4 @@
+import { useFonts } from '@expo-google-fonts/inter';
 import { ThemeProvider as NavigationThemeProvider, SplashScreen, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo } from 'react';
@@ -6,15 +7,19 @@ import { AuthProvider, useAuth } from '../auth/AuthContext';
 import { setupNotifications } from '../notifications/notificationService';
 import { SettingsProvider, useSettings } from '../settings/SettingsContext';
 import { ThemeProvider, useTheme } from '../theme';
+import { INTER_FONTS } from '../theme/fonts';
 import { navigationTheme } from '../theme/navigationTheme';
 
-// Mantener la pantalla de carga mientras se recuperan la sesión y las preferencias guardadas.
+// Mantener la pantalla de carga mientras se recuperan la sesión, las
+// preferencias guardadas y la fuente Inter.
 SplashScreen.preventAutoHideAsync();
 
 function RootNavigator() {
   const { status } = useAuth();
   const { loaded: settingsLoaded } = useSettings();
-  const ready = status !== 'loading' && settingsLoaded;
+  // Si Inter no carga (fontError), la app sigue con la fuente del sistema.
+  const [fontsLoaded, fontError] = useFonts(INTER_FONTS);
+  const ready = status !== 'loading' && settingsLoaded && (fontsLoaded || fontError !== null);
 
   useEffect(() => {
     if (ready) {
