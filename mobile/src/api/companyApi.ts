@@ -40,3 +40,24 @@ export function updateCompanyBus(
     body: changes,
   });
 }
+
+/** Resumen de reclamos de la empresa (GET /complaints/stats?companyId=…). */
+export interface CompanyComplaintStats {
+  total: number;
+  pending: number;
+  inReview: number;
+  resolved: number;
+  rejected: number;
+}
+
+export async function fetchCompanyComplaintStats(companyId: string): Promise<CompanyComplaintStats> {
+  const raw = await apiRequest<Partial<Record<string, unknown>> | null>(`/complaints/stats?companyId=${encodeURIComponent(companyId)}`);
+  const count = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : 0);
+  return {
+    total: count(raw?.totalComplaints),
+    pending: count(raw?.pendingCount),
+    inReview: count(raw?.inReviewCount),
+    resolved: count(raw?.resolvedCount),
+    rejected: count(raw?.rejectedCount),
+  };
+}

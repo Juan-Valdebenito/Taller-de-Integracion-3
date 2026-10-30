@@ -17,6 +17,11 @@ export const describeLive = LIVE_BACKEND ? describe : describe.skip;
 /** Pasajero que crea el seed de backend-go (internal/seed). */
 export const SEED_PASSENGER = { email: 'carlos.pasajero@gmail.com', password: 'Pasajero1234!' };
 
+/** Cuenta de empresa del seed, asociada a la empresa y ruta de prueba. */
+export const SEED_COMPANY = { email: 'empresa@transporte.cl', password: 'empresa12345' };
+export const SEED_COMPANY_ID = 'company-demo';
+export const SEED_ROUTE_ID = 'route-demo';
+
 /** Duración del access token con que se levantó el backend (LIVE_JWT_ACCESS_EXPIRES_IN). */
 export const ACCESS_TTL_SECONDS = Number.parseInt(process.env.LIVE_JWT_ACCESS_EXPIRES_IN ?? '5s', 10);
 
