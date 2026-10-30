@@ -17,6 +17,9 @@ export const OSM_TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 /** Atribución que exige la licencia de OpenStreetMap. */
 export const OSM_ATTRIBUTION = '© OpenStreetMap contributors';
 
+/** Azul de "tu ubicación" (--color-primary-400 del web). */
+export const USER_LOCATION_COLOR = '#2b7cee';
+
 /**
  * Región de react-native-maps equivalente a un zoom de Leaflet: en el zoom z
  * el mundo mide 256·2^z px, así que un ancho de `widthPx` cubre

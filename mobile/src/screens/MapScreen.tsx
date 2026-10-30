@@ -1,21 +1,23 @@
-import { ScrollView, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View } from 'react-native';
 
 import { LocationCard } from '../components/LocationCard';
 import { NearbyStopCard } from '../components/NearbyStopCard';
 import { ProximityAlertsCard } from '../components/ProximityAlertsCard';
+import { MapPanel } from '../components/map/MapPanel';
 import { RouteNodesLayer } from '../components/map/RouteNodesLayer';
 import { TransitMap } from '../components/map/TransitMap';
+import { UserLocationLayer } from '../components/map/UserLocationLayer';
 import { useLocation } from '../hooks/useLocation';
 import { useNearestStop } from '../hooks/useNearestStop';
 import { useProximityAlerts } from '../hooks/useProximityAlerts';
 import { useSettings } from '../settings/SettingsContext';
-import { makeStyles, spacing } from '../theme';
+import { makeStyles } from '../theme';
 
 /**
- * Pestaña Mapa del pasajero, como PassengerMapPage del web: el mapa de Temuco
- * y, debajo, un panel (en el web, el panel lateral). Por ahora el panel tiene
- * la ubicación, el paradero más cercano y las alertas de proximidad.
+ * Pestaña Mapa del pasajero, como PassengerMapPage del web en un teléfono: el
+ * mapa de Temuco ocupa toda la pantalla (el web oculta su panel lateral bajo
+ * 640 px) con las paradas y tu ubicación. La ubicación, el paradero más
+ * cercano y las alertas de proximidad quedan en un panel flotante plegable.
  */
 export function MapScreen() {
   const styles = useStyles();
@@ -27,26 +29,25 @@ export function MapScreen() {
     notify: settings.notificationsEnabled,
   });
 
+  const summary = location.position
+    ? 'Ubicación activa · paradero más cercano y alertas'
+    : 'Activa tu ubicación para ver el paradero más cercano y las alertas';
+
   return (
-    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
-      <TransitMap style={styles.map}>
+    <View style={styles.screen}>
+      <TransitMap>
         <RouteNodesLayer routeFilter="all" />
+        <UserLocationLayer position={location.position} />
       </TransitMap>
-      <View style={styles.panel}>
-        <ScrollView contentContainerStyle={styles.panelContent}>
-          <LocationCard location={location} />
-          <NearbyStopCard nearby={nearby} hasPosition={location.position !== null} />
-          <ProximityAlertsCard alerts={alerts} />
-        </ScrollView>
-      </View>
-    </SafeAreaView>
+      <MapPanel title="📍 Tu ubicación y alertas" summary={summary}>
+        <LocationCard location={location} />
+        <NearbyStopCard nearby={nearby} hasPosition={location.position !== null} />
+        <ProximityAlertsCard alerts={alerts} />
+      </MapPanel>
+    </View>
   );
 }
 
-// Panel como .map-side-panel del web: --color-surface-1 con borde.
 const useStyles = makeStyles((colors) => ({
-  safe: { flex: 1, backgroundColor: colors.background },
-  map: { flex: 3 },
-  panel: { flex: 2, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border },
-  panelContent: { padding: spacing.md },
+  screen: { flex: 1, backgroundColor: colors.background },
 }));
