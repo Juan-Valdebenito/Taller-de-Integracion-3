@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import type { LiveBus } from './liveBuses';
+import { useRealRoutes } from './realRoutes';
 import { initialSimulatedBuses, SIMULATION_INTERVAL_MS, stepSimulatedBus } from './simulatedBuses';
 import { useRealtimeBuses, type RealtimeBusesState, type UseRealtimeBusesOptions } from './useRealtimeBuses';
 
@@ -31,10 +32,13 @@ export interface MapBusesState {
 /**
  * Micros del mapa, con la misma regla que PassengerMapPage del web: si el
  * WebSocket está conectado se muestran sus micros; si no, las simuladas. La
- * simulación solo corre mientras no hay conexión.
+ * simulación solo corre mientras no hay conexión. Escucha las 3 líneas del
+ * web y también las rutas reales de la base (las de los conductores).
  */
 export function useMapBuses(options?: UseRealtimeBusesOptions): MapBusesState {
-  const realtime = useRealtimeBuses(options);
+  // Además de las 3 líneas del web, las rutas reales: ahí publican los conductores.
+  const real = useRealRoutes(options?.routeIds === undefined);
+  const realtime = useRealtimeBuses({ routeIds: real.routeIds, routeNames: real.routeNames, ...options });
   const connected = realtime.status === 'connected';
   const simulated = useSimulatedBuses(!connected);
   return connected

@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -6,8 +7,9 @@ import { SelectField } from '../components/SelectField';
 import { busOptionLabel, canDrive, routeOptionLabel } from '../company/driverTrip';
 import { useDriverTrip } from '../hooks/useDriverTrip';
 import { useRouteStops } from '../hooks/useRouteStops';
+import { useDriverLocation, type DriverLocationState } from '../hooks/useDriverLocation';
 import { useElapsedMinutes, useTripProgress } from '../hooks/useTripProgress';
-import type { Coordinates } from '../location/geo';
+import type { ConnectionStatus } from '../realtime/types';
 import { makeStyles, radius, spacing, useTheme } from '../theme';
 import { countLabel } from '../utils/format';
 
@@ -15,6 +17,7 @@ import { countLabel } from '../utils/format';
 const PRIMARY_400 = '#2b7cee';
 const PRIMARY_300 = '#5e9aed';
 const SUCCESS = '#22c55e';
+const WARNING = '#f59e0b';
 const INFO = '#0ea5e9';
 
 /**
@@ -24,14 +27,16 @@ const INFO = '#0ea5e9';
  * son las de la empresa y el recorrido cambia el estado de la micro en
  * backend-go. Con el recorrido iniciado muestra la tarjeta "En recorrido":
  * progreso por los paraderos reales de la ruta, próxima parada, pasajeros,
- * tiempo transcurrido y paradas. El avance sale de `position` (la posición de
- * la micro); sin posición, el recorrido queda al inicio.
+ * tiempo transcurrido y paradas. Durante el recorrido el GPS del teléfono se
+ * publica por el WebSocket (los pasajeros ven la micro moverse) y esa misma
+ * posición hace avanzar el progreso.
  */
-export function DriverModeScreen({ position = null }: { position?: Coordinates | null }) {
+export function DriverModeScreen() {
   const driver = useDriverTrip();
+  const location = useDriverLocation(driver.trip);
   const { colors } = useTheme();
   const styles = useStyles();
-  const connected = !driver.error;
+  const header = connectionLabel(!!driver.trip, location.connection, !driver.error);
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom', 'left', 'right']}>
@@ -45,9 +50,11 @@ export function DriverModeScreen({ position = null }: { position?: Coordinates |
           <Text style={styles.eyebrow}>Operación en terreno</Text>
           <Text style={styles.title} accessibilityRole="header">Modo conductor</Text>
           <Text style={styles.subtitle}>Controla tu unidad y mantén informada la ruta.</Text>
-          <View style={styles.connection} accessible accessibilityLabel={connected ? 'Conectado' : 'Sin conexión'}>
-            <Ionicons name={connected ? 'wifi' : 'cloud-offline-outline'} size={14} color={connected ? SUCCESS : colors.danger} />
-            <Text style={[styles.connectionText, { color: connected ? SUCCESS : colors.danger }]}>{connected ? 'Conectado' : 'Sin conexión'}</Text>
+          <View style={styles.connection} accessible accessibilityLabel={header.label}>
+            <Ionicons name={header.icon} size={14} color={header.tone === 'ok' ? SUCCESS : header.tone === 'wait' ? WARNING : colors.danger} />
+            <Text style={[styles.connectionText, { color: header.tone === 'ok' ? SUCCESS : header.tone === 'wait' ? WARNING : colors.danger }]}>
+              {header.label}
+            </Text>
           </View>
         </View>
 
@@ -60,13 +67,78 @@ export function DriverModeScreen({ position = null }: { position?: Coordinates |
           </View>
         ) : null}
 
-        {driver.trip ? <ActiveTripCard driver={driver} position={position} /> : <SetupCard driver={driver} />}
+        {driver.trip ? <ActiveTripCard driver={driver} location={location} /> : <SetupCard driver={driver} />}
+
+        <View style={styles.hint}>
+          <Ionicons name="checkmark-circle" size={14} color={SUCCESS} />
+          <Text style={styles.hintText}>La ubicación se actualizará automáticamente mientras el recorrido esté activo.</Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
+/**
+ * Estado del encabezado. En recorrido es la conexión del WebSocket por donde
+ * va la ubicación; antes, si se pudieron cargar los datos de la empresa.
+ */
+export function connectionLabel(
+  inTrip: boolean,
+  socket: ConnectionStatus,
+  dataLoaded: boolean,
+): { label: string; tone: 'ok' | 'wait' | 'off'; icon: keyof typeof Ionicons.glyphMap } {
+  if (inTrip ? socket === 'connected' : dataLoaded) return { label: 'Conectado', tone: 'ok', icon: 'wifi' };
+  if (inTrip && socket === 'connecting') return { label: 'Conectando...', tone: 'wait', icon: 'sync' };
+  return { label: 'Sin conexión', tone: 'off', icon: 'cloud-offline-outline' };
+}
+
 type Driver = ReturnType<typeof useDriverTrip>;
+
+/** Línea con el estado del envío de la ubicación, dentro de la tarjeta "En recorrido". */
+function LocationStatus({ location }: { location: DriverLocationState }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  if (location.status === 'denied' || location.status === 'error') {
+    return (
+      <View style={[styles.locationRow, styles.locationProblem]} accessibilityRole="alert">
+        <Ionicons name="location-outline" size={16} color={colors.danger} />
+        <Text style={[styles.locationText, { color: colors.danger }]}>{location.error}</Text>
+        <Pressable onPress={location.retry} accessibilityRole="button" hitSlop={6}>
+          <Text style={styles.link}>Reintentar</Text>
+        </Pressable>
+      </View>
+    );
+  }
+  let text: string;
+  let tone: 'ok' | 'wait' | 'off' = 'wait';
+  if (location.error) {
+    text = location.error;
+    tone = 'off';
+  } else if (location.status !== 'tracking') {
+    text = 'Buscando señal GPS...';
+  } else if (location.connection !== 'connected') {
+    text = 'Sin conexión con el servidor: se reintenta solo.';
+    tone = 'off';
+  } else if (location.lastSentAt === null) {
+    text = 'Conectado: enviando la primera ubicación...';
+  } else {
+    text = `Ubicación enviada hace ${Math.max(0, Math.round((now - location.lastSentAt) / 1000))} s`;
+    tone = 'ok';
+  }
+  const color = tone === 'ok' ? SUCCESS : tone === 'wait' ? WARNING : colors.danger;
+  return (
+    <View style={styles.locationRow} accessible accessibilityLabel={text} accessibilityLiveRegion="polite">
+      <Ionicons name={tone === 'ok' ? 'radio' : 'locate'} size={16} color={color} />
+      <Text style={[styles.locationText, { color }]}>{text}</Text>
+    </View>
+  );
+}
 
 function SetupCard({ driver }: { driver: Driver }) {
   const styles = useStyles();
@@ -148,12 +220,12 @@ function SetupCard({ driver }: { driver: Driver }) {
   );
 }
 
-function ActiveTripCard({ driver, position }: { driver: Driver; position: Coordinates | null }) {
+function ActiveTripCard({ driver, location }: { driver: Driver; location: DriverLocationState }) {
   const styles = useStyles();
   const { colors } = useTheme();
   const trip = driver.trip!;
   const { stops, loading, error, reload } = useRouteStops(trip.route.id);
-  const progress = useTripProgress(trip.route.id, stops, position);
+  const progress = useTripProgress(trip.route.id, stops, location.position);
   const minutes = useElapsedMinutes(trip.startedAt);
   // Pasajeros al día: la micro se vuelve a leer del backend al refrescar.
   const passengers = driver.buses.find((bus) => bus.id === trip.bus.id)?.currentPassengers ?? trip.bus.currentPassengers;
@@ -184,6 +256,8 @@ function ActiveTripCard({ driver, position }: { driver: Driver; position: Coordi
         <Ionicons name="stop" size={14} color={colors.danger} />
         <Text style={styles.stopActionText}>{driver.busy ? 'Finalizando...' : 'Finalizar'}</Text>
       </Pressable>
+
+      <LocationStatus location={location} />
 
       {loading ? (
         <Text style={[styles.muted, styles.spaced]}>Cargando paraderos...</Text>
@@ -324,6 +398,12 @@ const useStyles = makeStyles((colors, font) => ({
   },
   stopActionText: { color: colors.danger, fontSize: font(14), fontWeight: '700' },
   spaced: { marginTop: spacing.md },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md },
+  locationProblem: { padding: spacing.sm, borderRadius: radius.md, backgroundColor: colors.dangerBg },
+  locationText: { flex: 1, fontSize: font(13), lineHeight: font(18) },
+  // .driver-mode__hint del web.
+  hint: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, marginTop: 20, paddingHorizontal: spacing.md },
+  hintText: { flexShrink: 1, color: colors.placeholder, fontSize: font(12), textAlign: 'center' },
   inline: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   errorInline: { flex: 1, color: colors.danger, marginBottom: 0 },
   progress: { marginTop: spacing.xl, marginBottom: spacing.lg },

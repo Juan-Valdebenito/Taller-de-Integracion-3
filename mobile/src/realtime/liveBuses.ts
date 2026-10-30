@@ -45,7 +45,13 @@ export const ROUTE_NAMES: Readonly<Record<string, string>> = {
 const DEFAULT_CAPACITY = 80;
 
 /** Agrega la micro del mensaje o actualiza la que ya está (devuelve una lista nueva). */
-export function applyBusUpdate(buses: readonly LiveBus[], data: BusUpdatePayload, now: number): LiveBus[] {
+export function applyBusUpdate(
+  buses: readonly LiveBus[],
+  data: BusUpdatePayload,
+  now: number,
+  /** Nombres de rutas reales de la base (las 3 líneas del web ya tienen el suyo). */
+  routeNames: Readonly<Record<string, string>> = {},
+): LiveBus[] {
   const index = buses.findIndex((bus) => bus.id === data.busId);
   if (index === -1) {
     return [
@@ -53,7 +59,7 @@ export function applyBusUpdate(buses: readonly LiveBus[], data: BusUpdatePayload
       {
         id: data.busId,
         routeId: data.routeId,
-        routeName: ROUTE_NAMES[data.routeId] ?? `Ruta ${data.routeId}`,
+        routeName: ROUTE_NAMES[data.routeId] ?? routeNames[data.routeId] ?? `Ruta ${data.routeId}`,
         latitude: data.latitude,
         longitude: data.longitude,
         heading: data.heading ?? 0,

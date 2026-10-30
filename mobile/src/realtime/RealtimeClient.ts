@@ -11,7 +11,7 @@
  * A diferencia del web, es una clase (sin estado global) que recibe el
  * constructor de WebSocket, y avisa cada cambio de estado al instante.
  */
-import type { ConnectionStatus, IncomingMessage, SubscribeMessage, Topic } from './types';
+import type { ConnectionStatus, IncomingMessage, PublishMessage, SubscribeMessage, Topic } from './types';
 
 export const RECONNECT_BASE_MS = 1000;
 export const RECONNECT_MAX_MS = 30000;
@@ -124,6 +124,17 @@ export class RealtimeClient {
   unsubscribe(topic: Topic, id: string): void {
     this.subscriptions = this.subscriptions.filter((s) => !(s.topic === topic && s.id === id));
     this.send({ type: 'unsubscribe', topic, id });
+  }
+
+  /**
+   * Publica la posición de una micro (modo conductor; backend-go exige un JWT
+   * de COMPANY o ADMIN). Devuelve false si no hay conexión: la posición no se
+   * guarda para después, la siguiente ya la reemplaza.
+   */
+  publish(msg: PublishMessage): boolean {
+    if (!this.socket || this.socket.readyState !== OPEN) return false;
+    this.socket.send(JSON.stringify(msg));
+    return true;
   }
 
   /** Recibe los mensajes del servidor; devuelve la función para dejar de recibirlos. */

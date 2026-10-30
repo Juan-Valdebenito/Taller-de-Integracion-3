@@ -85,6 +85,25 @@ cambia la micro a `ACTIVE`, y finalizarlo la cambia a `INACTIVE` mediante
 `PATCH /buses/:id`. El backend actual no ofrece un recurso de viajes: el estado
 activo se guarda en la micro, pero el cronómetro del recorrido permanece local.
 
+**Modo conductor** (`src/screens/DriverModeScreen.tsx`, con el diseño de
+`CompanyDriverModePage` del web, que allá usa datos de ejemplo):
+
+- **Preparar recorrido:** unidad (las micros en mantenimiento aparecen
+  deshabilitadas) y recorrido (rutas activas). Iniciar pone la micro `ACTIVE`
+  con esa ruta (`useDriverTrip`).
+- **GPS en vivo** (`useDriverLocation`): durante el recorrido sigue el GPS del
+  teléfono cada 5 s y publica la posición por el WebSocket
+  (`{"type":"publish","token":<JWT>,"data":{busId, routeId, latitude, …}}`).
+  Con la micro detenida reenvía la última posición cada 5 s. backend-go la
+  reenvía a quien escucha esa ruta: el mapa del pasajero escucha las 3 líneas
+  del web **y las rutas reales** (`GET /routes`, `src/realtime/realRoutes.ts`),
+  así ve la micro del conductor.
+- **En recorrido:** avance por los paraderos reales de la ruta
+  (`GET /routes/:id/stops`): un paradero queda pasado al llegar a menos de 60 m
+  (`src/company/tripProgress.ts`); próxima parada, pasajeros, tiempo
+  transcurrido y el estado del envío ("Ubicación enviada hace N s").
+
+
 ## Ver la app en VS Code (vista previa web)
 
 Sin teléfono ni emulador: la app corre como página web y se abre en el navegador
@@ -292,6 +311,7 @@ los tests unitarios.
 | `api/__tests__/companyDashboard.live.test.ts` | Con la cuenta de empresa del seed: sus micros y rutas, y que un reclamo nuevo de un pasajero por su ruta sume a sus pendientes (`GET /complaints/stats`) |
 | `api/__tests__/companyRoutes.live.test.ts` | El administrador crea paraderos en la ruta del seed y la empresa los ve en el orden del recorrido (`GET /routes/:id/stops`) |
 | `api/__tests__/driverTrip.live.test.ts` | Modo conductor: iniciar un recorrido pone la micro del seed `ACTIVE` con su ruta y finalizarlo la deja `INACTIVE` (`PATCH /buses/:id`) |
+| `realtime/__tests__/driverPublish.live.test.ts` | La posición que publica la empresa por el WebSocket le llega a quien escucha esa ruta; un pasajero no puede publicar |
 
 Las pruebas revisan la secuencia exacta de solicitudes que recibe el backend (ej.
 `/auth/me 401` → `/auth/refresh 200` → `/auth/me 200`), no solo el resultado final.

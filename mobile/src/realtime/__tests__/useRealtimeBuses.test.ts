@@ -41,6 +41,11 @@ describe('applyBusUpdate (igual que useSocketBuses del web)', () => {
     expect(first[0].latitude).toBe(-38.7359); // no modifica la lista anterior
   });
 
+  it('una ruta real de la base usa el nombre que se le entrega', () => {
+    const [bus] = applyBusUpdate([], update({ routeId: 'route-demo' }), 0, { 'route-demo': 'Línea L1-DEMO — Línea 1 Centro' });
+    expect(bus.routeName).toBe('Línea L1-DEMO — Línea 1 Centro');
+  });
+
   it('una ruta desconocida usa "Ruta <id>" y la capacidad por defecto del web', () => {
     const [bus] = applyBusUpdate([], { ...update({ routeId: 'route-9' }), capacity: undefined as unknown as number }, 0);
     expect(bus).toMatchObject({ routeName: 'Ruta route-9', capacity: 80 });
@@ -71,10 +76,16 @@ class FakeClient {
   }
   connect() {
     this.connected = true;
+    this.connectCount += 1;
     this.statusHandler?.('connecting');
   }
+  unsubscribed: string[] = [];
+  connectCount = 0;
   subscribe(_topic: string, id: string) {
     this.subscribed.push(id);
+  }
+  unsubscribe(_topic: string, id: string) {
+    this.unsubscribed.push(id);
   }
   disconnect() {
     this.disconnected = true;
@@ -134,5 +145,21 @@ describe('useRealtimeBuses', () => {
     await renderHook(() => useRealtimeBuses({ enabled: false, createClient: () => fake as unknown as RealtimeClient }));
 
     expect(fake.connected).toBe(false);
+  });
+
+  it('agregar o quitar rutas suscribe y desuscribe sin cortar la conexión', async () => {
+    const fake = new FakeClient();
+    const { rerender } = await renderHook(
+      ({ routeIds }: { routeIds: string[] }) => useRealtimeBuses({ routeIds, createClient: () => fake as unknown as RealtimeClient }),
+      { initialProps: { routeIds: ['route-7A'] } },
+    );
+
+    await rerender({ routeIds: ['route-7A', 'route-demo'] });
+    await rerender({ routeIds: ['route-demo'] });
+
+    expect(fake.connectCount).toBe(1);
+    expect(fake.disconnected).toBe(false);
+    expect(fake.subscribed).toEqual(['route-7A', 'route-demo']);
+    expect(fake.unsubscribed).toEqual(['route-7A']);
   });
 });

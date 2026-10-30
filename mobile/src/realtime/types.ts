@@ -49,6 +49,25 @@ export interface BusUpdateMessage {
   data: BusUpdatePayload;
 }
 
+/** Posición de una micro enviada por el conductor (PublishMessage en backend-go). */
+export interface PublishMessage {
+  type: 'publish';
+  /** Access token JWT (COMPANY o ADMIN). */
+  token: string;
+  data: {
+    busId: string;
+    routeId: string;
+    latitude: number;
+    longitude: number;
+    /** Grados (0 = norte). */
+    heading: number;
+    /** km/h */
+    speed: number;
+    currentPassengers: number;
+    capacity: number;
+  };
+}
+
 export interface ErrorMessage {
   type: 'error';
   code: string;

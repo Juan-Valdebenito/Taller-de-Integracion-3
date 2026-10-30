@@ -196,3 +196,29 @@ describe('RealtimeClient', () => {
     expect(sockets).toHaveLength(1);
   });
 });
+
+describe('publish (modo conductor)', () => {
+  const message = {
+    type: 'publish' as const,
+    token: 'jwt',
+    data: { busId: 'b1', routeId: 'r1', latitude: -38.7, longitude: -72.6, heading: 90, speed: 30, currentPassengers: 5, capacity: 40 },
+  };
+
+  it('envía la posición si hay conexión', () => {
+    const { client } = newClient();
+    client.connect();
+    latest().open();
+
+    expect(client.publish(message)).toBe(true);
+    expect(latest().sent).toContainEqual(message);
+  });
+
+  it('sin conexión no la envía ni la guarda para después', () => {
+    const { client } = newClient();
+    expect(client.publish(message)).toBe(false);
+    client.connect();
+    expect(client.publish(message)).toBe(false); // todavía conectando
+    latest().open();
+    expect(latest().sent).not.toContainEqual(message);
+  });
+});

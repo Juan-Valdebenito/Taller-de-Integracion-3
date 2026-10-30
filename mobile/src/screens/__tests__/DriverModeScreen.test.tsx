@@ -1,12 +1,29 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import type { CompanyBus, CompanyRoute, RouteStop } from '../../api/companyApi';
+import { useDriverLocation, type DriverLocationState } from '../../hooks/useDriverLocation';
 import { useDriverTrip, type UseDriverTripResult } from '../../hooks/useDriverTrip';
 import { useRouteStops } from '../../hooks/useRouteStops';
-import { DriverModeScreen } from '../DriverModeScreen';
+import { connectionLabel, DriverModeScreen } from '../DriverModeScreen';
 
 jest.mock('../../hooks/useDriverTrip', () => ({ useDriverTrip: jest.fn() }));
 jest.mock('../../hooks/useRouteStops', () => ({ useRouteStops: jest.fn() }));
+jest.mock('../../hooks/useDriverLocation', () => ({ useDriverLocation: jest.fn() }));
+
+function mockLocation(overrides: Partial<DriverLocationState> = {}) {
+  const value: DriverLocationState = {
+    status: 'idle',
+    position: null,
+    connection: 'disconnected',
+    lastSentAt: null,
+    sentCount: 0,
+    error: null,
+    retry: jest.fn(),
+    ...overrides,
+  };
+  jest.mocked(useDriverLocation).mockReturnValue(value);
+  return value;
+}
 
 const buses: CompanyBus[] = [
   { id: 'd', patente: 'BGPK-45', capacity: 35, currentPassengers: 14, status: 'INACTIVE', companyId: 'co1', routeId: null },
@@ -43,6 +60,7 @@ function mockDriver(overrides: Partial<UseDriverTripResult> = {}) {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockLocation();
   jest.mocked(useRouteStops).mockReturnValue({ stops: stops(4), loading: false, error: null, reload: jest.fn() });
 });
 
@@ -147,7 +165,8 @@ describe('DriverModeScreen', () => {
 
     it('con la posición de la micro avanza: pasó 2 paraderos → 50% y próxima la 3.ª', async () => {
       tripStartedMinutesAgo(5);
-      await render(<DriverModeScreen position={{ latitude: north(1020), longitude: -72.6 }} />);
+      mockLocation({ status: 'tracking', connection: 'connected', position: { latitude: north(1020), longitude: -72.6 } });
+      await render(<DriverModeScreen />);
 
       expect(screen.getByLabelText('Progreso del recorrido: 50%')).toBeTruthy();
       expect(screen.getByLabelText('Próxima parada: Paradero 3')).toBeTruthy();
@@ -155,7 +174,8 @@ describe('DriverModeScreen', () => {
 
     it('al llegar al último paradero dice "Fin del recorrido"', async () => {
       tripStartedMinutesAgo(40);
-      await render(<DriverModeScreen position={{ latitude: north(3000), longitude: -72.6 }} />);
+      mockLocation({ status: 'tracking', connection: 'connected', position: { latitude: north(3000), longitude: -72.6 } });
+      await render(<DriverModeScreen />);
 
       expect(screen.getByLabelText('Progreso del recorrido: 100%')).toBeTruthy();
       expect(screen.getByText('Fin del recorrido')).toBeTruthy();
@@ -181,6 +201,67 @@ describe('DriverModeScreen', () => {
       expect(screen.getByText('Error al obtener paradas')).toBeTruthy();
       await fireEvent.press(screen.getByRole('button', { name: 'Reintentar' }));
       expect(reload).toHaveBeenCalled();
+    });
+  });
+
+  describe('ubicación en vivo', () => {
+    const startTrip = () =>
+      mockDriver({ trip: { bus: { ...buses[0], status: 'ACTIVE', routeId: 'r1' }, route: routes[0], startedAt: Date.now() } });
+
+    it('sigue el GPS solo del recorrido activo y muestra la frase del web', async () => {
+      const driver = startTrip();
+      await render(<DriverModeScreen />);
+
+      expect(useDriverLocation).toHaveBeenCalledWith(driver.trip);
+      expect(screen.getByText('La ubicación se actualizará automáticamente mientras el recorrido esté activo.')).toBeTruthy();
+    });
+
+    it('con la conexión arriba y la ubicación enviada lo indica, y el encabezado dice Conectado', async () => {
+      startTrip();
+      mockLocation({ status: 'tracking', connection: 'connected', lastSentAt: Date.now() - 3000, sentCount: 4, position: { latitude: -38.75, longitude: -72.6 } });
+      await render(<DriverModeScreen />);
+
+      expect(screen.getByLabelText('Ubicación enviada hace 3 s')).toBeTruthy();
+      expect(screen.getByLabelText('Conectado')).toBeTruthy();
+    });
+
+    it('mientras busca señal o sin conexión con el servidor lo dice', async () => {
+      startTrip();
+      mockLocation({ status: 'starting', connection: 'connecting' });
+      const { rerender } = await render(<DriverModeScreen />);
+      expect(screen.getByLabelText('Buscando señal GPS...')).toBeTruthy();
+      expect(screen.getByLabelText('Conectando...')).toBeTruthy();
+
+      mockLocation({ status: 'tracking', connection: 'disconnected', position: { latitude: -38.75, longitude: -72.6 } });
+      await rerender(<DriverModeScreen />);
+      expect(screen.getByLabelText('Sin conexión con el servidor: se reintenta solo.')).toBeTruthy();
+      expect(screen.getByLabelText('Sin conexión')).toBeTruthy();
+    });
+
+    it('sin permiso de ubicación explica y permite reintentar', async () => {
+      startTrip();
+      const location = mockLocation({ status: 'denied', error: 'Activa el permiso de ubicación para que los pasajeros vean la micro en el mapa.' });
+      await render(<DriverModeScreen />);
+
+      expect(screen.getByText('Activa el permiso de ubicación para que los pasajeros vean la micro en el mapa.')).toBeTruthy();
+      await fireEvent.press(screen.getByRole('button', { name: 'Reintentar' }));
+      expect(location.retry).toHaveBeenCalled();
+    });
+
+    it('si el servidor rechaza la ubicación muestra su motivo', async () => {
+      startTrip();
+      mockLocation({ status: 'tracking', connection: 'connected', error: 'El servidor no aceptó la ubicación: Token JWT inválido' });
+      await render(<DriverModeScreen />);
+
+      expect(screen.getByLabelText('El servidor no aceptó la ubicación: Token JWT inválido')).toBeTruthy();
+    });
+
+    it('connectionLabel: en recorrido sigue al WebSocket; antes, a la carga de datos', () => {
+      expect(connectionLabel(false, 'disconnected', true).label).toBe('Conectado');
+      expect(connectionLabel(false, 'connected', false).label).toBe('Sin conexión');
+      expect(connectionLabel(true, 'connected', false).label).toBe('Conectado');
+      expect(connectionLabel(true, 'connecting', true).label).toBe('Conectando...');
+      expect(connectionLabel(true, 'disconnected', true).label).toBe('Sin conexión');
     });
   });
 });
