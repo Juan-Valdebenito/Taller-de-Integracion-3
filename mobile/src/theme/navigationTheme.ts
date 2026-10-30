@@ -12,7 +12,7 @@ export function navigationTheme({ scheme, colors }: Theme): typeof DefaultTheme 
     ...base,
     colors: {
       ...base.colors,
-      primary: colors.primary,
+      primary: colors.accent,
       background: colors.background,
       card: colors.background,
       text: colors.text,

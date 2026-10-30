@@ -67,14 +67,15 @@ describe('ThemeProvider', () => {
   });
 
   it('cambiar el tema en Configuración se aplica al instante', async () => {
+    // Por defecto oscuro, como el frontend web.
     const { result } = await renderTheme();
-    expect(result.current.theme.scheme).toBe('light');
-
-    await act(() => result.current.settings.updateSettings({ theme: 'dark' }));
-    expect(result.current.theme.colors).toBe(darkColors);
+    expect(result.current.theme.scheme).toBe('dark');
 
     await act(() => result.current.settings.updateSettings({ theme: 'light' }));
     expect(result.current.theme.colors).toBe(lightColors);
+
+    await act(() => result.current.settings.updateSettings({ theme: 'dark' }));
+    expect(result.current.theme.colors).toBe(darkColors);
   });
 });
 
@@ -139,7 +140,8 @@ describe('navigationTheme', () => {
     const nav = navigationTheme(themeFor('dark'));
     expect(nav.dark).toBe(true);
     expect(nav.colors).toMatchObject({
-      primary: darkColors.primary,
+      // primary de React Navigation tiñe textos (atrás, pestaña activa): accent.
+      primary: darkColors.accent,
       background: darkColors.background,
       card: darkColors.background,
       text: darkColors.text,

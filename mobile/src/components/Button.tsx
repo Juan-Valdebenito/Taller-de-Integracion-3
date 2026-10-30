@@ -32,9 +32,11 @@ export function Button({ title, onPress, loading = false, disabled = false, vari
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={primary ? colors.onPrimary : colors.primary} />
+        <ActivityIndicator color={variant === 'danger' ? colors.onDanger : primary ? colors.onPrimary : colors.accent} />
       ) : (
-        <Text style={[styles.text, primary ? styles.textPrimary : styles.textSecondary]}>{title}</Text>
+        <Text style={[styles.text, variant === 'danger' ? styles.textDanger : primary ? styles.textPrimary : styles.textSecondary]}>
+          {title}
+        </Text>
       )}
     </Pressable>
   );
@@ -57,5 +59,6 @@ const useStyles = makeStyles((colors, font) => ({
   disabled: { opacity: 0.6 },
   text: { fontSize: font(16), fontWeight: '600' },
   textPrimary: { color: colors.onPrimary },
-  textSecondary: { color: colors.primary },
+  textDanger: { color: colors.onDanger },
+  textSecondary: { color: colors.accent },
 }));

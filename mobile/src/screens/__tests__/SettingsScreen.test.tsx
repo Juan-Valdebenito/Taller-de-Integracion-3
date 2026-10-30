@@ -35,7 +35,7 @@ describe('SettingsScreen', () => {
     expect(screen.getByRole('header', { name: 'Interfaz' })).toBeTruthy();
     expect(screen.getByRole('switch', { name: 'Notificaciones push' }).props.value).toBe(false);
     expect(screen.getByRole('switch', { name: 'Vibración' }).props.value).toBe(true);
-    expect(radio('Sistema').props.accessibilityState.checked).toBe(true);
+    expect(radio('Oscuro').props.accessibilityState.checked).toBe(true);
     expect(radio('Normal').props.accessibilityState.checked).toBe(true);
   });
 
@@ -74,9 +74,9 @@ describe('SettingsScreen', () => {
 
   it('restablecer pide confirmación y vuelve a los valores por defecto', async () => {
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-    await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify({ notificationsEnabled: true, theme: 'dark' }));
+    await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify({ notificationsEnabled: true, theme: 'light' }));
     await renderScreen();
-    await waitFor(() => expect(radio('Oscuro').props.accessibilityState.checked).toBe(true));
+    await waitFor(() => expect(radio('Claro').props.accessibilityState.checked).toBe(true));
 
     await fireEvent.press(screen.getByRole('button', { name: 'Restablecer valores por defecto' }));
     expect(alertSpy).toHaveBeenCalledTimes(1);
@@ -86,7 +86,7 @@ describe('SettingsScreen', () => {
       buttons.find((b) => b.text === 'Restablecer')?.onPress?.();
     });
 
-    expect(radio('Sistema').props.accessibilityState.checked).toBe(true);
+    expect(radio('Oscuro').props.accessibilityState.checked).toBe(true);
     expect(screen.getByRole('switch', { name: 'Notificaciones push' }).props.value).toBe(false);
     await waitFor(async () => expect(await loadSettings()).toEqual(DEFAULT_SETTINGS));
   });
@@ -197,14 +197,14 @@ describe('SettingsScreen', () => {
 
     it('restablecer usa el diálogo del navegador', async () => {
       (globalThis as { confirm?: unknown }).confirm = jest.fn(() => true);
-      await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify({ theme: 'dark' }));
+      await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify({ theme: 'light' }));
       await renderScreen();
-      await waitFor(() => expect(radio('Oscuro').props.accessibilityState.checked).toBe(true));
+      await waitFor(() => expect(radio('Claro').props.accessibilityState.checked).toBe(true));
 
       await fireEvent.press(screen.getByRole('button', { name: 'Restablecer valores por defecto' }));
 
       expect(globalThis.confirm).toHaveBeenCalledTimes(1);
-      await waitFor(() => expect(radio('Sistema').props.accessibilityState.checked).toBe(true));
+      await waitFor(() => expect(radio('Oscuro').props.accessibilityState.checked).toBe(true));
     });
   });
 });

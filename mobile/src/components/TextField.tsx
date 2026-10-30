@@ -43,7 +43,7 @@ const useStyles = makeStyles((colors, font) => ({
     paddingVertical: 12,
     fontSize: font(16),
     color: colors.text,
-    backgroundColor: colors.background,
+    backgroundColor: colors.field,
   },
   inputError: { borderColor: colors.danger },
   error: { marginTop: spacing.xs, color: colors.danger, fontSize: font(13) },

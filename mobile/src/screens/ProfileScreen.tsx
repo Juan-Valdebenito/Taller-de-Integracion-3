@@ -78,7 +78,7 @@ export function ProfileScreen() {
       <ScrollView
         testID="profile-scroll"
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.accent} />}
       >
         <View style={styles.header}>
           <View style={styles.avatar} accessibilityLabel={`Avatar de ${user.name}`}>
@@ -149,7 +149,7 @@ const useStyles = makeStyles((colors, font) => ({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
   },
-  badgeText: { color: colors.primary, fontWeight: '600', fontSize: font(13) },
+  badgeText: { color: colors.accent, fontWeight: '600', fontSize: font(13) },
   error: { backgroundColor: colors.dangerBg, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
   errorText: { color: colors.danger, fontSize: font(14) },
   sectionTitle: {

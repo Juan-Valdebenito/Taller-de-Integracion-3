@@ -9,7 +9,7 @@ export default function AppLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: colors.primary,
+        tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.muted,
         headerTitleStyle: { fontWeight: '700', fontSize: font(17) },
         tabBarLabelStyle: { fontSize: font(11) },

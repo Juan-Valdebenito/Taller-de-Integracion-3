@@ -26,7 +26,7 @@ export function SettingSwitchRow({ label, description, value, onValueChange, dis
         value={value}
         onValueChange={onValueChange}
         disabled={disabled}
-        trackColor={{ true: colors.primary, false: colors.border }}
+        trackColor={{ true: colors.accent, false: colors.border }}
       />
     </View>
   );

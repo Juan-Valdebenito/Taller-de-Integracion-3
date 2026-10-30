@@ -45,7 +45,7 @@ const useStyles = makeStyles((colors, font) => ({
   safe: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
   content: { flexGrow: 1, justifyContent: 'center', padding: spacing.lg },
-  brand: { fontSize: font(16), fontWeight: '700', color: colors.primary, marginBottom: spacing.sm },
+  brand: { fontSize: font(16), fontWeight: '700', color: colors.accent, marginBottom: spacing.sm },
   title: { fontSize: font(28), fontWeight: '700', color: colors.text },
   subtitle: { fontSize: font(15), color: colors.muted, marginTop: spacing.xs, marginBottom: spacing.lg },
   message: { borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
