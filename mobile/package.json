@@ -19,9 +19,12 @@
     "expo-router": "~58.0.23",
     "expo-secure-store": "~58.0.2",
     "expo-status-bar": "~58.0.3",
+    "leaflet": "^1.9.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "react-leaflet": "^5.0.0",
     "react-native": "0.88.0",
+    "react-native-maps": "1.29.11",
     "react-native-safe-area-context": "~5.10.1",
     "react-native-screens": "~4.30.0",
     "react-native-web": "^0.21.4"
@@ -29,6 +32,7 @@
   "devDependencies": {
     "@testing-library/react-native": "^14.1.0",
     "@types/jest": "30.0.0",
+    "@types/leaflet": "^1.9.22",
     "@types/react": "~19.3.0",
     "jest": "~30.5.2",
     "jest-expo": "~58.0.11",

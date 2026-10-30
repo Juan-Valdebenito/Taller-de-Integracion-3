@@ -98,7 +98,7 @@ src/
 │   ├── login.tsx           → screens/LoginScreen
 │   ├── register.tsx        → screens/RegisterScreen
 │   ├── (app)/              Pasajero; pestañas inferiores (_layout.tsx)
-│   │   ├── index.tsx       → screens/HomeScreen   (pestaña Mapa)
+│   │   ├── index.tsx       → screens/MapScreen    (pestaña Mapa)
 │   │   ├── complaints.tsx  Mis Reclamos (pestaña Reclamos)
 │   │   ├── profile.tsx     → screens/ProfileScreen (pestaña Perfil)
 │   │   └── settings.tsx    → screens/SettingsScreen (pestaña Configuración)
