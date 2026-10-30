@@ -36,7 +36,7 @@ usuario a la de su rol:
 
 | Rol | Sección | Pestañas (como el menú del web) |
 |---|---|---|
-| `PASSENGER` | `/` (`app/(app)/`) | Inicio · Perfil · Configuración |
+| `PASSENGER` | `/` (`app/(app)/`) | 🗺️ Mapa · 📋 Reclamos · 👤 Perfil · ⚙️ Configuración |
 | `COMPANY` | `/company` (`app/company/`) | 📊 Dashboard · 🎛️ Conductor · 🚍 Micros · 🗺️ Rutas · 📋 Reclamos |
 | `ADMIN` | `/admin` (`app/admin/`) | 📊 Dashboard · 🏢 Empresas · 🗺️ Rutas · 👥 Usuarios · 📋 Reclamos |
 
@@ -70,7 +70,7 @@ Qué cambia en web (`src/utils/platform.ts`):
 - La ubicación usa el GPS del navegador (pide permiso). Si la bloquea, se habilita
   desde el ícono junto a la dirección de la página.
 - Las notificaciones del teléfono no existen en web: el interruptor aparece
-  desactivado y las alertas se ven en la pantalla de Inicio.
+  desactivado y las alertas se ven en la pantalla del Mapa.
 - El backend del cluster no acepta el origen `localhost:8081` (CORS), así que la
   vista previa web se usa con el backend local.
 
@@ -98,8 +98,10 @@ src/
 │   ├── login.tsx           → screens/LoginScreen
 │   ├── register.tsx        → screens/RegisterScreen
 │   ├── (app)/              Pasajero; pestañas inferiores (_layout.tsx)
-│   │   ├── index.tsx       → screens/HomeScreen   (pestaña Inicio)
-│   │   └── profile.tsx     → screens/ProfileScreen (pestaña Perfil)
+│   │   ├── index.tsx       → screens/HomeScreen   (pestaña Mapa)
+│   │   ├── complaints.tsx  Mis Reclamos (pestaña Reclamos)
+│   │   ├── profile.tsx     → screens/ProfileScreen (pestaña Perfil)
+│   │   └── settings.tsx    → screens/SettingsScreen (pestaña Configuración)
 │   ├── company/            Empresa: dashboard, modo conductor, micros, rutas, reclamos
 │   └── admin/              Administración: dashboard, empresas, rutas, usuarios, reclamos
 ├── auth/
@@ -273,7 +275,7 @@ no se pide ubicación en segundo plano).
   concedido **sigue la posición** (`watchPositionAsync`, cada 20 m o 10 s) mientras la
   app está en primer plano; se pausa en segundo plano y se reanuda al volver. Así la
   verificación del paradero y las alertas se actualizan solas si el usuario se mueve.
-- `src/components/LocationCard.tsx` (pantalla Inicio): estado, coordenadas y
+- `src/components/LocationCard.tsx` (pantalla Mapa): estado, coordenadas y
   precisión; si el permiso quedó bloqueado, botón **Abrir ajustes**.
 
 El texto del permiso se configura en `app.json` (plugin `expo-location`).
@@ -296,7 +298,7 @@ El texto del permiso se configura en `app.json` (plugin `expo-location`).
   Si el backend falla no reintenta con cada posición: programa un reintento a los
   30 s y duplica la espera en cada fallo seguido (máximo 5 min). **Reintentar**
   consulta al instante.
-- `src/components/NearbyStopCard.tsx` (pantalla Inicio): paradero más cercano,
+- `src/components/NearbyStopCard.tsx` (pantalla Mapa): paradero más cercano,
   distancia y si está dentro del radio.
 
 ### Alertas de proximidad
@@ -315,7 +317,7 @@ app no consulta las micros y la tarjeta explica por qué las alertas están en p
   15 s, solo con la app en primer plano. Si el usuario sale del radio o cambia de
   paradero, detiene la consulta y limpia las alertas. Nunca hay dos consultas a la
   vez para el mismo paradero: si la red está lenta, se espera la que está en curso.
-- `src/components/ProximityAlertsCard.tsx` (pantalla Inicio): aviso con vibración
+- `src/components/ProximityAlertsCard.tsx` (pantalla Mapa): aviso con vibración
   ("La micro ABCD12 está a 350 m de Plaza de Armas."), micros que se acercan y
   botón **Buscar micros ahora**.
 

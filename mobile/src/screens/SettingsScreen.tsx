@@ -67,7 +67,7 @@ export function SettingsScreen() {
           {isWeb() ? (
             <SettingSwitchRow
               label="Notificaciones push"
-              description="Solo están disponibles en la app del teléfono. En la vista previa web las alertas se muestran en la pantalla de Inicio."
+              description="Solo están disponibles en la app del teléfono. En la vista previa web las alertas se muestran en la pantalla del Mapa."
               value={false}
               onValueChange={() => {}}
               disabled
