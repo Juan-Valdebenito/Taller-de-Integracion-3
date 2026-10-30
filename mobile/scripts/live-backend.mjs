@@ -129,6 +129,9 @@ server = spawn(serverBin, [], {
     RATE_LIMIT_AUTH_BURST: '100',
     RATE_LIMIT_TOKEN_PER_MIN: '600',
     RATE_LIMIT_TOKEN_BURST: '100',
+    // Igual con las fotos de reclamos: una prueba sube varias seguidas.
+    RATE_LIMIT_UPLOAD_PER_MIN: '600',
+    RATE_LIMIT_UPLOAD_BURST: '100',
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });

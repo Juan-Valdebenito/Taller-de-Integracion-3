@@ -7,9 +7,14 @@ import { ComplaintsScreen } from '../ComplaintsScreen';
 jest.mock('../../api/complaintsApi', () => ({
   ...jest.requireActual('../../api/complaintsApi'),
   fetchMyComplaints: jest.fn(),
+  fetchComplaintOptions: jest.fn(),
+  createComplaint: jest.fn(),
+  uploadComplaintPhoto: jest.fn(),
 }));
 
 const fetchMyComplaints = jest.mocked(complaintsApi.fetchMyComplaints);
+const fetchComplaintOptions = jest.mocked(complaintsApi.fetchComplaintOptions);
+const createComplaint = jest.mocked(complaintsApi.createComplaint);
 
 const complaint = (id: string, overrides: Partial<Complaint> = {}): Complaint => ({
   id,
@@ -36,6 +41,7 @@ function deferred<T>() {
 beforeEach(() => {
   jest.clearAllMocks();
   fetchMyComplaints.mockResolvedValue([]);
+  fetchComplaintOptions.mockResolvedValue({ routes: [{ id: 'r1', name: 'Centro', code: '7A' }], buses: [] });
 });
 
 describe('ComplaintsScreen', () => {
@@ -106,5 +112,32 @@ describe('ComplaintsScreen', () => {
     await fireEvent.press(screen.getByRole('radio', { name: 'Accesibilidad' }));
 
     await waitFor(() => expect(fetchMyComplaints).toHaveBeenLastCalledWith({ category: 'ACCESSIBILITY', status: '' }));
+  });
+
+  it('"+ Crear reclamo" abre el formulario y el reclamo creado aparece primero con el aviso del web', async () => {
+    fetchMyComplaints.mockResolvedValue([complaint('viejo', { title: 'Reclamo anterior' })]);
+    createComplaint.mockResolvedValue(complaint('nuevo', { title: 'Micro llena' }));
+    await render(<ComplaintsScreen />);
+    await screen.findByText('Reclamo anterior');
+
+    await fireEvent.press(screen.getByRole('button', { name: '+ Crear reclamo' }));
+    expect(screen.getByRole('header', { name: 'Nuevo reclamo' })).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('Título:'), 'Micro llena');
+    await fireEvent.changeText(screen.getByLabelText('Descripción'), 'No se podía subir');
+    await fireEvent.press(screen.getByRole('button', { name: 'Categoría:: Seleccionar categoría' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Exceso de pasajeros' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Línea:: Seleccionar línea' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Línea 7A' }));
+    await fireEvent.press(screen.getByRole('radio', { name: '4 de 5: Bueno' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Ruta (opcional):: Sin especificar' }));
+    await fireEvent.press(await screen.findByRole('radio', { name: '7A - Centro' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Enviar reclamo' }));
+
+    expect(await screen.findByText('Reclamo creado exitosamente')).toBeTruthy();
+    expect(screen.queryByRole('header', { name: 'Nuevo reclamo' })).toBeNull();
+    const titles = screen.getAllByRole('header').map((h) => h.props.children);
+    expect(titles.indexOf('Micro llena')).toBeLessThan(titles.indexOf('Reclamo anterior'));
+    // No vuelve a pedir la lista: el nuevo se agrega directamente, como el web.
+    expect(fetchMyComplaints).toHaveBeenCalledTimes(1);
   });
 });

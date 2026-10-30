@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FlatList, RefreshControl, Text, View } from 'react-native';
+import { FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
@@ -12,6 +12,7 @@ import {
   type ComplaintStatus,
 } from '../api/complaintsApi';
 import { Card } from '../components/Card';
+import { ComplaintForm, type ComplaintCreated } from '../components/ComplaintForm';
 import { PageTitle } from '../components/PageTitle';
 import { SelectField } from '../components/SelectField';
 import { useMyComplaints } from '../hooks/useMyComplaints';
@@ -23,22 +24,53 @@ const STATUS_FILTER_OPTIONS = [{ value: '' as const, label: 'Todos los estados' 
 /**
  * Pestaña Reclamos del pasajero, como PassengerComplaintsPage del web:
  * "📋 Mis Reclamos" con filtros por categoría y estado y una tarjeta por
- * reclamo (categoría, estado y respuesta del administrador si la hay).
- * Mientras carga, los filtros siguen a la vista; se recarga deslizando hacia abajo.
+ * reclamo (categoría, estado y respuesta del administrador si la hay), y
+ * "+ Crear reclamo" que abre el formulario (con fotos). Mientras carga, los
+ * filtros siguen a la vista; se recarga deslizando hacia abajo.
  */
 export function ComplaintsScreen() {
   const styles = useStyles();
   const { colors } = useTheme();
   const [category, setCategory] = useState<ComplaintCategory | ''>('');
   const [status, setStatus] = useState<ComplaintStatus | ''>('');
-  const { complaints, loading, refreshing, error, refresh } = useMyComplaints({ category, status });
+  const { complaints, loading, refreshing, error, refresh, addComplaint } = useMyComplaints({ category, status });
+  const [formOpen, setFormOpen] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [photoWarning, setPhotoWarning] = useState<string | null>(null);
+
+  const openForm = () => {
+    setSuccess(null);
+    setPhotoWarning(null);
+    setFormOpen(true);
+  };
+
+  const onCreated = ({ complaint, photoWarning: warning }: ComplaintCreated) => {
+    // Como el web: el reclamo nuevo aparece primero, sin volver a pedir la lista.
+    addComplaint(complaint);
+    setFormOpen(false);
+    setSuccess('Reclamo creado exitosamente');
+    setPhotoWarning(warning);
+  };
 
   const header = (
     <View>
-      <PageTitle emoji="📋" title="Mis Reclamos" subtitle="Consulta y registra tus reclamos" />
+      <View style={styles.titleRow}>
+        <View style={styles.titleText}>
+          <PageTitle emoji="📋" title="Mis Reclamos" subtitle="Consulta y registra tus reclamos" />
+        </View>
+        <Pressable onPress={openForm} accessibilityRole="button" style={({ pressed }) => [styles.createButton, pressed && styles.createButtonPressed]}>
+          <Text style={styles.createButtonText}>+ Crear reclamo</Text>
+        </Pressable>
+      </View>
       {error ? (
         <View style={styles.message} accessibilityRole="alert">
           <Text style={styles.messageText}>{error}</Text>
+        </View>
+      ) : null}
+      {success ? (
+        <View style={styles.message} accessibilityRole="alert">
+          <Text style={styles.messageText}>{success}</Text>
+          {photoWarning ? <Text style={styles.warningText}>{photoWarning}</Text> : null}
         </View>
       ) : null}
       <View style={styles.filters}>
@@ -73,6 +105,7 @@ export function ComplaintsScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.accent} colors={[colors.primary]} />}
       />
+      <ComplaintForm visible={formOpen} onClose={() => setFormOpen(false)} onCreated={onCreated} />
     </SafeAreaView>
   );
 }
@@ -109,6 +142,13 @@ const useStyles = makeStyles((colors, font) => ({
     backgroundColor: colors.surface,
   },
   messageText: { fontSize: font(16), color: colors.text },
+  warningText: { marginTop: spacing.sm, fontSize: font(14), lineHeight: font(20), color: colors.warning },
+  titleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.md },
+  titleText: { flexShrink: 1 },
+  // Botón del web: --space-3 × --space-5, --radius-lg, 600 y --font-size-sm.
+  createButton: { paddingVertical: 12, paddingHorizontal: 20, borderRadius: radius.lg, backgroundColor: colors.primary },
+  createButtonPressed: { backgroundColor: colors.primaryPressed },
+  createButtonText: { fontSize: font(14), fontWeight: '600', color: colors.onPrimary },
   filters: {
     flexDirection: 'row',
     flexWrap: 'wrap',

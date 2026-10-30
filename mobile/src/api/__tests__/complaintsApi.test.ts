@@ -1,8 +1,17 @@
 import * as SecureStore from 'expo-secure-store';
 
 import { saveTokens } from '../../storage/tokenStorage';
-import { fakeResponse, installFetchMock, type FetchMock } from '../../test-utils/http';
-import { CATEGORY_OPTIONS, categoryLabel, fetchMyComplaints, STATUS_OPTIONS, statusLabel } from '../complaintsApi';
+import { authHeaderOf, bodyOf, fakeResponse, installFetchMock, type FetchMock } from '../../test-utils/http';
+import {
+  CATEGORY_OPTIONS,
+  categoryLabel,
+  createComplaint,
+  fetchComplaintOptions,
+  fetchMyComplaints,
+  STATUS_OPTIONS,
+  statusLabel,
+  uploadComplaintPhoto,
+} from '../complaintsApi';
 
 const mockStore = SecureStore as unknown as { __reset: () => void };
 let fetchMock: FetchMock;
@@ -100,5 +109,88 @@ describe('textos de reclamos', () => {
   it('una categoría o estado desconocido se muestra tal cual', () => {
     expect(categoryLabel('NUEVA')).toBe('NUEVA');
     expect(statusLabel('ARCHIVED')).toBe('ARCHIVED');
+  });
+});
+
+describe('createComplaint', () => {
+  it('envía el reclamo como el web: textos sin espacios de más y sin bus/ruta vacíos', async () => {
+    fetchMock.mockResolvedValueOnce(fakeResponse({ status: 201, body: { ...complaint, id: 'nuevo', status: 'PENDING' } }));
+    const created = await createComplaint({
+      title: '  Micro atrasada ',
+      description: ' Pasó tarde ',
+      category: 'DELAY',
+      lineName: '7A',
+      rating: 2,
+      busId: '',
+      routeId: 'r1',
+    });
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(new URL(url).pathname).toMatch(/\/complaints$/);
+    expect(init?.method).toBe('POST');
+    // Línea y calificación van siempre: backend-go las exige.
+    expect(bodyOf(fetchMock, 0)).toEqual({ title: 'Micro atrasada', description: 'Pasó tarde', category: 'DELAY', lineName: '7A', rating: 2, routeId: 'r1' });
+    expect(created).toMatchObject({ id: 'nuevo', status: 'PENDING' });
+  });
+
+  it('un rechazo del backend llega con su mensaje', async () => {
+    fetchMock.mockResolvedValueOnce(fakeResponse({ status: 400, body: { error: 'Cuerpo de la solicitud inválido' } }));
+    await expect(createComplaint({ title: 't', description: 'd', category: 'OTHER', lineName: '1C', rating: 5, busId: 'b1' })).rejects.toMatchObject({
+      status: 400,
+      message: 'Cuerpo de la solicitud inválido',
+    });
+  });
+});
+
+describe('fetchComplaintOptions', () => {
+  it('trae rutas y buses para el formulario', async () => {
+    fetchMock.mockImplementation(async (url: string) =>
+      fakeResponse({
+        body: url.includes('/routes')
+          ? [{ id: 'r1', name: 'Centro', code: '7A', companyId: 'co1' }, { name: 'sin id' }]
+          : [{ id: 'b1', patente: 'ABCD12', companyId: 'co1', routeId: 'r1' }],
+      }),
+    );
+
+    expect(await fetchComplaintOptions()).toEqual({
+      routes: [{ id: 'r1', name: 'Centro', code: '7A' }],
+      buses: [{ id: 'b1', patente: 'ABCD12' }],
+    });
+  });
+});
+
+describe('uploadComplaintPhoto', () => {
+  const photo = { uri: 'file:///cache/foto.jpg', name: 'foto-reclamo-1.jpg', mimeType: 'image/jpeg' as const };
+
+  it('sube la foto como formulario multipart en el campo "file", con el token', async () => {
+    // FormData falso que anota lo agregado (en Jest no está el de React Native).
+    class RecordingFormData {
+      parts: unknown[][] = [];
+      append(...args: unknown[]) {
+        this.parts.push(args);
+      }
+    }
+    const realFormData = globalThis.FormData;
+    globalThis.FormData = RecordingFormData as unknown as typeof FormData;
+    fetchMock.mockResolvedValueOnce(fakeResponse({ status: 201, body: { id: 'a1' } }));
+    try {
+      await uploadComplaintPhoto('c 1', photo);
+    } finally {
+      globalThis.FormData = realFormData;
+    }
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(new URL(url).pathname).toMatch(/\/complaints\/c%201\/attachments$/);
+    expect(init?.method).toBe('POST');
+    expect(authHeaderOf(fetchMock, 0)).toBe('Bearer access-1');
+    // Sin Content-Type propio: fetch pone el del formulario con su separador.
+    expect((init?.headers as Record<string, string>)['Content-Type']).toBeUndefined();
+    expect(init?.body).toBeInstanceOf(RecordingFormData);
+    expect((init?.body as unknown as RecordingFormData).parts).toEqual([['file', { uri: photo.uri, name: photo.name, type: 'image/jpeg' }]]);
+  });
+
+  it('si el backend la rechaza llega su mensaje (ej. límite de fotos)', async () => {
+    fetchMock.mockResolvedValueOnce(fakeResponse({ status: 409, body: { error: 'el reclamo ya tiene el máximo de 3 imágenes' } }));
+    await expect(uploadComplaintPhoto('c1', photo)).rejects.toMatchObject({ status: 409, message: 'el reclamo ya tiene el máximo de 3 imágenes' });
   });
 });
