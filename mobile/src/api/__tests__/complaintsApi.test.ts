@@ -12,6 +12,7 @@ import {
   STATUS_OPTIONS,
   statusLabel,
   uploadComplaintPhoto,
+  updateComplaintStatus,
 } from '../complaintsApi';
 
 const mockStore = SecureStore as unknown as { __reset: () => void };
@@ -104,6 +105,19 @@ describe('fetchCompanyComplaints', () => {
     expect(url.searchParams.get('category')).toBe('DELAY');
     expect(url.searchParams.get('status')).toBe('PENDING');
     expect(authHeaderOf(fetchMock, 0)).toBe('Bearer access-1');
+  });
+});
+
+describe('updateComplaintStatus', () => {
+  it('envía el estado y la respuesta al endpoint de la empresa', async () => {
+    fetchMock.mockResolvedValueOnce(fakeResponse({ body: { ...complaint, status: 'IN_REVIEW', adminResponse: 'Lo estamos revisando' } }));
+
+    await expect(updateComplaintStatus('c 1', { status: 'IN_REVIEW', adminResponse: ' Lo estamos revisando ' })).resolves.toMatchObject({ status: 'IN_REVIEW' });
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(new URL(url).pathname).toMatch(/\/complaints\/c%201\/status$/);
+    expect(init?.method).toBe('PATCH');
+    expect(bodyOf(fetchMock, 0)).toEqual({ status: 'IN_REVIEW', adminResponse: 'Lo estamos revisando' });
   });
 });
 

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
+import * as complaintsApi from '../../api/complaintsApi';
 import type { Complaint } from '../../api/complaintsApi';
 import { useAuth } from '../../auth/AuthContext';
 import { useCompanyComplaints } from '../../hooks/useCompanyComplaints';
@@ -8,6 +9,10 @@ import { CompanyComplaintsScreen } from '../CompanyComplaintsScreen';
 
 jest.mock('../../auth/AuthContext', () => ({ useAuth: jest.fn() }));
 jest.mock('../../hooks/useCompanyComplaints', () => ({ useCompanyComplaints: jest.fn() }));
+jest.mock('../../api/complaintsApi', () => ({
+  ...jest.requireActual('../../api/complaintsApi'),
+  updateComplaintStatus: jest.fn(),
+}));
 
 const complaint: Complaint = {
   id: 'c1', title: 'Micro atrasada', description: 'Esperé 20 minutos', category: 'DELAY', status: 'PENDING',
@@ -17,7 +22,7 @@ const complaint: Complaint = {
 beforeEach(() => {
   jest.clearAllMocks();
   jest.mocked(useAuth).mockReturnValue(mockAuthValue({ status: 'signedIn', user: { id: 'u1', name: 'Empresa', email: 'empresa@x.cl', role: 'COMPANY', companyId: 'co1' } }));
-  jest.mocked(useCompanyComplaints).mockReturnValue({ complaints: [complaint], loading: false, refreshing: false, error: null, refresh: jest.fn() });
+  jest.mocked(useCompanyComplaints).mockReturnValue({ complaints: [complaint], loading: false, refreshing: false, error: null, refresh: jest.fn(), replaceComplaint: jest.fn() });
 });
 
 describe('CompanyComplaintsScreen', () => {
@@ -38,5 +43,41 @@ describe('CompanyComplaintsScreen', () => {
     await fireEvent.press(screen.getByRole('radio', { name: 'Resuelto' }));
 
     expect(useCompanyComplaints).toHaveBeenLastCalledWith('co1', { category: '', status: 'RESOLVED' });
+  });
+
+  it('permite responder un reclamo pendiente y pide confirmación antes de cerrarlo', async () => {
+    const replaceComplaint = jest.fn();
+    jest.mocked(useCompanyComplaints).mockReturnValue({ complaints: [complaint], loading: false, refreshing: false, error: null, refresh: jest.fn(), replaceComplaint });
+    jest.mocked(complaintsApi.updateComplaintStatus).mockResolvedValue({ ...complaint, status: 'RESOLVED', adminResponse: 'Caso solucionado' });
+    await render(<CompanyComplaintsScreen />);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Responder' }));
+    expect(screen.getByRole('header', { name: 'Responder reclamo' })).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('Respuesta para el pasajero'), 'Caso solucionado');
+    await fireEvent.press(screen.getByRole('button', { name: 'Nuevo estado: En revisión' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Resuelto' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Guardar respuesta' }));
+    expect(screen.getByRole('header', { name: 'Confirmar cierre' })).toBeTruthy();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Confirmar' }));
+    expect(complaintsApi.updateComplaintStatus).toHaveBeenCalledWith('c1', { status: 'RESOLVED', adminResponse: 'Caso solucionado' });
+    expect(replaceComplaint).toHaveBeenCalledWith(expect.objectContaining({ id: 'c1', status: 'RESOLVED' }));
+  });
+
+  it('permite editar una respuesta en revisión y conserva el formulario si el backend falla', async () => {
+    jest.mocked(useCompanyComplaints).mockReturnValue({
+      complaints: [{ ...complaint, status: 'IN_REVIEW', adminResponse: 'Primera respuesta' }],
+      loading: false, refreshing: false, error: null, refresh: jest.fn(), replaceComplaint: jest.fn(),
+    });
+    jest.mocked(complaintsApi.updateComplaintStatus).mockRejectedValue(new Error('No se pudo actualizar el reclamo.'));
+    await render(<CompanyComplaintsScreen />);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Editar respuesta' }));
+    expect(screen.getByDisplayValue('Primera respuesta')).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('Respuesta para el pasajero'), 'Respuesta corregida');
+    await fireEvent.press(screen.getByRole('button', { name: 'Guardar respuesta' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo actualizar el reclamo.');
+    expect(screen.getByRole('header', { name: 'Responder reclamo' })).toBeTruthy();
   });
 });

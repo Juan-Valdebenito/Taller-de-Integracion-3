@@ -48,5 +48,9 @@ export function useCompanyComplaints(companyId: string | null | undefined, { cat
     void load('loading');
   }, [load]);
 
-  return { complaints, loading, refreshing, error, refresh: useCallback(() => load('refreshing'), [load]) };
+  const replaceComplaint = useCallback((updated: Complaint) => {
+    setComplaints((current) => current.map((complaint) => complaint.id === updated.id ? updated : complaint));
+  }, []);
+
+  return { complaints, loading, refreshing, error, refresh: useCallback(() => load('refreshing'), [load]), replaceComplaint };
 }

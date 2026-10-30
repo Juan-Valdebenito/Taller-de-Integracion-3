@@ -125,6 +125,20 @@ export async function fetchCompanyComplaints(
     .filter((complaint): complaint is Complaint => complaint !== null);
 }
 
+/** Actualiza el estado y la respuesta visible para el pasajero. */
+export async function updateComplaintStatus(
+  id: string,
+  { status, adminResponse }: { status: ComplaintStatus; adminResponse: string },
+): Promise<Complaint> {
+  const raw = await apiRequest<Partial<Record<keyof Complaint, unknown>>>(`/complaints/${encodeURIComponent(id)}/status`, {
+    method: 'PATCH',
+    body: { status, adminResponse: adminResponse.trim() },
+  });
+  const complaint = toComplaint(raw ?? {});
+  if (!complaint) throw new Error('El backend no devolvió el reclamo actualizado.');
+  return complaint;
+}
+
 export interface RouteOption {
   id: string;
   name: string;
