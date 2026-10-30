@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
+import { computeEta } from '../../../hooks/useEta';
 import type { LiveBus } from '../../../realtime/liveBuses';
 import { initialSimulatedBuses } from '../../../realtime/simulatedBuses';
 import { BusDetailCard, freshnessColor, occupancyPercent, PREDICTION_COLORS } from '../BusDetailCard';
@@ -78,6 +79,19 @@ describe('BusDetailCard', () => {
 
     expect(screen.getByText('72%')).toBeTruthy();
     expect(screen.getByText('±12% · EWMA')).toBeTruthy();
+  });
+
+  it('muestra la próxima parada con su tiempo y distancia, y la oculta si la micro está detenida', async () => {
+    const { nextStop } = computeEta(bus);
+    const { rerender } = await render(<BusDetailCard bus={bus} live onClose={jest.fn()} />);
+
+    expect(screen.getByText('⏱ Próxima parada')).toBeTruthy();
+    expect(screen.getByText(nextStop!.stopName)).toBeTruthy();
+    expect(screen.getByText(nextStop!.etaLabel)).toBeTruthy();
+    expect(screen.getByText(`~${Math.round(nextStop!.distanceM)} m`)).toBeTruthy();
+
+    await rerender(<BusDetailCard bus={{ ...bus, speed: 0 }} live onClose={jest.fn()} />);
+    expect(screen.queryByText('⏱ Próxima parada')).toBeNull();
   });
 
   it('la ✕ cierra la ficha', async () => {

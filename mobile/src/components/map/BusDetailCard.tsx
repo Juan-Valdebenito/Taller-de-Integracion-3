@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
+import { useEta } from '../../hooks/useEta';
 import type { LiveBus } from '../../realtime/liveBuses';
 import type { OccupancyInfo } from '../../realtime/types';
 import { BUS_STATUS, makeStyles, radius, spacing } from '../../theme';
@@ -37,7 +38,8 @@ export interface BusDetailCardProps {
 /**
  * Ficha de la micro elegida, con el contenido de la ventanita del web
  * (BusMarker): línea, frescura del dato, estado, ocupación, subidas y
- * bajadas, predicción, velocidad, dirección y hora de actualización. En el
+ * bajadas, predicción, próxima parada con su ETA, velocidad, dirección y
+ * hora de actualización. En el
  * teléfono va fija sobre el mapa en vez de seguir a la micro.
  */
 export function BusDetailCard({ bus, live, onClose }: BusDetailCardProps) {
@@ -45,6 +47,7 @@ export function BusDetailCard({ bus, live, onClose }: BusDetailCardProps) {
   const color = busColor(bus);
   const pct = occupancyPercent(bus);
   const status = BUS_STATUS[bus.status];
+  const { nextStop, isStopped } = useEta(bus);
 
   return (
     <View style={styles.card} accessibilityLabel={`Micro ${bus.id}`}>
@@ -86,6 +89,17 @@ export function BusDetailCard({ bus, live, onClose }: BusDetailCardProps) {
         </View>
 
         {bus.occupancy ? <Prediction occupancy={bus.occupancy} /> : null}
+
+        {!isStopped && nextStop ? (
+          <View style={styles.eta} accessible accessibilityLabel={`Próxima parada: ${nextStop.stopName}, en ${nextStop.etaLabel}, a unos ${Math.round(nextStop.distanceM)} metros`}>
+            <Text style={styles.etaTitle}>⏱ Próxima parada</Text>
+            <View style={styles.etaRow}>
+              <Text style={styles.etaStop} numberOfLines={1}>{nextStop.stopName}</Text>
+              <Text style={styles.etaTime}>{nextStop.etaLabel}</Text>
+            </View>
+            <Text style={styles.etaDistance}>~{Math.round(nextStop.distanceM)} m</Text>
+          </View>
+        ) : null}
 
         <View style={styles.grid}>
           <Stat label="Velocidad" value={`${Math.round(bus.speed)} km/h`} />
@@ -206,5 +220,19 @@ const useStyles = makeStyles((_colors, font) => ({
   predictionText: { fontSize: font(11), fontWeight: '600' },
   predictionValue: { fontWeight: '800' },
   predictionMeta: { fontSize: font(10), color: '#64748b', flexShrink: 1, textAlign: 'right' },
+  eta: {
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(99,102,241,0.18)',
+    backgroundColor: 'rgba(99,102,241,0.08)',
+  },
+  etaTitle: { fontSize: font(10), color: '#64748b', marginBottom: 4 },
+  etaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  etaStop: { flex: 1, fontSize: font(11), fontWeight: '600', color: '#c7d2fe' },
+  etaTime: { fontSize: font(13), fontWeight: '700', color: '#a5b4fc', fontVariant: ['tabular-nums'] },
+  etaDistance: { fontSize: font(10), color: '#475569', marginTop: 2 },
   updated: { fontSize: font(10), color: '#475569', marginTop: 8, textAlign: 'right' },
 }));
