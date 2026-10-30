@@ -31,6 +31,7 @@ describe('SettingsScreen', () => {
   it('muestra las secciones con los valores por defecto', async () => {
     await renderScreen();
 
+    expect(screen.getByRole('header', { name: '⚙️ Configuración' })).toBeTruthy(); // encabezado de página del web
     expect(screen.getByRole('header', { name: 'Notificaciones' })).toBeTruthy();
     expect(screen.getByRole('header', { name: 'Interfaz' })).toBeTruthy();
     expect(screen.getByRole('switch', { name: 'Notificaciones push' }).props.value).toBe(false);

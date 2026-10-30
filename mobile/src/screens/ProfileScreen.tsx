@@ -5,6 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ApiError } from '../api/errors';
 import { useAuth } from '../auth/AuthContext';
 import { Button } from '../components/Button';
+import { Card } from '../components/Card';
+import { PageTitle } from '../components/PageTitle';
 import { makeStyles, radius, spacing, useTheme } from '../theme';
 import { useSignOut } from '../hooks/useSignOut';
 import { formatLongDate, initials, roleLabel } from '../utils/format';
@@ -20,7 +22,8 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 
 /**
- * Perfil del usuario con sesión iniciada. Los datos vienen de GET /auth/me: se
+ * Perfil del usuario con sesión iniciada (el web no tiene esta página; usa su
+ * mismo encabezado y tarjetas). Los datos vienen de GET /auth/me: se
  * actualizan al entrar y al deslizar hacia abajo.
  */
 export function ProfileScreen() {
@@ -58,6 +61,7 @@ export function ProfileScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.accent} />}
       >
+        <PageTitle emoji="👤" title="Mi Perfil" subtitle="Tus datos y la seguridad de tu cuenta" />
         <View style={styles.header}>
           <View style={styles.avatar} accessibilityLabel={`Avatar de ${user.name}`}>
             {/* Círculo de tamaño fijo: se limita el aumento de letra del sistema para que las iniciales quepan. */}
@@ -80,19 +84,19 @@ export function ProfileScreen() {
         ) : null}
 
         <Text style={styles.sectionTitle}>Datos de la cuenta</Text>
-        <View style={styles.card}>
+        <Card style={styles.card}>
           <InfoRow label="Correo electrónico" value={user.email} />
           <InfoRow label="Tipo de cuenta" value={roleLabel(user.role)} />
           <InfoRow label="Estado" value={user.isActive === false ? 'Desactivada' : 'Activa'} />
           {user.createdAt ? <InfoRow label="Miembro desde" value={formatLongDate(user.createdAt)} /> : null}
-        </View>
+        </Card>
 
         <Text style={styles.sectionTitle}>Seguridad</Text>
-        <View style={styles.card}>
+        <Card style={styles.card}>
           <Text style={styles.securityText}>
             Tu sesión está guardada de forma cifrada en este dispositivo y se renueva automáticamente mientras uses la app.
           </Text>
-        </View>
+        </Card>
 
         <View style={styles.signOut}>
           <Button title="Cerrar sesión" variant="danger" onPress={confirmSignOut} loading={signingOut} />
@@ -138,7 +142,8 @@ const useStyles = makeStyles((colors, font) => ({
     marginBottom: spacing.sm,
     marginTop: spacing.sm,
   },
-  card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md },
+  // Card del web (borde y radio --radius-lg) con menos relleno: son filas de datos.
+  card: { padding: spacing.md, marginBottom: spacing.md },
   row: { paddingVertical: spacing.sm },
   rowLabel: { fontSize: font(13), color: colors.muted },
   rowValue: { fontSize: font(16), color: colors.text, fontWeight: '600', marginTop: 2 },

@@ -1,9 +1,10 @@
 # TransitHub — App móvil (React Native + Expo)
 
-App de pasajeros, empresas y administradores, con las mismas secciones que el
-frontend web. Además de autenticación, perfil, paraderos y alertas, las cuentas
-`COMPANY` tienen panel de flota, consulta de rutas y modo conductor conectado a
-`backend-go`.
+App de pasajeros, empresas y administradores, con las mismas secciones y el mismo
+aspecto que el frontend web. El pasajero tiene el mapa en tiempo real (micros,
+paraderos, filtro por línea, ficha y lista de micros), sus reclamos (con fotos),
+paraderos y alertas, perfil y configuración. Las cuentas `COMPANY` tienen panel
+de flota, consulta de rutas y modo conductor conectado a `backend-go`.
 
 - Expo SDK 58 · React Native 0.88 · TypeScript · Expo Router
 - Tokens JWT guardados **cifrados** con `expo-secure-store`
@@ -24,9 +25,17 @@ npx expo start            # escanear el QR con Expo Go, o "a" / "i" para emulado
 | Teléfono con Expo Go (misma Wi-Fi) | `http://<IP-local-del-PC>:3001/api/v1` |
 | Emulador Android | `http://10.0.2.2:3001/api/v1` |
 | Simulador iOS | `http://localhost:3001/api/v1` |
-| Cluster | `https://backend-tpenroz.dev.censei.cl/api/v1` |
+| Cluster | `https://api-backend-tpenroz.dev.censei.cl/api/v1` |
 
 Si cambias `.env`, reinicia con `npx expo start --clear`.
+
+El WebSocket del tiempo real se deduce de esa URL (`https://…/api/v1` →
+`wss://…/ws`). Si está en otra dirección, defínela con `EXPO_PUBLIC_WS_URL`.
+
+> **Build de desarrollo:** las fotos de los reclamos usan `expo-image-picker` y
+> `expo-image-manipulator`, y el mapa `react-native-maps`. Si tu build de
+> desarrollo es anterior a esas librerías, genera una nueva
+> (`npx expo run:android` / `npx expo run:ios`, o `eas build --profile development`).
 
 ## Secciones por rol
 
@@ -40,7 +49,33 @@ usuario a la de su rol:
 | `COMPANY` | `/company` (`app/company/`) | 📊 Dashboard · 🎛️ Conductor · 🚍 Micros · 🗺️ Rutas · 📋 Reclamos |
 | `ADMIN` | `/admin` (`app/admin/`) | 📊 Dashboard · 🏢 Empresas · 🗺️ Rutas · 👥 Usuarios · 📋 Reclamos |
 
-Las pestañas marcadas con 🚧 en la app todavía son provisionales.
+Las pestañas marcadas con 🚧 en la app todavía son provisionales. Las del
+pasajero ya están completas; las de empresa y administrador se completan en las
+siguientes tareas.
+
+## Mapa en tiempo real (pasajero)
+
+Igual que `PassengerMapPage` del web, adaptado a la pantalla del teléfono:
+
+- **Micros en tiempo real** por el WebSocket `/ws` de backend-go
+  (`src/realtime/`: `RealtimeClient`, `useRealtimeBuses`). Se suscribe a las
+  líneas 7A, 7B y 1C, recibe `bus:update` y reconecta solo (1 s, 2 s, 4 s… hasta
+  30 s). Sin conexión muestra 3 micros **simuladas**, como el web
+  (`useMapBuses`). Las micros se deslizan suavemente entre posiciones
+  (`useAnimatedPosition`).
+- **Barra de estado** (`MapStatusBar`): Tiempo real / Conectando... /
+  Desconectado, latencia, mensajes por segundo, micros en ruta, detenidas y
+  retrasadas, "Filtro activo" y la hora. Si se pierde una conexión que ya
+  existía, aparece el aviso **🔌 Conexión perdida** (`ConnectionOverlay`).
+- **Filtro por línea** (`RouteFilter`): Todas las rutas · Línea 7A · 7B · 1C,
+  con la cantidad de micros. Filtra micros y paraderos.
+- **Ficha de la micro** (`BusDetailCard`) al tocarla: estado, ocupación,
+  subidas y bajadas, predicción del backend, **próxima parada con tiempo de
+  llegada** (`useEta`, la misma fórmula del web: distancia × 1,35 / velocidad),
+  velocidad, dirección y hora del último dato.
+- **Micros activas** (`BusList`): la lista lateral del web, ordenada por
+  ocupación. En el teléfono es un panel plegable abajo, junto a "Tu ubicación
+  y alertas" (al abrir uno se pliega el otro).
 
 ## Vistas de empresa y conductor
 
@@ -253,6 +288,7 @@ los tests unitarios.
 | `api/__tests__/proactive.live.test.ts` | Renovar antes de enviar (sin 401); la protección contra el reloj desajustado; renovar al volver a la app (`renewIfExpiringSoon`) |
 | `api/__tests__/revocation.live.test.ts` | Sesión cerrada desde otro dispositivo; logout con el access token vencido (revoca el par nuevo); logout con tokens ya revocados |
 | `realtime/__tests__/realtime.live.test.ts` | Conexión al WebSocket `/ws`, suscripción a una línea y recepción de sus micros (`bus:update`) |
+| `api/__tests__/complaints.live.test.ts` | "Mis reclamos" con cada filtro; crear un reclamo, que aparezca primero, adjuntarle 3 fotos y que el backend rechace la repetida y la cuarta |
 
 Las pruebas revisan la secuencia exacta de solicitudes que recibe el backend (ej.
 `/auth/me 401` → `/auth/refresh 200` → `/auth/me 200`), no solo el resultado final.
@@ -309,13 +345,19 @@ Las alertas **solo se emiten si la verificación anterior da `inside`**. En
 cualquier otro estado (`outside`, `no-stops`, `low-accuracy` o sin ubicación) la
 app no consulta las micros y la tarjeta explica por qué las alertas están en pausa.
 
+**Con tiempo real** (WebSocket conectado) las alertas se revisan con cada
+posición nueva de las micros, sin consultar al servidor, y la tarjeta lo indica.
+**Sin conexión** vuelven a la consulta HTTP cada 15 s descrita abajo. Las micros
+simuladas nunca generan alertas.
+
 - `src/api/busesApi.ts`: posiciones de las micros activas (`GET /buses?status=ACTIVE`,
   campos `lastLatitude`, `lastLongitude`, `lastLocationAt`).
 - `src/alerts/proximityAlerts.ts`: reglas puras. Una micro genera alerta si su último
   reporte tiene menos de 2 minutos y está a `EXPO_PUBLIC_ALERT_RADIUS_M` metros o menos
   del paradero (por defecto 500). Se avisa una vez por micro; si sale del radio y vuelve,
   avisa de nuevo.
-- `src/hooks/useProximityAlerts.ts`: con el paradero confirmado consulta las micros cada
+- `src/hooks/useProximityAlerts.ts`: con el paradero confirmado usa las micros del
+  tiempo real (`liveBuses`) o, sin conexión, consulta las micros cada
   15 s, solo con la app en primer plano. Si el usuario sale del radio o cambia de
   paradero, detiene la consulta y limpia las alertas. Nunca hay dos consultas a la
   vez para el mismo paradero: si la red está lenta, se espera la que está en curso.
@@ -326,6 +368,29 @@ app no consulta las micros y la tarjeta explica por qué las alertas están en p
 Las alertas siempre se muestran en la app. Además respetan la Configuración:
 **Vibración** (vibrar o no) y **Notificaciones push** (también como notificación
 del teléfono). Ver "Notificaciones" más abajo.
+
+## Reclamos (pasajero)
+
+Pestaña **📋 Reclamos**, como `PassengerComplaintsPage` del web:
+
+- **Mis Reclamos** (`src/screens/ComplaintsScreen.tsx`, `useMyComplaints`):
+  `GET /complaints/my-complaints` con filtros por categoría y estado, una
+  tarjeta por reclamo (categoría, estado y respuesta del administrador) y
+  recarga deslizando hacia abajo.
+- **+ Crear reclamo** (`src/components/ComplaintForm.tsx`): título, categoría,
+  bus o ruta (al menos uno, así el backend sabe qué empresa responde),
+  descripción y **hasta 3 fotos** (cámara o galería). El reclamo nuevo aparece
+  primero en la lista.
+- **Línea y calificación:** `POST /complaints` en backend-go exige `lineName`
+  (7A, 7B o 1C) y `rating` (1 a 5) —`ValidateComplaintPayload`—, aunque el
+  formulario del web no los envía. Por eso el formulario de la app los pide.
+- **Fotos** (`src/complaints/photos.ts`): cada una se guarda de nuevo como JPEG
+  de máximo 2000 px por lado. Así una foto HEIC del iPhone igual se acepta, pesa
+  poco y **no lleva la ubicación GPS** ni otros datos EXIF. Se suben después de
+  crear el reclamo a `POST /complaints/:id/attachments` (multipart, campo
+  `file`). Si alguna falla, el reclamo igual queda creado y se avisa cuál.
+  Los textos de permiso de cámara y fotos están en `app.json`
+  (plugin `expo-image-picker`).
 
 ## Configuración del pasajero
 
@@ -417,7 +482,8 @@ al cerrar la app y al cerrar sesión.
 
 ## Perfil
 
-La pestaña **Perfil** muestra avatar con iniciales, nombre, tipo de cuenta, correo,
+La pestaña **👤 Mi Perfil** (el web no tiene esta página; usa su mismo
+encabezado y tarjetas, igual que **⚙️ Configuración**) muestra avatar con iniciales, nombre, tipo de cuenta, correo,
 estado de la cuenta y fecha de registro. Los datos se piden a `GET /auth/me` al
 entrar y al deslizar hacia abajo; si falla (ej. sin conexión), se conservan los
 datos ya cargados y se muestra un aviso.
