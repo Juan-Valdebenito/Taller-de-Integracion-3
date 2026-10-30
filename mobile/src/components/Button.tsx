@@ -9,9 +9,14 @@ export interface ButtonProps {
   disabled?: boolean;
   /** primary: azul · secondary: texto · danger: rojo (acciones destructivas como cerrar sesión) */
   variant?: 'primary' | 'secondary' | 'danger';
+  /**
+   * Texto mientras carga, como el web ("Verificando..." con opacidad 0.7). Sin
+   * él se muestra un indicador de actividad.
+   */
+  loadingTitle?: string;
 }
 
-export function Button({ title, onPress, loading = false, disabled = false, variant = 'primary' }: ButtonProps) {
+export function Button({ title, onPress, loading = false, disabled = false, variant = 'primary', loadingTitle }: ButtonProps) {
   const { colors } = useTheme();
   const styles = useStyles();
   const isDisabled = disabled || loading;
@@ -19,7 +24,7 @@ export function Button({ title, onPress, loading = false, disabled = false, vari
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={title}
+      accessibilityLabel={loading && loadingTitle ? loadingTitle : title}
       accessibilityState={{ disabled: isDisabled, busy: loading }}
       disabled={isDisabled}
       onPress={onPress}
@@ -31,11 +36,11 @@ export function Button({ title, onPress, loading = false, disabled = false, vari
         isDisabled ? styles.disabled : null,
       ]}
     >
-      {loading ? (
+      {loading && !loadingTitle ? (
         <ActivityIndicator color={variant === 'danger' ? colors.onDanger : primary ? colors.onPrimary : colors.accent} />
       ) : (
         <Text style={[styles.text, variant === 'danger' ? styles.textDanger : primary ? styles.textPrimary : styles.textSecondary]}>
-          {title}
+          {loading && loadingTitle ? loadingTitle : title}
         </Text>
       )}
     </Pressable>
@@ -43,21 +48,22 @@ export function Button({ title, onPress, loading = false, disabled = false, vari
 }
 
 const useStyles = makeStyles((colors, font) => ({
+  // Botón del web: padding 12, radio 8, texto 700. Alto mínimo de 44 para el dedo.
   base: {
     borderRadius: radius.md,
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 50,
+    minHeight: 44,
   },
   primary: { backgroundColor: colors.primary },
   primaryPressed: { backgroundColor: colors.primaryPressed },
   danger: { backgroundColor: colors.danger },
   dangerPressed: { backgroundColor: colors.dangerPressed },
   secondary: { backgroundColor: 'transparent' },
-  disabled: { opacity: 0.6 },
-  text: { fontSize: font(16), fontWeight: '600' },
+  disabled: { opacity: 0.7 },
+  text: { fontSize: font(14), fontWeight: '700' },
   textPrimary: { color: colors.onPrimary },
   textDanger: { color: colors.onDanger },
   textSecondary: { color: colors.accent },

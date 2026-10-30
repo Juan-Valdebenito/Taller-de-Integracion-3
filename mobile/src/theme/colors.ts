@@ -19,6 +19,8 @@ export interface ThemeColors {
   surface: string;
   /** Fondo de los campos de texto. */
   field: string;
+  /** Texto de ejemplo dentro de los campos (más tenue que muted, como el web). */
+  placeholder: string;
   danger: string;
   dangerPressed: string;
   /** Texto sobre fondo `danger` (botón de cerrar sesión). */
@@ -40,6 +42,7 @@ export const lightColors: Readonly<ThemeColors> = Object.freeze({
   background: '#ffffff',
   surface: '#f3f4f6',
   field: '#ffffff',
+  placeholder: '#9ca3af',
   danger: '#b91c1c',
   dangerPressed: '#991b1b',
   onDanger: '#ffffff',
@@ -65,6 +68,7 @@ export const darkColors: Readonly<ThemeColors> = Object.freeze({
   background: '#101318',
   surface: '#191d24',
   field: '#22272f',
+  placeholder: '#6a707c',
   danger: '#f87171',
   dangerPressed: '#fca5a5',
   onDanger: '#101318',

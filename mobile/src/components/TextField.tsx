@@ -8,7 +8,7 @@ export interface TextFieldProps extends TextInputProps {
   error?: string;
 }
 
-/** Campo de texto con etiqueta y mensaje de error accesibles. */
+/** Campo de texto con etiqueta y mensaje de error accesibles (estilo de los formularios del web). */
 export const TextField = forwardRef<TextInputInstance, TextFieldProps>(function TextField({ label, error, style, ...props }, ref) {
   const { colors, scheme } = useTheme();
   const styles = useStyles();
@@ -18,7 +18,7 @@ export const TextField = forwardRef<TextInputInstance, TextFieldProps>(function 
       <TextInput
         ref={ref}
         accessibilityLabel={label}
-        placeholderTextColor={colors.muted}
+        placeholderTextColor={colors.placeholder}
         keyboardAppearance={scheme}
         style={[styles.input, error ? styles.inputError : null, style]}
         {...props}
@@ -33,15 +33,17 @@ export const TextField = forwardRef<TextInputInstance, TextFieldProps>(function 
 });
 
 const useStyles = makeStyles((colors, font) => ({
-  container: { marginBottom: spacing.md },
-  label: { fontSize: font(14), fontWeight: '600', color: colors.text, marginBottom: spacing.xs },
+  // Web: separación de 14 px entre campos, etiqueta 13 px/600, campo 10×12 px
+  // con radio 8 sobre --color-surface-2.
+  container: { marginBottom: 14 },
+  label: { fontSize: font(13), lineHeight: font(21), fontWeight: '600', color: colors.text, marginBottom: spacing.xs },
   input: {
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 12,
-    fontSize: font(16),
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: font(14),
     color: colors.text,
     backgroundColor: colors.field,
   },
