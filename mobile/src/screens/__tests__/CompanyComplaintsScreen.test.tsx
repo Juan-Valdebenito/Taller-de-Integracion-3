@@ -80,4 +80,54 @@ describe('CompanyComplaintsScreen', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo actualizar el reclamo.');
     expect(screen.getByRole('header', { name: 'Responder reclamo' })).toBeTruthy();
   });
+
+  it('la confirmación reemplaza al formulario en la misma ventana (en iOS no se pueden apilar dos)', async () => {
+    await render(<CompanyComplaintsScreen />);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Responder' }));
+    await fireEvent.changeText(screen.getByLabelText('Respuesta para el pasajero'), 'Rechazado por falta de antecedentes');
+    await fireEvent.press(screen.getByRole('button', { name: 'Nuevo estado: En revisión' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Rechazado' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Guardar respuesta' }));
+
+    expect(screen.getByRole('header', { name: 'Confirmar cierre' })).toBeTruthy();
+    expect(screen.queryByRole('header', { name: 'Responder reclamo' })).toBeNull();
+
+    // "Volver" regresa al formulario con lo escrito.
+    await fireEvent.press(screen.getByRole('button', { name: 'Volver' }));
+    expect(screen.getByDisplayValue('Rechazado por falta de antecedentes')).toBeTruthy();
+  });
+
+  it('si falla al confirmar el cierre, vuelve al formulario y muestra el error', async () => {
+    jest.mocked(complaintsApi.updateComplaintStatus).mockRejectedValue(new Error('Error al actualizar estado del reclamo'));
+    await render(<CompanyComplaintsScreen />);
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Responder' }));
+    await fireEvent.changeText(screen.getByLabelText('Respuesta para el pasajero'), 'Caso solucionado');
+    await fireEvent.press(screen.getByRole('button', { name: 'Nuevo estado: En revisión' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Resuelto' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Guardar respuesta' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Confirmar' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Error al actualizar estado del reclamo');
+    expect(screen.queryByRole('header', { name: 'Confirmar cierre' })).toBeNull();
+    expect(screen.getByDisplayValue('Caso solucionado')).toBeTruthy();
+  });
+
+  it('con un filtro de estado, si el reclamo ya no corresponde se vuelve a pedir la lista', async () => {
+    const refresh = jest.fn();
+    const replaceComplaint = jest.fn();
+    jest.mocked(useCompanyComplaints).mockReturnValue({ complaints: [complaint], loading: false, refreshing: false, error: null, refresh, replaceComplaint });
+    jest.mocked(complaintsApi.updateComplaintStatus).mockResolvedValue({ ...complaint, status: 'IN_REVIEW', adminResponse: 'Lo revisamos' });
+    await render(<CompanyComplaintsScreen />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Estados:: Todos los estados' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Pendiente' }));
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Responder' }));
+    await fireEvent.changeText(screen.getByLabelText('Respuesta para el pasajero'), 'Lo revisamos');
+    await fireEvent.press(screen.getByRole('button', { name: 'Guardar respuesta' }));
+
+    expect(refresh).toHaveBeenCalled();
+    expect(replaceComplaint).not.toHaveBeenCalled();
+  });
 });

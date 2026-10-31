@@ -83,4 +83,9 @@ describe('SelectField', () => {
     await fireEvent.press(disabled);
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it('sin opciones no falla: se muestra vacío (p. ej. mientras se cierra una ventana)', async () => {
+    await render(<SelectField label="Nuevo estado" value="PENDING" options={[]} onChange={jest.fn()} />);
+    expect(screen.getByRole('button', { name: 'Nuevo estado: ' })).toBeTruthy();
+  });
 });

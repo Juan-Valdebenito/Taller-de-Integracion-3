@@ -68,10 +68,14 @@ export function CompanyComplaintsScreen() {
     setResponseError(null);
     try {
       const updated = await updateComplaintStatus(responding.id, { status: nextStatus, adminResponse: response });
-      replaceComplaint(updated);
+      // Con un filtro de estado, si el reclamo ya no le corresponde se vuelve a pedir la lista.
+      if (status && updated.status !== status) void refresh();
+      else replaceComplaint(updated);
       setResponding(null);
       setConfirmClose(false);
     } catch (cause) {
+      // Se vuelve al formulario, donde se ve el error y la respuesta escrita.
+      setConfirmClose(false);
       setResponseError(cause instanceof Error ? cause.message : 'No se pudo actualizar el reclamo. Inténtalo nuevamente.');
     } finally {
       setSaving(false);
@@ -118,48 +122,56 @@ export function CompanyComplaintsScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.accent} colors={[colors.primary]} />}
       />
-      <Modal visible={responding !== null} transparent animationType="fade" onRequestClose={closeResponse}>
+      {/* Un solo Modal: en iOS no se puede abrir otro Modal encima, así que la confirmación reemplaza al formulario. */}
+      <Modal
+        visible={responding !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (saving) return;
+          if (confirmClose) setConfirmClose(false);
+          else closeResponse();
+        }}
+      >
         <View style={styles.modalBackdrop}>
-          <View style={styles.modalSheet} accessibilityViewIsModal>
-            <Text style={styles.modalTitle} accessibilityRole="header">Responder reclamo</Text>
-            <Text style={styles.modalSubject}>{responding?.title}</Text>
-            <SelectField
-              label="Nuevo estado"
-              value={nextStatus}
-              options={(responding ? RESPONSE_STATUS_OPTIONS[responding.status] : []).map((value) => ({ value, label: statusLabel(value) }))}
-              onChange={setNextStatus}
-            />
-            <TextField
-              label="Respuesta para el pasajero"
-              value={response}
-              onChangeText={(value) => { setResponse(value); setResponseError(null); }}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-              editable={!saving}
-              error={responseError ?? undefined}
-              placeholder="Escribe la respuesta que verá el pasajero"
-            />
-            <View style={styles.modalActions}>
-              <View style={styles.modalAction}><Button title="Cancelar" variant="secondary" onPress={closeResponse} disabled={saving} /></View>
-              <View style={styles.modalAction}><Button title="Guardar respuesta" loadingTitle="Guardando..." loading={saving} onPress={requestSave} /></View>
+          {/* Mientras la ventana se desvanece ya no hay reclamo elegido: no se dibuja el contenido. */}
+          {!responding ? null : confirmClose ? (
+            <View style={styles.modalSheet} accessibilityViewIsModal>
+              <Text style={styles.modalTitle} accessibilityRole="header">Confirmar cierre</Text>
+              <Text style={styles.modalText}>¿Marcar este reclamo como {statusLabel(nextStatus).toLowerCase()}?</Text>
+              <Text style={styles.modalWarning}>Después de cerrarlo, no se podrá volver a editar desde la aplicación.</Text>
+              <View style={styles.modalActions}>
+                <View style={styles.modalAction}><Button title="Volver" variant="secondary" onPress={() => setConfirmClose(false)} disabled={saving} /></View>
+                <View style={styles.modalAction}><Button title="Confirmar" variant="danger" loadingTitle="Guardando..." loading={saving} onPress={() => void saveResponse()} /></View>
+              </View>
             </View>
-          </View>
-        </View>
-      </Modal>
-      <Modal visible={confirmClose} transparent animationType="fade" onRequestClose={() => {
-        if (!saving) setConfirmClose(false);
-      }}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalSheet} accessibilityViewIsModal>
-            <Text style={styles.modalTitle} accessibilityRole="header">Confirmar cierre</Text>
-            <Text style={styles.modalText}>¿Marcar este reclamo como {statusLabel(nextStatus).toLowerCase()}?</Text>
-            <Text style={styles.modalWarning}>Después de cerrarlo, no se podrá volver a editar desde la aplicación.</Text>
-            <View style={styles.modalActions}>
-              <View style={styles.modalAction}><Button title="Volver" variant="secondary" onPress={() => setConfirmClose(false)} disabled={saving} /></View>
-              <View style={styles.modalAction}><Button title="Confirmar" variant="danger" loadingTitle="Guardando..." loading={saving} onPress={() => void saveResponse()} /></View>
+          ) : (
+            <View style={styles.modalSheet} accessibilityViewIsModal>
+              <Text style={styles.modalTitle} accessibilityRole="header">Responder reclamo</Text>
+              <Text style={styles.modalSubject}>{responding?.title}</Text>
+              <SelectField
+                label="Nuevo estado"
+                value={nextStatus}
+                options={(responding ? RESPONSE_STATUS_OPTIONS[responding.status] : []).map((value) => ({ value, label: statusLabel(value) }))}
+                onChange={setNextStatus}
+              />
+              <TextField
+                label="Respuesta para el pasajero"
+                value={response}
+                onChangeText={(value) => { setResponse(value); setResponseError(null); }}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+                editable={!saving}
+                error={responseError ?? undefined}
+                placeholder="Escribe la respuesta que verá el pasajero"
+              />
+              <View style={styles.modalActions}>
+                <View style={styles.modalAction}><Button title="Cancelar" variant="secondary" onPress={closeResponse} disabled={saving} /></View>
+                <View style={styles.modalAction}><Button title="Guardar respuesta" loadingTitle="Guardando..." loading={saving} onPress={requestSave} /></View>
+              </View>
             </View>
-          </View>
+          )}
         </View>
       </Modal>
     </SafeAreaView>

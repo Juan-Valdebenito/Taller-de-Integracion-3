@@ -5,6 +5,7 @@ import { Modal, Pressable, RefreshControl, ScrollView, Text, TextInput, View } f
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { deleteCompanyBus, type CompanyBus, type CompanyRoute } from '../api/companyApi';
+import { ApiError } from '../api/errors';
 import { useAuth } from '../auth/AuthContext';
 import { BusForm } from '../components/BusForm';
 import { Button } from '../components/Button';
@@ -22,7 +23,6 @@ import {
   type FleetFilters,
 } from '../company/fleet';
 import { useCompanyOperations } from '../hooks/useCompanyOperations';
-import { ApiError } from '../api/errors';
 import { makeStyles, radius, spacing, useTheme } from '../theme';
 
 const SKY = '#38bdf8';

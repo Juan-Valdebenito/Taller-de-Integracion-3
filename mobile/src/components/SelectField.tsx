@@ -26,7 +26,8 @@ export function SelectField<T extends string>({ label, value, options, onChange 
   const { colors } = useTheme();
   const styles = useStyles();
   const [open, setOpen] = useState(false);
-  const selected = options.find((option) => option.value === value) ?? options[0];
+  // Sin opciones (p. ej. mientras se cierra una ventana) se muestra vacío en vez de fallar.
+  const selectedLabel = (options.find((option) => option.value === value) ?? options[0])?.label ?? '';
 
   const choose = (next: T) => {
     setOpen(false);
@@ -38,12 +39,12 @@ export function SelectField<T extends string>({ label, value, options, onChange 
       <Text style={styles.label}>{label}</Text>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${label}: ${selected.label}`}
+        accessibilityLabel={`${label}: ${selectedLabel}`}
         accessibilityHint="Abre la lista de opciones"
         onPress={() => setOpen(true)}
         style={styles.field}
       >
-        <Text style={styles.value}>{selected.label}</Text>
+        <Text style={styles.value}>{selectedLabel}</Text>
         <Ionicons name="chevron-down" size={16} color={colors.text} />
       </Pressable>
 
