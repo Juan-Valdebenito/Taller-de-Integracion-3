@@ -218,13 +218,15 @@ Base URL: `http://localhost:3001/api/v1`
 | Recurso | Método | Endpoint | Roles |
 |---------|--------|----------|-------|
 | Health | GET | `/health` | Público |
-| Auth | POST | `/auth/register` | Público |
+| Auth | POST | `/auth/register` | Público (pasajero o empresa; nunca ADMIN, y sin elegir empresa) |
 | Auth | POST | `/auth/login` | Público |
 | Auth | POST | `/auth/logout` | Público |
 | Auth | GET | `/auth/me` | Autenticado |
 | Usuarios | GET | `/users` | ADMIN |
-| Usuarios | GET | `/users/:id` | Autenticado |
+| Usuarios | POST | `/users` | ADMIN (crea cuentas con cualquier rol) |
+| Usuarios | GET | `/users/:id` | ADMIN |
 | Usuarios | PUT | `/users/:id` | ADMIN |
+| Usuarios | PATCH | `/users/:id` | ADMIN |
 | Usuarios | DELETE | `/users/:id` | ADMIN |
 | Empresas | GET | `/companies` (todas, con RUT y contacto; `?active=true` solo activas) | ADMIN |
 | Empresas | GET | `/companies/:id` | ADMIN |

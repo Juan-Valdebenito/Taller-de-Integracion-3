@@ -171,11 +171,15 @@ func Setup(
 		authGroup.POST("/revoke", tokensLimit, auth(), middleware.Authorize("ADMIN"), authH.Revoke)
 	}
 
-	// Usuarios (con soporte de máscara ?mask=true para privacidad y validación en updates)
-	users := api.Group("/users", usersDB, optionalAuth(), middleware.SensitiveDataMasker())
+	// Usuarios: solo administradores (con máscara ?mask=true para privacidad y
+	// validación en updates). Sin esto cualquiera podía listar cuentas,
+	// cambiar roles o desactivarlas.
+	users := api.Group("/users", usersDB, auth(), middleware.Authorize("ADMIN"), middleware.SensitiveDataMasker())
 	{
 		users.GET("", userH.GetAll)
 		users.GET("/", userH.GetAll)
+		users.POST("", middleware.ValidateUserPayload(), userH.Create)
+		users.POST("/", middleware.ValidateUserPayload(), userH.Create)
 		users.GET("/:id", userH.GetByID)
 		users.PUT("/:id", middleware.ValidateUserUpdatePayload(), userH.Update)
 		users.PATCH("/:id", middleware.ValidateUserUpdatePayload(), userH.Patch)

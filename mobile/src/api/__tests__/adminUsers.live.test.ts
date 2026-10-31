@@ -79,11 +79,13 @@ describeLive('usuarios del administrador en backend-go real', () => {
       expect(validateUserForm(form, { users: await fetchUsers(), editingId: null, isSelf: false }, password)).toBeNull();
       const created = await createUser(toNewUserInput(form, password));
       expect(created).toMatchObject({ name: 'Operador Nuevo', email: form.email, role: 'COMPANY', companyId: SEED_COMPANY_ID, isActive: true });
-      // Los tokens de la cuenta nueva se descartaron: la sesión sigue siendo la del administrador.
+      // POST /users no inicia sesión con la cuenta nueva: la sesión sigue siendo la del administrador.
       await expect(getCurrentUser()).resolves.toMatchObject({ email: SEED_ADMIN.email, role: 'ADMIN' });
 
       // Correo repetido: el backend responde 409 con un mensaje claro.
       await expect(createUser(toNewUserInput(form, password))).rejects.toMatchObject({ status: 409 });
+      // Empresa inexistente: 400 con un mensaje claro (no el error de la base de datos).
+      await expect(createUser(toNewUserInput({ ...form, email: `otro.${suffix}@example.com`, companyId: 'no-existe' }, password))).rejects.toMatchObject({ status: 400, message: 'La empresa indicada no existe' });
     } finally {
       await logout();
     }

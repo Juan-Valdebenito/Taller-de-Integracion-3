@@ -7,10 +7,34 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain"
 )
+
+// Errores de escritura que el handler responde como 4xx en vez de 500.
+var (
+	ErrUserDuplicateEmail  = errors.New("el correo ya está registrado")
+	ErrUserCompanyNotFound = errors.New("la empresa indicada no existe")
+)
+
+// mapUserWriteError traduce las violaciones de restricciones de PostgreSQL:
+// correo repetido (23505) y empresa inexistente (23503, clave foránea).
+func mapUserWriteError(op string, err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch pgErr.Code {
+		case "23505":
+			if pgErr.ConstraintName == "users_email_key" {
+				return ErrUserDuplicateEmail
+			}
+		case "23503":
+			return ErrUserCompanyNotFound
+		}
+	}
+	return fmt.Errorf("UserRepository.%s: %w", op, err)
+}
 
 // UserRepository gestiona las operaciones de base de datos para usuarios.
 type UserRepository struct {
@@ -87,7 +111,7 @@ func (r *UserRepository) Create(ctx context.Context, name, email, passwordHash s
 		&u.ID, &u.Name, &u.Email, &u.PasswordHash, &u.Role, &u.IsActive, &u.CompanyID, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("UserRepository.Create: %w", err)
+		return nil, mapUserWriteError("Create", err)
 	}
 	return &u, nil
 }

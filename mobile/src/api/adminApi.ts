@@ -217,17 +217,13 @@ export interface NewUserInput {
 }
 
 /**
- * Crea la cuenta con POST /auth/register, como el web (backend-go no tiene otro
- * endpoint para crear usuarios). Esa respuesta trae tokens de la cuenta nueva:
- * se descartan para no tocar la sesión del administrador.
+ * Crea la cuenta con POST /users (solo ADMIN): acepta cualquier rol y no
+ * inicia sesión con la cuenta nueva. Responde 409 si el correo ya existe y 400
+ * si la empresa no existe.
  */
 export async function createUser(input: NewUserInput): Promise<AdminUser> {
-  const raw = await apiRequest<{ user?: Partial<Record<keyof AdminUser, unknown>> } | null>('/auth/register', {
-    method: 'POST',
-    auth: false,
-    body: input,
-  });
-  const user = toUser(raw?.user ?? {});
+  const raw = await apiRequest<Partial<Record<keyof AdminUser, unknown>> | null>('/users', { method: 'POST', body: input });
+  const user = toUser(raw ?? {});
   if (!user) throw new Error('Respuesta inválida del servidor');
   return user;
 }

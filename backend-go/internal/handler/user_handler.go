@@ -1,12 +1,15 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/repository"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/security"
 )
 
 // UserHandler maneja los endpoints de usuarios.
@@ -16,6 +19,78 @@ type UserHandler struct {
 
 func NewUserHandler(userRepo *repository.UserRepository) *UserHandler {
 	return &UserHandler{userRepo: userRepo}
+}
+
+// NewUserRequest es el cuerpo de POST /api/v1/users.
+type NewUserRequest struct {
+	Name      string `json:"name"`
+	Email     string `json:"email"`
+	Password  string `json:"password"`
+	Role      string `json:"role"`
+	CompanyID string `json:"companyId"`
+}
+
+// validRoles son los roles que acepta backend-go.
+var validRoles = map[domain.UserRole]bool{
+	domain.UserRolePassenger: true,
+	domain.UserRoleCompany:   true,
+	domain.UserRoleAdmin:     true,
+}
+
+// validateNewUser revisa el rol y la empresa de una cuenta creada por el
+// administrador. La empresa solo se guarda para el rol Empresa, y en ese caso
+// es obligatoria. El correo, el nombre y la contraseña ya los valida
+// middleware.ValidateUserPayload.
+func validateNewUser(req NewUserRequest) (domain.UserRole, *string, string) {
+	role := domain.UserRole(strings.TrimSpace(req.Role))
+	if role == "" {
+		role = domain.UserRolePassenger
+	}
+	if !validRoles[role] {
+		return "", nil, "Rol no válido. Roles permitidos: PASSENGER, COMPANY, ADMIN"
+	}
+	if role != domain.UserRoleCompany {
+		return role, nil, ""
+	}
+	companyID := strings.TrimSpace(req.CompanyID)
+	if companyID == "" {
+		return "", nil, "Una cuenta de empresa necesita la empresa a la que pertenece (companyId)"
+	}
+	return role, &companyID, ""
+}
+
+// Create godoc
+// POST /api/v1/users — el administrador crea una cuenta con cualquier rol.
+// A diferencia de /auth/register no inicia sesión con la cuenta nueva (no
+// entrega tokens). Responde 409 si el correo ya existe y 400 si la empresa no
+// existe.
+func (h *UserHandler) Create(c *gin.Context) {
+	var req NewUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Formato JSON inválido"})
+		return
+	}
+	role, companyID, invalid := validateNewUser(req)
+	if invalid != "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": invalid})
+		return
+	}
+	hash, err := security.HashPassword(req.Password)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	user, err := h.userRepo.Create(c.Request.Context(), strings.TrimSpace(req.Name), strings.TrimSpace(req.Email), hash, role, companyID)
+	switch {
+	case errors.Is(err, repository.ErrUserDuplicateEmail):
+		c.JSON(http.StatusConflict, gin.H{"error": "El email " + strings.TrimSpace(req.Email) + " ya está registrado"})
+	case errors.Is(err, repository.ErrUserCompanyNotFound):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "La empresa indicada no existe"})
+	case err != nil:
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al crear usuario"})
+	default:
+		c.JSON(http.StatusCreated, user)
+	}
 }
 
 // GetAll godoc

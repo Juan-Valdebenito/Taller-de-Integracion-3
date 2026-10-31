@@ -132,10 +132,15 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		Email     string `json:"email" binding:"required,email"`
 		Password  string `json:"password" binding:"required,min=6"`
 		Role      string `json:"role"`
-		CompanyID string `json:"companyId"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	role, allowed := registrationRole(body.Role)
+	if !allowed {
+		c.JSON(http.StatusForbidden, gin.H{"error": "No se puede registrar una cuenta de administrador. Las crea un administrador desde el panel."})
 		return
 	}
 
@@ -157,19 +162,9 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	role := domain.UserRolePassenger
-	if body.Role == string(domain.UserRoleCompany) {
-		role = domain.UserRoleCompany
-	} else if body.Role == string(domain.UserRoleAdmin) {
-		role = domain.UserRoleAdmin
-	}
-
-	var companyID *string
-	if body.CompanyID != "" {
-		companyID = &body.CompanyID
-	}
-
-	user, err := h.userRepo.Create(c.Request.Context(), body.Name, body.Email, string(hash), role, companyID)
+	// Sin empresa: quien se registra no puede elegir a qué empresa pertenece
+	// (vería sus reclamos y micros). Se la asigna un administrador.
+	user, err := h.userRepo.Create(c.Request.Context(), body.Name, body.Email, string(hash), role, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al crear usuario"})
 		return
@@ -186,6 +181,19 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		"user":  resp["user"],
 	}
 	c.JSON(http.StatusCreated, resp)
+}
+
+// registrationRole decide el rol de una cuenta del registro público: pasajero
+// (por defecto) o empresa. Una cuenta de administrador no se puede registrar.
+func registrationRole(requested string) (domain.UserRole, bool) {
+	switch domain.UserRole(requested) {
+	case domain.UserRoleAdmin:
+		return "", false
+	case domain.UserRoleCompany:
+		return domain.UserRoleCompany, true
+	default:
+		return domain.UserRolePassenger, true
+	}
 }
 
 // Login godoc
