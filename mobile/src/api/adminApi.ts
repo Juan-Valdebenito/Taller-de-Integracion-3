@@ -43,19 +43,67 @@ export async function fetchComplaintStats(companyId?: string): Promise<Complaint
   };
 }
 
-/** Empresa tal como la entrega GET /companies (backend-go solo envía estos campos, y solo las activas). */
+/** Empresa de transporte (GET /companies, solo ADMIN). */
 export interface CompanySummary {
   id: string;
   name: string;
+  rut: string;
+  email: string;
+  phone: string | null;
+  address: string | null;
   isActive: boolean;
 }
 
-/** Empresas de transporte (solo ADMIN). */
+/** Datos editables de una empresa (crear o editar). */
+export interface CompanyInput {
+  name: string;
+  rut: string;
+  email: string;
+  phone: string | null;
+  address: string | null;
+}
+
+const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
+const optional = (value: unknown) => text(value) || null;
+
+function toCompany(raw: Partial<Record<keyof CompanySummary, unknown>>): CompanySummary | null {
+  const id = text(raw.id);
+  if (!id) return null;
+  return {
+    id,
+    name: text(raw.name) || 'Empresa sin nombre',
+    rut: text(raw.rut),
+    email: text(raw.email),
+    phone: optional(raw.phone),
+    address: optional(raw.address),
+    isActive: raw.isActive !== false,
+  };
+}
+
+function requireCompany(raw: Partial<Record<keyof CompanySummary, unknown>> | null): CompanySummary {
+  const company = toCompany(raw ?? {});
+  if (!company) throw new Error('El backend no devolvió la empresa.');
+  return company;
+}
+
+/** Todas las empresas (activas e inactivas) con sus datos de contacto. */
 export async function fetchCompanies(): Promise<CompanySummary[]> {
-  const raw = await apiRequest<Array<Partial<CompanySummary>> | null>('/companies');
-  return (Array.isArray(raw) ? raw : [])
-    .filter((company) => company?.id)
-    .map((company) => ({ id: String(company.id), name: String(company.name ?? '').trim() || 'Empresa sin nombre', isActive: company.isActive !== false }));
+  const raw = await apiRequest<Array<Partial<Record<keyof CompanySummary, unknown>>> | null>('/companies');
+  return (Array.isArray(raw) ? raw : []).map((company) => toCompany(company ?? {})).filter((c): c is CompanySummary => c !== null);
+}
+
+/** Registra una empresa (queda activa). El backend valida el RUT y responde 409 si el RUT o el correo ya existen. */
+export async function createCompany(input: CompanyInput): Promise<CompanySummary> {
+  return requireCompany(await apiRequest('/companies', { method: 'POST', body: input }));
+}
+
+export async function updateCompany(id: string, input: CompanyInput): Promise<CompanySummary> {
+  return requireCompany(await apiRequest(`/companies/${encodeURIComponent(id)}`, { method: 'PUT', body: input }));
+}
+
+/** Activa o desactiva la empresa. */
+export async function setCompanyActive(id: string, isActive: boolean): Promise<CompanySummary> {
+  return requireCompany(await apiRequest(`/companies/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: { isActive } }));
 }
 
 /** Reclamos pendientes por empresa, con una sola consulta (GET /complaints?status=PENDING). */

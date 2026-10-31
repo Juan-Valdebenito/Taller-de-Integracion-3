@@ -1,7 +1,8 @@
 import { login, logout } from '../../api/authApi';
 import { buildCompanyCards } from '../../admin/companies';
+import { formatRut, rutCheckDigit, toCompanyInput, NEW_COMPANY_FORM } from '../../admin/companyForm';
 import { describeLive, resetSecureStore, SEED_ADMIN, SEED_COMPANY, SEED_COMPANY_ID, SEED_PASSENGER, SEED_ROUTE_ID } from '../../test-utils/live/backend';
-import { fetchCompanies, fetchPendingComplaintsByCompany } from '../adminApi';
+import { createCompany, fetchCompanies, fetchPendingComplaintsByCompany, setCompanyActive, updateCompany } from '../adminApi';
 import { fetchCompanyBuses, fetchCompanyRoutes } from '../companyApi';
 import { createComplaint } from '../complaintsApi';
 
@@ -56,6 +57,27 @@ describeLive('empresas del administrador en backend-go real', () => {
     await login(SEED_COMPANY);
     try {
       await expect(fetchCompanies()).rejects.toMatchObject({ status: 403 });
+    } finally {
+      await logout();
+    }
+  });
+
+  it('con las funciones de la app: crea, edita y desactiva una empresa, y la lista lo refleja', async () => {
+    const body = String(70_000_000 + (Date.now() % 1_000_000) * 10);
+    const rut = formatRut(body + rutCheckDigit(body))!;
+    await login(SEED_ADMIN);
+    try {
+      const created = await createCompany(
+        toCompanyInput({ ...NEW_COMPANY_FORM, name: 'Buses App en vivo', rut: rut.replace(/\./g, ''), email: `app-${body}@buses.cl` }),
+      );
+      expect(created).toMatchObject({ name: 'Buses App en vivo', rut, isActive: true, phone: null });
+
+      const edited = await updateCompany(created.id, toCompanyInput({ ...NEW_COMPANY_FORM, name: 'Buses App SpA', rut, email: created.email, phone: '45 222 3333' }));
+      expect(edited).toMatchObject({ name: 'Buses App SpA', phone: '45 222 3333' });
+
+      const off = await setCompanyActive(created.id, false);
+      expect(off.isActive).toBe(false);
+      expect((await fetchCompanies()).find((c) => c.id === created.id)).toMatchObject({ name: 'Buses App SpA', isActive: false });
     } finally {
       await logout();
     }

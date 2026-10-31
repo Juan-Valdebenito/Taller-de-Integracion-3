@@ -41,13 +41,15 @@ export const COMPANY_STATUS_OPTIONS: readonly { value: CompanyStatusFilter; labe
   { value: 'inactive', label: 'Inactivas' },
 ];
 
-/** Busca por nombre o identificador, sin importar mayúsculas ni tildes, y filtra por estado. */
+/** Busca por nombre, RUT o correo (como el web), sin importar mayúsculas ni tildes, y filtra por estado. */
 export function filterCompanies(cards: readonly CompanyCard[], search: string, status: CompanyStatusFilter): CompanyCard[] {
   const normalize = (text: string) => text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const term = normalize(search.trim());
   return cards.filter((card) => {
     if (status === 'active' && !card.isActive) return false;
     if (status === 'inactive' && card.isActive) return false;
-    return !term || normalize(card.name).includes(term) || normalize(card.id).includes(term);
+    if (!term) return true;
+    const rutDigits = card.rut.replace(/[.\-]/g, '').toLowerCase();
+    return [card.name, card.email, card.rut, card.id].some((field) => normalize(field).includes(term)) || (rutDigits !== '' && rutDigits.includes(term.replace(/[.\-]/g, '')));
   });
 }
