@@ -1,27 +1,36 @@
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { deleteRoute, updateRoute } from '../api/adminApi';
+import { ApiError } from '../api/errors';
+import { DELETE_ROUTE_FAILED } from '../admin/routeForm';
 import { EMPTY_ROUTE_FILTERS, filterRoutes, ROUTE_STATUS_OPTIONS, stopDotColor, type AdminRouteRow, type RouteFilters } from '../admin/routes';
 import { FLEET_STATUS } from '../company/fleet';
+import { RouteForm } from '../components/RouteForm';
 import { SelectField } from '../components/SelectField';
 import { useAdminRoutes } from '../hooks/useAdminRoutes';
 import { useRouteStops } from '../hooks/useRouteStops';
 import { makeStyles, radius, spacing, useTheme } from '../theme';
 import { countLabel } from '../utils/format';
+import { confirmAction } from '../utils/platform';
 
 // Colores del web: --color-primary-300/500, hsl(142,71%,45%) y hsl(220,10%,50%).
 const PRIMARY_300 = '#5e9aed';
 const PRIMARY_500 = '#1d6fe0';
 const GREEN = '#22c55e';
 const GREY = '#737d8c';
+const AMBER = '#f59e0b';
+const RED = '#ef4444';
 
 /**
  * Rutas del sistema (administrador), como AdminRoutesPage del web: buscador,
  * filtros por empresa y estado, y una tarjeta por ruta (la tabla del web no
  * cabe en un teléfono). Al tocarla muestra su recorrido de paraderos y sus
- * micros. La gestión (crear, editar, activar, eliminar) llega aparte.
+ * micros. Con "Nueva ruta", "Editar", "Activar/Desactivar" y "Eliminar"
+ * como los botones de la tabla del web.
  */
 export function AdminRoutesScreen() {
   const { routes, companies, loading, error, refresh } = useAdminRoutes();
@@ -38,6 +47,64 @@ export function AdminRoutesScreen() {
     (routeId: string, count: number) => setStopCounts((current) => (current[routeId] === count ? current : { ...current, [routeId]: count })),
     [],
   );
+  // Formulario: cerrado (false), nueva ruta (null) o editando una.
+  const [editing, setEditing] = useState<AdminRouteRow | null | false>(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  const onSaved = (message: string) => {
+    setEditing(false);
+    setToast(message);
+    void refresh();
+  };
+
+  // Como el web: PUT con todos los campos y el estado invertido.
+  const toggleActive = async (route: AdminRouteRow) => {
+    setBusyId(route.id);
+    setActionError(null);
+    try {
+      await updateRoute(route.id, { code: route.code, name: route.name, description: route.description ?? null, isActive: !route.isActive });
+      setToast(`Ruta ${route.code} ${route.isActive ? 'desactivada' : 'activada'}`);
+      void refresh();
+    } catch (e) {
+      setActionError(e instanceof ApiError ? e.message : 'No se pudo cambiar el estado de la ruta.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const remove = async (route: AdminRouteRow) => {
+    setBusyId(route.id);
+    setActionError(null);
+    try {
+      await deleteRoute(route.id);
+      setExpandedId((current) => (current === route.id ? null : current));
+      setStopCounts(({ [route.id]: _removed, ...rest }) => rest);
+      setToast(`Ruta ${route.code} eliminada`);
+      void refresh();
+    } catch {
+      setActionError(DELETE_ROUTE_FAILED);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const requestDelete = (route: AdminRouteRow) =>
+    confirmAction({
+      title: '🗑️ Eliminar Ruta',
+      message: `¿Estás seguro de que deseas eliminar la ruta ${route.code} – ${route.name}? Esta acción no se puede deshacer.\n\nSus paraderos se eliminan y sus micros quedan sin ruta asignada.`,
+      confirmText: 'Eliminar',
+      destructive: true,
+      onConfirm: () => void remove(route),
+    });
+
   const companyOptions = useMemo(
     () => [{ value: 'ALL', label: 'Todas las empresas' }, ...companies.map((company) => ({ value: company.id, label: company.name }))],
     [companies],
@@ -50,14 +117,33 @@ export function AdminRoutesScreen() {
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void refresh()} tintColor={colors.accent} colors={[colors.primary]} />}
       >
+        {toast ? (
+          <LinearGradient colors={['#1f9d4f', '#167a3c']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.toast}>
+            <Ionicons name="checkmark-circle" size={18} color="#ffffff" />
+            <Text style={styles.toastText} accessibilityRole="alert">
+              {toast}
+            </Text>
+          </LinearGradient>
+        ) : null}
+
         <Text style={styles.title} accessibilityRole="header">Rutas del Sistema</Text>
         <Text style={styles.subtitle}>
           {activeRoutes} rutas activas · {loadedStops > 0 ? `${loadedStops} paraderos cargados` : 'paraderos bajo demanda'}
         </Text>
+        <Pressable
+          onPress={() => setEditing(null)}
+          accessibilityRole="button"
+          accessibilityLabel="Nueva ruta"
+          style={({ pressed }) => [styles.newWrap, pressed && styles.dimmed]}
+        >
+          <LinearGradient colors={['#1d6fe0', '#0ea5e9']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.newButton}>
+            <Text style={styles.newText}>➕ Nueva ruta</Text>
+          </LinearGradient>
+        </Pressable>
 
-        {error ? (
+        {error || actionError ? (
           <View style={styles.error} accessibilityRole="alert">
-            <Text style={styles.errorText}>{error}</Text>
+            <Text style={styles.errorText}>{error ?? actionError}</Text>
           </View>
         ) : null}
 
@@ -89,10 +175,22 @@ export function AdminRoutesScreen() {
               expanded={expandedId === route.id}
               onToggle={() => setExpandedId((current) => (current === route.id ? null : route.id))}
               onStopsLoaded={onStopsLoaded}
+              busy={busyId === route.id}
+              onEdit={() => setEditing(route)}
+              onToggleActive={() => void toggleActive(route)}
+              onDelete={() => requestDelete(route)}
             />
           ))
         )}
       </ScrollView>
+      <RouteForm
+        visible={editing !== false}
+        route={editing || null}
+        routes={routes}
+        companies={companies}
+        onClose={() => setEditing(false)}
+        onSaved={onSaved}
+      />
     </SafeAreaView>
   );
 }
@@ -103,12 +201,20 @@ function RouteCard({
   expanded,
   onToggle,
   onStopsLoaded,
+  busy,
+  onEdit,
+  onToggleActive,
+  onDelete,
 }: {
   route: AdminRouteRow;
   stopCount: number | undefined;
   expanded: boolean;
   onToggle: () => void;
   onStopsLoaded: (routeId: string, count: number) => void;
+  busy: boolean;
+  onEdit: () => void;
+  onToggleActive: () => void;
+  onDelete: () => void;
 }) {
   const styles = useStyles();
   const { colors } = useTheme();
@@ -145,6 +251,38 @@ function RouteCard({
           </Text>
         </View>
       </Pressable>
+      <View style={styles.actions}>
+        <Pressable
+          onPress={onEdit}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel={`Editar ruta ${route.code}`}
+          style={({ pressed }) => [styles.action, styles.editAction, (pressed || busy) && styles.dimmed]}
+        >
+          <Text style={styles.editText}>✏️ Editar</Text>
+        </Pressable>
+        <Pressable
+          onPress={onToggleActive}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel={`${route.isActive ? 'Desactivar' : 'Activar'} ruta ${route.code}`}
+          accessibilityState={{ disabled: busy, busy }}
+          style={({ pressed }) => [styles.action, route.isActive ? styles.offAction : styles.onAction, (pressed || busy) && styles.dimmed]}
+        >
+          <Text style={[styles.actionText, { color: route.isActive ? AMBER : GREEN }]}>
+            {busy ? 'Guardando...' : route.isActive ? '⏸️ Desactivar' : '▶️ Activar'}
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={onDelete}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel={`Eliminar ruta ${route.code}`}
+          style={({ pressed }) => [styles.action, styles.deleteAction, (pressed || busy) && styles.dimmed]}
+        >
+          <Text style={[styles.actionText, { color: RED }]}>🗑️ Eliminar</Text>
+        </Pressable>
+      </View>
       {expanded ? <RouteDetails route={route} onStopsLoaded={onStopsLoaded} /> : null}
     </View>
   );
@@ -219,7 +357,31 @@ const useStyles = makeStyles((colors, font) => ({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xl },
   title: { color: colors.text, fontSize: font(28), lineHeight: font(34), fontWeight: '800', letterSpacing: -0.5 },
-  subtitle: { marginTop: spacing.xs, marginBottom: spacing.lg, color: colors.muted, fontSize: font(14) },
+  subtitle: { marginTop: spacing.xs, color: colors.muted, fontSize: font(14) },
+  newWrap: { alignSelf: 'flex-start', marginTop: spacing.md, marginBottom: spacing.lg },
+  newButton: { paddingVertical: 12, paddingHorizontal: 20, borderRadius: radius.md },
+  newText: { color: '#ffffff', fontSize: font(14), fontWeight: '700' },
+  dimmed: { opacity: 0.7 },
+  toast: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: spacing.md,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  toastText: { flex: 1, color: '#ffffff', fontSize: font(14), fontWeight: '600' },
+  actions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
+  action: { flex: 1, alignItems: 'center', paddingVertical: spacing.sm, borderRadius: radius.md, borderWidth: 1 },
+  editAction: { borderColor: colors.border, backgroundColor: colors.field },
+  editText: { color: colors.muted, fontSize: font(12) },
+  offAction: { borderColor: 'rgba(245, 158, 11, 0.3)', backgroundColor: 'rgba(245, 158, 11, 0.1)' },
+  onAction: { borderColor: 'rgba(34, 197, 94, 0.3)', backgroundColor: 'rgba(34, 197, 94, 0.1)' },
+  deleteAction: { borderColor: 'rgba(239, 68, 68, 0.3)', backgroundColor: 'rgba(239, 68, 68, 0.1)' },
+  actionText: { fontSize: font(12) },
   error: {
     marginBottom: spacing.md,
     paddingVertical: 12,

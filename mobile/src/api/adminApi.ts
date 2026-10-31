@@ -1,5 +1,6 @@
 /** Datos del panel de administración en backend-go. */
 import { apiRequest } from './client';
+import type { CompanyRoute } from './companyApi';
 
 /** Estadísticas de reclamos (GET /complaints/stats), de toda la plataforma o de una empresa. */
 export interface ComplaintStats {
@@ -115,4 +116,33 @@ export async function fetchPendingComplaintsByCompany(): Promise<Record<string, 
     if (id) counts[id] = (counts[id] ?? 0) + 1;
   }
   return counts;
+}
+
+/** Datos de una ruta al crearla (POST /routes, solo ADMIN). */
+export interface NewRouteInput {
+  code: string;
+  name: string;
+  description: string | null;
+  companyId: string;
+}
+
+/** Datos al editarla (PUT /routes/:id): la empresa no se puede cambiar. */
+export interface RouteUpdateInput {
+  code: string;
+  name: string;
+  description: string | null;
+  isActive: boolean;
+}
+
+export function createRoute(input: NewRouteInput): Promise<CompanyRoute> {
+  return apiRequest<CompanyRoute>('/routes/', { method: 'POST', body: input });
+}
+
+export function updateRoute(id: string, input: RouteUpdateInput): Promise<CompanyRoute> {
+  return apiRequest<CompanyRoute>(`/routes/${encodeURIComponent(id)}`, { method: 'PUT', body: input });
+}
+
+/** Elimina la ruta: backend-go borra sus paraderos y deja sus micros sin ruta. */
+export async function deleteRoute(id: string): Promise<void> {
+  await apiRequest(`/routes/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
