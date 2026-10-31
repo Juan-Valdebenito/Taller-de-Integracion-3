@@ -1,5 +1,5 @@
-import { ComingSoonScreen } from '../../components/ComingSoonScreen';
+import { AdminDashboardScreen } from '../../screens/AdminDashboardScreen';
 
 export default function AdminDashboardRoute() {
-  return <ComingSoonScreen emoji="📊" title="Dashboard" description="Reclamos de toda la plataforma con sus estadísticas." />;
+  return <AdminDashboardScreen />;
 }
