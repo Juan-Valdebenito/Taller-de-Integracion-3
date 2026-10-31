@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { deleteComplaint } from '../api/adminApi';
+import { ApiError } from '../api/errors';
 import {
   adminStatus,
   CATEGORY_FILTER_OPTIONS,
@@ -17,10 +19,12 @@ import {
 import { canManage } from '../admin/complaintResolution';
 import { adminCategory } from '../admin/complaintStats';
 import { ComplaintKpis } from '../components/ComplaintKpis';
+import { ComplaintPhotos } from '../components/ComplaintPhotos';
 import { ComplaintResolutionForm } from '../components/ComplaintResolutionForm';
 import { SelectField } from '../components/SelectField';
 import { useAdminComplaints } from '../hooks/useAdminComplaints';
 import { makeStyles, radius, spacing, useTheme } from '../theme';
+import { confirmAction } from '../utils/platform';
 
 const AMBER = '#f59e0b';
 
@@ -29,7 +33,8 @@ const AMBER = '#f59e0b';
  * del web: las cifras del encabezado, filtros por línea, estado y categoría,
  * el buscador y una tarjeta por reclamo (la tabla del web no cabe en un
  * teléfono) con "Gestionar" para cambiar su estado y responder. Los
- * reclamos resueltos o rechazados quedan cerrados.
+ * reclamos resueltos o rechazados quedan cerrados. Suma lo que el web no
+ * tiene: ver las fotos adjuntas y eliminar un reclamo.
  */
 export function AdminComplaintsScreen() {
   const { complaints, stats, loading, error, refresh } = useAdminComplaints();
@@ -39,6 +44,9 @@ export function AdminComplaintsScreen() {
   const visible = useMemo(() => filterComplaints(complaints, filters), [complaints, filters]);
   const [managing, setManaging] = useState<AdminComplaintRow | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [photosOf, setPhotosOf] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!toast) return;
@@ -52,6 +60,30 @@ export function AdminComplaintsScreen() {
     setToast(message);
     void refresh();
   };
+
+  const remove = async (complaint: AdminComplaintRow) => {
+    setDeletingId(complaint.id);
+    setActionError(null);
+    try {
+      await deleteComplaint(complaint.id);
+      setPhotosOf((current) => (current === complaint.id ? null : current));
+      setToast(`Reclamo ${complaint.shortId} eliminado`);
+      void refresh();
+    } catch (e) {
+      setActionError(e instanceof ApiError && e.status < 500 ? e.message : 'No se pudo eliminar el reclamo.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const requestDelete = (complaint: AdminComplaintRow) =>
+    confirmAction({
+      title: 'Eliminar reclamo',
+      message: `¿Eliminar el reclamo ${complaint.shortId}${complaint.title ? ` – ${complaint.title}` : ''}? Se borran también sus fotos. Esta acción no se puede deshacer.`,
+      confirmText: 'Eliminar',
+      destructive: true,
+      onConfirm: () => void remove(complaint),
+    });
 
   const set = (key: keyof AdminComplaintFilters) => (value: string) => setFilters((current) => ({ ...current, [key]: value }));
 
@@ -84,9 +116,9 @@ export function AdminComplaintsScreen() {
           <Text style={styles.refreshText}>{loading ? 'Actualizando...' : 'Actualizar Datos'}</Text>
         </Pressable>
 
-        {error ? (
+        {error || actionError ? (
           <View style={styles.error} accessibilityRole="alert">
-            <Text style={styles.errorText}>{error}</Text>
+            <Text style={styles.errorText}>{error ?? actionError}</Text>
           </View>
         ) : null}
 
@@ -124,7 +156,17 @@ export function AdminComplaintsScreen() {
         ) : visible.length === 0 ? (
           <Text style={styles.empty}>{error ? '' : 'No se encontraron reclamos con los filtros seleccionados.'}</Text>
         ) : (
-          visible.map((complaint) => <ComplaintCard key={complaint.id} complaint={complaint} onManage={() => setManaging(complaint)} />)
+          visible.map((complaint) => (
+            <ComplaintCard
+              key={complaint.id}
+              complaint={complaint}
+              showPhotos={photosOf === complaint.id}
+              deleting={deletingId === complaint.id}
+              onManage={() => setManaging(complaint)}
+              onTogglePhotos={() => setPhotosOf((current) => (current === complaint.id ? null : complaint.id))}
+              onDelete={() => requestDelete(complaint)}
+            />
+          ))
         )}
       </ScrollView>
       <ComplaintResolutionForm complaint={managing} onClose={() => setManaging(null)} onSaved={onSaved} />
@@ -132,7 +174,21 @@ export function AdminComplaintsScreen() {
   );
 }
 
-function ComplaintCard({ complaint, onManage }: { complaint: AdminComplaintRow; onManage: () => void }) {
+function ComplaintCard({
+  complaint,
+  showPhotos,
+  deleting,
+  onManage,
+  onTogglePhotos,
+  onDelete,
+}: {
+  complaint: AdminComplaintRow;
+  showPhotos: boolean;
+  deleting: boolean;
+  onManage: () => void;
+  onTogglePhotos: () => void;
+  onDelete: () => void;
+}) {
   const styles = useStyles();
   const status = adminStatus(complaint.status);
   const category = adminCategory(complaint.category);
@@ -201,6 +257,28 @@ function ComplaintCard({ complaint, onManage }: { complaint: AdminComplaintRow; 
       ) : (
         <Text style={styles.closed}>Reclamo cerrado</Text>
       )}
+      <View style={styles.extraActions}>
+        <Pressable
+          onPress={onTogglePhotos}
+          accessibilityRole="button"
+          accessibilityLabel={`${showPhotos ? 'Ocultar' : 'Ver'} fotos del reclamo ${complaint.shortId}`}
+          accessibilityState={{ expanded: showPhotos }}
+          style={({ pressed }) => [styles.extra, styles.photosAction, pressed && styles.dimmed]}
+        >
+          <Text style={styles.photosText}>{showPhotos ? '📷 Ocultar fotos' : '📷 Ver fotos'}</Text>
+        </Pressable>
+        <Pressable
+          onPress={onDelete}
+          disabled={deleting}
+          accessibilityRole="button"
+          accessibilityLabel={`Eliminar reclamo ${complaint.shortId}`}
+          accessibilityState={{ disabled: deleting, busy: deleting }}
+          style={({ pressed }) => [styles.extra, styles.deleteAction, (pressed || deleting) && styles.dimmed]}
+        >
+          <Text style={styles.deleteText}>{deleting ? 'Eliminando...' : '🗑️ Eliminar'}</Text>
+        </Pressable>
+      </View>
+      {showPhotos ? <ComplaintPhotos complaintId={complaint.id} /> : null}
     </View>
   );
 }
@@ -272,6 +350,12 @@ const useStyles = makeStyles((colors, font) => ({
     backgroundColor: 'rgba(30, 111, 224, 0.12)',
   },
   manageText: { color: '#5e9aed', fontSize: font(13), fontWeight: '700' },
+  extraActions: { flexDirection: 'row', gap: spacing.sm },
+  extra: { flex: 1, alignItems: 'center', paddingVertical: spacing.sm, borderRadius: radius.md, borderWidth: 1 },
+  photosAction: { borderColor: colors.border, backgroundColor: colors.field },
+  photosText: { color: colors.muted, fontSize: font(12) },
+  deleteAction: { borderColor: 'rgba(239, 68, 68, 0.3)', backgroundColor: 'rgba(239, 68, 68, 0.1)' },
+  deleteText: { color: '#ef4444', fontSize: font(12) },
   closed: { textAlign: 'center', color: colors.placeholder, fontSize: font(12) },
   card: { marginBottom: spacing.md, padding: spacing.md, gap: spacing.sm, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },

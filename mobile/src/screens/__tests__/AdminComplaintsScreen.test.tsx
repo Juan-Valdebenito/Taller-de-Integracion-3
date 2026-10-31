@@ -2,18 +2,30 @@ import { fireEvent, render, renderHook, screen, waitFor } from '@testing-library
 
 import * as adminApi from '../../api/adminApi';
 import * as companyApi from '../../api/companyApi';
+import * as photosApi from '../../api/complaintPhotosApi';
 import * as complaintsApi from '../../api/complaintsApi';
 import { ApiError } from '../../api/errors';
 import { useAdminComplaints } from '../../hooks/useAdminComplaints';
 import { AdminComplaintsScreen } from '../AdminComplaintsScreen';
 
-jest.mock('../../api/adminApi', () => ({ fetchAllComplaints: jest.fn(), fetchComplaintStats: jest.fn(), fetchCompanies: jest.fn() }));
+jest.mock('../../api/adminApi', () => ({ fetchAllComplaints: jest.fn(), fetchComplaintStats: jest.fn(), fetchCompanies: jest.fn(), deleteComplaint: jest.fn() }));
+jest.mock('../../api/complaintPhotosApi', () => ({
+  ...jest.requireActual('../../api/complaintPhotosApi'),
+  fetchComplaintPhotos: jest.fn(),
+  loadComplaintPhoto: jest.fn(),
+}));
+// La confirmación se acepta sola en los tests.
+jest.mock('../../utils/platform', () => ({
+  ...jest.requireActual('../../utils/platform'),
+  confirmAction: jest.fn(({ onConfirm }: { onConfirm: () => void }) => onConfirm()),
+}));
 jest.mock('../../api/companyApi', () => ({ fetchCompanyBuses: jest.fn() }));
 jest.mock('../../api/complaintsApi', () => ({ ...jest.requireActual('../../api/complaintsApi'), updateComplaintStatus: jest.fn() }));
 
 const admin = jest.mocked(adminApi);
 const company = jest.mocked(companyApi);
 const complaints = jest.mocked(complaintsApi);
+const photos = jest.mocked(photosApi);
 const base = { busId: null, routeId: null, companyId: null, adminResponse: null, rating: null, lineName: null, updatedAt: '' };
 
 beforeEach(() => {
@@ -177,5 +189,67 @@ describe('AdminComplaintsScreen: gestión', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Cancelar' }));
     expect(screen.queryByText('Resolución Oficial de Reclamo')).toBeNull();
     expect(complaints.updateComplaintStatus).not.toHaveBeenCalled();
+  });
+});
+
+describe('AdminComplaintsScreen: fotos y eliminar', () => {
+  it('muestra las fotos del reclamo y las abre en grande', async () => {
+    photos.fetchComplaintPhotos.mockResolvedValue([
+      { id: 'p1', mimeType: 'image/jpeg', width: 800, height: 600, maskedRegions: 2 },
+      { id: 'p2', mimeType: 'image/jpeg', width: 800, height: 600, maskedRegions: 0 },
+    ]);
+    photos.loadComplaintPhoto.mockImplementation(async (_c, id) => {
+      if (id === 'p2') throw new ApiError(404, 'Imagen no encontrada');
+      return 'data:image/jpeg;base64,QUJD';
+    });
+    await render(<AdminComplaintsScreen />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Ver fotos del reclamo a1b2c3d4' }));
+
+    expect(await screen.findByRole('button', { name: 'Ver foto 1 de 2' })).toBeTruthy();
+    expect(photos.fetchComplaintPhotos).toHaveBeenCalledWith('a1b2c3d4-e5f6-7890');
+    // Si una foto no se puede descargar, las demás se ven igual.
+    expect(screen.getByLabelText('La foto 2 no se pudo cargar')).toBeTruthy();
+    expect(screen.getByText('🔒 2 zonas pixeladas (rostros o patentes) para proteger la privacidad.')).toBeTruthy();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Ver foto 1 de 2' }));
+    expect(screen.getByRole('button', { name: 'Cerrar foto' })).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Ocultar fotos del reclamo a1b2c3d4' }));
+    expect(screen.queryByText('Fotos adjuntas')).toBeNull();
+  });
+
+  it('sin fotos lo dice, y avisa si el servidor no guarda fotos', async () => {
+    photos.fetchComplaintPhotos.mockResolvedValueOnce([]);
+    await render(<AdminComplaintsScreen />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Ver fotos del reclamo a1b2c3d4' }));
+    expect(await screen.findByText('Este reclamo no tiene fotos.')).toBeTruthy();
+
+    photos.fetchComplaintPhotos.mockRejectedValueOnce(new ApiError(503, 'no disponible'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Ver fotos del reclamo c2' }));
+    expect(await screen.findByText('El servidor no tiene habilitado el almacenamiento de fotos.')).toBeTruthy();
+  });
+
+  it('elimina un reclamo tras confirmar y recarga', async () => {
+    admin.deleteComplaint.mockResolvedValue(undefined);
+    await render(<AdminComplaintsScreen />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Eliminar reclamo c2' }));
+
+    const { confirmAction } = jest.requireMock('../../utils/platform');
+    expect(confirmAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Eliminar reclamo',
+        message: '¿Eliminar el reclamo c2 – Chofer apurado? Se borran también sus fotos. Esta acción no se puede deshacer.',
+        destructive: true,
+      }),
+    );
+    expect(await screen.findByText('Reclamo c2 eliminado')).toBeTruthy();
+    expect(admin.deleteComplaint).toHaveBeenCalledWith('c2');
+    expect(admin.fetchAllComplaints).toHaveBeenCalledTimes(2);
+  });
+
+  it('si no se puede eliminar, lo avisa sin mostrar el error interno', async () => {
+    admin.deleteComplaint.mockRejectedValue(new ApiError(500, 'Error al eliminar reclamo: ERROR interno'));
+    await render(<AdminComplaintsScreen />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Eliminar reclamo c2' }));
+    expect(await screen.findByText('No se pudo eliminar el reclamo.')).toBeTruthy();
   });
 });

@@ -1,14 +1,46 @@
+import { readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { login, logout } from '../../api/authApi';
 import { canManage, closesComplaint, initialTarget } from '../../admin/complaintResolution';
 import { buildComplaintRows, EMPTY_COMPLAINT_FILTERS, filterComplaints } from '../../admin/complaints';
 import { describeLive, resetSecureStore, SEED_ADMIN, SEED_COMPANY_ID, SEED_PASSENGER, SEED_ROUTE_ID } from '../../test-utils/live/backend';
-import { fetchAllComplaints, fetchCompanies, fetchComplaintStats } from '../adminApi';
+import { TINY_JPEGS } from '../../test-utils/live/images';
+import { deleteComplaint, fetchAllComplaints, fetchCompanies, fetchComplaintStats } from '../adminApi';
 import { fetchCompanyBuses } from '../companyApi';
-import { createComplaint, fetchMyComplaints, updateComplaintStatus } from '../complaintsApi';
+import { fetchComplaintPhotos, loadComplaintPhoto } from '../complaintPhotosApi';
+import { createComplaint, fetchMyComplaints, updateComplaintStatus, uploadComplaintPhoto } from '../complaintsApi';
 
 // Reclamos del administrador contra backend-go real: ve el reclamo de un
 // pasajero con su línea, calificación y empresa, lo encuentra con los filtros,
-// y lo gestiona hasta resolverlo.
+// lo gestiona hasta resolverlo, ve sus fotos y lo elimina sin dejar archivos.
+
+/** Archivos guardados (recursivo) en la carpeta de imágenes del backend. */
+function countFiles(dir: string): number {
+  let total = 0;
+  for (const name of readdirSync(dir)) {
+    const path = join(dir, name);
+    total += statSync(path).isDirectory() ? countFiles(path) : 1;
+  }
+  return total;
+}
+
+// Node no tiene FileReader: se arma el data URI con el contenido del Blob.
+class NodeFileReader {
+  result: string | null = null;
+  onload: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  readAsDataURL(blob: Blob) {
+    blob
+      .arrayBuffer()
+      .then((buffer) => {
+        this.result = `data:${blob.type || 'application/octet-stream'};base64,${Buffer.from(buffer).toString('base64')}`;
+        this.onload?.();
+      })
+      .catch(() => this.onerror?.());
+  }
+}
+globalThis.FileReader ??= NodeFileReader as unknown as typeof FileReader;
 
 beforeEach(() => {
   resetSecureStore();
@@ -95,5 +127,42 @@ describeLive('reclamos del administrador en backend-go real', () => {
     } finally {
       await logout();
     }
+  });
+
+  it('el administrador ve las fotos del reclamo y al eliminarlo no quedan archivos guardados', async () => {
+    await login(SEED_PASSENGER);
+    let complaintId: string;
+    try {
+      const created = await createComplaint({
+        title: 'Prueba admin: fotos',
+        description: 'Asiento roto en la micro',
+        category: 'VEHICLE_CONDITION',
+        lineName: '7A',
+        rating: 2,
+        routeId: SEED_ROUTE_ID,
+      });
+      complaintId = created.id;
+      for (let i = 0; i < 2; i++) await uploadComplaintPhoto(complaintId, { uri: TINY_JPEGS[i]!, name: `foto-${i + 1}.jpg`, mimeType: 'image/jpeg' });
+    } finally {
+      await logout();
+    }
+    const filesBefore = countFiles(process.env.LIVE_ATTACHMENTS_DIR!);
+    expect(filesBefore).toBeGreaterThanOrEqual(2);
+
+    await login(SEED_ADMIN);
+    try {
+      const photos = await fetchComplaintPhotos(complaintId);
+      expect(photos).toHaveLength(2);
+      expect(photos[0]).toMatchObject({ mimeType: 'image/jpeg', width: 16, height: 16 });
+      expect(await loadComplaintPhoto(complaintId, photos[0]!.id)).toMatch(/^data:image\/jpeg;base64,\/9j\//);
+
+      await deleteComplaint(complaintId);
+      expect((await fetchAllComplaints()).some((c) => c.id === complaintId)).toBe(false);
+      await expect(fetchComplaintPhotos(complaintId)).rejects.toMatchObject({ status: 404 });
+    } finally {
+      await logout();
+    }
+    // Se borraron los archivos de sus 2 fotos, no solo los registros.
+    expect(countFiles(process.env.LIVE_ATTACHMENTS_DIR!)).toBe(filesBefore - 2);
   });
 });
