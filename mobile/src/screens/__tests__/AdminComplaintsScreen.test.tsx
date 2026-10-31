@@ -2,15 +2,18 @@ import { fireEvent, render, renderHook, screen, waitFor } from '@testing-library
 
 import * as adminApi from '../../api/adminApi';
 import * as companyApi from '../../api/companyApi';
+import * as complaintsApi from '../../api/complaintsApi';
 import { ApiError } from '../../api/errors';
 import { useAdminComplaints } from '../../hooks/useAdminComplaints';
 import { AdminComplaintsScreen } from '../AdminComplaintsScreen';
 
 jest.mock('../../api/adminApi', () => ({ fetchAllComplaints: jest.fn(), fetchComplaintStats: jest.fn(), fetchCompanies: jest.fn() }));
 jest.mock('../../api/companyApi', () => ({ fetchCompanyBuses: jest.fn() }));
+jest.mock('../../api/complaintsApi', () => ({ ...jest.requireActual('../../api/complaintsApi'), updateComplaintStatus: jest.fn() }));
 
 const admin = jest.mocked(adminApi);
 const company = jest.mocked(companyApi);
+const complaints = jest.mocked(complaintsApi);
 const base = { busId: null, routeId: null, companyId: null, adminResponse: null, rating: null, lineName: null, updatedAt: '' };
 
 beforeEach(() => {
@@ -94,5 +97,85 @@ describe('AdminComplaintsScreen', () => {
     admin.fetchAllComplaints.mockRejectedValue(new ApiError(500, 'Error al obtener reclamos'));
     await render(<AdminComplaintsScreen />);
     expect(await screen.findByText('Error al obtener reclamos')).toBeTruthy();
+  });
+});
+
+describe('AdminComplaintsScreen: gestión', () => {
+  const open = async () => {
+    await render(<AdminComplaintsScreen />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Gestionar reclamo a1b2c3d4' }));
+  };
+
+  it('los reclamos cerrados no se pueden gestionar', async () => {
+    await render(<AdminComplaintsScreen />);
+    await screen.findByRole('header', { name: 'Listado de Reclamos (2)' });
+    expect(screen.queryByRole('button', { name: 'Gestionar reclamo c2' })).toBeNull();
+    expect(screen.getByText('Reclamo cerrado')).toBeTruthy();
+  });
+
+  it('muestra el contexto del incidente y parte en "En Revisión"', async () => {
+    await open();
+
+    expect(screen.getByText('Resolución Oficial de Reclamo')).toBeTruthy();
+    expect(screen.getByRole('header', { name: 'Micro llena' })).toBeTruthy();
+    expect(screen.getByLabelText('Línea / Micro: 7A (DEMO-01)')).toBeTruthy();
+    expect(screen.getByLabelText('Categoría: Sobrecupo / Aforo')).toBeTruthy();
+    expect(screen.getByLabelText('Calificación Pasajero: 2 de 5')).toBeTruthy();
+    expect(screen.getByLabelText('Empresa: Buses Ñielol')).toBeTruthy();
+    expect(screen.getAllByText('No se pudo subir').length).toBeGreaterThan(0);
+    expect(screen.getByRole('radio', { name: '🔍 En Revisión' })).toBeChecked();
+  });
+
+  it('pasar a revisión guarda sin confirmar y recarga la lista', async () => {
+    complaints.updateComplaintStatus.mockResolvedValue({} as complaintsApi.Complaint);
+    await open();
+    await fireEvent.press(screen.getByRole('button', { name: 'Guardar Resolución' }));
+    expect(screen.getByText('Escribe una respuesta para el pasajero.')).toBeTruthy();
+    expect(complaints.updateComplaintStatus).not.toHaveBeenCalled();
+
+    await fireEvent.changeText(screen.getByLabelText('Respuesta Oficial de la Administración'), 'Revisaremos el aforo de la línea');
+    await fireEvent.press(screen.getByRole('button', { name: 'Guardar Resolución' }));
+
+    expect(await screen.findByText('Reclamo a1b2c3d4 actualizado a en revisión')).toBeTruthy();
+    expect(complaints.updateComplaintStatus).toHaveBeenCalledWith('a1b2c3d4-e5f6-7890', { status: 'IN_REVIEW', adminResponse: 'Revisaremos el aforo de la línea' });
+    expect(admin.fetchAllComplaints).toHaveBeenCalledTimes(2);
+    expect(admin.fetchComplaintStats).toHaveBeenCalledTimes(2);
+  });
+
+  it('resolver pide confirmación; "Volver" regresa al formulario sin guardar', async () => {
+    complaints.updateComplaintStatus.mockResolvedValue({} as complaintsApi.Complaint);
+    await open();
+    await fireEvent.press(screen.getByRole('radio', { name: '✅ Resolver' }));
+    await fireEvent.changeText(screen.getByLabelText('Respuesta Oficial de la Administración'), 'Reforzamos la frecuencia');
+    await fireEvent.press(screen.getByRole('button', { name: 'Guardar Resolución' }));
+
+    expect(screen.getByRole('header', { name: 'Resolver reclamo' })).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Volver' }));
+    expect(screen.getByDisplayValue('Reforzamos la frecuencia')).toBeTruthy();
+    expect(complaints.updateComplaintStatus).not.toHaveBeenCalled();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Guardar Resolución' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Confirmar' }));
+    expect(await screen.findByText('Reclamo a1b2c3d4 actualizado a resuelto')).toBeTruthy();
+    expect(complaints.updateComplaintStatus).toHaveBeenCalledWith('a1b2c3d4-e5f6-7890', { status: 'RESOLVED', adminResponse: 'Reforzamos la frecuencia' });
+  });
+
+  it('si el backend rechaza el cambio, vuelve al formulario con el error y la respuesta escrita', async () => {
+    complaints.updateComplaintStatus.mockRejectedValue(new ApiError(400, 'Transición de estado no permitida'));
+    await open();
+    await fireEvent.press(screen.getByRole('radio', { name: '❌ Rechazar' }));
+    await fireEvent.changeText(screen.getByLabelText('Respuesta Oficial de la Administración'), 'No corresponde');
+    await fireEvent.press(screen.getByRole('button', { name: 'Guardar Resolución' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Confirmar' }));
+
+    expect(await screen.findByText('Transición de estado no permitida')).toBeTruthy();
+    expect(screen.getByDisplayValue('No corresponde')).toBeTruthy();
+  });
+
+  it('"Cancelar" cierra sin guardar', async () => {
+    await open();
+    await fireEvent.press(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(screen.queryByText('Resolución Oficial de Reclamo')).toBeNull();
+    expect(complaints.updateComplaintStatus).not.toHaveBeenCalled();
   });
 });

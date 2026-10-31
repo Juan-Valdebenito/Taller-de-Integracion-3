@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useMemo, useState } from 'react';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -13,8 +14,10 @@ import {
   type AdminComplaintFilters,
   type AdminComplaintRow,
 } from '../admin/complaints';
+import { canManage } from '../admin/complaintResolution';
 import { adminCategory } from '../admin/complaintStats';
 import { ComplaintKpis } from '../components/ComplaintKpis';
+import { ComplaintResolutionForm } from '../components/ComplaintResolutionForm';
 import { SelectField } from '../components/SelectField';
 import { useAdminComplaints } from '../hooks/useAdminComplaints';
 import { makeStyles, radius, spacing, useTheme } from '../theme';
@@ -25,7 +28,8 @@ const AMBER = '#f59e0b';
  * Reclamos de toda la plataforma (administrador), como AdminComplaintsView
  * del web: las cifras del encabezado, filtros por línea, estado y categoría,
  * el buscador y una tarjeta por reclamo (la tabla del web no cabe en un
- * teléfono). La gestión (cambiar estado y responder) llega aparte.
+ * teléfono) con "Gestionar" para cambiar su estado y responder. Los
+ * reclamos resueltos o rechazados quedan cerrados.
  */
 export function AdminComplaintsScreen() {
   const { complaints, stats, loading, error, refresh } = useAdminComplaints();
@@ -33,6 +37,22 @@ export function AdminComplaintsScreen() {
   const styles = useStyles();
   const [filters, setFilters] = useState<AdminComplaintFilters>(EMPTY_COMPLAINT_FILTERS);
   const visible = useMemo(() => filterComplaints(complaints, filters), [complaints, filters]);
+  const [managing, setManaging] = useState<AdminComplaintRow | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 3500);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  // Se recarga todo: cambian el reclamo, las cifras y quizá ya no calce con los filtros.
+  const onSaved = (message: string) => {
+    setManaging(null);
+    setToast(message);
+    void refresh();
+  };
+
   const set = (key: keyof AdminComplaintFilters) => (value: string) => setFilters((current) => ({ ...current, [key]: value }));
 
   return (
@@ -42,6 +62,15 @@ export function AdminComplaintsScreen() {
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void refresh()} tintColor={colors.accent} colors={[colors.primary]} />}
       >
+        {toast ? (
+          <LinearGradient colors={['#1f9d4f', '#167a3c']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.toast}>
+            <Ionicons name="checkmark-circle" size={18} color="#ffffff" />
+            <Text style={styles.toastText} accessibilityRole="alert">
+              {toast}
+            </Text>
+          </LinearGradient>
+        ) : null}
+
         <Text style={styles.title} accessibilityRole="header">Panel de Reclamos y Calidad de Servicio</Text>
         <Text style={styles.subtitle}>Supervisión analítica y resolución de incidentes para las líneas 7A, 7B y 1C de Temuco.</Text>
         <Pressable
@@ -95,14 +124,15 @@ export function AdminComplaintsScreen() {
         ) : visible.length === 0 ? (
           <Text style={styles.empty}>{error ? '' : 'No se encontraron reclamos con los filtros seleccionados.'}</Text>
         ) : (
-          visible.map((complaint) => <ComplaintCard key={complaint.id} complaint={complaint} />)
+          visible.map((complaint) => <ComplaintCard key={complaint.id} complaint={complaint} onManage={() => setManaging(complaint)} />)
         )}
       </ScrollView>
+      <ComplaintResolutionForm complaint={managing} onClose={() => setManaging(null)} onSaved={onSaved} />
     </SafeAreaView>
   );
 }
 
-function ComplaintCard({ complaint }: { complaint: AdminComplaintRow }) {
+function ComplaintCard({ complaint, onManage }: { complaint: AdminComplaintRow; onManage: () => void }) {
   const styles = useStyles();
   const status = adminStatus(complaint.status);
   const category = adminCategory(complaint.category);
@@ -123,39 +153,54 @@ function ComplaintCard({ complaint }: { complaint: AdminComplaintRow }) {
     .join(', ');
 
   return (
-    <View style={styles.card} accessible accessibilityLabel={label}>
-      <View style={styles.cardTop}>
-        <Text style={styles.shortId}>{complaint.shortId}</Text>
-        <Text style={[styles.badge, { color: status.color, backgroundColor: status.bg, borderColor: status.border }]}>{status.label}</Text>
-      </View>
-      {complaint.title ? <Text style={styles.cardTitle}>{complaint.title}</Text> : null}
-      <Text style={styles.category}>
-        {category.icon} {category.label}
-      </Text>
-      <View style={styles.row}>
-        <Text style={styles.line}>{line}</Text>
-        <View style={styles.stars}>
-          {[1, 2, 3, 4, 5].map((n) => (
-            <Ionicons key={n} name="star" size={12} color={n <= rating ? AMBER : 'rgba(255,255,255,0.15)'} />
-          ))}
+    <View style={styles.card}>
+      <View style={styles.info} accessible accessibilityLabel={label}>
+        <View style={styles.cardTop}>
+          <Text style={styles.shortId}>{complaint.shortId}</Text>
+          <Text style={[styles.badge, { color: status.color, backgroundColor: status.bg, borderColor: status.border }]}>{status.label}</Text>
         </View>
-      </View>
-      {complaint.description ? (
-        <Text style={styles.description} numberOfLines={3}>
-          {complaint.description}
+        {complaint.title ? <Text style={styles.cardTitle}>{complaint.title}</Text> : null}
+        <Text style={styles.category}>
+          {category.icon} {category.label}
         </Text>
-      ) : null}
-      <View style={styles.meta}>
-        {complaint.companyName ? <Text style={styles.metaText}>🏢 {complaint.companyName}</Text> : null}
-        {complaint.busPlate ? <Text style={styles.metaText}>🚍 {complaint.busPlate}</Text> : null}
-        {complaint.date ? <Text style={styles.metaText}>📅 {complaint.date}</Text> : null}
-      </View>
-      {complaint.adminResponse ? (
-        <View style={styles.response}>
-          <Text style={styles.responseLabel}>Respuesta</Text>
-          <Text style={styles.responseText}>{complaint.adminResponse}</Text>
+        <View style={styles.row}>
+          <Text style={styles.line}>{line}</Text>
+          <View style={styles.stars}>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <Ionicons key={n} name="star" size={12} color={n <= rating ? AMBER : 'rgba(255,255,255,0.15)'} />
+            ))}
+          </View>
         </View>
-      ) : null}
+        {complaint.description ? (
+          <Text style={styles.description} numberOfLines={3}>
+            {complaint.description}
+          </Text>
+        ) : null}
+        <View style={styles.meta}>
+          {complaint.companyName ? <Text style={styles.metaText}>🏢 {complaint.companyName}</Text> : null}
+          {complaint.busPlate ? <Text style={styles.metaText}>🚍 {complaint.busPlate}</Text> : null}
+          {complaint.date ? <Text style={styles.metaText}>📅 {complaint.date}</Text> : null}
+        </View>
+        {complaint.adminResponse ? (
+          <View style={styles.response}>
+            <Text style={styles.responseLabel}>Respuesta</Text>
+            <Text style={styles.responseText}>{complaint.adminResponse}</Text>
+          </View>
+        ) : null}
+      </View>
+      {canManage(complaint.status) ? (
+        <Pressable
+          onPress={onManage}
+          accessibilityRole="button"
+          accessibilityLabel={`Gestionar reclamo ${complaint.shortId}`}
+          style={({ pressed }) => [styles.manage, pressed && styles.dimmed]}
+        >
+          <Ionicons name="create-outline" size={14} color="#5e9aed" />
+          <Text style={styles.manageText}>Gestionar</Text>
+        </Pressable>
+      ) : (
+        <Text style={styles.closed}>Reclamo cerrado</Text>
+      )}
     </View>
   );
 }
@@ -202,6 +247,32 @@ const useStyles = makeStyles((colors, font) => ({
   searchInput: { flex: 1, paddingVertical: 12, color: colors.text, fontSize: font(14) },
   listTitle: { marginBottom: 12, color: colors.text, fontSize: font(16), fontWeight: '700' },
   empty: { paddingVertical: 48, textAlign: 'center', color: colors.placeholder, fontSize: font(14) },
+  toast: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: spacing.md,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  toastText: { flex: 1, color: '#ffffff', fontSize: font(14), fontWeight: '600' },
+  info: { gap: spacing.sm },
+  manage: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(30, 111, 224, 0.4)',
+    backgroundColor: 'rgba(30, 111, 224, 0.12)',
+  },
+  manageText: { color: '#5e9aed', fontSize: font(13), fontWeight: '700' },
+  closed: { textAlign: 'center', color: colors.placeholder, fontSize: font(12) },
   card: { marginBottom: spacing.md, padding: spacing.md, gap: spacing.sm, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
   shortId: { color: colors.muted, fontSize: font(12), fontFamily: 'monospace' },
