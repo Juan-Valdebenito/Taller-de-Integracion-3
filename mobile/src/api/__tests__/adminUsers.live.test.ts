@@ -1,10 +1,13 @@
-import { login, logout } from '../../api/authApi';
+import { login, logout, register } from '../../api/authApi';
+import { formFromUser, toUserPatch, validateUserForm } from '../../admin/userForm';
 import { buildUserRows, countUsers } from '../../admin/users';
 import { describeLive, resetSecureStore, SEED_ADMIN, SEED_COMPANY, SEED_COMPANY_ID, SEED_PASSENGER } from '../../test-utils/live/backend';
-import { fetchCompanies, fetchUsers } from '../adminApi';
+import { deactivateUser, fetchCompanies, fetchUsers, updateUser } from '../adminApi';
+import { ApiError } from '../errors';
 
 // Usuarios del administrador contra backend-go real: las cuentas del seed con
-// su rol, su estado y el nombre de su empresa.
+// su rol, su estado y el nombre de su empresa, y la edición y activación de
+// una cuenta nueva.
 
 beforeEach(() => {
   resetSecureStore();
@@ -29,5 +32,40 @@ describeLive('usuarios del administrador en backend-go real', () => {
     } finally {
       await logout();
     }
+  });
+
+  it('edita una cuenta, la desactiva (ya no inicia sesión) y la vuelve a activar', async () => {
+    const suffix = Date.now();
+    // Cuenta desechable con una contraseña generada en el momento.
+    const account = { email: `prueba.${suffix}@example.com`, password: `Prueba-${suffix}` };
+    await register({ name: 'Cuenta de Prueba', ...account });
+    await logout();
+
+    await login(SEED_ADMIN);
+    try {
+      const created = (await fetchUsers()).find((user) => user.email === account.email)!;
+      expect(created).toMatchObject({ role: 'PASSENGER', isActive: true, companyId: null });
+
+      const form = { ...formFromUser(created), name: 'Cuenta Editada', role: 'COMPANY' as const, companyId: SEED_COMPANY_ID };
+      expect(validateUserForm(form, { users: await fetchUsers(), editingId: created.id, isSelf: false })).toBeNull();
+      const edited = await updateUser(created.id, toUserPatch(form, created));
+      expect(edited).toMatchObject({ id: created.id, name: 'Cuenta Editada', role: 'COMPANY', companyId: SEED_COMPANY_ID, email: account.email });
+
+      await deactivateUser(created.id);
+      expect((await fetchUsers()).find((user) => user.id === created.id)!.isActive).toBe(false);
+    } finally {
+      await logout();
+    }
+    await expect(login(account)).rejects.toBeInstanceOf(ApiError);
+
+    await login(SEED_ADMIN);
+    try {
+      const inactive = (await fetchUsers()).find((user) => user.email === account.email)!;
+      expect(await updateUser(inactive.id, { isActive: true })).toMatchObject({ isActive: true });
+    } finally {
+      await logout();
+    }
+    await expect(login(account)).resolves.toMatchObject({ email: account.email, role: 'COMPANY' });
+    await logout();
   });
 });

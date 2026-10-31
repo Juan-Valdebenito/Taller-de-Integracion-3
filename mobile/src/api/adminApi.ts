@@ -182,3 +182,24 @@ export async function fetchUsers(): Promise<AdminUser[]> {
   const raw = await apiRequest<Array<Partial<Record<keyof AdminUser, unknown>>> | null>('/users');
   return (Array.isArray(raw) ? raw : []).map((user) => toUser(user ?? {})).filter((u): u is AdminUser => u !== null);
 }
+
+/** Cambios de una cuenta (PATCH /users/:id): solo se envían los campos presentes. */
+export interface UserPatch {
+  name?: string;
+  email?: string;
+  role?: UserRole;
+  isActive?: boolean;
+  companyId?: string;
+}
+
+export async function updateUser(id: string, patch: UserPatch): Promise<AdminUser> {
+  const raw = await apiRequest<Partial<Record<keyof AdminUser, unknown>> | null>(`/users/${encodeURIComponent(id)}`, { method: 'PATCH', body: patch });
+  const user = toUser(raw ?? {});
+  if (!user) throw new Error('Respuesta inválida del servidor');
+  return user;
+}
+
+/** Desactiva la cuenta (DELETE /users/:id es un borrado lógico: no puede iniciar sesión, pero sigue registrada). */
+export async function deactivateUser(id: string): Promise<void> {
+  await apiRequest(`/users/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}

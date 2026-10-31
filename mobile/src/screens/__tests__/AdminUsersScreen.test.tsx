@@ -6,7 +6,12 @@ import { useAuth } from '../../auth/AuthContext';
 import { useAdminUsers } from '../../hooks/useAdminUsers';
 import { AdminUsersScreen } from '../AdminUsersScreen';
 
-jest.mock('../../api/adminApi', () => ({ fetchUsers: jest.fn(), fetchCompanies: jest.fn() }));
+jest.mock('../../api/adminApi', () => ({ fetchUsers: jest.fn(), fetchCompanies: jest.fn(), updateUser: jest.fn(), deactivateUser: jest.fn() }));
+// La confirmación se acepta sola en los tests.
+jest.mock('../../utils/platform', () => ({
+  ...jest.requireActual('../../utils/platform'),
+  confirmAction: jest.fn(({ onConfirm }: { onConfirm: () => void }) => onConfirm()),
+}));
 jest.mock('../../auth/AuthContext', () => ({ useAuth: jest.fn() }));
 
 const admin = jest.mocked(adminApi);
@@ -73,5 +78,96 @@ describe('AdminUsersScreen', () => {
     admin.fetchUsers.mockRejectedValue(new ApiError(500, 'Error al obtener usuarios'));
     await render(<AdminUsersScreen />);
     expect(await screen.findByText('Error al obtener usuarios')).toBeTruthy();
+  });
+});
+
+describe('AdminUsersScreen: gestión', () => {
+  const saved = { id: 'u3', name: 'Valentina Pérez', email: 'val@gmail.com', role: 'COMPANY' as const, isActive: false, companyId: 'co1', createdAt: null };
+
+  it('edita una cuenta: pasarla a Empresa pide elegir su empresa y manda solo los cambios', async () => {
+    admin.updateUser.mockResolvedValue(saved);
+    await render(<AdminUsersScreen />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Editar Valentina Pérez' }));
+
+    expect(screen.getByRole('header', { name: '✏️ Editar Usuario' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Empresa:/ })).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Rol: Pasajero' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Empresa' }));
+    expect(screen.getByRole('button', { name: 'Empresa: Buses Ñielol' })).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Guardar cambios' }));
+
+    expect(await screen.findByText('Usuario Valentina Pérez actualizado')).toBeTruthy();
+    expect(admin.updateUser).toHaveBeenCalledWith('u3', { role: 'COMPANY', companyId: 'co1' });
+    expect(admin.fetchUsers).toHaveBeenCalledTimes(2);
+  });
+
+  it('"Cancelar" cierra el formulario sin guardar', async () => {
+    await render(<AdminUsersScreen />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Editar Valentina Pérez' }));
+    await fireEvent.changeText(screen.getByLabelText('Nombre completo'), 'Otro nombre');
+    await fireEvent.press(screen.getByRole('button', { name: 'Cancelar' }));
+
+    expect(screen.queryByRole('header', { name: '✏️ Editar Usuario' })).toBeNull();
+    expect(admin.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('no deja usar el correo de otra cuenta', async () => {
+    await render(<AdminUsersScreen />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Editar Valentina Pérez' }));
+    await fireEvent.changeText(screen.getByLabelText('Correo electrónico'), 'Claudia@nielol.cl');
+    await fireEvent.press(screen.getByRole('button', { name: 'Guardar cambios' }));
+
+    expect(screen.getByText('El email claudia@nielol.cl ya está registrado')).toBeTruthy();
+    expect(admin.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('al quitarle el rol Empresa avisa que conserva su empresa', async () => {
+    await render(<AdminUsersScreen />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Editar Claudia Torres' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Rol: Empresa' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Pasajero' }));
+
+    expect(screen.getByText('La cuenta seguirá vinculada a su empresa anterior: el backend no permite quitarla.')).toBeTruthy();
+  });
+
+  it('en tu propia cuenta no se puede cambiar el rol ni desactivarla', async () => {
+    await render(<AdminUsersScreen />);
+    await screen.findByText('Mostrando 3 de 3 usuarios');
+
+    expect(screen.queryByRole('button', { name: 'Desactivar Administrador Sistema' })).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Editar Administrador Sistema' }));
+    expect(screen.getByText('Es tu cuenta: no puedes quitarte el rol ni desactivarla.')).toBeTruthy();
+    // Solo queda el filtro de la pantalla, no un selector de rol en el formulario.
+    expect(screen.queryByRole('button', { name: 'Rol: Admin' })).toBeNull();
+    expect(screen.queryByLabelText('Usuario activo')).toBeNull();
+  });
+
+  it('un 500 del backend no muestra el error de la base de datos', async () => {
+    admin.updateUser.mockRejectedValue(new ApiError(500, 'Error al actualizar parcialmente el usuario: ERROR: duplicate key'));
+    await render(<AdminUsersScreen />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Editar Valentina Pérez' }));
+    await fireEvent.changeText(screen.getByLabelText('Nombre completo'), 'Valentina P.');
+    await fireEvent.press(screen.getByRole('button', { name: 'Guardar cambios' }));
+
+    expect(await screen.findByText('No se pudo guardar el usuario.')).toBeTruthy();
+    expect(screen.queryByText(/duplicate key/)).toBeNull();
+  });
+
+  it('desactiva tras confirmar (DELETE) y activa sin confirmar (PATCH)', async () => {
+    admin.deactivateUser.mockResolvedValue(undefined);
+    admin.updateUser.mockResolvedValue(saved);
+    await render(<AdminUsersScreen />);
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Desactivar Claudia Torres' }));
+    const { confirmAction } = jest.requireMock('../../utils/platform');
+    expect(confirmAction).toHaveBeenCalledWith(expect.objectContaining({ title: 'Desactivar usuario', destructive: true }));
+    expect(await screen.findByText('Usuario Claudia Torres desactivado')).toBeTruthy();
+    expect(admin.deactivateUser).toHaveBeenCalledWith('u2');
+
+    confirmAction.mockClear();
+    await fireEvent.press(screen.getByRole('button', { name: 'Activar Valentina Pérez' }));
+    expect(await screen.findByText('Usuario Valentina Pérez activado')).toBeTruthy();
+    expect(admin.updateUser).toHaveBeenCalledWith('u3', { isActive: true });
+    expect(confirmAction).not.toHaveBeenCalled();
   });
 });
