@@ -1,11 +1,13 @@
 /**
  * Formulario de usuario, con los campos de UserModal del web: nombre, correo,
- * rol, empresa (solo para el rol Empresa) y "Usuario activo".
+ * rol, empresa (solo para el rol Empresa) y "Usuario activo". Al crear se
+ * pide además la contraseña inicial (el web usa una fija para todos).
  * backend-go responde un 500 genérico si el correo ya existe, así que la app
  * lo revisa antes contra las cuentas cargadas.
  */
-import type { AdminUser, UserPatch } from '../api/adminApi';
+import type { AdminUser, NewUserInput, UserPatch } from '../api/adminApi';
 import type { UserRole } from '../auth/types';
+import { MIN_PASSWORD_LENGTH } from '../auth/validation';
 
 export interface UserFormValues {
   name: string;
@@ -21,6 +23,8 @@ export const ROLE_OPTIONS: readonly { value: UserRole; label: string }[] = [
   { value: 'COMPANY', label: 'Empresa' },
   { value: 'ADMIN', label: 'Admin' },
 ];
+
+export const newUserForm = (): UserFormValues => ({ name: '', email: '', role: 'PASSENGER', companyId: '', isActive: true });
 
 export const formFromUser = (user: AdminUser): UserFormValues => ({
   name: user.name,
@@ -40,13 +44,15 @@ export interface UserFormContext {
   isSelf: boolean;
 }
 
-/** Mensaje de error o null si se puede guardar. */
-export function validateUserForm(values: UserFormValues, { users, editingId, isSelf }: UserFormContext): string | null {
+/** Mensaje de error o null si se puede guardar. Al crear (`password` presente) valida también la contraseña. */
+export function validateUserForm(values: UserFormValues, { users, editingId, isSelf }: UserFormContext, password?: string): string | null {
   const email = values.email.trim().toLowerCase();
   if (!values.name.trim()) return 'El nombre es obligatorio';
+  if (values.name.trim().length > 100) return 'El nombre no puede superar los 100 caracteres';
   if (!email) return 'El correo electrónico es obligatorio';
   if (!EMAIL.test(email)) return 'Ingresa un correo electrónico válido';
   if (users.some((user) => user.id !== editingId && user.email.trim().toLowerCase() === email)) return `El email ${email} ya está registrado`;
+  if (password !== undefined && password.length < MIN_PASSWORD_LENGTH) return `La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres`;
   if (values.role === 'COMPANY' && !values.companyId) return 'Elige la empresa a la que pertenece la cuenta';
   // Sin esto, el administrador podría dejarse fuera del panel.
   if (isSelf && values.role !== 'ADMIN') return 'No puedes quitarte el rol de administrador';
@@ -73,3 +79,12 @@ export function toUserPatch(values: UserFormValues, original: AdminUser): UserPa
 /** Si la cuenta deja de ser Empresa conserva su empresa: el backend no permite quitarla. */
 export const keepsOldCompany = (values: UserFormValues, original: AdminUser | null): boolean =>
   !!original?.companyId && values.role !== 'COMPANY';
+
+/** Datos para crear la cuenta; "Usuario activo" se aplica después (el registro siempre la crea activa). */
+export const toNewUserInput = (values: UserFormValues, password: string): NewUserInput => ({
+  name: values.name.trim(),
+  email: values.email.trim().toLowerCase(),
+  password,
+  role: values.role,
+  ...(values.role === 'COMPANY' ? { companyId: values.companyId } : {}),
+});

@@ -1,5 +1,5 @@
 import type { AdminUser } from '../../api/adminApi';
-import { formFromUser, keepsOldCompany, toUserPatch, validateUserForm } from '../userForm';
+import { formFromUser, keepsOldCompany, newUserForm, toNewUserInput, toUserPatch, validateUserForm } from '../userForm';
 
 const users: AdminUser[] = [
   { id: 'u1', name: 'Administrador Sistema', email: 'admin@transporte.cl', role: 'ADMIN', isActive: true, companyId: null, createdAt: null },
@@ -55,5 +55,22 @@ describe('toUserPatch', () => {
     expect(keepsOldCompany({ ...formFromUser(users[1]!), role: 'PASSENGER' }, users[1]!)).toBe(true);
     expect(keepsOldCompany(formFromUser(users[1]!), users[1]!)).toBe(false);
     expect(keepsOldCompany(formFromUser(users[2]!), users[2]!)).toBe(false);
+  });
+});
+
+describe('crear usuario', () => {
+  const create = { users, editingId: null, isSelf: false };
+  const values = { ...newUserForm(), name: ' Nueva Persona ', email: 'Nueva@Example.com' };
+
+  it('pide una contraseña de al menos 8 caracteres', () => {
+    expect(validateUserForm(values, create, 'corta')).toBe('La contraseña debe tener al menos 8 caracteres');
+    expect(validateUserForm(values, create, 'suficiente')).toBeNull();
+    expect(validateUserForm({ ...values, email: 'val@gmail.com' }, create, 'suficiente')).toBe('El email val@gmail.com ya está registrado');
+  });
+
+  it('arma los datos del registro; la empresa solo va para el rol Empresa', () => {
+    expect(toNewUserInput(values, 'suficiente')).toEqual({ name: 'Nueva Persona', email: 'nueva@example.com', password: 'suficiente', role: 'PASSENGER' });
+    expect(toNewUserInput({ ...values, role: 'COMPANY', companyId: 'co1' }, 'suficiente')).toMatchObject({ role: 'COMPANY', companyId: 'co1' });
+    expect(toNewUserInput({ ...values, companyId: 'co1' }, 'suficiente')).not.toHaveProperty('companyId');
   });
 });

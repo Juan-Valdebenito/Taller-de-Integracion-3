@@ -6,7 +6,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { useAdminUsers } from '../../hooks/useAdminUsers';
 import { AdminUsersScreen } from '../AdminUsersScreen';
 
-jest.mock('../../api/adminApi', () => ({ fetchUsers: jest.fn(), fetchCompanies: jest.fn(), updateUser: jest.fn(), deactivateUser: jest.fn() }));
+jest.mock('../../api/adminApi', () => ({ fetchUsers: jest.fn(), fetchCompanies: jest.fn(), updateUser: jest.fn(), deactivateUser: jest.fn(), createUser: jest.fn() }));
 // La confirmación se acepta sola en los tests.
 jest.mock('../../utils/platform', () => ({
   ...jest.requireActual('../../utils/platform'),
@@ -99,6 +99,57 @@ describe('AdminUsersScreen: gestión', () => {
     expect(await screen.findByText('Usuario Valentina Pérez actualizado')).toBeTruthy();
     expect(admin.updateUser).toHaveBeenCalledWith('u3', { role: 'COMPANY', companyId: 'co1' });
     expect(admin.fetchUsers).toHaveBeenCalledTimes(2);
+  });
+
+  it('crea una cuenta de Empresa con su contraseña inicial', async () => {
+    admin.createUser.mockResolvedValue({ id: 'u9', name: 'Nuevo Operador', email: 'operador@nielol.cl', role: 'COMPANY', isActive: true, companyId: 'co1', createdAt: null });
+    await render(<AdminUsersScreen />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Nuevo usuario' }));
+
+    expect(screen.getByRole('header', { name: '➕ Nuevo Usuario' })).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('Nombre completo'), 'Nuevo Operador');
+    await fireEvent.changeText(screen.getByLabelText('Correo electrónico'), 'Operador@Nielol.cl');
+    await fireEvent.changeText(screen.getByLabelText('Contraseña inicial'), 'corta');
+    await fireEvent.press(screen.getByRole('button', { name: 'Rol: Pasajero' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Empresa' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Crear usuario' }));
+    expect(screen.getByText('La contraseña debe tener al menos 8 caracteres')).toBeTruthy();
+    expect(admin.createUser).not.toHaveBeenCalled();
+
+    await fireEvent.changeText(screen.getByLabelText('Contraseña inicial'), 'Inicial-2026');
+    await fireEvent.press(screen.getByRole('button', { name: 'Crear usuario' }));
+
+    expect(await screen.findByText('Usuario Nuevo Operador creado')).toBeTruthy();
+    expect(admin.createUser).toHaveBeenCalledWith({ name: 'Nuevo Operador', email: 'operador@nielol.cl', password: 'Inicial-2026', role: 'COMPANY', companyId: 'co1' });
+    expect(admin.updateUser).not.toHaveBeenCalled();
+    expect(admin.fetchUsers).toHaveBeenCalledTimes(2);
+  });
+
+  it('si se crea sin "Usuario activo", la desactiva enseguida', async () => {
+    admin.createUser.mockResolvedValue({ id: 'u9', name: 'Pasajero Nuevo', email: 'nuevo@gmail.com', role: 'PASSENGER', isActive: true, companyId: null, createdAt: null });
+    admin.updateUser.mockResolvedValue({ id: 'u9', name: 'Pasajero Nuevo', email: 'nuevo@gmail.com', role: 'PASSENGER', isActive: false, companyId: null, createdAt: null });
+    await render(<AdminUsersScreen />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Nuevo usuario' }));
+    await fireEvent.changeText(screen.getByLabelText('Nombre completo'), 'Pasajero Nuevo');
+    await fireEvent.changeText(screen.getByLabelText('Correo electrónico'), 'nuevo@gmail.com');
+    await fireEvent.changeText(screen.getByLabelText('Contraseña inicial'), 'Inicial-2026');
+    await fireEvent(screen.getByLabelText('Usuario activo'), 'valueChange', false);
+    await fireEvent.press(screen.getByRole('button', { name: 'Crear usuario' }));
+
+    expect(await screen.findByText('Usuario Pasajero Nuevo creado')).toBeTruthy();
+    expect(admin.updateUser).toHaveBeenCalledWith('u9', { isActive: false });
+  });
+
+  it('muestra el aviso del backend si el correo ya existe (409)', async () => {
+    admin.createUser.mockRejectedValue(new ApiError(409, 'El email otro@gmail.com ya está registrado'));
+    await render(<AdminUsersScreen />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Nuevo usuario' }));
+    await fireEvent.changeText(screen.getByLabelText('Nombre completo'), 'Otra Persona');
+    await fireEvent.changeText(screen.getByLabelText('Correo electrónico'), 'otro@gmail.com');
+    await fireEvent.changeText(screen.getByLabelText('Contraseña inicial'), 'Inicial-2026');
+    await fireEvent.press(screen.getByRole('button', { name: 'Crear usuario' }));
+
+    expect(await screen.findByText('El email otro@gmail.com ya está registrado')).toBeTruthy();
   });
 
   it('"Cancelar" cierra el formulario sin guardar', async () => {

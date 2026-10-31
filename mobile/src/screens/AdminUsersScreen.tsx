@@ -22,8 +22,8 @@ const RED = '#ef4444';
 /**
  * Gestión de usuarios (administrador), como AdminUsersPage del web: cuántos
  * hay de cada rol, buscador, filtros por rol y estado, y una tarjeta por
- * cuenta (la tabla del web no cabe en un teléfono) con "Editar" y
- * "Activar/Desactivar". Tu propia cuenta no se puede desactivar.
+ * cuenta (la tabla del web no cabe en un teléfono), con "Nuevo usuario",
+ * "Editar" y "Activar/Desactivar". Tu propia cuenta no se puede desactivar.
  */
 export function AdminUsersScreen() {
   const { users, companies, loading, error, refresh } = useAdminUsers();
@@ -33,7 +33,8 @@ export function AdminUsersScreen() {
   const [filters, setFilters] = useState<UserFilters>(EMPTY_USER_FILTERS);
   const visible = useMemo(() => filterUsers(users, filters), [users, filters]);
   const counts = countUsers(users);
-  const [editing, setEditing] = useState<AdminUserRow | null>(null);
+  // Formulario: cerrado (null), nuevo usuario ('new') o editando una cuenta.
+  const [editing, setEditing] = useState<AdminUserRow | 'new' | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -106,6 +107,16 @@ export function AdminUsersScreen() {
 
         <Text style={styles.title} accessibilityRole="header">Gestión de Usuarios</Text>
         <Text style={styles.subtitle}>{users.length} usuarios registrados en el sistema</Text>
+        <Pressable
+          onPress={() => setEditing('new')}
+          accessibilityRole="button"
+          accessibilityLabel="Nuevo usuario"
+          style={({ pressed }) => [styles.newWrap, pressed && styles.dimmed]}
+        >
+          <LinearGradient colors={['#1d6fe0', '#0ea5e9']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.newButton}>
+            <Text style={styles.newText}>➕ Nuevo usuario</Text>
+          </LinearGradient>
+        </Pressable>
 
         <View style={styles.chips}>
           {chips.map((chip) => (
@@ -247,6 +258,9 @@ const useStyles = makeStyles((colors, font) => ({
   content: { padding: spacing.lg, paddingBottom: spacing.xl },
   title: { color: colors.text, fontSize: font(28), lineHeight: font(34), fontWeight: '800', letterSpacing: -0.5 },
   subtitle: { marginTop: spacing.xs, color: colors.muted, fontSize: font(14) },
+  newWrap: { alignSelf: 'flex-start', marginTop: spacing.md },
+  newButton: { paddingVertical: 12, paddingHorizontal: 20, borderRadius: radius.md },
+  newText: { color: '#ffffff', fontSize: font(14), fontWeight: '700' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: spacing.md, marginBottom: spacing.lg },
   badge: {
     paddingVertical: 2,

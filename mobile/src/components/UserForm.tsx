@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, Text, View } from 'react-native';
 
-import { updateUser, type AdminUser, type CompanySummary } from '../api/adminApi';
+import { createUser, updateUser, type AdminUser, type CompanySummary } from '../api/adminApi';
 import { ApiError } from '../api/errors';
-import { formFromUser, keepsOldCompany, ROLE_OPTIONS, toUserPatch, validateUserForm, type UserFormValues } from '../admin/userForm';
+import { MIN_PASSWORD_LENGTH } from '../auth/validation';
+import { formFromUser, keepsOldCompany, newUserForm, ROLE_OPTIONS, toNewUserInput, toUserPatch, validateUserForm, type UserFormValues } from '../admin/userForm';
 import { makeStyles, radius, spacing } from '../theme';
 import { Button } from './Button';
 import { SelectField } from './SelectField';
@@ -11,8 +12,8 @@ import { SettingSwitchRow } from './SettingSwitchRow';
 import { TextField } from './TextField';
 
 export interface UserFormProps {
-  /** Cuenta que se edita; null = cerrado. */
-  user: AdminUser | null;
+  /** Cuenta que se edita, 'new' para crear una, o null = cerrado. */
+  user: AdminUser | 'new' | null;
   /** Todas las cuentas (para no repetir el correo). */
   users: readonly AdminUser[];
   companies: readonly CompanySummary[];
@@ -22,17 +23,19 @@ export interface UserFormProps {
   onSaved: (message: string) => void;
 }
 
-const EMPTY: UserFormValues = { name: '', email: '', role: 'PASSENGER', companyId: '', isActive: true };
-
 /**
- * "✏️ Editar Usuario", el modal de AdminUsersPage del web. En tu propia
- * cuenta no se puede cambiar el rol ni desactivarla.
+ * "➕ Nuevo Usuario" / "✏️ Editar Usuario", el modal de AdminUsersPage del
+ * web. Al crear se pide la contraseña inicial. En tu propia cuenta no se puede
+ * cambiar el rol ni desactivarla.
  */
-export function UserForm({ user, users, companies, myId, onClose, onSaved }: UserFormProps) {
+export function UserForm({ user: target, users, companies, myId, onClose, onSaved }: UserFormProps) {
   const styles = useStyles();
-  const visible = user !== null;
+  const visible = target !== null;
+  const user = target === 'new' ? null : target;
+  const creating = target === 'new';
   const isSelf = !!user && user.id === myId;
-  const [values, setValues] = useState<UserFormValues>(EMPTY);
+  const [values, setValues] = useState<UserFormValues>(newUserForm());
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const companyOptions = companies
@@ -40,17 +43,39 @@ export function UserForm({ user, users, companies, myId, onClose, onSaved }: Use
     .map((company) => ({ value: company.id, label: company.name }));
 
   useEffect(() => {
-    if (!user) return;
-    setValues(formFromUser(user));
+    if (!target) return;
+    setValues(target === 'new' ? newUserForm() : formFromUser(target));
+    setPassword('');
     setError(null);
-  }, [user]);
+  }, [target]);
 
   const set = <K extends keyof UserFormValues>(key: K) => (value: UserFormValues[K]) => setValues((current) => ({ ...current, [key]: value }));
 
   const changeRole = (role: UserFormValues['role']) =>
     setValues((current) => ({ ...current, role, companyId: role === 'COMPANY' ? current.companyId || companyOptions[0]?.value || '' : current.companyId }));
 
+  const create = async () => {
+    const invalid = validateUserForm(values, { users, editingId: null, isSelf: false }, password);
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const created = await createUser(toNewUserInput(values, password));
+      // El registro siempre crea la cuenta activa; si se pidió inactiva, se aplica enseguida.
+      if (!values.isActive) await updateUser(created.id, { isActive: false });
+      onSaved(`Usuario ${created.name} creado`);
+    } catch (e) {
+      setError(e instanceof ApiError && e.status < 500 ? e.message : 'No se pudo crear el usuario.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const save = async () => {
+    if (creating) return create();
     if (!user) return;
     const invalid = validateUserForm(values, { users, editingId: user.id, isSelf });
     if (invalid) {
@@ -88,7 +113,7 @@ export function UserForm({ user, users, companies, myId, onClose, onSaved }: Use
         <View style={styles.sheet}>
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
             <Text style={styles.title} accessibilityRole="header">
-              ✏️ Editar Usuario
+              {creating ? '➕ Nuevo Usuario' : '✏️ Editar Usuario'}
             </Text>
             {error ? (
               <View style={styles.error} accessibilityRole="alert">
@@ -106,6 +131,23 @@ export function UserForm({ user, users, companies, myId, onClose, onSaved }: Use
               autoCorrect={false}
               editable={!saving}
             />
+            {creating ? (
+              <>
+                <TextField
+                  label="Contraseña inicial"
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder={`Mínimo ${MIN_PASSWORD_LENGTH} caracteres`}
+                  secureTextEntry
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="new-password"
+                  textContentType="newPassword"
+                  editable={!saving}
+                />
+                <Text style={[styles.hint, styles.passwordHint]}>Entrégasela a la persona por un medio seguro; con ella inicia sesión.</Text>
+              </>
+            ) : null}
             {isSelf ? (
               <View style={styles.readOnly}>
                 <Text style={styles.readOnlyLabel}>Rol</Text>
@@ -130,7 +172,7 @@ export function UserForm({ user, users, companies, myId, onClose, onSaved }: Use
                 <Button title="Cancelar" variant="secondary" onPress={onClose} disabled={saving} />
               </View>
               <View style={styles.submit}>
-                <Button title="Guardar cambios" loadingTitle="Guardando..." loading={saving} onPress={save} />
+                <Button title={creating ? 'Crear usuario' : 'Guardar cambios'} loadingTitle="Guardando..." loading={saving} onPress={save} />
               </View>
             </View>
           </ScrollView>
@@ -161,6 +203,7 @@ const useStyles = makeStyles((colors, font) => ({
   readOnlyLabel: { fontSize: font(13), lineHeight: font(21), fontWeight: '600', color: colors.text, marginBottom: spacing.xs },
   readOnlyValue: { color: colors.muted, fontSize: font(14) },
   hint: { marginTop: spacing.xs, marginBottom: 14, color: colors.placeholder, fontSize: font(12), lineHeight: font(17) },
+  passwordHint: { marginTop: -8 },
   actions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
   cancel: { flex: 1 },
   submit: { flex: 2 },

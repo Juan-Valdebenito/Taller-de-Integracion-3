@@ -1,13 +1,13 @@
-import { login, logout, register } from '../../api/authApi';
-import { formFromUser, toUserPatch, validateUserForm } from '../../admin/userForm';
+import { getCurrentUser, login, logout, register } from '../../api/authApi';
+import { formFromUser, newUserForm, toNewUserInput, toUserPatch, validateUserForm } from '../../admin/userForm';
 import { buildUserRows, countUsers } from '../../admin/users';
 import { describeLive, resetSecureStore, SEED_ADMIN, SEED_COMPANY, SEED_COMPANY_ID, SEED_PASSENGER } from '../../test-utils/live/backend';
-import { deactivateUser, fetchCompanies, fetchUsers, updateUser } from '../adminApi';
+import { createUser, deactivateUser, fetchCompanies, fetchUsers, updateUser } from '../adminApi';
 import { ApiError } from '../errors';
 
 // Usuarios del administrador contra backend-go real: las cuentas del seed con
-// su rol, su estado y el nombre de su empresa, y la edición y activación de
-// una cuenta nueva.
+// su rol, su estado y el nombre de su empresa, la edición y activación de una
+// cuenta, y la creación de cuentas por el administrador.
 
 beforeEach(() => {
   resetSecureStore();
@@ -66,6 +66,29 @@ describeLive('usuarios del administrador en backend-go real', () => {
       await logout();
     }
     await expect(login(account)).resolves.toMatchObject({ email: account.email, role: 'COMPANY' });
+    await logout();
+  });
+
+  it('crea una cuenta de Empresa sin tocar la sesión del administrador, y la cuenta puede entrar', async () => {
+    const suffix = Date.now();
+    const password = `Inicial-${suffix}`;
+    const form = { ...newUserForm(), name: 'Operador Nuevo', email: `operador.${suffix}@example.com`, role: 'COMPANY' as const, companyId: SEED_COMPANY_ID };
+
+    await login(SEED_ADMIN);
+    try {
+      expect(validateUserForm(form, { users: await fetchUsers(), editingId: null, isSelf: false }, password)).toBeNull();
+      const created = await createUser(toNewUserInput(form, password));
+      expect(created).toMatchObject({ name: 'Operador Nuevo', email: form.email, role: 'COMPANY', companyId: SEED_COMPANY_ID, isActive: true });
+      // Los tokens de la cuenta nueva se descartaron: la sesión sigue siendo la del administrador.
+      await expect(getCurrentUser()).resolves.toMatchObject({ email: SEED_ADMIN.email, role: 'ADMIN' });
+
+      // Correo repetido: el backend responde 409 con un mensaje claro.
+      await expect(createUser(toNewUserInput(form, password))).rejects.toMatchObject({ status: 409 });
+    } finally {
+      await logout();
+    }
+
+    await expect(login({ email: form.email, password })).resolves.toMatchObject({ role: 'COMPANY', companyId: SEED_COMPANY_ID });
     await logout();
   });
 });

@@ -203,3 +203,29 @@ export async function updateUser(id: string, patch: UserPatch): Promise<AdminUse
 export async function deactivateUser(id: string): Promise<void> {
   await apiRequest(`/users/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
+
+/** Datos de una cuenta nueva. */
+export interface NewUserInput {
+  name: string;
+  email: string;
+  password: string;
+  role: UserRole;
+  /** Solo para el rol Empresa. */
+  companyId?: string;
+}
+
+/**
+ * Crea la cuenta con POST /auth/register, como el web (backend-go no tiene otro
+ * endpoint para crear usuarios). Esa respuesta trae tokens de la cuenta nueva:
+ * se descartan para no tocar la sesión del administrador.
+ */
+export async function createUser(input: NewUserInput): Promise<AdminUser> {
+  const raw = await apiRequest<{ user?: Partial<Record<keyof AdminUser, unknown>> } | null>('/auth/register', {
+    method: 'POST',
+    auth: false,
+    body: input,
+  });
+  const user = toUser(raw?.user ?? {});
+  if (!user) throw new Error('Respuesta inválida del servidor');
+  return user;
+}
