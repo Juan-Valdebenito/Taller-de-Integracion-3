@@ -1,5 +1,6 @@
 /** Datos del panel de administración en backend-go. */
 import { apiRequest } from './client';
+import type { UserRole } from '../auth/types';
 import type { CompanyRoute } from './companyApi';
 
 /** Estadísticas de reclamos (GET /complaints/stats), de toda la plataforma o de una empresa. */
@@ -145,4 +146,39 @@ export function updateRoute(id: string, input: RouteUpdateInput): Promise<Compan
 /** Elimina la ruta: backend-go borra sus paraderos y deja sus micros sin ruta. */
 export async function deleteRoute(id: string): Promise<void> {
   await apiRequest(`/routes/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+/** Cuenta de usuario tal como la lista GET /users (sin el hash de la contraseña). */
+export interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  isActive: boolean;
+  companyId: string | null;
+  /** ISO 8601; null si el backend no lo envía. */
+  createdAt: string | null;
+}
+
+const ROLES: readonly UserRole[] = ['PASSENGER', 'COMPANY', 'ADMIN'];
+
+function toUser(raw: Partial<Record<keyof AdminUser, unknown>>): AdminUser | null {
+  const id = text(raw.id);
+  if (!id) return null;
+  const role = ROLES.find((r) => r === raw.role) ?? 'PASSENGER';
+  return {
+    id,
+    name: text(raw.name) || 'Sin nombre',
+    email: text(raw.email),
+    role,
+    isActive: raw.isActive !== false,
+    companyId: optional(raw.companyId),
+    createdAt: optional(raw.createdAt),
+  };
+}
+
+/** Todas las cuentas (pasajeros, empresas y administradores), las más nuevas primero. */
+export async function fetchUsers(): Promise<AdminUser[]> {
+  const raw = await apiRequest<Array<Partial<Record<keyof AdminUser, unknown>>> | null>('/users');
+  return (Array.isArray(raw) ? raw : []).map((user) => toUser(user ?? {})).filter((u): u is AdminUser => u !== null);
 }
