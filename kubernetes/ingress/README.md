@@ -10,6 +10,10 @@ Navegador ── https://<APP_HOST>/          ──► frontend-svc     :80
           ── wss://<REALTIME_HOST>/      ──► realtime-svc     :3001
 ```
 
+El Ingress y `bridge-to-backend` se despliegan en `student-tpenroz`. El backend y
+su Service `backend-go-svc` permanecen en `student-jvaldebenito`; el bridge es un
+Service `ExternalName` que resuelve el DNS completo del Service remoto.
+
 ## Qué hace cada archivo
 
 | Archivo | Para qué |

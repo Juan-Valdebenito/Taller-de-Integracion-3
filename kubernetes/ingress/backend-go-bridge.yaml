@@ -5,4 +5,9 @@ metadata:
   namespace: student-tpenroz
 spec:
   type: ExternalName
+  ports:
+    - name: http
+      port: 3001
+      protocol: TCP
+  # backend-go-svc vive en student-jvaldebenito. deploy.sh sustituye el namespace.
   externalName: backend-go-svc.<FOUNDATION_NAMESPACE>.svc.cluster.local

@@ -169,7 +169,10 @@ requiere admin del cluster) y `services/micro_db/micros-db-storage.yml` (PVC de 
 
 ## Ingress con WebSocket
 
-`ingress/backend-go-ingress.yaml` (base: el Ingress de Tomás) usa el formato del
+`ingress/backend-go-ingress.yaml` se despliega en `student-tpenroz` y envía el
+tráfico al Service `bridge-to-backend`. El bridge resuelve `backend-go-svc` en
+`student-jvaldebenito`, donde permanecen el Deployment y Service del backend.
+El Ingress usa el formato del
 cluster de la UCT: `external-dns` → `proxy.inf.uct.cl`, clase `nginx`, sin `tls`
 (el HTTPS lo termina el proxy). Como el cluster solo permite `path: /`, realtime
 usa el host dedicado definido por `REALTIME_HOST` y apunta directamente al
