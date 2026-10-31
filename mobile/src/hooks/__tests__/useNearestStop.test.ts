@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 
-import { ApiError } from '../../api/client';
+import { ApiError } from '../../api/errors';
 import * as stopsApi from '../../api/stopsApi';
 import type { UserPosition } from '../../location/locationService';
 import { REFETCH_DISTANCE_M, RETRY_BASE_DELAY_MS, retryDelay, useNearestStop } from '../useNearestStop';

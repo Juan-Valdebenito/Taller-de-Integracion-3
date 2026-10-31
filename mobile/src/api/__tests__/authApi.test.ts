@@ -41,8 +41,16 @@ describe('register', () => {
     await register({ name: ' Ana Pasajera ', email: 'ANA@correo.cl', password: 'secreta123' });
 
     expect(fetchMock.mock.calls[0][0]).toMatch(/\/auth\/register$/);
-    expect(bodyOf(fetchMock, 0)).toEqual({ name: 'Ana Pasajera', email: 'ana@correo.cl', password: 'secreta123' });
+    expect(bodyOf(fetchMock, 0)).toEqual({ name: 'Ana Pasajera', email: 'ana@correo.cl', password: 'secreta123', role: 'PASSENGER' });
     await expect(getTokens()).resolves.not.toBeNull();
+  });
+
+  it('registra una empresa si se elige ese tipo de usuario, como el web', async () => {
+    fetchMock.mockResolvedValueOnce(authResponse);
+
+    await register({ name: 'Buses Sur', email: 'buses@sur.cl', password: 'secreta123', role: 'COMPANY' });
+
+    expect(bodyOf(fetchMock, 0)).toMatchObject({ role: 'COMPANY' });
   });
 });
 
@@ -66,6 +74,69 @@ describe('restoreSession', () => {
 
     await expect(restoreSession()).resolves.toBeNull();
     await expect(getTokens()).resolves.toBeNull();
+  });
+
+  // Al abrir la app con el access token vencido: /auth/me da 401 y la renovación
+  // falla por algo pasajero. No es "sin sesión": se entrega el error para que el
+  // login ofrezca reintentar, y los tokens se conservan.
+  it.each([
+    [503, 'No se pudo verificar el estado del token, intenta nuevamente'],
+    [500, undefined],
+    [429, 'Demasiadas solicitudes. Intenta nuevamente en 30 segundos.'],
+  ])('si la renovación responde %i, entrega el error y conserva los tokens', async (status, error) => {
+    await saveTokens({ accessToken: 'access-1', refreshToken: 'refresh-1' });
+    fetchMock
+      .mockResolvedValueOnce(fakeResponse({ status: 401 }))
+      .mockResolvedValueOnce(fakeResponse({ status, body: error ? { error } : undefined }));
+
+    await expect(restoreSession()).rejects.toMatchObject({ status, ...(error ? { message: error } : {}) });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await expect(getTokens()).resolves.toEqual({ accessToken: 'access-1', refreshToken: 'refresh-1' });
+  });
+
+  it('con 429 en la renovación entrega cuántos segundos esperar antes de reintentar', async () => {
+    await saveTokens({ accessToken: 'access-1', refreshToken: 'refresh-1' });
+    fetchMock
+      .mockResolvedValueOnce(fakeResponse({ status: 401 }))
+      .mockResolvedValueOnce(
+        fakeResponse({ status: 429, headers: { 'Retry-After': '30' }, body: { error: 'Demasiadas solicitudes', retryAfter: 30 } }),
+      );
+
+    await expect(restoreSession()).rejects.toMatchObject({ status: 429, retryAfter: 30 });
+  });
+
+  it.each([
+    ['el servidor no está disponible (503)', fakeResponse({ status: 503 }), 503],
+    ['no hay conexión', new TypeError('Network request failed'), 0],
+  ])('si al consultar /auth/me %s, entrega el error y conserva los tokens', async (_kind, result, status) => {
+    await saveTokens({ accessToken: 'access-1', refreshToken: 'refresh-1' });
+    if (result instanceof Error) {
+      fetchMock.mockRejectedValueOnce(result);
+    } else {
+      fetchMock.mockResolvedValueOnce(result);
+    }
+
+    await expect(restoreSession()).rejects.toMatchObject({ status });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await expect(getTokens()).resolves.toEqual({ accessToken: 'access-1', refreshToken: 'refresh-1' });
+  });
+
+  it('al reintentar cuando el backend se recupera, entra con el mismo refresh token', async () => {
+    await saveTokens({ accessToken: 'access-1', refreshToken: 'refresh-1' });
+    fetchMock
+      .mockResolvedValueOnce(fakeResponse({ status: 401 }))
+      .mockResolvedValueOnce(fakeResponse({ status: 503 }));
+    await expect(restoreSession()).rejects.toMatchObject({ status: 503 });
+
+    fetchMock
+      .mockResolvedValueOnce(fakeResponse({ status: 401 }))
+      .mockResolvedValueOnce(fakeResponse({ body: { accessToken: 'access-2', refreshToken: 'refresh-2', user } }))
+      .mockResolvedValueOnce(fakeResponse({ body: user }));
+
+    await expect(restoreSession()).resolves.toEqual(user);
+    expect(bodyOf(fetchMock, 3)).toEqual({ refreshToken: 'refresh-1' });
+    expect(authHeaderOf(fetchMock, 4)).toBe('Bearer access-2');
+    await expect(getTokens()).resolves.toEqual({ accessToken: 'access-2', refreshToken: 'refresh-2' });
   });
 });
 

@@ -29,11 +29,10 @@ export function validateLogin({ email, password }: LoginInput): FieldErrors<Logi
   return errors;
 }
 
-export interface RegisterFormInput extends RegisterInput {
-  confirmPassword: string;
-}
+/** Campos del formulario de registro (como el web: sin confirmar contraseña). */
+export type RegisterFormInput = RegisterInput;
 
-export function validateRegister({ name, email, password, confirmPassword }: RegisterFormInput): FieldErrors<RegisterFormInput> {
+export function validateRegister({ name, email, password }: RegisterFormInput): FieldErrors<RegisterFormInput> {
   const errors: FieldErrors<RegisterFormInput> = {};
   if (!name.trim()) {
     errors.name = 'Ingresa tu nombre.';
@@ -47,9 +46,6 @@ export function validateRegister({ name, email, password, confirmPassword }: Reg
   }
   if (password.length < MIN_PASSWORD_LENGTH) {
     errors.password = `La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.`;
-  }
-  if (confirmPassword !== password) {
-    errors.confirmPassword = 'Las contraseñas no coinciden.';
   }
   return errors;
 }

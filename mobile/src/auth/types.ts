@@ -1,5 +1,8 @@
-/** Roles de usuario de backend-go. La app móvil registra pasajeros. */
+/** Roles de usuario de backend-go. */
 export type UserRole = 'PASSENGER' | 'COMPANY' | 'ADMIN';
+
+/** Roles que se pueden elegir al registrarse (los mismos que ofrece el web). */
+export type RegistrableRole = Extract<UserRole, 'PASSENGER' | 'COMPANY'>;
 
 /** Usuario tal como lo devuelve backend-go (sin el hash de la contraseña). */
 export interface AuthUser {
@@ -35,4 +38,6 @@ export interface RegisterInput {
   name: string;
   email: string;
   password: string;
+  /** Tipo de usuario elegido en el registro; por defecto pasajero. */
+  role?: RegistrableRole;
 }

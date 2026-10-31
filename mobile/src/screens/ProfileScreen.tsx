@@ -2,12 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ApiError } from '../api/client';
+import { ApiError } from '../api/errors';
 import { useAuth } from '../auth/AuthContext';
 import { Button } from '../components/Button';
+import { Card } from '../components/Card';
+import { PageTitle } from '../components/PageTitle';
 import { makeStyles, radius, spacing, useTheme } from '../theme';
+import { useSignOut } from '../hooks/useSignOut';
 import { formatLongDate, initials, roleLabel } from '../utils/format';
-import { confirmAction } from '../utils/platform';
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   const styles = useStyles();
@@ -20,38 +22,17 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 
 /**
- * Perfil del usuario con sesión iniciada. Los datos vienen de GET /auth/me: se
+ * Perfil del usuario con sesión iniciada (el web no tiene esta página; usa su
+ * mismo encabezado y tarjetas). Los datos vienen de GET /auth/me: se
  * actualizan al entrar y al deslizar hacia abajo.
  */
 export function ProfileScreen() {
   const { colors } = useTheme();
   const styles = useStyles();
-  const { user, refreshUser, signOut } = useAuth();
+  const { user, refreshUser } = useAuth();
+  const { signingOut, confirmSignOut } = useSignOut();
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [signingOut, setSigningOut] = useState(false);
-
-  // Envía el access y el refresh token a la lista negra del backend Go
-  // (POST /auth/logout) y borra la sesión del dispositivo. Al cambiar la
-  // sesión, Stack.Protected lleva al login.
-  const doSignOut = useCallback(async () => {
-    setSigningOut(true);
-    try {
-      await signOut();
-    } finally {
-      setSigningOut(false);
-    }
-  }, [signOut]);
-
-  const confirmSignOut = useCallback(() => {
-    confirmAction({
-      title: 'Cerrar sesión',
-      message: '¿Quieres cerrar tu sesión en este dispositivo?',
-      confirmText: 'Cerrar sesión',
-      destructive: true,
-      onConfirm: doSignOut,
-    });
-  }, [doSignOut]);
 
   const reload = useCallback(async () => {
     setRefreshing(true);
@@ -78,8 +59,9 @@ export function ProfileScreen() {
       <ScrollView
         testID="profile-scroll"
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.accent} />}
       >
+        <PageTitle emoji="👤" title="Mi Perfil" subtitle="Tus datos y la seguridad de tu cuenta" />
         <View style={styles.header}>
           <View style={styles.avatar} accessibilityLabel={`Avatar de ${user.name}`}>
             {/* Círculo de tamaño fijo: se limita el aumento de letra del sistema para que las iniciales quepan. */}
@@ -102,19 +84,19 @@ export function ProfileScreen() {
         ) : null}
 
         <Text style={styles.sectionTitle}>Datos de la cuenta</Text>
-        <View style={styles.card}>
+        <Card style={styles.card}>
           <InfoRow label="Correo electrónico" value={user.email} />
           <InfoRow label="Tipo de cuenta" value={roleLabel(user.role)} />
           <InfoRow label="Estado" value={user.isActive === false ? 'Desactivada' : 'Activa'} />
           {user.createdAt ? <InfoRow label="Miembro desde" value={formatLongDate(user.createdAt)} /> : null}
-        </View>
+        </Card>
 
         <Text style={styles.sectionTitle}>Seguridad</Text>
-        <View style={styles.card}>
+        <Card style={styles.card}>
           <Text style={styles.securityText}>
             Tu sesión está guardada de forma cifrada en este dispositivo y se renueva automáticamente mientras uses la app.
           </Text>
-        </View>
+        </Card>
 
         <View style={styles.signOut}>
           <Button title="Cerrar sesión" variant="danger" onPress={confirmSignOut} loading={signingOut} />
@@ -149,7 +131,7 @@ const useStyles = makeStyles((colors, font) => ({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
   },
-  badgeText: { color: colors.primary, fontWeight: '600', fontSize: font(13) },
+  badgeText: { color: colors.accent, fontWeight: '600', fontSize: font(13) },
   error: { backgroundColor: colors.dangerBg, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
   errorText: { color: colors.danger, fontSize: font(14) },
   sectionTitle: {
@@ -160,7 +142,8 @@ const useStyles = makeStyles((colors, font) => ({
     marginBottom: spacing.sm,
     marginTop: spacing.sm,
   },
-  card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md },
+  // Card del web (borde y radio --radius-lg) con menos relleno: son filas de datos.
+  card: { padding: spacing.md, marginBottom: spacing.md },
   row: { paddingVertical: spacing.sm },
   rowLabel: { fontSize: font(13), color: colors.muted },
   rowValue: { fontSize: font(16), color: colors.text, fontWeight: '600', marginTop: 2 },

@@ -3,6 +3,8 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '../components/Button';
+import { Card } from '../components/Card';
+import { PageTitle } from '../components/PageTitle';
 import { SegmentedControl, type SegmentedOption } from '../components/SegmentedControl';
 import { SettingSwitchRow } from '../components/SettingSwitchRow';
 import { useNotificationPreference } from '../hooks/useNotificationPreference';
@@ -23,7 +25,10 @@ export const TEXT_SIZE_OPTIONS: readonly SegmentedOption<TextSizePreference>[] =
   { value: 'extraLarge', label: 'Muy grande' },
 ];
 
-/** Configuración del pasajero: notificaciones y preferencias de interfaz. */
+/**
+ * Configuración del pasajero: notificaciones y preferencias de interfaz (el web
+ * no tiene esta página; usa su mismo encabezado y tarjetas).
+ */
 export function SettingsScreen() {
   const styles = useStyles();
   const { settings, saveError, updateSettings, resetSettings } = useSettings();
@@ -52,6 +57,7 @@ export function SettingsScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <ScrollView contentContainerStyle={styles.content}>
+        <PageTitle emoji="⚙️" title="Configuración" subtitle="Notificaciones y preferencias de la app" />
         {saveError ? (
           <View style={styles.error}>
             <Text style={styles.errorText} accessibilityRole="alert">
@@ -63,11 +69,11 @@ export function SettingsScreen() {
         <Text style={styles.sectionTitle} accessibilityRole="header">
           Notificaciones
         </Text>
-        <View style={styles.card}>
+        <Card style={styles.card}>
           {isWeb() ? (
             <SettingSwitchRow
               label="Notificaciones push"
-              description="Solo están disponibles en la app del teléfono. En la vista previa web las alertas se muestran en la pantalla de Inicio."
+              description="Solo están disponibles en la app del teléfono. En la vista previa web las alertas se muestran en la pantalla del Mapa."
               value={false}
               onValueChange={() => {}}
               disabled
@@ -118,12 +124,12 @@ export function SettingsScreen() {
             value={settings.vibrationEnabled}
             onValueChange={(vibrationEnabled) => updateSettings({ vibrationEnabled })}
           />
-        </View>
+        </Card>
 
         <Text style={styles.sectionTitle} accessibilityRole="header">
           Interfaz
         </Text>
-        <View style={styles.card}>
+        <Card style={styles.card}>
           <Text style={styles.label}>Tema</Text>
           <Text style={styles.description}>"Sistema" usa el modo claro u oscuro configurado en tu teléfono.</Text>
           <SegmentedControl
@@ -143,7 +149,7 @@ export function SettingsScreen() {
           <Text style={styles.preview} accessibilityLabel="Vista previa del tamaño del texto">
             Así se verá el texto en la app: la micro ABCD12 está a 350 m de tu paradero.
           </Text>
-        </View>
+        </Card>
 
         <View style={styles.reset}>
           <Button title="Restablecer valores por defecto" variant="secondary" onPress={confirmReset} />
@@ -167,7 +173,8 @@ const useStyles = makeStyles((colors, font) => ({
     marginBottom: spacing.sm,
     marginTop: spacing.sm,
   },
-  card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md },
+  // Card del web (borde y radio --radius-lg) con menos relleno: son filas de ajustes.
+  card: { padding: spacing.md, marginBottom: spacing.md },
   notice: { backgroundColor: colors.warningBg, borderRadius: radius.md, padding: spacing.sm, marginTop: spacing.xs },
   noticeText: { fontSize: font(13), lineHeight: font(18), color: colors.text },
   noticeAction: { alignItems: 'flex-start' },

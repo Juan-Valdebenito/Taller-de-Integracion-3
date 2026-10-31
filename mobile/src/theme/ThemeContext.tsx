@@ -4,6 +4,7 @@ import { StyleSheet, useColorScheme } from 'react-native';
 import { useSettings } from '../settings/SettingsContext';
 import type { TextSizePreference, ThemePreference } from '../settings/settingsStorage';
 import { darkColors, lightColors, type ThemeColors } from './colors';
+import { applyInter } from './typography';
 
 export type ColorScheme = 'light' | 'dark';
 
@@ -88,7 +89,8 @@ export function makeStyles<S extends NamedStyles>(
     return useMemo(() => {
       const cached = cache.get(theme);
       if (cached) return cached;
-      const styles = StyleSheet.create<S>(factory(theme.colors, theme.font));
+      // Inter en cada estilo de texto, como el frontend web (ver typography.ts).
+      const styles = StyleSheet.create<S>(applyInter(factory(theme.colors, theme.font)));
       cache.set(theme, styles);
       return styles;
     }, [theme]);

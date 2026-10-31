@@ -27,6 +27,7 @@ function state(overrides: Partial<UseProximityAlertsResult> = {}): UseProximityA
     loading: false,
     error: null,
     checkNow: jest.fn(),
+    live: false,
     ...overrides,
   };
 }
@@ -86,5 +87,12 @@ describe('ProximityAlertsCard', () => {
 
     await fireEvent.press(screen.getByRole('button', { name: 'Buscar micros ahora' }));
     expect(alerts.checkNow).toHaveBeenCalledTimes(1);
+  });
+
+  it('en tiempo real lo indica y no ofrece buscar (se revisa solo)', async () => {
+    await render(<ProximityAlertsCard alerts={state({ live: true })} />);
+
+    expect(screen.getByText('📡 En tiempo real: se revisa con cada posición de las micros.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Buscar micros ahora' })).toBeNull();
   });
 });

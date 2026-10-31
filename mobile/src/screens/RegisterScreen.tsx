@@ -2,16 +2,25 @@ import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { StyleSheet, View, type TextInputInstance } from 'react-native';
 
-import { ApiError } from '../api/client';
+import { ApiError } from '../api/errors';
 import { useAuth } from '../auth/AuthContext';
-import { MIN_PASSWORD_LENGTH, hasErrors, validateRegister, type FieldErrors, type RegisterFormInput } from '../auth/validation';
+import type { RegistrableRole } from '../auth/types';
+import { hasErrors, validateRegister, type FieldErrors, type RegisterFormInput } from '../auth/validation';
+import { AuthFooterLink } from '../components/AuthFooterLink';
 import { AuthScreenLayout } from '../components/AuthScreenLayout';
 import { Button } from '../components/Button';
+import { SelectField, type SelectOption } from '../components/SelectField';
 import { TextField } from '../components/TextField';
 import { useCooldown } from '../hooks/useCooldown';
 import { spacing } from '../theme';
 
-const EMPTY_FORM: RegisterFormInput = { name: '', email: '', password: '', confirmPassword: '' };
+const EMPTY_FORM: Required<RegisterFormInput> = { name: '', email: '', password: '', role: 'PASSENGER' };
+
+/** Opciones del select "Tipo de Usuario" del registro del web. */
+const ROLE_OPTIONS: readonly SelectOption<RegistrableRole>[] = [
+  { value: 'PASSENGER', label: 'Pasajero Frecuente' },
+  { value: 'COMPANY', label: 'Operador / Empresa de Buses' },
+];
 
 export function RegisterScreen() {
   const router = useRouter();
@@ -19,14 +28,13 @@ export function RegisterScreen() {
   const cooldown = useCooldown();
   const emailRef = useRef<TextInputInstance>(null);
   const passwordRef = useRef<TextInputInstance>(null);
-  const confirmRef = useRef<TextInputInstance>(null);
 
-  const [form, setForm] = useState<RegisterFormInput>(EMPTY_FORM);
+  const [form, setForm] = useState<Required<RegisterFormInput>>(EMPTY_FORM);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<RegisterFormInput>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const update = (field: keyof RegisterFormInput) => (value: string) => {
+  const update = (field: 'name' | 'email' | 'password') => (value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
     setFieldErrors((current) => ({ ...current, [field]: undefined }));
   };
@@ -40,8 +48,7 @@ export function RegisterScreen() {
     }
     setSubmitting(true);
     try {
-      const { name, email, password } = form;
-      await signUp({ name, email, password });
+      await signUp(form);
       // Stack.Protected lleva al inicio al cambiar la sesión.
     } catch (error) {
       if (error instanceof ApiError && error.status === 429) {
@@ -59,16 +66,16 @@ export function RegisterScreen() {
   return (
     <AuthScreenLayout
       title="Crear cuenta"
-      subtitle="Regístrate como pasajero para seguir tus micros y enviar reclamos."
+      subtitle="Tus datos son sanitizados y tu contraseña es hasheada con bcrypt"
       message={message}
       messageTone={cooldown.active ? 'warning' : 'error'}
     >
       <TextField
-        label="Nombre"
+        label="Nombre Completo"
         value={form.name}
         onChangeText={update('name')}
         error={fieldErrors.name}
-        placeholder="Tu nombre"
+        placeholder="Juan Valdebenito"
         autoComplete="name"
         textContentType="name"
         returnKeyType="next"
@@ -80,7 +87,7 @@ export function RegisterScreen() {
         value={form.email}
         onChangeText={update('email')}
         error={fieldErrors.email}
-        placeholder="nombre@correo.cl"
+        placeholder="juan@ejemplo.cl"
         keyboardType="email-address"
         autoCapitalize="none"
         autoComplete="email"
@@ -90,24 +97,11 @@ export function RegisterScreen() {
       />
       <TextField
         ref={passwordRef}
-        label="Contraseña"
+        label="Contraseña (Mín. 8 caracteres, letras y números)"
         value={form.password}
         onChangeText={update('password')}
         error={fieldErrors.password}
-        placeholder={`Mínimo ${MIN_PASSWORD_LENGTH} caracteres`}
-        secureTextEntry
-        autoCapitalize="none"
-        autoComplete="new-password"
-        textContentType="newPassword"
-        returnKeyType="next"
-        onSubmitEditing={() => confirmRef.current?.focus()}
-      />
-      <TextField
-        ref={confirmRef}
-        label="Confirmar contraseña"
-        value={form.confirmPassword}
-        onChangeText={update('confirmPassword')}
-        error={fieldErrors.confirmPassword}
+        placeholder="Al menos 8 caracteres..."
         secureTextEntry
         autoCapitalize="none"
         autoComplete="new-password"
@@ -115,19 +109,26 @@ export function RegisterScreen() {
         returnKeyType="go"
         onSubmitEditing={submit}
       />
+      <SelectField
+        label="Tipo de Usuario"
+        value={form.role}
+        options={ROLE_OPTIONS}
+        onChange={(role) => setForm((current) => ({ ...current, role }))}
+      />
       <View style={styles.actions}>
         <Button
-          title={cooldown.active ? `Espera ${cooldown.secondsLeft} s` : 'Crear cuenta'}
+          title={cooldown.active ? `Espera ${cooldown.secondsLeft} s` : 'Crear Cuenta Segura'}
+          loadingTitle="Registrando y Protegiendo Datos..."
           onPress={submit}
           loading={submitting}
           disabled={cooldown.active}
         />
-        <Button
-          title="¿Ya tienes cuenta? Inicia sesión"
-          variant="secondary"
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/login'))}
-        />
       </View>
+      <AuthFooterLink
+        prompt="¿Ya tienes cuenta?"
+        link="Inicia sesión"
+        onPress={() => (router.canGoBack() ? router.back() : router.replace('/login'))}
+      />
     </AuthScreenLayout>
   );
 }

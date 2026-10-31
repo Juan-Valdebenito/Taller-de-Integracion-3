@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
-import { ApiError } from '../../api/client';
+import { ApiError } from '../../api/errors';
 import { useAuth } from '../../auth/AuthContext';
 import { mockAuthValue } from '../../test-utils/auth';
 import { RegisterScreen } from '../RegisterScreen';
@@ -13,14 +13,15 @@ jest.mock('../../auth/AuthContext', () => ({ useAuth: jest.fn() }));
 
 const signUp = jest.fn();
 
-async function fill(values: { name: string; email: string; password: string; confirm: string }) {
-  await fireEvent.changeText(screen.getByLabelText('Nombre'), values.name);
+const PASSWORD_LABEL = 'Contraseña (Mín. 8 caracteres, letras y números)';
+
+async function fill(values: { name: string; email: string; password: string }) {
+  await fireEvent.changeText(screen.getByLabelText('Nombre Completo'), values.name);
   await fireEvent.changeText(screen.getByLabelText('Correo electrónico'), values.email);
-  await fireEvent.changeText(screen.getByLabelText('Contraseña'), values.password);
-  await fireEvent.changeText(screen.getByLabelText('Confirmar contraseña'), values.confirm);
+  await fireEvent.changeText(screen.getByLabelText(PASSWORD_LABEL), values.password);
 }
 
-const submit = () => fireEvent.press(screen.getByRole('button', { name: 'Crear cuenta' }));
+const submit = () => fireEvent.press(screen.getByRole('button', { name: 'Crear Cuenta Segura' }));
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -28,23 +29,36 @@ beforeEach(() => {
 });
 
 describe('RegisterScreen', () => {
-  it('valida largo de contraseña y confirmación', async () => {
+  it('valida el largo de la contraseña', async () => {
     await render(<RegisterScreen />);
-    await fill({ name: 'Ana', email: 'ana@correo.cl', password: '123', confirm: '456' });
+    await fill({ name: 'Ana', email: 'ana@correo.cl', password: '123' });
     await submit();
 
     expect(screen.getByText('La contraseña debe tener al menos 8 caracteres.')).toBeTruthy();
-    expect(screen.getByText('Las contraseñas no coinciden.')).toBeTruthy();
     expect(signUp).not.toHaveBeenCalled();
   });
 
-  it('registra al pasajero sin enviar la confirmación', async () => {
+  it('registra con nombre, correo y contraseña', async () => {
     signUp.mockResolvedValue(undefined);
     await render(<RegisterScreen />);
-    await fill({ name: 'Ana', email: 'ana@correo.cl', password: 'secreta123', confirm: 'secreta123' });
+    await fill({ name: 'Ana', email: 'ana@correo.cl', password: 'secreta123' });
     await submit();
 
-    expect(signUp).toHaveBeenCalledWith({ name: 'Ana', email: 'ana@correo.cl', password: 'secreta123' });
+    // Por defecto "Pasajero Frecuente", como el select del web.
+    expect(signUp).toHaveBeenCalledWith({ name: 'Ana', email: 'ana@correo.cl', password: 'secreta123', role: 'PASSENGER' });
+  });
+
+  it('con "Operador / Empresa de Buses" registra una empresa', async () => {
+    signUp.mockResolvedValue(undefined);
+    await render(<RegisterScreen />);
+    await fill({ name: 'Buses Sur', email: 'buses@sur.cl', password: 'secreta123' });
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Tipo de Usuario: Pasajero Frecuente' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Operador / Empresa de Buses' }));
+    expect(screen.getByRole('button', { name: 'Tipo de Usuario: Operador / Empresa de Buses' })).toBeTruthy();
+    await submit();
+
+    expect(signUp).toHaveBeenCalledWith({ name: 'Buses Sur', email: 'buses@sur.cl', password: 'secreta123', role: 'COMPANY' });
   });
 
   it('muestra bajo cada campo los errores de validación del servidor', async () => {
@@ -52,16 +66,41 @@ describe('RegisterScreen', () => {
       new ApiError(400, 'El correo ya está registrado', undefined, { email: 'El email ana@correo.cl ya está registrado' }),
     );
     await render(<RegisterScreen />);
-    await fill({ name: 'Ana', email: 'ana@correo.cl', password: 'secreta123', confirm: 'secreta123' });
+    await fill({ name: 'Ana', email: 'ana@correo.cl', password: 'secreta123' });
     await submit();
 
     expect(await screen.findByText('El email ana@correo.cl ya está registrado')).toBeTruthy();
   });
 
-  it('vuelve al login', async () => {
+  it('vuelve al login con el enlace del pie, como el web', async () => {
     await render(<RegisterScreen />);
-    await fireEvent.press(screen.getByRole('button', { name: '¿Ya tienes cuenta? Inicia sesión' }));
+    await fireEvent.press(screen.getByRole('link', { name: 'Inicia sesión' }));
 
     expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('muestra los textos y campos del registro del web, sin confirmar contraseña', async () => {
+    await render(<RegisterScreen />);
+
+    expect(screen.getByRole('header', { name: 'Crear cuenta' })).toBeTruthy();
+    expect(screen.getByText('Tus datos son sanitizados y tu contraseña es hasheada con bcrypt')).toBeTruthy();
+    expect(screen.getByLabelText('Nombre Completo').props.placeholder).toBe('Juan Valdebenito');
+    expect(screen.getByLabelText('Correo electrónico').props.placeholder).toBe('juan@ejemplo.cl');
+    expect(screen.getByLabelText(PASSWORD_LABEL).props.placeholder).toBe('Al menos 8 caracteres...');
+    expect(screen.queryByLabelText('Confirmar contraseña')).toBeNull();
+    expect(screen.getByText(/¿Ya tienes cuenta\?/)).toBeTruthy();
+  });
+
+  it('mientras registra muestra "Registrando y Protegiendo Datos..."', async () => {
+    let finish!: () => void;
+    signUp.mockImplementation(() => new Promise<void>((resolve) => (finish = resolve)));
+    await render(<RegisterScreen />);
+    await fill({ name: 'Ana', email: 'ana@correo.cl', password: 'secreta123' });
+    // Sin await: el registro queda pendiente hasta finish().
+    const pressing = submit();
+
+    expect(await screen.findByRole('button', { name: 'Registrando y Protegiendo Datos...' })).toBeDisabled();
+    await act(async () => finish());
+    await pressing;
   });
 });

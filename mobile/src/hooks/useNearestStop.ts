@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { ApiError } from '../api/client';
+import { ApiError } from '../api/errors';
 import { fetchNearbyStops } from '../api/stopsApi';
 import { MAX_LOCATION_ACCURACY_M, STOP_RADIUS_M, STOP_SEARCH_RADIUS_M } from '../config';
 import { checkStopProximity, distanceInMeters, type Coordinates, type ProximityResult, type Stop } from '../location/geo';

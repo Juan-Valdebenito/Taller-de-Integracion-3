@@ -1,6 +1,7 @@
 import type { BusPosition } from '../../api/busesApi';
 import type { ProximityResult, Stop } from '../../location/geo';
-import { alertMessage, alertStop, alertsPausedReason, findApproachingBuses, nextAlerts } from '../proximityAlerts';
+import { initialSimulatedBuses } from '../../realtime/simulatedBuses';
+import { alertMessage, alertStop, alertsPausedReason, findApproachingBuses, liveBusesToPositions, nextAlerts } from '../proximityAlerts';
 
 const STOP: Stop = { id: 'p1', name: 'Plaza de Armas', latitude: -38.7359, longitude: -72.5904 };
 const NOW = 1_000_000;
@@ -88,5 +89,14 @@ describe('alertMessage', () => {
 
   it('sin patente', () => {
     expect(alertMessage(STOP, { bus: bus('b1', 0, 0, ''), distanceMeters: 1200 })).toBe('Una micro está a 1,2 km de Plaza de Armas.');
+  });
+});
+
+describe('liveBusesToPositions', () => {
+  it('convierte las micros del tiempo real: identificador como patente y antigüedad del último mensaje', () => {
+    const [live] = initialSimulatedBuses(NOW);
+    expect(liveBusesToPositions([live])).toEqual([
+      { id: live.id, patente: live.id, latitude: live.latitude, longitude: live.longitude, speed: live.speed, locationAt: NOW, routeId: live.routeId },
+    ]);
   });
 });

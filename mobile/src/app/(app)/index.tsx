@@ -1,3 +1,5 @@
-import { HomeScreen } from '../../screens/HomeScreen';
+import { MapScreen } from '../../screens/MapScreen';
 
-export default HomeScreen;
+export default function MapRoute() {
+  return <MapScreen />;
+}

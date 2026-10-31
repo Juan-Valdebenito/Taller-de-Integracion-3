@@ -5,6 +5,24 @@
  */
 import type { BusPosition } from '../api/busesApi';
 import { distanceInMeters, formatDistance, type ProximityResult, type Stop } from '../location/geo';
+import type { LiveBus } from '../realtime/liveBuses';
+
+/**
+ * Micros del tiempo real como posiciones para las alertas. El WebSocket no
+ * trae la patente, así que se usa el identificador que muestran el mapa y la
+ * lista; la antigüedad es la del último mensaje recibido.
+ */
+export function liveBusesToPositions(buses: readonly LiveBus[]): BusPosition[] {
+  return buses.map((bus) => ({
+    id: bus.id,
+    patente: bus.id,
+    latitude: bus.latitude,
+    longitude: bus.longitude,
+    speed: bus.speed,
+    locationAt: bus.lastUpdate,
+    routeId: bus.routeId,
+  }));
+}
 
 /** Paradero en el que se permiten alertas, o null si la verificación no lo confirma. */
 export function alertStop(proximity: ProximityResult | null): Stop | null {

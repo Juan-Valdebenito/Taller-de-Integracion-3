@@ -2,7 +2,9 @@ import * as SecureStore from 'expo-secure-store';
 
 import { getTokens, saveTokens } from '../../storage/tokenStorage';
 import { authHeaderOf, bodyOf, fakeResponse, installFetchMock, type FetchMock } from '../../test-utils/http';
-import { ApiError, apiRequest, setSessionExpiredHandler } from '../client';
+import { apiRequest } from '../client';
+import { ApiError } from '../errors';
+import { setSessionExpiredHandler } from '../interceptor';
 
 const mockStore = SecureStore as unknown as { __reset: () => void };
 let fetchMock: FetchMock;
@@ -82,6 +84,23 @@ describe('apiRequest', () => {
     await expect(apiRequest('/auth/me')).rejects.toMatchObject({ status: 0 });
     expect(onExpired).not.toHaveBeenCalled();
     await expect(getTokens()).resolves.not.toBeNull();
+  });
+
+  it('si la renovación falla por el servidor (503), muestra ese mensaje y no el de sesión expirada', async () => {
+    const onExpired = jest.fn();
+    setSessionExpiredHandler(onExpired);
+    fetchMock
+      .mockResolvedValueOnce(fakeResponse({ status: 401 }))
+      .mockResolvedValueOnce(
+        fakeResponse({ status: 503, body: { error: 'No se pudo verificar el estado del token, intenta nuevamente' } }),
+      );
+
+    await expect(apiRequest('/auth/me')).rejects.toMatchObject({
+      status: 503,
+      message: 'No se pudo verificar el estado del token, intenta nuevamente',
+    });
+    expect(onExpired).not.toHaveBeenCalled();
+    await expect(getTokens()).resolves.toEqual({ accessToken: 'access-old', refreshToken: 'refresh-old' });
   });
 
   it('usa el mensaje de error del backend', async () => {
