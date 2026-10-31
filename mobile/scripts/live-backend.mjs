@@ -19,7 +19,7 @@
  * Los argumentos extra pasan a Jest (ej. -t "refresh").
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { createWriteStream, mkdtempSync, rmSync } from 'node:fs';
+import { closeSync, mkdtempSync, openSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -65,8 +65,9 @@ async function cleanup() {
     server.kill();
     await Promise.race([exited, new Promise((resolve) => setTimeout(resolve, 5_000))]);
   }
-  if (log) {
-    await new Promise((resolve) => log.end(resolve));
+  if (log !== undefined) {
+    closeSync(log);
+    log = undefined;
   }
   if (!keepWorkDir) {
     rmSync(workDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
@@ -106,7 +107,10 @@ if (build.status !== 0) {
 
 // ── 2. Levantar ─────────────────────────────────────────────────────────────
 console.log(`▶ Levantando backend-go en ${baseUrl} (base "${databaseName}", access token de ${accessTtl})…`);
-log = createWriteStream(logPath);
+// La salida del backend va directo al archivo. Con un pipe hacia Node se
+// bloqueaba: Jest corre con spawnSync (Node no lee el pipe mientras tanto) y,
+// lleno el buffer, el backend se quedaba esperando para escribir su log.
+log = openSync(logPath, 'w');
 server = spawn(serverBin, [], {
   cwd: workDir,
   env: {
@@ -133,10 +137,8 @@ server = spawn(serverBin, [], {
     RATE_LIMIT_UPLOAD_PER_MIN: '600',
     RATE_LIMIT_UPLOAD_BURST: '100',
   },
-  stdio: ['ignore', 'pipe', 'pipe'],
+  stdio: ['ignore', log, log],
 });
-server.stdout.pipe(log);
-server.stderr.pipe(log);
 
 let exitCode = 1;
 try {

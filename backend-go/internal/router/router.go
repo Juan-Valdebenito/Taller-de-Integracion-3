@@ -184,10 +184,16 @@ func Setup(
 
 	// Empresas (requiere autenticación; operaciones de admin requieren rol)
 	if companyH != nil {
-		companies := api.Group("/companies", auth())
+		// Empresas: todas las operaciones son solo para administradores.
+		companies := api.Group("/companies", auth(), middleware.Authorize("ADMIN"))
 		{
-			companies.GET("", middleware.Authorize("ADMIN"), companyH.GetAll)
-			companies.GET("/", middleware.Authorize("ADMIN"), companyH.GetAll)
+			companies.GET("", companyH.GetAll)
+			companies.GET("/", companyH.GetAll)
+			companies.GET("/:id", companyH.GetByID)
+			companies.POST("", companyH.Create)
+			companies.POST("/", companyH.Create)
+			companies.PUT("/:id", companyH.Update)
+			companies.PATCH("/:id/status", companyH.SetStatus)
 		}
 	}
 

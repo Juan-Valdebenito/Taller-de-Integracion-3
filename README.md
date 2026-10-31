@@ -226,6 +226,11 @@ Base URL: `http://localhost:3001/api/v1`
 | Usuarios | GET | `/users/:id` | Autenticado |
 | Usuarios | PUT | `/users/:id` | ADMIN |
 | Usuarios | DELETE | `/users/:id` | ADMIN |
+| Empresas | GET | `/companies` (todas, con RUT y contacto; `?active=true` solo activas) | ADMIN |
+| Empresas | GET | `/companies/:id` | ADMIN |
+| Empresas | POST | `/companies` (`name`, `rut`, `email`, `phone?`, `address?`; 409 si el RUT o el correo ya existen) | ADMIN |
+| Empresas | PUT | `/companies/:id` | ADMIN |
+| Empresas | PATCH | `/companies/:id/status` (`{"isActive": false}`) | ADMIN |
 | Buses | GET | `/buses?routeId=` | Autenticado |
 | Buses | GET | `/buses/:id` | Autenticado |
 | Buses | GET | `/buses/:id/location` | Autenticado |
