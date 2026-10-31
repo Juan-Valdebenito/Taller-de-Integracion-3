@@ -317,6 +317,7 @@ los tests unitarios.
 | `api/__tests__/adminDashboard.live.test.ts` | Dashboard del administrador: un reclamo nuevo suma al total, a los pendientes, a su categoría y a su línea (`GET /complaints/stats`) |
 | `api/__tests__/adminCompanies.live.test.ts` | Empresas del administrador: la empresa del seed con sus micros y rutas, un reclamo nuevo suma a sus pendientes, y una cuenta de empresa no puede listar empresas (403) |
 | `api/__tests__/companiesBackend.live.test.ts` | API de empresas (solo ADMIN): sin sesión 401, empresa 403; crear (RUT con formato y correo en minúsculas), RUT repetido 409, RUT inválido 400, editar, desactivar e incluir inactivas |
+| `api/__tests__/adminRoutes.live.test.ts` | Rutas del administrador: la ruta del seed con el nombre de su empresa y sus micros, y sus paraderos en el orden del recorrido |
 
 Las pruebas revisan la secuencia exacta de solicitudes que recibe el backend (ej.
 `/auth/me 401` → `/auth/refresh 200` → `/auth/me 200`), no solo el resultado final.

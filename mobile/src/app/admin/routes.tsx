@@ -1,5 +1,5 @@
-import { ComingSoonScreen } from '../../components/ComingSoonScreen';
+import { AdminRoutesScreen } from '../../screens/AdminRoutesScreen';
 
 export default function AdminRoutesRoute() {
-  return <ComingSoonScreen emoji="🗺️" title="Rutas" description="Rutas y paraderos de la ciudad." />;
+  return <AdminRoutesScreen />;
 }
