@@ -2,6 +2,7 @@
 import { apiRequest } from './client';
 import type { UserRole } from '../auth/types';
 import type { CompanyRoute } from './companyApi';
+import { toComplaint, type Complaint } from './complaintsApi';
 
 /** Estadísticas de reclamos (GET /complaints/stats), de toda la plataforma o de una empresa. */
 export interface ComplaintStats {
@@ -228,4 +229,12 @@ export async function createUser(input: NewUserInput): Promise<AdminUser> {
   const user = toUser(raw?.user ?? {});
   if (!user) throw new Error('Respuesta inválida del servidor');
   return user;
+}
+
+/** Todos los reclamos de la plataforma (GET /complaints), los más nuevos primero. */
+export async function fetchAllComplaints(): Promise<Complaint[]> {
+  const raw = await apiRequest<unknown[] | null>('/complaints');
+  return (Array.isArray(raw) ? raw : [])
+    .map((item) => toComplaint((item ?? {}) as Partial<Record<keyof Complaint, unknown>>))
+    .filter((complaint): complaint is Complaint => complaint !== null);
 }
