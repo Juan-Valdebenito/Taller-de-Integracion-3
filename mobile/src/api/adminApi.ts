@@ -42,3 +42,29 @@ export async function fetchComplaintStats(companyId?: string): Promise<Complaint
     byLine: counts(raw?.byLine),
   };
 }
+
+/** Empresa tal como la entrega GET /companies (backend-go solo envía estos campos, y solo las activas). */
+export interface CompanySummary {
+  id: string;
+  name: string;
+  isActive: boolean;
+}
+
+/** Empresas de transporte (solo ADMIN). */
+export async function fetchCompanies(): Promise<CompanySummary[]> {
+  const raw = await apiRequest<Array<Partial<CompanySummary>> | null>('/companies');
+  return (Array.isArray(raw) ? raw : [])
+    .filter((company) => company?.id)
+    .map((company) => ({ id: String(company.id), name: String(company.name ?? '').trim() || 'Empresa sin nombre', isActive: company.isActive !== false }));
+}
+
+/** Reclamos pendientes por empresa, con una sola consulta (GET /complaints?status=PENDING). */
+export async function fetchPendingComplaintsByCompany(): Promise<Record<string, number>> {
+  const raw = await apiRequest<Array<{ companyId?: unknown }> | null>('/complaints?status=PENDING');
+  const counts: Record<string, number> = {};
+  for (const complaint of Array.isArray(raw) ? raw : []) {
+    const id = typeof complaint?.companyId === 'string' ? complaint.companyId : '';
+    if (id) counts[id] = (counts[id] ?? 0) + 1;
+  }
+  return counts;
+}
