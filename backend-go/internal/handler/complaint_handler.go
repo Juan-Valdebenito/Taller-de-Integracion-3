@@ -21,6 +21,8 @@ type ComplaintHandler struct {
 	complaintService *service.ComplaintService
 	busRepo          *repository.BusRepository
 	routeRepo        *repository.RouteRepository
+	// users da la empresa de una cuenta COMPANY (ver complaint_access.go).
+	users userFinder
 }
 
 func NewComplaintHandler(
@@ -47,15 +49,15 @@ func emptyToNil(s *string) *string {
 
 // GetStats godoc
 // GET /api/v1/complaints/stats — resumen analítico para el dashboard administrativo
+// Una empresa solo ve las cifras de la suya (se ignora el companyId pedido).
 func (h *ComplaintHandler) GetStats(c *gin.Context) {
-	var compIDPtr *string
-	if comp := c.Query("companyId"); comp != "" {
-		compIDPtr = &comp
+	actor, ok := h.actorForComplaints(c)
+	if !ok {
+		return
 	}
-
-	stats, err := h.complaintRepo.GetStats(c.Request.Context(), compIDPtr)
+	stats, err := h.complaintRepo.GetStats(c.Request.Context(), companyScope(actor, c.Query("companyId")))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al calcular estadísticas de reclamos: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al calcular estadísticas de reclamos"})
 		return
 	}
 	c.JSON(http.StatusOK, stats)
@@ -63,14 +65,19 @@ func (h *ComplaintHandler) GetStats(c *gin.Context) {
 // GetAll godoc
 // GET /api/v1/complaints
 // Soporta filtros: status, category, lineName, busId, companyId, rating, minRating, maxRating, page, limit
+// Una empresa solo recibe los reclamos de la suya (se ignora el companyId pedido).
 func (h *ComplaintHandler) GetAll(c *gin.Context) {
+	actor, ok := h.actorForComplaints(c)
+	if !ok {
+		return
+	}
 	var filter repository.ComplaintFilter
 	if s := c.Query("status"); s != "" { v := domain.ComplaintStatus(s); filter.Status = &v }
 	if s := c.Query("category"); s != "" { v := domain.ComplaintCategory(s); filter.Category = &v }
 	if s := c.Query("busId"); s != "" { filter.BusID = &s }
 	if s := c.Query("passengerId"); s != "" { filter.PassengerID = &s }
 	if s := c.Query("lineName"); s != "" { filter.LineName = &s }
-	if s := c.Query("companyId"); s != "" { filter.CompanyID = &s }
+	filter.CompanyID = companyScope(actor, c.Query("companyId"))
 	if s := c.Query("rating"); s != "" { if v, err := strconv.Atoi(s); err == nil { filter.Rating = &v } }
 	if s := c.Query("minRating"); s != "" { if v, err := strconv.Atoi(s); err == nil { filter.MinRating = &v } }
 	if s := c.Query("maxRating"); s != "" { if v, err := strconv.Atoi(s); err == nil { filter.MaxRating = &v } }
@@ -83,7 +90,7 @@ func (h *ComplaintHandler) GetAll(c *gin.Context) {
 	}
 	complaints, err := h.complaintRepo.FindAll(c.Request.Context(), filter, pagination...)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener reclamos: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener reclamos"})
 		return
 	}
 	if complaints == nil { complaints = []domain.Complaint{} }
@@ -130,13 +137,18 @@ func (h *ComplaintHandler) GetMine(c *gin.Context) {
 
 // GetByID godoc
 // GET /api/v1/complaints/:id
+// Un reclamo ajeno responde 404, igual que uno que no existe (no se revela).
 func (h *ComplaintHandler) GetByID(c *gin.Context) {
+	actor, ok := h.actorForComplaints(c)
+	if !ok {
+		return
+	}
 	complaint, err := h.complaintRepo.FindByID(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener reclamo"})
 		return
 	}
-	if complaint == nil {
+	if complaint == nil || !canViewComplaint(actor, complaint) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Reclamo no encontrado"})
 		return
 	}
@@ -295,12 +307,17 @@ func (h *ComplaintHandler) UpdateStatus(c *gin.Context) {
 		return
 	}
 
+	actor, ok := h.actorForComplaints(c)
+	if !ok {
+		return
+	}
 	existing, err := h.complaintRepo.FindByID(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al consultar reclamo"})
 		return
 	}
-	if existing == nil {
+	// Una empresa no puede responder reclamos de otra: se responde como si no existiera.
+	if existing == nil || !canRespondComplaint(actor, existing) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Reclamo no encontrado"})
 		return
 	}

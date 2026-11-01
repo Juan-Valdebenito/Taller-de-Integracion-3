@@ -246,10 +246,11 @@ Base URL: `http://localhost:3001/api/v1`
 | Rutas | POST | `/routes` | ADMIN |
 | Rutas | PUT | `/routes/:id` | ADMIN, COMPANY |
 | Rutas | DELETE | `/routes/:id` | ADMIN |
-| Reclamos | GET | `/complaints` | ADMIN, COMPANY |
-| Reclamos | GET | `/complaints/:id` | Autenticado |
+| Reclamos | GET | `/complaints` | ADMIN (todos), COMPANY (solo los de su empresa) |
+| Reclamos | GET | `/complaints/stats` | ADMIN (todos), COMPANY (solo su empresa) |
+| Reclamos | GET | `/complaints/:id` | ADMIN, COMPANY (de su empresa), PASSENGER (los suyos) |
 | Reclamos | POST | `/complaints` | PASSENGER |
-| Reclamos | PUT | `/complaints/:id/status` | ADMIN, COMPANY |
+| Reclamos | PUT/PATCH | `/complaints/:id/status` | ADMIN, COMPANY (solo los de su empresa) |
 | Reclamos | DELETE | `/complaints/:id` | ADMIN |
 | Imágenes de reclamos | POST | `/complaints/:id/attachments` | PASSENGER (dueño del reclamo) |
 | Imágenes de reclamos | GET | `/complaints/:id/attachments` | Dueño, ADMIN |

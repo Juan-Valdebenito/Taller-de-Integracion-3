@@ -275,14 +275,16 @@ func Setup(
 	// Gestión y consulta de reclamos con soporte de enmascaramiento (?mask=true)
 	complaints := api.Group("/complaints", complaintsDB, optionalAuth(), middleware.SensitiveDataMasker())
 	{
-		complaints.GET("/stats", complaintH.GetStats)
-		complaints.GET("", complaintH.GetAll)
-		complaints.GET("/", complaintH.GetAll)
+		// Lista y cifras: solo administración y empresas (cada empresa, las suyas).
+		complaints.GET("/stats", auth(), middleware.Authorize("ADMIN", "COMPANY"), complaintH.GetStats)
+		complaints.GET("", auth(), middleware.Authorize("ADMIN", "COMPANY"), complaintH.GetAll)
+		complaints.GET("/", auth(), middleware.Authorize("ADMIN", "COMPANY"), complaintH.GetAll)
 		complaints.GET("/my", middleware.Authorize("PASSENGER"), complaintH.GetMine)
 		complaints.GET("/my-complaints", middleware.Authorize("PASSENGER"), complaintH.FindByPassengerID)
-		complaints.GET("/:id", complaintH.GetByID)
-		complaints.PUT("/:id/status", middleware.Authorize("ADMIN", "COMPANY"), complaintH.UpdateStatus)
-		complaints.PATCH("/:id/status", middleware.Authorize("ADMIN", "COMPANY"), complaintH.UpdateStatus)
+		// Detalle: el dueño, su empresa o un administrador (ver complaint_access.go).
+		complaints.GET("/:id", auth(), complaintH.GetByID)
+		complaints.PUT("/:id/status", auth(), middleware.Authorize("ADMIN", "COMPANY"), complaintH.UpdateStatus)
+		complaints.PATCH("/:id/status", auth(), middleware.Authorize("ADMIN", "COMPANY"), complaintH.UpdateStatus)
 		complaints.DELETE("/:id", middleware.Authorize("ADMIN"), complaintH.Delete)
 
 		// Imágenes del reclamo: siempre con sesión (los permisos finos los

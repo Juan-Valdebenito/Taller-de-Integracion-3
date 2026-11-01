@@ -116,7 +116,7 @@ func main() {
 		busH = handler.NewBusHandler(busRepo)
 		routeH = handler.NewRouteHandler(routeRepo, busRepo)
 		stopH = handler.NewStopHandler(stopRepo)
-		complaintH = handler.NewComplaintHandler(complaintRepo, busRepo, routeRepo)
+		complaintH = handler.NewComplaintHandler(complaintRepo, busRepo, routeRepo).WithUsers(userRepo)
 		recaudoH = handler.NewRecaudoHandler(recaudoRepo, aforoSvc)
 		healthH = handler.NewHealthHandler(pool)
 	}
