@@ -15,7 +15,9 @@ import (
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/infrastructure/grpcclient"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/logger"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/middleware"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/push"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/repository"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/telemetry"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/router"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/seed"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/simulation"
@@ -113,10 +115,10 @@ func main() {
 		authH = handler.NewAuthHandler(userRepo, cfg.JWTSecret, cfg.JWTAccessExpires, cfg.JWTRefreshExpires, revStore)
 		companyH = handler.NewCompanyHandler(companyRepo)
 		userH = handler.NewUserHandler(userRepo)
-		busH = handler.NewBusHandler(busRepo)
-		routeH = handler.NewRouteHandler(routeRepo, busRepo)
+		busH = handler.NewBusHandler(busRepo).WithAccess(userRepo, routeRepo)
+		routeH = handler.NewRouteHandler(routeRepo, busRepo).WithUsers(userRepo)
 		stopH = handler.NewStopHandler(stopRepo)
-		complaintH = handler.NewComplaintHandler(complaintRepo, busRepo, routeRepo)
+		complaintH = handler.NewComplaintHandler(complaintRepo, busRepo, routeRepo).WithUsers(userRepo)
 		recaudoH = handler.NewRecaudoHandler(recaudoRepo, aforoSvc)
 		healthH = handler.NewHealthHandler(pool)
 	}
@@ -160,7 +162,26 @@ func main() {
 	hub := ws.NewHub(occupancySvc)
 	go hub.Run()
 
-	wsHandler := ws.NewWSHandler(hub, cfg.JWTSecret, cfg.CORSOrigins)
+	wsHandler := ws.NewWSHandler(hub, cfg.JWTSecret, cfg.CORSOrigins).WithRevocation(revStore)
+	// Una empresa solo publica la posición de sus micros, en sus rutas.
+	var telemetryH *handler.TelemetryHandler
+	if dbAvailable {
+		fleetBuses, fleetRoutes := repository.NewBusRepository(pool), repository.NewRouteRepository(pool)
+		publishAuthz := ws.RepoAuthorizer{Users: repository.NewUserRepository(pool), Buses: fleetBuses, Routes: fleetRoutes}
+		wsHandler.WithPublishAuthorizer(publishAuthz)
+
+		// GPS por HTTP (app en segundo plano): mapa en vivo + micro_telemetry.
+		var forwarder *telemetry.Forwarder
+		if cfg.MicroTelemetryURL != "" {
+			forwarder = telemetry.NewForwarder(telemetry.NewClient(cfg.MicroTelemetryURL, cfg.MicroTelemetryAPIKey))
+			telemetryH = handler.NewTelemetryHandler(publishAuthz, fleetBuses, fleetRoutes, hub, forwarder)
+		} else {
+			log.Warn().Str("event", "telemetry_forward_disabled").Msg("MICRO_TELEMETRY_URL not set; GPS readings only go to the live map")
+			telemetryH = handler.NewTelemetryHandler(publishAuthz, fleetBuses, fleetRoutes, hub, nil)
+		}
+	} else {
+		wsHandler.WithPublishAuthorizer(ws.UnavailableAuthorizer{})
+	}
 	log.Info().Str("event", "websocket_ready").Str("path", "/ws").Msg("WebSocket Pub/Sub active")
 
 	// â”€â”€ SimulaciÃ³n GPS (buses virtuales rutas 7A, 7B, 1C) â”€â”€â”€â”€â”€
@@ -192,6 +213,19 @@ func main() {
 
 	// Servicio y endpoints de imágenes: requieren base de datos y almacenamiento.
 	// Sin alguno de los dos, attachmentH queda nil y las rutas responden 503.
+	// Teléfonos registrados para notificaciones push, y avisos al pasajero
+	// cuando cambia el estado de su reclamo (Expo Push).
+	var pushH *handler.PushTokenHandler
+	var complaintNotifier *push.ComplaintNotifier
+	if dbAvailable {
+		pushTokens := repository.NewPushTokenRepository(pool)
+		pushH = handler.NewPushTokenHandler(pushTokens)
+		complaintNotifier = push.NewComplaintNotifier(pushTokens, push.NewExpoClient(cfg.ExpoPushURL, cfg.ExpoAccessToken))
+		if complaintH != nil {
+			complaintH.WithNotifier(complaintNotifier)
+		}
+	}
+
 	var attachmentH *handler.AttachmentHandler
 	if dbAvailable && attachmentStore != nil {
 		attachmentSvc := service.NewAttachmentService(
@@ -200,6 +234,10 @@ func main() {
 			attachmentStore,
 		)
 		attachmentH = handler.NewAttachmentHandler(attachmentSvc)
+		// Al eliminar un reclamo se borran también los archivos de sus imágenes.
+		if complaintH != nil {
+			complaintH.WithAttachmentFiles(attachmentSvc)
+		}
 	}
 
 	// Límite de subidas de imágenes por IP (se desactiva con RATE_LIMIT_ENABLED=false).
@@ -265,6 +303,8 @@ func main() {
 		authLimits,
 		attachmentH,
 		uploadLimiter,
+		pushH,
+		telemetryH,
 	)
 
 	// IP real del cliente detrás del Ingress: solo se acepta X-Forwarded-For de

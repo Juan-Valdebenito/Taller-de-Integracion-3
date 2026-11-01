@@ -38,6 +38,8 @@ func Setup(
 	var authLimits *middleware.AuthRateLimiters
 	var attachmentH *handler.AttachmentHandler
 	var uploadLimiter *middleware.IPRateLimiter
+	var pushH *handler.PushTokenHandler
+	var telemetryH *handler.TelemetryHandler
 	for _, extra := range extras {
 		switch value := extra.(type) {
 		case *middleware.AuthRateLimiters:
@@ -55,6 +57,10 @@ func Setup(
 			aforoH = value
 		case *handler.RecaudoHandler:
 			recaudoH = value
+		case *handler.PushTokenHandler:
+			pushH = value
+		case *handler.TelemetryHandler:
+			telemetryH = value
 		}
 	}
 	r := gin.New()
@@ -171,23 +177,48 @@ func Setup(
 		authGroup.POST("/revoke", tokensLimit, auth(), middleware.Authorize("ADMIN"), authH.Revoke)
 	}
 
-	// Usuarios (con soporte de máscara ?mask=true para privacidad y validación en updates)
-	users := api.Group("/users", usersDB, optionalAuth(), middleware.SensitiveDataMasker())
+	// Usuarios: solo administradores (con máscara ?mask=true para privacidad y
+	// validación en updates). Sin esto cualquiera podía listar cuentas,
+	// cambiar roles o desactivarlas.
+	users := api.Group("/users", usersDB, auth(), middleware.Authorize("ADMIN"), middleware.SensitiveDataMasker())
 	{
 		users.GET("", userH.GetAll)
 		users.GET("/", userH.GetAll)
+		users.POST("", middleware.ValidateUserPayload(), userH.Create)
+		users.POST("/", middleware.ValidateUserPayload(), userH.Create)
 		users.GET("/:id", userH.GetByID)
 		users.PUT("/:id", middleware.ValidateUserUpdatePayload(), userH.Update)
 		users.PATCH("/:id", middleware.ValidateUserUpdatePayload(), userH.Patch)
 		users.DELETE("/:id", userH.Delete)
 	}
 
+	// Teléfono de la cuenta con sesión para notificaciones push (cualquier rol).
+	// Sin base de datos, RequireDatabase responde 503 antes de llegar al handler.
+	me := api.Group("/me", middleware.RequireDatabase(pushH != nil), auth())
+	{
+		me.PUT("/push-token", pushH.Register)
+		me.DELETE("/push-token", pushH.Unregister)
+	}
+
+	// GPS del modo conductor por HTTP (la app en segundo plano): mapa en vivo y
+	// reenvío a micro_telemetry. Mismas reglas que publicar por el WebSocket.
+	telemetryGroup := api.Group("/telemetry", middleware.RequireDatabase(telemetryH != nil), auth(), middleware.Authorize("ADMIN", "COMPANY"))
+	{
+		telemetryGroup.POST("/gps", telemetryH.ReportGPS)
+	}
+
 	// Empresas (requiere autenticación; operaciones de admin requieren rol)
 	if companyH != nil {
-		companies := api.Group("/companies", auth())
+		// Empresas: todas las operaciones son solo para administradores.
+		companies := api.Group("/companies", auth(), middleware.Authorize("ADMIN"))
 		{
-			companies.GET("", middleware.Authorize("ADMIN"), companyH.GetAll)
-			companies.GET("/", middleware.Authorize("ADMIN"), companyH.GetAll)
+			companies.GET("", companyH.GetAll)
+			companies.GET("/", companyH.GetAll)
+			companies.GET("/:id", companyH.GetByID)
+			companies.POST("", companyH.Create)
+			companies.POST("/", companyH.Create)
+			companies.PUT("/:id", companyH.Update)
+			companies.PATCH("/:id/status", companyH.SetStatus)
 		}
 	}
 
@@ -265,14 +296,16 @@ func Setup(
 	// Gestión y consulta de reclamos con soporte de enmascaramiento (?mask=true)
 	complaints := api.Group("/complaints", complaintsDB, optionalAuth(), middleware.SensitiveDataMasker())
 	{
-		complaints.GET("/stats", complaintH.GetStats)
-		complaints.GET("", complaintH.GetAll)
-		complaints.GET("/", complaintH.GetAll)
+		// Lista y cifras: solo administración y empresas (cada empresa, las suyas).
+		complaints.GET("/stats", auth(), middleware.Authorize("ADMIN", "COMPANY"), complaintH.GetStats)
+		complaints.GET("", auth(), middleware.Authorize("ADMIN", "COMPANY"), complaintH.GetAll)
+		complaints.GET("/", auth(), middleware.Authorize("ADMIN", "COMPANY"), complaintH.GetAll)
 		complaints.GET("/my", middleware.Authorize("PASSENGER"), complaintH.GetMine)
 		complaints.GET("/my-complaints", middleware.Authorize("PASSENGER"), complaintH.FindByPassengerID)
-		complaints.GET("/:id", complaintH.GetByID)
-		complaints.PUT("/:id/status", middleware.Authorize("ADMIN", "COMPANY"), complaintH.UpdateStatus)
-		complaints.PATCH("/:id/status", middleware.Authorize("ADMIN", "COMPANY"), complaintH.UpdateStatus)
+		// Detalle: el dueño, su empresa o un administrador (ver complaint_access.go).
+		complaints.GET("/:id", auth(), complaintH.GetByID)
+		complaints.PUT("/:id/status", auth(), middleware.Authorize("ADMIN", "COMPANY"), complaintH.UpdateStatus)
+		complaints.PATCH("/:id/status", auth(), middleware.Authorize("ADMIN", "COMPANY"), complaintH.UpdateStatus)
 		complaints.DELETE("/:id", middleware.Authorize("ADMIN"), complaintH.Delete)
 
 		// Imágenes del reclamo: siempre con sesión (los permisos finos los

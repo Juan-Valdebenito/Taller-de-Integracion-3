@@ -30,6 +30,7 @@ describe('ProfileScreen', () => {
     mockAuth();
     await render(<ProfileScreen />);
 
+    expect(screen.getByRole('header', { name: '👤 Mi Perfil' })).toBeTruthy(); // encabezado de página del web
     expect(screen.getByText('AP')).toBeTruthy(); // iniciales del avatar
     expect(screen.getByRole('header', { name: 'Ana María Pérez' })).toBeTruthy();
     expect(screen.getByText('ana@correo.cl')).toBeTruthy();

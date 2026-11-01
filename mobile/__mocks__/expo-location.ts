@@ -25,6 +25,13 @@ export const getCurrentPositionAsync = jest.fn();
 export const getLastKnownPositionAsync = jest.fn();
 export const watchPositionAsync = jest.fn();
 
+/** Ubicación en segundo plano (modo conductor). */
+export const ActivityType = { Other: 1, AutomotiveNavigation: 2, Fitness: 3, OtherNavigation: 4, Airborne: 5 } as const;
+export const requestBackgroundPermissionsAsync = jest.fn();
+export const startLocationUpdatesAsync = jest.fn(async () => undefined);
+export const stopLocationUpdatesAsync = jest.fn(async () => undefined);
+export const hasStartedLocationUpdatesAsync = jest.fn(async () => false);
+
 /** Respuesta de permiso como la entrega expo-location. */
 export function __permission(status: 'granted' | 'undetermined' | 'denied', canAskAgain = true) {
   return { status, granted: status === 'granted', canAskAgain, expires: 'never' };

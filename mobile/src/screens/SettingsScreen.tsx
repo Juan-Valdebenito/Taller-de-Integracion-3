@@ -3,9 +3,13 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '../components/Button';
+import { Card } from '../components/Card';
+import { PageTitle } from '../components/PageTitle';
 import { SegmentedControl, type SegmentedOption } from '../components/SegmentedControl';
 import { SettingSwitchRow } from '../components/SettingSwitchRow';
 import { useNotificationPreference } from '../hooks/useNotificationPreference';
+import { usePushRegistrationState } from '../hooks/usePushRegistration';
+import type { PushRegistrationState } from '../notifications/pushRegistration';
 import { useSettings } from '../settings/SettingsContext';
 import type { TextSizePreference, ThemePreference } from '../settings/settingsStorage';
 import { makeStyles, radius, spacing } from '../theme';
@@ -23,11 +27,15 @@ export const TEXT_SIZE_OPTIONS: readonly SegmentedOption<TextSizePreference>[] =
   { value: 'extraLarge', label: 'Muy grande' },
 ];
 
-/** Configuración del pasajero: notificaciones y preferencias de interfaz. */
+/**
+ * Configuración del pasajero: notificaciones y preferencias de interfaz (el web
+ * no tiene esta página; usa su mismo encabezado y tarjetas).
+ */
 export function SettingsScreen() {
   const styles = useStyles();
   const { settings, saveError, updateSettings, resetSettings } = useSettings();
   const notifications = useNotificationPreference();
+  const pushText = pushStatusText(usePushRegistrationState());
   const notificationNotice = notifications.revoked
     ? 'Quitaste el permiso de notificaciones en los ajustes del teléfono. Actívalo de nuevo para recibir alertas.'
     : notifications.message;
@@ -52,6 +60,7 @@ export function SettingsScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <ScrollView contentContainerStyle={styles.content}>
+        <PageTitle emoji="⚙️" title="Configuración" subtitle="Notificaciones y preferencias de la app" />
         {saveError ? (
           <View style={styles.error}>
             <Text style={styles.errorText} accessibilityRole="alert">
@@ -63,11 +72,11 @@ export function SettingsScreen() {
         <Text style={styles.sectionTitle} accessibilityRole="header">
           Notificaciones
         </Text>
-        <View style={styles.card}>
+        <Card style={styles.card}>
           {isWeb() ? (
             <SettingSwitchRow
               label="Notificaciones push"
-              description="Solo están disponibles en la app del teléfono. En la vista previa web las alertas se muestran en la pantalla de Inicio."
+              description="Solo están disponibles en la app del teléfono. En la vista previa web las alertas se muestran en la pantalla del Mapa."
               value={false}
               onValueChange={() => {}}
               disabled
@@ -75,12 +84,17 @@ export function SettingsScreen() {
           ) : (
             <SettingSwitchRow
               label="Notificaciones push"
-              description="Recibe en el teléfono las alertas de micros que se acercan a tu paradero."
+              description="Recibe en el teléfono las alertas de micros que se acercan a tu paradero y los avisos cuando respondan tus reclamos."
               value={notifications.enabled}
               onValueChange={notifications.setEnabled}
               disabled={notifications.busy}
             />
           )}
+          {notifications.enabled && pushText ? (
+            <Text style={styles.pushStatus} accessibilityLiveRegion="polite">
+              {pushText}
+            </Text>
+          ) : null}
           {notificationNotice ? (
             <View style={styles.notice}>
               <Text style={styles.noticeText} accessibilityRole="alert">
@@ -118,12 +132,12 @@ export function SettingsScreen() {
             value={settings.vibrationEnabled}
             onValueChange={(vibrationEnabled) => updateSettings({ vibrationEnabled })}
           />
-        </View>
+        </Card>
 
         <Text style={styles.sectionTitle} accessibilityRole="header">
           Interfaz
         </Text>
-        <View style={styles.card}>
+        <Card style={styles.card}>
           <Text style={styles.label}>Tema</Text>
           <Text style={styles.description}>"Sistema" usa el modo claro u oscuro configurado en tu teléfono.</Text>
           <SegmentedControl
@@ -143,7 +157,7 @@ export function SettingsScreen() {
           <Text style={styles.preview} accessibilityLabel="Vista previa del tamaño del texto">
             Así se verá el texto en la app: la micro ABCD12 está a 350 m de tu paradero.
           </Text>
-        </View>
+        </Card>
 
         <View style={styles.reset}>
           <Button title="Restablecer valores por defecto" variant="secondary" onPress={confirmReset} />
@@ -152,6 +166,26 @@ export function SettingsScreen() {
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+/** Estado del registro para avisos del servidor (las alertas de proximidad funcionan igual). */
+function pushStatusText(state: PushRegistrationState): string | null {
+  switch (state.status) {
+    case 'registered':
+      return 'Este teléfono también recibe avisos del servidor, por ejemplo cuando responden tus reclamos.';
+    case 'registering':
+      return 'Registrando este teléfono para los avisos del servidor...';
+    case 'error':
+      return 'No se pudo registrar este teléfono para los avisos del servidor. Se volverá a intentar al abrir la app.';
+    case 'unavailable':
+      return state.reason === 'missing-project'
+        ? 'Los avisos del servidor (respuestas a tus reclamos) aún no están habilitados en esta versión de la app.'
+        : state.reason === 'device'
+          ? 'Este teléfono no puede recibir avisos del servidor (por ejemplo, en Expo Go o en un emulador). Las alertas de proximidad sí funcionan.'
+          : null;
+    default:
+      return null;
+  }
 }
 
 const useStyles = makeStyles((colors, font) => ({
@@ -167,9 +201,11 @@ const useStyles = makeStyles((colors, font) => ({
     marginBottom: spacing.sm,
     marginTop: spacing.sm,
   },
-  card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md },
+  // Card del web (borde y radio --radius-lg) con menos relleno: son filas de ajustes.
+  card: { padding: spacing.md, marginBottom: spacing.md },
   notice: { backgroundColor: colors.warningBg, borderRadius: radius.md, padding: spacing.sm, marginTop: spacing.xs },
   noticeText: { fontSize: font(13), lineHeight: font(18), color: colors.text },
+  pushStatus: { marginTop: spacing.xs, fontSize: font(12), lineHeight: font(17), color: colors.muted },
   noticeAction: { alignItems: 'flex-start' },
   test: { alignItems: 'flex-start' },
   testFeedback: { fontSize: font(13), color: colors.muted, marginTop: spacing.xs },

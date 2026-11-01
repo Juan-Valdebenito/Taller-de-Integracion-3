@@ -15,6 +15,8 @@ import (
 type RouteHandler struct {
 	routeRepo *repository.RouteRepository
 	busRepo   *repository.BusRepository
+	// users da la empresa de una cuenta COMPANY (ver fleet_access.go).
+	users userFinder
 }
 
 func NewRouteHandler(routeRepo *repository.RouteRepository, busRepo *repository.BusRepository) *RouteHandler {
@@ -144,6 +146,20 @@ func (h *RouteHandler) Update(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	// Una empresa solo edita sus rutas; una ajena responde 404.
+	actor, ok := resolveActor(c, h.users)
+	if !ok {
+		return
+	}
+	existing, err := h.routeRepo.FindByID(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener ruta"})
+		return
+	}
+	if existing == nil || !belongsToActor(actor, existing.CompanyID) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Ruta no encontrada"})
 		return
 	}
 

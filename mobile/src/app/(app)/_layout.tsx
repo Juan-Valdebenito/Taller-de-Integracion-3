@@ -1,75 +1,22 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router/js-tabs';
 
-import { useAuth } from '../../auth/AuthContext';
-import { useTheme } from '../../theme';
+import { tabEmoji } from '../../components/TabEmoji';
+import { TopBar } from '../../components/TopBar';
+import { useTabScreenOptions } from '../../navigation/useTabScreenOptions';
 
-/** Rutas con sesión iniciada: las cuentas de empresa también ven flota, rutas y modo conductor. */
+/**
+ * Sección del pasajero (rol PASSENGER), con el menú del web (🗺️ Mapa ·
+ * 📋 Reclamos) más Perfil y Configuración, que son propios de la app.
+ * Empresa y administración tienen las suyas (app/company, app/admin).
+ */
 export default function AppLayout() {
-  const { colors, font } = useTheme();
-  const { user } = useAuth();
-  const canOperate = user?.role === 'COMPANY' || user?.role === 'ADMIN';
+  const screenOptions = useTabScreenOptions();
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.muted,
-        headerTitleStyle: { fontWeight: '700', fontSize: font(17) },
-        tabBarLabelStyle: { fontSize: font(11) },
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Inicio',
-          headerTitle: 'TransitHub',
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color as string} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="operations"
-        options={{
-          title: 'Empresa',
-          headerTitle: 'Operación de empresa',
-          href: canOperate ? undefined : null,
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'business' : 'business-outline'} size={size} color={color as string} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="driver"
-        options={{
-          title: 'Conductor',
-          headerTitle: 'Modo conductor',
-          href: canOperate ? undefined : null,
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'navigate' : 'navigate-outline'} size={size} color={color as string} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Perfil',
-          headerTitle: 'Mi perfil',
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'person-circle' : 'person-circle-outline'} size={size} color={color as string} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: 'Configuración',
-          headerTitle: 'Configuración',
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'settings' : 'settings-outline'} size={size} color={color as string} />
-          ),
-        }}
-      />
+    <Tabs screenOptions={{ ...screenOptions, header: () => <TopBar variant="passenger" /> }}>
+      <Tabs.Screen name="index" options={{ title: 'Mapa', headerTitle: 'Mapa', tabBarIcon: tabEmoji('🗺️') }} />
+      <Tabs.Screen name="complaints" options={{ title: 'Reclamos', headerTitle: 'Mis Reclamos', tabBarIcon: tabEmoji('📋') }} />
+      <Tabs.Screen name="profile" options={{ title: 'Perfil', headerTitle: 'Mi perfil', tabBarIcon: tabEmoji('👤') }} />
+      <Tabs.Screen name="settings" options={{ title: 'Configuración', headerTitle: 'Configuración', tabBarIcon: tabEmoji('⚙️') }} />
     </Tabs>
   );
 }

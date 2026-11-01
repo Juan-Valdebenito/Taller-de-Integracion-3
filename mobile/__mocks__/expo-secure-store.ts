@@ -7,6 +7,7 @@ const store = new Map<string, string>();
 export const WHEN_UNLOCKED = 'WHEN_UNLOCKED';
 export const WHEN_UNLOCKED_THIS_DEVICE_ONLY = 'WHEN_UNLOCKED_THIS_DEVICE_ONLY';
 export const AFTER_FIRST_UNLOCK = 'AFTER_FIRST_UNLOCK';
+export const AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY = 'AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY';
 
 export const setItemAsync = jest.fn(async (key: string, value: string) => {
   store.set(key, value);

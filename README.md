@@ -218,31 +218,42 @@ Base URL: `http://localhost:3001/api/v1`
 | Recurso | Método | Endpoint | Roles |
 |---------|--------|----------|-------|
 | Health | GET | `/health` | Público |
-| Auth | POST | `/auth/register` | Público |
+| Auth | POST | `/auth/register` | Público (pasajero o empresa; nunca ADMIN, y sin elegir empresa) |
 | Auth | POST | `/auth/login` | Público |
 | Auth | POST | `/auth/logout` | Público |
 | Auth | GET | `/auth/me` | Autenticado |
 | Usuarios | GET | `/users` | ADMIN |
-| Usuarios | GET | `/users/:id` | Autenticado |
+| Usuarios | POST | `/users` | ADMIN (crea cuentas con cualquier rol) |
+| Usuarios | GET | `/users/:id` | ADMIN |
 | Usuarios | PUT | `/users/:id` | ADMIN |
+| Usuarios | PATCH | `/users/:id` | ADMIN |
 | Usuarios | DELETE | `/users/:id` | ADMIN |
+| Notificaciones | PUT | `/me/push-token` | Autenticado (registra el teléfono para push) |
+| Notificaciones | DELETE | `/me/push-token` | Autenticado (solo su propio teléfono) |
+| Telemetría | POST | `/telemetry/gps` | COMPANY (sus micros), ADMIN — mapa en vivo + reenvío a micro_telemetry |
+| Empresas | GET | `/companies` (todas, con RUT y contacto; `?active=true` solo activas) | ADMIN |
+| Empresas | GET | `/companies/:id` | ADMIN |
+| Empresas | POST | `/companies` (`name`, `rut`, `email`, `phone?`, `address?`; 409 si el RUT o el correo ya existen) | ADMIN |
+| Empresas | PUT | `/companies/:id` | ADMIN |
+| Empresas | PATCH | `/companies/:id/status` (`{"isActive": false}`) | ADMIN |
 | Buses | GET | `/buses?routeId=` | Autenticado |
 | Buses | GET | `/buses/:id` | Autenticado |
 | Buses | GET | `/buses/:id/location` | Autenticado |
-| Buses | POST | `/buses` | ADMIN, COMPANY |
-| Buses | PUT | `/buses/:id` | ADMIN, COMPANY |
-| Buses | DELETE | `/buses/:id` | ADMIN |
+| Buses | POST | `/buses` | ADMIN, COMPANY (siempre en su empresa y con rutas propias) |
+| Buses | PUT/PATCH | `/buses/:id` | ADMIN, COMPANY (solo sus micros y rutas propias) |
+| Buses | DELETE | `/buses/:id` | ADMIN, COMPANY (solo sus micros) |
 | Rutas | GET | `/routes` | Autenticado |
 | Rutas | GET | `/routes/:id` | Autenticado |
 | Rutas | GET | `/routes/:id/stops` | Autenticado |
 | Rutas | GET | `/routes/:id/buses` | Autenticado |
 | Rutas | POST | `/routes` | ADMIN |
-| Rutas | PUT | `/routes/:id` | ADMIN, COMPANY |
+| Rutas | PUT | `/routes/:id` | ADMIN, COMPANY (solo sus rutas) |
 | Rutas | DELETE | `/routes/:id` | ADMIN |
-| Reclamos | GET | `/complaints` | ADMIN, COMPANY |
-| Reclamos | GET | `/complaints/:id` | Autenticado |
+| Reclamos | GET | `/complaints` | ADMIN (todos), COMPANY (solo los de su empresa) |
+| Reclamos | GET | `/complaints/stats` | ADMIN (todos), COMPANY (solo su empresa) |
+| Reclamos | GET | `/complaints/:id` | ADMIN, COMPANY (de su empresa), PASSENGER (los suyos) |
 | Reclamos | POST | `/complaints` | PASSENGER |
-| Reclamos | PUT | `/complaints/:id/status` | ADMIN, COMPANY |
+| Reclamos | PUT/PATCH | `/complaints/:id/status` | ADMIN, COMPANY (solo los de su empresa) |
 | Reclamos | DELETE | `/complaints/:id` | ADMIN |
 | Imágenes de reclamos | POST | `/complaints/:id/attachments` | PASSENGER (dueño del reclamo) |
 | Imágenes de reclamos | GET | `/complaints/:id/attachments` | Dueño, ADMIN |
@@ -344,6 +355,10 @@ sandbox` y `Cache-Control: private, no-store` (no se guarda en cachés intermedi
 | Variable | Por defecto | Uso |
 |----------|-------------|-----|
 | `ATTACHMENTS_DIR` | `./data/attachments` | Carpeta de las imágenes (excluida de Git). En el cluster, un volumen persistente |
+| `EXPO_PUSH_URL` | `https://exp.host/--/api/v2/push/send` | Servicio de Expo Push para avisar al pasajero cuando cambia su reclamo |
+| `EXPO_ACCESS_TOKEN` | — | Opcional (secreto): solo si el proyecto de EAS exige autenticación para enviar push |
+| `MICRO_TELEMETRY_URL` | — | Ingesta GPS de `micro_telemetry`; vacío = las posiciones solo van al mapa en vivo |
+| `MICRO_TELEMETRY_API_KEY` | — | Secreto: header `X-API-Key` de `micro_telemetry` |
 | `RATE_LIMIT_UPLOAD_PER_MIN` | `10` | Subidas por minuto por IP |
 | `RATE_LIMIT_UPLOAD_BURST` | `3` | Subidas seguidas permitidas por IP |
 

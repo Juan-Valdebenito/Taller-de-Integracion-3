@@ -1,8 +1,10 @@
 # TransitHub — App móvil (React Native + Expo)
 
-App para pasajeros y usuarios de empresa. Además de autenticación, perfil,
-paraderos y alertas, las cuentas `COMPANY` y `ADMIN` tienen panel de flota,
-consulta de rutas y modo conductor conectado a `backend-go`.
+App de pasajeros, empresas y administradores, con las mismas secciones y el mismo
+aspecto que el frontend web. El pasajero tiene el mapa en tiempo real (micros,
+paraderos, filtro por línea, ficha y lista de micros), sus reclamos (con fotos),
+paraderos y alertas, perfil y configuración. Las cuentas `COMPANY` tienen panel
+de flota, consulta de rutas y modo conductor conectado a `backend-go`.
 
 - Expo SDK 58 · React Native 0.88 · TypeScript · Expo Router
 - Tokens JWT guardados **cifrados** con `expo-secure-store`
@@ -23,18 +25,84 @@ npx expo start            # escanear el QR con Expo Go, o "a" / "i" para emulado
 | Teléfono con Expo Go (misma Wi-Fi) | `http://<IP-local-del-PC>:3001/api/v1` |
 | Emulador Android | `http://10.0.2.2:3001/api/v1` |
 | Simulador iOS | `http://localhost:3001/api/v1` |
-| Cluster | `https://backend-tpenroz.dev.censei.cl/api/v1` |
+| Cluster | `https://api-backend-tpenroz.dev.censei.cl/api/v1` |
 
 Si cambias `.env`, reinicia con `npx expo start --clear`.
 
+El WebSocket del tiempo real se deduce de esa URL (`https://…/api/v1` →
+`wss://…/ws`). Si está en otra dirección, defínela con `EXPO_PUBLIC_WS_URL`.
+
+> **Build de desarrollo:** las fotos de los reclamos usan `expo-image-picker` y
+> `expo-image-manipulator`, y el mapa `react-native-maps`. Si tu build de
+> desarrollo es anterior a esas librerías, genera una nueva
+> (`npx expo run:android` / `npx expo run:ios`, o `eas build --profile development`).
+
+## Secciones por rol
+
+Como el web, cada rol tiene su propia sección y solo puede abrir la suya
+(`Stack.Protected` en `app/_layout.tsx`). Al iniciar sesión, la app lleva a cada
+usuario a la de su rol:
+
+| Rol | Sección | Pestañas (como el menú del web) |
+|---|---|---|
+| `PASSENGER` | `/` (`app/(app)/`) | 🗺️ Mapa · 📋 Reclamos · 👤 Perfil · ⚙️ Configuración |
+| `COMPANY` | `/company` (`app/company/`) | 📊 Dashboard · 🎛️ Conductor · 🚍 Micros · 🗺️ Rutas · 📋 Reclamos |
+| `ADMIN` | `/admin` (`app/admin/`) | 📊 Dashboard · 🏢 Empresas · 🗺️ Rutas · 👥 Usuarios · 📋 Reclamos |
+
+Las pestañas marcadas con 🚧 en la app todavía son provisionales. Las del
+pasajero ya están completas; las de empresa y administrador se completan en las
+siguientes tareas.
+
+## Mapa en tiempo real (pasajero)
+
+Igual que `PassengerMapPage` del web, adaptado a la pantalla del teléfono:
+
+- **Micros en tiempo real** por el WebSocket `/ws` de backend-go
+  (`src/realtime/`: `RealtimeClient`, `useRealtimeBuses`). Se suscribe a las
+  líneas 7A, 7B y 1C, recibe `bus:update` y reconecta solo (1 s, 2 s, 4 s… hasta
+  30 s). Sin conexión muestra 3 micros **simuladas**, como el web
+  (`useMapBuses`). Las micros se deslizan suavemente entre posiciones
+  (`useAnimatedPosition`).
+- **Barra de estado** (`MapStatusBar`): Tiempo real / Conectando... /
+  Desconectado, latencia, mensajes por segundo, micros en ruta, detenidas y
+  retrasadas, "Filtro activo" y la hora. Si se pierde una conexión que ya
+  existía, aparece el aviso **🔌 Conexión perdida** (`ConnectionOverlay`).
+- **Filtro por línea** (`RouteFilter`): Todas las rutas · Línea 7A · 7B · 1C,
+  con la cantidad de micros. Filtra micros y paraderos.
+- **Ficha de la micro** (`BusDetailCard`) al tocarla: estado, ocupación,
+  subidas y bajadas, predicción del backend, **próxima parada con tiempo de
+  llegada** (`useEta`, la misma fórmula del web: distancia × 1,35 / velocidad),
+  velocidad, dirección y hora del último dato.
+- **Micros activas** (`BusList`): la lista lateral del web, ordenada por
+  ocupación. En el teléfono es un panel plegable abajo, junto a "Tu ubicación
+  y alertas" (al abrir uno se pliega el otro).
+
 ## Vistas de empresa y conductor
 
-Al iniciar sesión como `COMPANY` o `ADMIN`, la app abre el panel de empresa y
-muestra las pestañas Empresa y Conductor. La flota y las rutas se leen desde
+En la sección de empresa, la flota y las rutas se leen desde
 `GET /buses` y `GET /routes`; iniciar un recorrido asigna la ruta elegida y
 cambia la micro a `ACTIVE`, y finalizarlo la cambia a `INACTIVE` mediante
 `PATCH /buses/:id`. El backend actual no ofrece un recurso de viajes: el estado
 activo se guarda en la micro, pero el cronómetro del recorrido permanece local.
+
+**Modo conductor** (`src/screens/DriverModeScreen.tsx`, con el diseño de
+`CompanyDriverModePage` del web, que allá usa datos de ejemplo):
+
+- **Preparar recorrido:** unidad (las micros en mantenimiento aparecen
+  deshabilitadas) y recorrido (rutas activas). Iniciar pone la micro `ACTIVE`
+  con esa ruta (`useDriverTrip`).
+- **GPS en vivo** (`useDriverLocation`): durante el recorrido sigue el GPS del
+  teléfono cada 5 s y publica la posición por el WebSocket
+  (`{"type":"publish","token":<JWT>,"data":{busId, routeId, latitude, …}}`).
+  Con la micro detenida reenvía la última posición cada 5 s. backend-go la
+  reenvía a quien escucha esa ruta: el mapa del pasajero escucha las 3 líneas
+  del web **y las rutas reales** (`GET /routes`, `src/realtime/realRoutes.ts`),
+  así ve la micro del conductor.
+- **En recorrido:** avance por los paraderos reales de la ruta
+  (`GET /routes/:id/stops`): un paradero queda pasado al llegar a menos de 60 m
+  (`src/company/tripProgress.ts`); próxima parada, pasajeros, tiempo
+  transcurrido y el estado del envío ("Ubicación enviada hace N s").
+
 
 ## Ver la app en VS Code (vista previa web)
 
@@ -56,7 +124,7 @@ Qué cambia en web (`src/utils/platform.ts`):
 - La ubicación usa el GPS del navegador (pide permiso). Si la bloquea, se habilita
   desde el ícono junto a la dirección de la página.
 - Las notificaciones del teléfono no existen en web: el interruptor aparece
-  desactivado y las alertas se ven en la pantalla de Inicio.
+  desactivado y las alertas se ven en la pantalla del Mapa.
 - El backend del cluster no acepta el origen `localhost:8081` (CORS), así que la
   vista previa web se usa con el backend local.
 
@@ -80,12 +148,16 @@ Para agregar dependencias usar siempre `npx expo install <paquete>` (elige la ve
 ```
 src/
 ├── app/                    Rutas (Expo Router)
-│   ├── _layout.tsx         AuthProvider + Stack.Protected (qué rutas se ven con/sin sesión)
+│   ├── _layout.tsx         AuthProvider + Stack.Protected (una sección por rol; login sin sesión)
 │   ├── login.tsx           → screens/LoginScreen
 │   ├── register.tsx        → screens/RegisterScreen
-│   └── (app)/              Solo con sesión; pestañas inferiores (_layout.tsx)
-│       ├── index.tsx       → screens/HomeScreen   (pestaña Inicio)
-│       └── profile.tsx     → screens/ProfileScreen (pestaña Perfil)
+│   ├── (app)/              Pasajero; pestañas inferiores (_layout.tsx)
+│   │   ├── index.tsx       → screens/MapScreen    (pestaña Mapa)
+│   │   ├── complaints.tsx  Mis Reclamos (pestaña Reclamos)
+│   │   ├── profile.tsx     → screens/ProfileScreen (pestaña Perfil)
+│   │   └── settings.tsx    → screens/SettingsScreen (pestaña Configuración)
+│   ├── company/            Empresa: dashboard, modo conductor, micros, rutas, reclamos
+│   └── admin/              Administración: dashboard, empresas, rutas, usuarios, reclamos
 ├── auth/
 │   ├── AuthContext.tsx     Estado de sesión: restaurar al abrir, signIn, signUp, signOut
 │   ├── jwt.ts              Lee el vencimiento ("exp") del access token, sin verificar firma
@@ -102,8 +174,9 @@ src/
 
 - **Almacenamiento:** `accessToken` y `refreshToken` se guardan con `expo-secure-store`
   (Keychain en iOS, cifrado con Android Keystore en Android), con
-  `WHEN_UNLOCKED_THIS_DEVICE_ONLY`: solo se leen con el teléfono desbloqueado y no
-  pasan a respaldos ni a otro dispositivo. Nunca se usa AsyncStorage.
+  `AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY`: se leen después del primer desbloqueo desde
+  que se encendió el teléfono (el modo conductor envía la ubicación con la pantalla
+  bloqueada) y no pasan a respaldos ni a otro dispositivo. Nunca se usa AsyncStorage.
 - **Al abrir la app** se recupera la sesión guardada (`GET /auth/me`). Si no se puede
   por una falla pasajera (sin conexión, 429 o 5xx, ver la tabla de abajo), se muestra
   el login con el aviso y el botón **Reintentar conexión**, y los tokens se conservan:
@@ -203,7 +276,8 @@ token venza). Para correr solo algunas, los argumentos pasan a Jest:
 1. Compila backend-go a un ejecutable temporal.
 2. Lo levanta en `http://127.0.0.1:3995` desde una carpeta temporal, para **no leer
    `backend-go/.env`**: usa siempre la base indicada, revocados en memoria (sin
-   Redis), sin simulación y `JWT_ACCESS_EXPIRES_IN=5s`.
+   Redis), la simulación de micros encendida (publica `bus:update` por `/ws`) y
+   `JWT_ACCESS_EXPIRES_IN=5s`.
 3. Espera a que responda `/health` y corre `jest -c jest.live.config.js`.
 4. Detiene el backend al terminar (también con Ctrl+C) y borra lo temporal. Si algo
    falla, conserva el log del backend y muestra dónde quedó.
@@ -233,6 +307,18 @@ los tests unitarios.
 | `api/__tests__/refresh.live.test.ts` | Token vencido → 401 → refresh → reintento; solicitudes simultáneas con un solo refresh; el refresh token anterior queda rechazado; con uno ya usado se cierra la sesión |
 | `api/__tests__/proactive.live.test.ts` | Renovar antes de enviar (sin 401); la protección contra el reloj desajustado; renovar al volver a la app (`renewIfExpiringSoon`) |
 | `api/__tests__/revocation.live.test.ts` | Sesión cerrada desde otro dispositivo; logout con el access token vencido (revoca el par nuevo); logout con tokens ya revocados |
+| `realtime/__tests__/realtime.live.test.ts` | Conexión al WebSocket `/ws`, suscripción a una línea y recepción de sus micros (`bus:update`) |
+| `api/__tests__/complaints.live.test.ts` | "Mis reclamos" con cada filtro; crear un reclamo, que aparezca primero, adjuntarle 3 fotos y que el backend rechace la repetida y la cuarta |
+| `api/__tests__/companyDashboard.live.test.ts` | Con la cuenta de empresa del seed: sus micros y rutas, y que un reclamo nuevo de un pasajero por su ruta sume a sus pendientes (`GET /complaints/stats`) |
+| `api/__tests__/companyRoutes.live.test.ts` | El administrador crea paraderos en la ruta del seed y la empresa los ve en el orden del recorrido (`GET /routes/:id/stops`) |
+| `api/__tests__/driverTrip.live.test.ts` | Modo conductor: iniciar un recorrido pone la micro del seed `ACTIVE` con su ruta y finalizarlo la deja `INACTIVE` (`PATCH /buses/:id`) |
+| `realtime/__tests__/driverPublish.live.test.ts` | La posición que publica la empresa por el WebSocket le llega a quien escucha esa ruta; un pasajero no puede publicar |
+| `api/__tests__/fleet.live.test.ts` | Flota: registrar una micro en la empresa (queda `INACTIVE`), aplicarle el estado elegido, editar patente, capacidad, ruta y estado, y que el backend rechace una patente inválida |
+| `api/__tests__/companyComplaints.live.test.ts` | Reclamos de empresa: el pasajero reclama, la empresa lo ve, lo responde y lo cierra (y el backend no deja pasar de Resuelto a Pendiente); el pasajero ve la respuesta. Dar de baja una micro la elimina y una segunda vez da 404 |
+| `api/__tests__/adminDashboard.live.test.ts` | Dashboard del administrador: un reclamo nuevo suma al total, a los pendientes, a su categoría y a su línea (`GET /complaints/stats`) |
+| `api/__tests__/adminCompanies.live.test.ts` | Empresas del administrador: la empresa del seed con sus micros y rutas, un reclamo nuevo suma a sus pendientes, y una cuenta de empresa no puede listar empresas (403) |
+| `api/__tests__/companiesBackend.live.test.ts` | API de empresas (solo ADMIN): sin sesión 401, empresa 403; crear (RUT con formato y correo en minúsculas), RUT repetido 409, RUT inválido 400, editar, desactivar e incluir inactivas |
+| `api/__tests__/adminRoutes.live.test.ts` | Rutas del administrador: la ruta del seed con el nombre de su empresa y sus micros, y sus paraderos en el orden del recorrido |
 
 Las pruebas revisan la secuencia exacta de solicitudes que recibe el backend (ej.
 `/auth/me 401` → `/auth/refresh 200` → `/auth/me 200`), no solo el resultado final.
@@ -257,7 +343,7 @@ no se pide ubicación en segundo plano).
   concedido **sigue la posición** (`watchPositionAsync`, cada 20 m o 10 s) mientras la
   app está en primer plano; se pausa en segundo plano y se reanuda al volver. Así la
   verificación del paradero y las alertas se actualizan solas si el usuario se mueve.
-- `src/components/LocationCard.tsx` (pantalla Inicio): estado, coordenadas y
+- `src/components/LocationCard.tsx` (pantalla Mapa): estado, coordenadas y
   precisión; si el permiso quedó bloqueado, botón **Abrir ajustes**.
 
 El texto del permiso se configura en `app.json` (plugin `expo-location`).
@@ -280,7 +366,7 @@ El texto del permiso se configura en `app.json` (plugin `expo-location`).
   Si el backend falla no reintenta con cada posición: programa un reintento a los
   30 s y duplica la espera en cada fallo seguido (máximo 5 min). **Reintentar**
   consulta al instante.
-- `src/components/NearbyStopCard.tsx` (pantalla Inicio): paradero más cercano,
+- `src/components/NearbyStopCard.tsx` (pantalla Mapa): paradero más cercano,
   distancia y si está dentro del radio.
 
 ### Alertas de proximidad
@@ -289,23 +375,52 @@ Las alertas **solo se emiten si la verificación anterior da `inside`**. En
 cualquier otro estado (`outside`, `no-stops`, `low-accuracy` o sin ubicación) la
 app no consulta las micros y la tarjeta explica por qué las alertas están en pausa.
 
+**Con tiempo real** (WebSocket conectado) las alertas se revisan con cada
+posición nueva de las micros, sin consultar al servidor, y la tarjeta lo indica.
+**Sin conexión** vuelven a la consulta HTTP cada 15 s descrita abajo. Las micros
+simuladas nunca generan alertas.
+
 - `src/api/busesApi.ts`: posiciones de las micros activas (`GET /buses?status=ACTIVE`,
   campos `lastLatitude`, `lastLongitude`, `lastLocationAt`).
 - `src/alerts/proximityAlerts.ts`: reglas puras. Una micro genera alerta si su último
   reporte tiene menos de 2 minutos y está a `EXPO_PUBLIC_ALERT_RADIUS_M` metros o menos
   del paradero (por defecto 500). Se avisa una vez por micro; si sale del radio y vuelve,
   avisa de nuevo.
-- `src/hooks/useProximityAlerts.ts`: con el paradero confirmado consulta las micros cada
+- `src/hooks/useProximityAlerts.ts`: con el paradero confirmado usa las micros del
+  tiempo real (`liveBuses`) o, sin conexión, consulta las micros cada
   15 s, solo con la app en primer plano. Si el usuario sale del radio o cambia de
   paradero, detiene la consulta y limpia las alertas. Nunca hay dos consultas a la
   vez para el mismo paradero: si la red está lenta, se espera la que está en curso.
-- `src/components/ProximityAlertsCard.tsx` (pantalla Inicio): aviso con vibración
+- `src/components/ProximityAlertsCard.tsx` (pantalla Mapa): aviso con vibración
   ("La micro ABCD12 está a 350 m de Plaza de Armas."), micros que se acercan y
   botón **Buscar micros ahora**.
 
 Las alertas siempre se muestran en la app. Además respetan la Configuración:
 **Vibración** (vibrar o no) y **Notificaciones push** (también como notificación
 del teléfono). Ver "Notificaciones" más abajo.
+
+## Reclamos (pasajero)
+
+Pestaña **📋 Reclamos**, como `PassengerComplaintsPage` del web:
+
+- **Mis Reclamos** (`src/screens/ComplaintsScreen.tsx`, `useMyComplaints`):
+  `GET /complaints/my-complaints` con filtros por categoría y estado, una
+  tarjeta por reclamo (categoría, estado y respuesta del administrador) y
+  recarga deslizando hacia abajo.
+- **+ Crear reclamo** (`src/components/ComplaintForm.tsx`): título, categoría,
+  bus o ruta (al menos uno, así el backend sabe qué empresa responde),
+  descripción y **hasta 3 fotos** (cámara o galería). El reclamo nuevo aparece
+  primero en la lista.
+- **Línea y calificación:** `POST /complaints` en backend-go exige `lineName`
+  (7A, 7B o 1C) y `rating` (1 a 5) —`ValidateComplaintPayload`—, aunque el
+  formulario del web no los envía. Por eso el formulario de la app los pide.
+- **Fotos** (`src/complaints/photos.ts`): cada una se guarda de nuevo como JPEG
+  de máximo 2000 px por lado. Así una foto HEIC del iPhone igual se acepta, pesa
+  poco y **no lleva la ubicación GPS** ni otros datos EXIF. Se suben después de
+  crear el reclamo a `POST /complaints/:id/attachments` (multipart, campo
+  `file`). Si alguna falla, el reclamo igual queda creado y se avisa cuál.
+  Los textos de permiso de cámara y fotos están en `app.json`
+  (plugin `expo-image-picker`).
 
 ## Configuración del pasajero
 
@@ -397,7 +512,8 @@ al cerrar la app y al cerrar sesión.
 
 ## Perfil
 
-La pestaña **Perfil** muestra avatar con iniciales, nombre, tipo de cuenta, correo,
+La pestaña **👤 Mi Perfil** (el web no tiene esta página; usa su mismo
+encabezado y tarjetas, igual que **⚙️ Configuración**) muestra avatar con iniciales, nombre, tipo de cuenta, correo,
 estado de la cuenta y fecha de registro. Los datos se piden a `GET /auth/me` al
 entrar y al deslizar hacia abajo; si falla (ej. sin conexión), se conservan los
 datos ya cargados y se muestra un aviso.

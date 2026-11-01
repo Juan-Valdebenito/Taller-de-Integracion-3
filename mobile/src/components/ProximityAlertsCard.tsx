@@ -15,7 +15,7 @@ const MAX_LISTED = 3;
  */
 export function ProximityAlertsCard({ alerts }: { alerts: UseProximityAlertsResult }) {
   const styles = useStyles();
-  const { enabled, pausedReason, stop, approaching, alert, dismissAlert, loading, error, checkNow } = alerts;
+  const { enabled, pausedReason, stop, approaching, alert, dismissAlert, loading, error, checkNow, live } = alerts;
 
   if (!enabled) {
     return (
@@ -52,9 +52,13 @@ export function ProximityAlertsCard({ alerts }: { alerts: UseProximityAlertsResu
         <Text style={styles.description}>{loading ? 'Buscando micros cercanas…' : 'Ninguna micro se acerca por ahora.'}</Text>
       )}
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      <View style={styles.action}>
-        <Button title="Buscar micros ahora" onPress={checkNow} loading={loading} variant="secondary" />
-      </View>
+      {live ? (
+        <Text style={styles.live}>📡 En tiempo real: se revisa con cada posición de las micros.</Text>
+      ) : (
+        <View style={styles.action}>
+          <Button title="Buscar micros ahora" onPress={checkNow} loading={loading} variant="secondary" />
+        </View>
+      )}
     </View>
   );
 }
@@ -68,4 +72,5 @@ const useStyles = makeStyles((colors, font) => ({
   bus: { marginTop: spacing.xs, fontSize: font(15), fontWeight: '600', color: colors.text },
   error: { marginTop: spacing.sm, fontSize: font(14), color: colors.danger },
   action: { marginTop: spacing.sm, alignItems: 'flex-start' },
+  live: { marginTop: spacing.sm, fontSize: font(13), color: '#c084fc', lineHeight: font(18) },
 }));

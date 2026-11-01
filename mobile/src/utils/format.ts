@@ -40,3 +40,6 @@ export function formatLongDate(iso: string | undefined): string {
   }
   return `${date.getDate()} de ${MONTHS[date.getMonth()]} de ${date.getFullYear()}`;
 }
+
+/** "1 micro", "3 micros", "1 ruta activa", "2 rutas activas". */
+export const countLabel = (n: number, singular: string, plural: string) => `${n} ${n === 1 ? singular : plural}`;

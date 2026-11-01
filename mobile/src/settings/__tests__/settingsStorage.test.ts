@@ -13,7 +13,7 @@ describe('parseSettings', () => {
   });
 
   it('por defecto las notificaciones están desactivadas y el tema sigue al sistema', () => {
-    expect(DEFAULT_SETTINGS).toEqual({ notificationsEnabled: false, vibrationEnabled: true, theme: 'system', textSize: 'normal' });
+    expect(DEFAULT_SETTINGS).toEqual({ notificationsEnabled: false, vibrationEnabled: true, theme: 'dark', textSize: 'normal' });
   });
 
   it('lee preferencias válidas', () => {
@@ -23,7 +23,7 @@ describe('parseSettings', () => {
 
   it('un campo inválido vuelve a su valor por defecto sin perder el resto', () => {
     const raw = JSON.stringify({ notificationsEnabled: 'sí', vibrationEnabled: false, theme: 'violeta', textSize: 'extraLarge' });
-    expect(parseSettings(raw)).toEqual({ notificationsEnabled: false, vibrationEnabled: false, theme: 'system', textSize: 'extraLarge' });
+    expect(parseSettings(raw)).toEqual({ notificationsEnabled: false, vibrationEnabled: false, theme: 'dark', textSize: 'extraLarge' });
   });
 
   it.each(['{no es json', 'null', '42', '"texto"'])('datos dañados (%p) → valores por defecto', (raw) => {
@@ -32,8 +32,8 @@ describe('parseSettings', () => {
 
   it('devuelve una copia: modificarla no altera los valores por defecto', () => {
     const settings = parseSettings(null);
-    settings.theme = 'dark';
-    expect(DEFAULT_SETTINGS.theme).toBe('system');
+    settings.theme = 'light';
+    expect(DEFAULT_SETTINGS.theme).toBe('dark');
   });
 });
 

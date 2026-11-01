@@ -27,7 +27,8 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   notificationsEnabled: false,
   vibrationEnabled: true,
-  theme: 'system',
+  // Oscuro, como el frontend web (que siempre es oscuro).
+  theme: 'dark',
   textSize: 'normal',
 });
 
