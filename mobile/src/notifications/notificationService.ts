@@ -3,8 +3,8 @@
  *
  * Son notificaciones locales: las crea la app cuando detecta una micro que se
  * acerca al paradero (ver useProximityAlerts). Funcionan en Expo Go. Las push
- * enviadas desde un servidor requieren un build con EAS y un endpoint en el
- * backend para registrar el token del dispositivo.
+ * enviadas por backend-go se registran en pushRegistration.ts y requieren un
+ * build con EAS.
  */
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';

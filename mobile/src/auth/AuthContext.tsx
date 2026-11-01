@@ -14,6 +14,7 @@ import { AppState } from 'react-native';
 import * as authApi from '../api/authApi';
 import { ApiError } from '../api/errors';
 import { renewIfExpiringSoon, setSessionExpiredHandler } from '../api/interceptor';
+import { unregisterPushBeforeSignOut } from '../notifications/pushRegistration';
 import type { AuthUser, LoginInput, RegisterInput } from './types';
 
 export type AuthStatus = 'loading' | 'signedOut' | 'signedIn';
@@ -114,6 +115,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [clearRestoreError]);
 
   const signOut = useCallback(async () => {
+    // Con la sesión todavía válida: que no lleguen más avisos de esta cuenta al teléfono.
+    await unregisterPushBeforeSignOut();
     const { serverConfirmed } = await authApi.logout();
     clearRestoreError();
     setSignOutNotice(

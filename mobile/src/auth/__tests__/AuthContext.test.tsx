@@ -4,10 +4,12 @@ import { Text } from 'react-native';
 import * as authApi from '../../api/authApi';
 import { ApiError } from '../../api/errors';
 import { renewIfExpiringSoon, setSessionExpiredHandler } from '../../api/interceptor';
+import { unregisterPushBeforeSignOut } from '../../notifications/pushRegistration';
 import { mockAppState } from '../../test-utils/appState';
 import { AuthProvider, useAuth, type AuthContextValue } from '../AuthContext';
 
 jest.mock('../../api/authApi');
+jest.mock('../../notifications/pushRegistration', () => ({ unregisterPushBeforeSignOut: jest.fn(async () => undefined) }));
 jest.mock('../../api/interceptor', () => {
   const actual = jest.requireActual('../../api/interceptor');
   return { ...actual, setSessionExpiredHandler: jest.fn(), renewIfExpiringSoon: jest.fn() };
@@ -159,6 +161,8 @@ describe('AuthProvider', () => {
     expect(screen.getByText('estado:signedOut')).toBeTruthy();
     expect(mockedApi.logout).toHaveBeenCalledTimes(1);
     expect(auth.signOutNotice).toBeNull();
+    // El teléfono deja de recibir avisos antes de invalidar la sesión.
+    expect(jest.mocked(unregisterPushBeforeSignOut).mock.invocationCallOrder[0]).toBeLessThan(mockedApi.logout.mock.invocationCallOrder[0]!);
   });
 
   it('avisa si el servidor no confirmó la lista negra, y limpia el aviso al volver a entrar', async () => {

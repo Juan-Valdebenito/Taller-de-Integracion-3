@@ -8,6 +8,8 @@ import { PageTitle } from '../components/PageTitle';
 import { SegmentedControl, type SegmentedOption } from '../components/SegmentedControl';
 import { SettingSwitchRow } from '../components/SettingSwitchRow';
 import { useNotificationPreference } from '../hooks/useNotificationPreference';
+import { usePushRegistrationState } from '../hooks/usePushRegistration';
+import type { PushRegistrationState } from '../notifications/pushRegistration';
 import { useSettings } from '../settings/SettingsContext';
 import type { TextSizePreference, ThemePreference } from '../settings/settingsStorage';
 import { makeStyles, radius, spacing } from '../theme';
@@ -33,6 +35,7 @@ export function SettingsScreen() {
   const styles = useStyles();
   const { settings, saveError, updateSettings, resetSettings } = useSettings();
   const notifications = useNotificationPreference();
+  const pushText = pushStatusText(usePushRegistrationState());
   const notificationNotice = notifications.revoked
     ? 'Quitaste el permiso de notificaciones en los ajustes del teléfono. Actívalo de nuevo para recibir alertas.'
     : notifications.message;
@@ -81,12 +84,17 @@ export function SettingsScreen() {
           ) : (
             <SettingSwitchRow
               label="Notificaciones push"
-              description="Recibe en el teléfono las alertas de micros que se acercan a tu paradero."
+              description="Recibe en el teléfono las alertas de micros que se acercan a tu paradero y los avisos cuando respondan tus reclamos."
               value={notifications.enabled}
               onValueChange={notifications.setEnabled}
               disabled={notifications.busy}
             />
           )}
+          {notifications.enabled && pushText ? (
+            <Text style={styles.pushStatus} accessibilityLiveRegion="polite">
+              {pushText}
+            </Text>
+          ) : null}
           {notificationNotice ? (
             <View style={styles.notice}>
               <Text style={styles.noticeText} accessibilityRole="alert">
@@ -160,6 +168,26 @@ export function SettingsScreen() {
   );
 }
 
+/** Estado del registro para avisos del servidor (las alertas de proximidad funcionan igual). */
+function pushStatusText(state: PushRegistrationState): string | null {
+  switch (state.status) {
+    case 'registered':
+      return 'Este teléfono también recibe avisos del servidor, por ejemplo cuando responden tus reclamos.';
+    case 'registering':
+      return 'Registrando este teléfono para los avisos del servidor...';
+    case 'error':
+      return 'No se pudo registrar este teléfono para los avisos del servidor. Se volverá a intentar al abrir la app.';
+    case 'unavailable':
+      return state.reason === 'missing-project'
+        ? 'Los avisos del servidor (respuestas a tus reclamos) aún no están habilitados en esta versión de la app.'
+        : state.reason === 'device'
+          ? 'Este teléfono no puede recibir avisos del servidor (por ejemplo, en Expo Go o en un emulador). Las alertas de proximidad sí funcionan.'
+          : null;
+    default:
+      return null;
+  }
+}
+
 const useStyles = makeStyles((colors, font) => ({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xl },
@@ -177,6 +205,7 @@ const useStyles = makeStyles((colors, font) => ({
   card: { padding: spacing.md, marginBottom: spacing.md },
   notice: { backgroundColor: colors.warningBg, borderRadius: radius.md, padding: spacing.sm, marginTop: spacing.xs },
   noticeText: { fontSize: font(13), lineHeight: font(18), color: colors.text },
+  pushStatus: { marginTop: spacing.xs, fontSize: font(12), lineHeight: font(17), color: colors.muted },
   noticeAction: { alignItems: 'flex-start' },
   test: { alignItems: 'flex-start' },
   testFeedback: { fontSize: font(13), color: colors.muted, marginTop: spacing.xs },

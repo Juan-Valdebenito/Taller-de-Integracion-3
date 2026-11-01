@@ -1,6 +1,7 @@
 import { login, logout } from '../../api/authApi';
 import { describeLive, resetSecureStore, SEED_COMPANY, SEED_PASSENGER } from '../../test-utils/live/backend';
 import { apiRequest } from '../client';
+import { registerPushToken, unregisterPushToken } from '../pushApi';
 
 // Registro del teléfono para notificaciones push contra backend-go real.
 
@@ -20,9 +21,9 @@ describeLive('tokens de notificaciones push en backend-go real', () => {
     for (const account of [SEED_PASSENGER, SEED_COMPANY]) {
       await login(account);
       try {
-        await expect(apiRequest('/me/push-token', { method: 'PUT', body: { token: phone, platform: 'android' } })).resolves.toBeNull();
+        await expect(registerPushToken(phone, 'android')).resolves.toBeUndefined();
         // Registrar de nuevo es idempotente (el mismo teléfono con otra cuenta pasa a esa cuenta).
-        await expect(apiRequest('/me/push-token', { method: 'PUT', body: { token: phone, platform: 'ios' } })).resolves.toBeNull();
+        await expect(registerPushToken(phone, 'ios')).resolves.toBeUndefined();
         await expect(apiRequest('/me/push-token', { method: 'PUT', body: { token: 'no-es-un-token', platform: 'android' } })).rejects.toMatchObject({ status: 400 });
         await expect(apiRequest('/me/push-token', { method: 'PUT', body: { token: phone, platform: 'web' } })).rejects.toMatchObject({ status: 400 });
       } finally {
@@ -32,7 +33,7 @@ describeLive('tokens de notificaciones push en backend-go real', () => {
 
     await login(SEED_COMPANY);
     try {
-      await expect(apiRequest('/me/push-token', { method: 'DELETE', body: { token: phone } })).resolves.toBeNull();
+      await expect(unregisterPushToken(phone)).resolves.toBeUndefined();
       // Quitar uno que ya no está también responde bien.
       await expect(apiRequest('/me/push-token', { method: 'DELETE', body: { token: phone } })).resolves.toBeNull();
     } finally {
