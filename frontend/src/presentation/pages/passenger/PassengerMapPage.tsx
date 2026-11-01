@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { apiClient } from '../../../infrastructure/api/apiClient';
 import { ComplaintModal } from '../../components/passenger/ComplaintModal';
 import { LiveMap, BusData, HazardData } from '../../components/passenger/LiveMap';
 import { HazardModal } from '../../components/passenger/HazardModal';
@@ -87,7 +87,7 @@ export function PassengerMapPage() {
 
   useEffect(() => {
     // Carga inicial vía REST
-    axios.get('/api/v1/buses')
+    apiClient.get('/buses')
       .then((res) => {
         const rawList = Array.isArray(res.data) ? res.data : (res.data?.data || []);
         if (Array.isArray(rawList) && rawList.length > 0) {

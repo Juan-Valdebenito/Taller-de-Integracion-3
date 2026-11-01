@@ -42,13 +42,12 @@ FOUNDATION_FILES=(
   services/redis_server/redis-server-deployment.yml
   services/backend-go/backend-go-deployment.yaml
   services/backend-go/backend-go-service.yaml
+  ingress/backend-go-ingress.yaml
 )
 
 # ── Stack "app": student-tpenroz ──────────────────────────────
 APP_FILES=(
   services/frontend/frontend-deployment.yaml
-  ingress/backend-go-bridge.yaml
-  ingress/backend-go-ingress.yaml
   ingress/frontend-ingress.yaml
 )
 
@@ -93,6 +92,7 @@ load_env() {
   APP_NAMESPACE="${APP_NAMESPACE:-student-tpenroz}"
   REALTIME_NAMESPACE="${REALTIME_NAMESPACE:-student-iglausser}"
   APP_HOST="${APP_HOST:-backend-tpenroz.dev.censei.cl}"
+  API_HOST="${API_HOST:-api-backend-tpenroz.dev.censei.cl}"
   REALTIME_HOST="${REALTIME_HOST:-realtime-backend-tpenroz.dev.censei.cl}"
   # El cluster usa la clase global ingress-nginx; no se crean clases por namespace.
   APP_INGRESS_CLASS="${APP_INGRESS_CLASS:-nginx}"
@@ -145,6 +145,7 @@ cmd_render() {
       -e "s#namespace: student-[a-z0-9-]+#namespace: $NAMESPACE#" \
       -e "s#https://<HOST>#$APP_SCHEME://$APP_HOST#g" \
       -e "s#<HOST>#$APP_HOST#g" \
+      -e "s#<API_HOST>#$API_HOST#g" \
       -e "s#<APP_HOST>#$APP_HOST#g" \
       -e "s#<FOUNDATION_NAMESPACE>#$FOUNDATION_NAMESPACE#g" \
       -e "s#<APP_NAMESPACE>#$APP_NAMESPACE#g" \
@@ -219,7 +220,7 @@ cmd_build() {
   cd "$ROOT"
   docker build -f backend-go/Dockerfile -t "$DOCKERHUB_USER/backend-go:$IMAGE_TAG" .
   docker build -t "$DOCKERHUB_USER/transithub-realtime:$IMAGE_TAG" backend/
-  docker build -t "$DOCKERHUB_USER/transithub-frontend:$IMAGE_TAG" frontend/
+  docker build --build-arg VITE_API_BASE_URL="$APP_SCHEME://$API_HOST" -t "$DOCKERHUB_USER/transithub-frontend:$IMAGE_TAG" frontend/
   docker push "$DOCKERHUB_USER/backend-go:$IMAGE_TAG"
   docker push "$DOCKERHUB_USER/transithub-realtime:$IMAGE_TAG"
   docker push "$DOCKERHUB_USER/transithub-frontend:$IMAGE_TAG"

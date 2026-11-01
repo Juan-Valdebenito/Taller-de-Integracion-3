@@ -20,13 +20,13 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host: api-backend-tpenroz.dev.censei.cl # usa un hostname permitido y exclusivo
+    - host: <API_HOST>
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: bridge-to-backend
+                name: backend-go-svc
                 port:
                   number: 3001

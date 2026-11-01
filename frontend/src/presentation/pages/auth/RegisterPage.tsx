@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
+import { apiClient } from '../../../infrastructure/api/apiClient';
 import { useAuth } from '../../context/AuthContext';
 
 export function RegisterPage() {
@@ -26,7 +26,7 @@ export function RegisterPage() {
     setIsLoading(true);
 
     try {
-      const res = await axios.post('/api/v1/auth/register', {
+      const res = await apiClient.post('/auth/register', {
         name,
         email,
         password,

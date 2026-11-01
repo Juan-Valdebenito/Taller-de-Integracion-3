@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Socket } from 'socket.io-client';
-import axios from 'axios';
+import { apiClient } from '../../../infrastructure/api/apiClient';
 import {
   FaTimes,
   FaCreditCard,
@@ -124,7 +124,7 @@ export const DevToolsSimulationPanel: React.FC<DevToolsSimulationPanelProps> = (
         setLocalLog(`✓ Simulación local: ${eventNames[eventType] || eventType}`);
       } else {
         // 3. Fallback REST
-        const res = await axios.post('http://localhost:3001/api/v1/buses/simulate-event', {
+        const res = await apiClient.post('/buses/simulate-event', {
           busId: currentBus.id,
           eventType,
         });
