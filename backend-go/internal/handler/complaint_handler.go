@@ -28,6 +28,19 @@ type ComplaintHandler struct {
 	// files borra los archivos de las imágenes al eliminar un reclamo; nil si
 	// no hay almacenamiento de imágenes.
 	files complaintFilesRemover
+	// notifier avisa al pasajero por push cuando cambia su reclamo; nil = sin avisos.
+	notifier complaintNotifier
+}
+
+// complaintNotifier lo implementa push.ComplaintNotifier (envía en segundo plano).
+type complaintNotifier interface {
+	ComplaintUpdated(before, after *domain.Complaint)
+}
+
+// WithNotifier conecta los avisos push al pasajero cuando cambia su reclamo.
+func (h *ComplaintHandler) WithNotifier(notifier complaintNotifier) *ComplaintHandler {
+	h.notifier = notifier
+	return h
 }
 
 // complaintFilesRemover lo implementa service.AttachmentService.
@@ -352,6 +365,10 @@ func (h *ComplaintHandler) UpdateStatus(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar estado del reclamo"})
 		return
+	}
+	// El pasajero recibe un aviso en el teléfono (no se espera a que llegue).
+	if h.notifier != nil && complaint != nil {
+		h.notifier.ComplaintUpdated(existing, complaint)
 	}
 	c.JSON(http.StatusOK, complaint)
 }

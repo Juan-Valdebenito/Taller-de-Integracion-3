@@ -48,6 +48,8 @@ if (!databaseName || PROTECTED_DATABASES.includes(databaseName)) {
   fail(`No se corren las pruebas en vivo contra "${databaseName || '(sin base)'}": usa una base de prueba.`);
 }
 const port = process.env.LIVE_PORT || '3995';
+// Servidor de Expo Push falso: lo levanta la prueba en vivo de notificaciones.
+const pushPort = process.env.LIVE_PUSH_PORT || '3996';
 const accessTtl = process.env.LIVE_JWT_ACCESS_EXPIRES_IN || '5s';
 const baseUrl = `http://127.0.0.1:${port}`;
 
@@ -124,6 +126,8 @@ server = spawn(serverBin, [], {
     SIMULATION_ENABLED: 'true',
     REDIS_ADDR: '',
     ATTACHMENTS_DIR: join(workDir, 'attachments'),
+    // Las notificaciones push van a un servidor falso, nunca al servicio real de Expo.
+    EXPO_PUSH_URL: `http://127.0.0.1:${pushPort}/push`,
     // Las pruebas inician sesión y renuevan tokens decenas de veces en segundos
     // (un usuario real renueva cada ~15 min) y no prueban los límites de
     // intentos: se suben para que no respondan 429 según el orden de las
@@ -160,6 +164,7 @@ try {
       LIVE_JWT_ACCESS_EXPIRES_IN: accessTtl,
       // Para comprobar que no quedan archivos de imágenes sin registro.
       LIVE_ATTACHMENTS_DIR: join(workDir, 'attachments'),
+      LIVE_PUSH_PORT: pushPort,
     },
   });
   exitCode = jest.status ?? 1;

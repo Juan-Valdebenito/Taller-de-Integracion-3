@@ -354,6 +354,8 @@ sandbox` y `Cache-Control: private, no-store` (no se guarda en cachés intermedi
 | Variable | Por defecto | Uso |
 |----------|-------------|-----|
 | `ATTACHMENTS_DIR` | `./data/attachments` | Carpeta de las imágenes (excluida de Git). En el cluster, un volumen persistente |
+| `EXPO_PUSH_URL` | `https://exp.host/--/api/v2/push/send` | Servicio de Expo Push para avisar al pasajero cuando cambia su reclamo |
+| `EXPO_ACCESS_TOKEN` | — | Opcional (secreto): solo si el proyecto de EAS exige autenticación para enviar push |
 | `RATE_LIMIT_UPLOAD_PER_MIN` | `10` | Subidas por minuto por IP |
 | `RATE_LIMIT_UPLOAD_BURST` | `3` | Subidas seguidas permitidas por IP |
 

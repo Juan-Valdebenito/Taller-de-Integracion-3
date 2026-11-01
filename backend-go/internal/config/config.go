@@ -24,6 +24,14 @@ type Config struct {
 	// (ATTACHMENTS_DIR). En el cluster, un volumen persistente montado ahí.
 	AttachmentsDir string
 
+	// ── Notificaciones push (Expo Push) ───────────────────────────────────
+	// ExpoPushURL: servicio de envío (EXPO_PUSH_URL; por defecto el de Expo).
+	// En las pruebas en vivo apunta a un servidor falso.
+	ExpoPushURL string
+	// ExpoAccessToken: token opcional de EAS si el proyecto exige
+	// autenticación para enviar push (EXPO_ACCESS_TOKEN). Es un secreto.
+	ExpoAccessToken string
+
 	// MigrationsEnabled: aplicar las migraciones de internal/migrations al
 	// iniciar (MIGRATIONS_ENABLED, por defecto true).
 	MigrationsEnabled bool
@@ -129,6 +137,8 @@ func Load() *Config {
 		Env:         getEnv("NODE_ENV", "development"),
 
 		AttachmentsDir: attachmentsDir(),
+		ExpoPushURL:     getEnv("EXPO_PUSH_URL", DefaultExpoPushURL),
+		ExpoAccessToken: os.Getenv("EXPO_ACCESS_TOKEN"),
 
 		MigrationsEnabled: getEnvBool("MIGRATIONS_ENABLED", true),
 
@@ -170,6 +180,9 @@ func Load() *Config {
 		GRPCTimeout:       grpcTimeout,
 	}
 }
+
+// DefaultExpoPushURL es el servicio de envío de Expo Push.
+const DefaultExpoPushURL = "https://exp.host/--/api/v2/push/send"
 
 // DefaultAttachmentsDir: carpeta de imágenes si no se define ATTACHMENTS_DIR
 // (relativa a donde se ejecuta el backend; está excluida de Git).

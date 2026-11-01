@@ -23,6 +23,8 @@ export type NotificationPermission = 'granted' | 'undetermined' | 'denied' | 'bl
 /** Canales de Android: la vibración se define por canal, por eso hay uno con y otro sin. */
 export const ALERTS_CHANNEL_ID = 'proximity-alerts';
 export const SILENT_ALERTS_CHANNEL_ID = 'proximity-alerts-silent';
+/** Canal de los avisos que manda backend-go sobre los reclamos (mismo id que push.ComplaintChannelID). */
+export const COMPLAINT_CHANNEL_ID = 'complaint-updates';
 
 function toPermission(status: Notifications.NotificationPermissionsStatus): NotificationPermission {
   if (status.granted || status.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL) {
@@ -76,6 +78,11 @@ export async function setupNotifications(): Promise<void> {
         importance: Notifications.AndroidImportance.HIGH,
         enableVibrate: false,
         vibrationPattern: null,
+      }),
+      Notifications.setNotificationChannelAsync(COMPLAINT_CHANNEL_ID, {
+        name: 'Respuestas a tus reclamos',
+        description: 'Avisos cuando cambia el estado de un reclamo o te responden.',
+        importance: Notifications.AndroidImportance.DEFAULT,
       }),
     ]);
   }

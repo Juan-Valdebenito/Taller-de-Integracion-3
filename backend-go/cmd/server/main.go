@@ -15,6 +15,7 @@ import (
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/infrastructure/grpcclient"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/logger"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/middleware"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/push"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/repository"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/router"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/seed"
@@ -202,10 +203,17 @@ func main() {
 
 	// Servicio y endpoints de imágenes: requieren base de datos y almacenamiento.
 	// Sin alguno de los dos, attachmentH queda nil y las rutas responden 503.
-	// Teléfonos registrados para notificaciones push.
+	// Teléfonos registrados para notificaciones push, y avisos al pasajero
+	// cuando cambia el estado de su reclamo (Expo Push).
 	var pushH *handler.PushTokenHandler
+	var complaintNotifier *push.ComplaintNotifier
 	if dbAvailable {
-		pushH = handler.NewPushTokenHandler(repository.NewPushTokenRepository(pool))
+		pushTokens := repository.NewPushTokenRepository(pool)
+		pushH = handler.NewPushTokenHandler(pushTokens)
+		complaintNotifier = push.NewComplaintNotifier(pushTokens, push.NewExpoClient(cfg.ExpoPushURL, cfg.ExpoAccessToken))
+		if complaintH != nil {
+			complaintH.WithNotifier(complaintNotifier)
+		}
 	}
 
 	var attachmentH *handler.AttachmentHandler

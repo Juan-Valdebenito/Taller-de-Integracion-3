@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo } from 'react';
 
 import { AuthProvider, useAuth } from '../auth/AuthContext';
+import { useNotificationNavigation } from '../hooks/useNotificationNavigation';
 import { usePushRegistrationSync } from '../hooks/usePushRegistration';
 import { setupNotifications } from '../notifications/notificationService';
 import { SettingsProvider, useSettings } from '../settings/SettingsContext';
@@ -22,6 +23,8 @@ function RootNavigator() {
   const [fontsLoaded, fontError] = useFonts(INTER_FONTS);
   // Registra el teléfono para push del servidor (si hay sesión y están activas).
   usePushRegistrationSync();
+  // Tocar un aviso del servidor abre su pantalla (ej. Reclamos).
+  useNotificationNavigation();
   const ready = status !== 'loading' && settingsLoaded && (fontsLoaded || fontError !== null);
 
   useEffect(() => {

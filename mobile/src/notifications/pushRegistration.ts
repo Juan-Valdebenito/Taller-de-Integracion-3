@@ -15,6 +15,7 @@ import { Platform } from 'react-native';
 
 import { registerPushToken, unregisterPushToken } from '../api/pushApi';
 import { isWeb } from '../utils/platform';
+import { setupNotifications } from './notificationService';
 
 export type PushRegistrationState =
   | { status: 'off' }
@@ -102,6 +103,8 @@ async function sync(userId: string | null, enabled: boolean): Promise<void> {
   setState({ status: 'registering' });
   let token: string;
   try {
+    // En Android 13 los canales deben existir antes de pedir el token.
+    await setupNotifications();
     token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
   } catch {
     // Expo Go, emulador sin Google Play o sin credenciales de push.

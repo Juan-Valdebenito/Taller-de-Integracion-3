@@ -31,3 +31,7 @@ export const setNotificationChannelAsync = jest.fn(async () => null);
 export const scheduleNotificationAsync = jest.fn(async () => 'notification-id');
 /** Token de Expo Push de prueba (en un build real lo entrega el servicio de Expo). */
 export const getExpoPushTokenAsync = jest.fn(async () => ({ type: 'expo', data: 'ExponentPushToken[test-device-0001]' }));
+/** Toque en una notificación (null = ninguno). */
+export const DEFAULT_ACTION_IDENTIFIER = 'expo.modules.notifications.actions.DEFAULT';
+export const useLastNotificationResponse = jest.fn(() => null);
+export const clearLastNotificationResponseAsync = jest.fn(async () => undefined);
