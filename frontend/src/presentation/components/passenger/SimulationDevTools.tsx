@@ -1,14 +1,17 @@
 /**
  * SimulationDevTools.tsx
  *
- * Panel flotante de simulaci髇 de sensores y pagos.
+ * Panel flotante de simulaci贸n de sensores y pagos.
  *
- * Cambios vs versi髇 anterior:
+ * Cambios vs versi贸n anterior:
  * - Eliminada dependencia de Socket.io (socket: Socket | null)
- * - Eventos inyectados via sendMessage() del socketClient nativo (Go /ws)
+ * - Eventos inyectados via sendMessage() del socketClient nativo (Go /ws),
+ *   con el token de la sesion: el backend solo acepta publicaciones de una
+ *   empresa (sus micros) o de un administrador. Si las rechaza, el panel lo
+ *   muestra y aplica el evento solo en el mapa local.
  * - Fallback: WS nativo -> REST -> estado local
  * - Props adaptadas al nuevo BusState (latitude/longitude, routeId)
- * - Selector de bus din醡ico con buses reales del mapa
+ * - Selector de bus din谩mico con buses reales del mapa
  */
 
 import React, { useState, useCallback } from 'react';
@@ -16,6 +19,7 @@ import { FaTimes, FaCreditCard, FaUserGraduate, FaSignOutAlt, FaBolt, FaTrash, F
 import {
   sendMessage,
   isConnected,
+  onMessage,
   type PublishMessage,
 } from '../../../infrastructure/socket/socketClient';
 import type { BusState } from '../../../hooks/useSimulatedBuses';
@@ -23,7 +27,7 @@ import type { ConnectionStatus } from '../../../hooks/useSocketBuses';
 import './SimulationDevTools.css';
 
 // Tipos de eventos soportados
-type SimEventType =
+export type SimEventType =
   | 'tap_in_normal'
   | 'tap_in_student'
   | 'sensor_alight'
@@ -45,8 +49,30 @@ const EVENT_META: Record<SimEventType, EventMeta> = {
   empty_capacity: { label: 'Vaciar bus (0)',     delta: 'empty' },
 };
 
-// Token de simulacion para el backend Go
-const SIM_TOKEN = (import.meta as any).env?.VITE_SIM_TOKEN ?? 'sim-dev-token';
+// Cuanto se espera un rechazo del servidor tras publicar (no confirma los aciertos).
+const REJECTION_WINDOW_MS = 1500;
+
+/**
+ * Publica por el WebSocket y espera un posible rechazo. Devuelve el mensaje
+ * del servidor si la rechazo, o null si no llego ningun error a tiempo.
+ */
+function publishAndWatch(msg: PublishMessage): Promise<string | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result: string | null) => {
+      if (settled) return;
+      settled = true;
+      stop();
+      clearTimeout(timer);
+      resolve(result);
+    };
+    const stop = onMessage((incoming) => {
+      if (incoming.type === 'error') finish(incoming.message);
+    });
+    const timer = setTimeout(() => finish(null), REJECTION_WINDOW_MS);
+    sendMessage(msg);
+  });
+}
 
 interface SimulationDevToolsProps {
   buses: BusState[];
@@ -107,11 +133,12 @@ export const SimulationDevTools: React.FC<SimulationDevToolsProps> = ({
           pass = 0;
         }
 
-        // 1. Intentar via WebSocket nativo Go
-        if (isConnected()) {
+        // 1. Intentar via WebSocket nativo Go, con el token de la sesion.
+        const token = localStorage.getItem('token');
+        if (isConnected() && token) {
           const msg: PublishMessage = {
             type: 'publish',
-            token: SIM_TOKEN,
+            token,
             data: {
               busId: currentBus.id,
               routeId: currentBus.routeId,
@@ -126,8 +153,13 @@ export const SimulationDevTools: React.FC<SimulationDevToolsProps> = ({
               studentBoardings,
             },
           };
-          sendMessage(msg);
-          setLog('WS -> ' + meta.label + ' | Bus ' + currentBus.id + ' | ' + pass + '/' + cap + ' pasajeros');
+          const rejection = await publishAndWatch(msg);
+          if (rejection) {
+            onLocalEvent?.(currentBus.id, eventType);
+            setLog('El servidor rechaz贸 la publicaci贸n (' + rejection + '). Aplicado solo en este mapa.');
+          } else {
+            setLog('WS -> ' + meta.label + ' | Bus ' + currentBus.id + ' | ' + pass + '/' + cap + ' pasajeros');
+          }
         } else {
           // 2. Fallback REST
           try {
