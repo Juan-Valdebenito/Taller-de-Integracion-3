@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 
@@ -12,6 +13,9 @@ import (
 )
 
 const (
+	// Tiempo máximo para comprobar en la base que la micro sea de quien publica.
+	authorizeTimeout = 5 * time.Second
+
 	// Tiempo máximo para escribir un mensaje al cliente.
 	writeWait = 10 * time.Second
 
@@ -43,6 +47,10 @@ type Client struct {
 	// revStore rechaza tokens revocados (logout o revocación de un admin);
 	// nil = sin comprobación (solo en la demo local).
 	revStore token.RevocationStore
+
+	// authz comprueba que la micro y la ruta sean de quien publica; nil = sin
+	// comprobación (solo en la demo local).
+	authz PublishAuthorizer
 }
 
 // NewClient crea un nuevo Client asociado al Hub.
@@ -205,6 +213,18 @@ func (c *Client) handlePublish(raw []byte) {
 	if msg.Data.BusID == "" || msg.Data.RouteID == "" {
 		c.sendError("INVALID_MESSAGE", "busId y routeId son requeridos")
 		return
+	}
+
+	// Una empresa solo publica la posición de sus micros, en sus rutas.
+	if c.authz != nil {
+		userID, _ := claims["id"].(string)
+		ctx, cancel := context.WithTimeout(context.Background(), authorizeTimeout)
+		problem := c.authz.CanPublish(ctx, userID, role, msg.Data.BusID, msg.Data.RouteID)
+		cancel()
+		if problem != "" {
+			c.sendError("FORBIDDEN", problem)
+			return
+		}
 	}
 
 	// Enviar al Hub para broadcast

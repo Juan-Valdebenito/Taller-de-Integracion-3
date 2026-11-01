@@ -26,6 +26,15 @@ type WSHandler struct {
 	origins   []string
 	// revStore rechaza tokens revocados al publicar (ver WithRevocation).
 	revStore token.RevocationStore
+	// authz limita qué micros puede publicar cada cuenta (ver WithPublishAuthorizer).
+	authz PublishAuthorizer
+}
+
+// WithPublishAuthorizer hace que una empresa solo pueda publicar la posición de
+// sus micros, en rutas de su empresa.
+func (h *WSHandler) WithPublishAuthorizer(authz PublishAuthorizer) *WSHandler {
+	h.authz = authz
+	return h
 }
 
 // WithRevocation hace que las publicaciones con un token revocado (logout o
@@ -72,6 +81,7 @@ func (h *WSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	client := NewClient(h.hub, conn, h.jwtSecret)
 	client.revStore = h.revStore
+	client.authz = h.authz
 	h.hub.register <- client
 
 	// Lanzar goroutines de lectura y escritura

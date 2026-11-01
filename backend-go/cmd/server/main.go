@@ -161,6 +161,16 @@ func main() {
 	go hub.Run()
 
 	wsHandler := ws.NewWSHandler(hub, cfg.JWTSecret, cfg.CORSOrigins).WithRevocation(revStore)
+	// Una empresa solo publica la posición de sus micros, en sus rutas.
+	if dbAvailable {
+		wsHandler.WithPublishAuthorizer(ws.RepoAuthorizer{
+			Users:  repository.NewUserRepository(pool),
+			Buses:  repository.NewBusRepository(pool),
+			Routes: repository.NewRouteRepository(pool),
+		})
+	} else {
+		wsHandler.WithPublishAuthorizer(ws.UnavailableAuthorizer{})
+	}
 	log.Info().Str("event", "websocket_ready").Str("path", "/ws").Msg("WebSocket Pub/Sub active")
 
 	// â”€â”€ SimulaciÃ³n GPS (buses virtuales rutas 7A, 7B, 1C) â”€â”€â”€â”€â”€
