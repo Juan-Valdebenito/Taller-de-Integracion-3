@@ -27,6 +27,8 @@ const (
 // compartida entre pods); el middleware no depende de cuál sea.
 func Authenticate(jwtSecret string, store token.RevocationStore) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// La autenticación responde 401 ante credenciales ausentes/inválidas y
+		// 503 si no puede consultar revocaciones; nunca sigue con autorización dudosa.
 		authHeader := c.GetHeader("Authorization")
 		if !strings.HasPrefix(authHeader, "Bearer ") {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Token de autenticación requerido"})
@@ -94,6 +96,8 @@ func Authenticate(jwtSecret string, store token.RevocationStore) gin.HandlerFunc
 // Authorize verifica que el rol del usuario autenticado sea uno de los permitidos.
 func Authorize(roles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Authenticate guarda role en el contexto. Aquí solo se decide permiso:
+		// estar autenticado no implica tener acceso a una operación administrativa.
 		roleVal, exists := c.Get(ContextUserRole)
 		if !exists {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "No autenticado"})
@@ -122,6 +126,8 @@ func Authorize(roles ...string) gin.HandlerFunc {
 // pero no interrumpe la petición si no viene token.
 func OptionalAuthenticate(jwtSecret string, store token.RevocationStore) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Se usa en rutas que aceptan visitantes y usuarios: una sesión válida
+		// añade identidad al contexto, pero su ausencia no detiene la petición.
 		authHeader := c.GetHeader("Authorization")
 		if strings.HasPrefix(authHeader, "Bearer ") {
 			tokenStr := strings.TrimPrefix(authHeader, "Bearer ")

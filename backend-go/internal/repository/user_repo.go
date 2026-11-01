@@ -1,5 +1,9 @@
 package repository
 
+// Los repositorios son la única capa que conoce SQL y el esquema PostgreSQL.
+// Devuelven modelos del dominio y traducen errores de restricciones a errores
+// que el handler puede convertir en respuestas HTTP comprensibles.
+
 import (
 	"context"
 	"errors"

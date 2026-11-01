@@ -1,5 +1,6 @@
 apiVersion: apps/v1
 kind: Deployment
+# Servicio de micros: mantiene paraderos/rutas y expone API HTTP más RPC gRPC.
 metadata:
   name: micros-service
   namespace: student-jvaldebenito
@@ -32,6 +33,7 @@ spec:
             - name: grpc
               containerPort: 9091
           envFrom:
+            # ConfigMap contiene ajustes públicos; Secret guarda la clave de administración.
             - configMapRef:
                 name: micros-configmap
             - secretRef:

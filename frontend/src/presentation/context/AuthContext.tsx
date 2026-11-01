@@ -46,7 +46,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const stored = localStorage.getItem('user');
     if (stored && stored !== 'undefined') {
       try {
-        return JSON.parse(stored) as AuthUser;
+        const parsed: unknown = JSON.parse(stored);
+        if (
+          typeof parsed === 'object' &&
+          parsed !== null &&
+          'id' in parsed && typeof parsed.id === 'string' &&
+          'name' in parsed && typeof parsed.name === 'string' &&
+          'email' in parsed && typeof parsed.email === 'string' &&
+          'role' in parsed &&
+          (parsed.role === 'PASSENGER' || parsed.role === 'COMPANY' || parsed.role === 'ADMIN')
+        ) {
+          return parsed as AuthUser;
+        }
+
+        localStorage.removeItem('user');
+        return null;
       } catch (error) {
         console.error('Error parsing user from localStorage:', error);
         localStorage.removeItem('user');
@@ -58,8 +72,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [isLoading] = useState(false);
 
   const login = useCallback((newToken: string, newUser: AuthUser, refreshToken?: string) => {
-    console.log('Logging in user:', newUser);
-    console.log('Storing token in localStorage:', newToken);
     localStorage.setItem('token', newToken);
     // El refresh token permite renovar el access token sin volver a iniciar sesión (ver apiClient)
     if (refreshToken) {

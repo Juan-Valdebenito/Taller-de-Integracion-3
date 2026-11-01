@@ -6,6 +6,8 @@ metadata:
   name: realtime
   namespace: student-iglausser
   annotations:
+    # Los timeouts largos son necesarios para sockets que permanecen abiertos;
+    # sin afinidad, solicitudes del mismo cliente podrían llegar a pods distintos.
     external-dns.alpha.kubernetes.io/target: proxy.inf.uct.cl
     nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
@@ -16,6 +18,7 @@ metadata:
     nginx.ingress.kubernetes.io/session-cookie-name: "transithub-rt"
     nginx.ingress.kubernetes.io/session-cookie-max-age: "3600"
 spec:
+  # Este host dedicado permite configurar tiempos largos y afinidad para sockets.
   ingressClassName: nginx
   rules:
     - host: <REALTIME_HOST>

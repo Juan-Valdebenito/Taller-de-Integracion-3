@@ -1,5 +1,9 @@
 package main
 
+// Servicio de clima desplegado en Kubernetes. Expone una API HTTP para
+// consultar telemetría meteorológica y una API gRPC para integración con
+// backend-go; PostgreSQL conserva el histórico y NATS distribuye eventos.
+
 import (
 	"context"
 	"encoding/json"
@@ -35,6 +39,7 @@ type SensorReadings struct {
 }
 
 type WeatherPayload struct {
+	// Payload común que llega desde el simulador/sensores y se publica en NATS.
 	StationID string         `json:"station_id"`
 	Location  Location       `json:"location"`
 	Readings  SensorReadings `json:"sensor_readings"`
@@ -43,6 +48,7 @@ type WeatherPayload struct {
 }
 
 type TelemetryRepository interface {
+	// Abstracción de persistencia: el servidor no necesita conocer detalles de SQL.
 	Insert(ctx context.Context, payloads []WeatherPayload) error
 }
 
@@ -72,6 +78,7 @@ type TelemetryReader interface {
 }
 
 type TelemetryPublisher interface {
+	// Canal de eventos en vivo; permite a consumidores recibir lecturas nuevas.
 	Publish(payload WeatherPayload) error
 }
 

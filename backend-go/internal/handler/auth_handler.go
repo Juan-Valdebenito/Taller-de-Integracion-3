@@ -1,5 +1,9 @@
 package handler
 
+// AuthHandler adapta los endpoints de sesión al repositorio de usuarios.
+// Aquí se validan credenciales y se emiten/revocan JWT; Authenticate, en
+// middleware, valida esos tokens en peticiones posteriores.
+
 import (
 	"crypto/rand"
 	"encoding/hex"
@@ -30,6 +34,9 @@ type AuthHandler struct {
 	refreshExpires time.Duration
 }
 
+// parseTokenDuration acepta formatos Go como "15m" y una comodidad de
+// configuración, "7d". Rechaza cero/negativos para evitar tokens que nazcan
+// vencidos o no tengan vencimiento útil.
 func parseTokenDuration(value string) (time.Duration, error) {
 	value = strings.TrimSpace(strings.ToLower(value))
 	if strings.HasSuffix(value, "d") {
@@ -126,6 +133,9 @@ func (h *AuthHandler) generateToken(user *domain.User, tokenType string, duratio
 
 // Register godoc
 // POST /api/v1/auth/register
+// Register crea una cuenta, guarda solo el hash bcrypt de la contraseña y
+// devuelve access/refresh tokens. La política de roles públicos se aplica en
+// registrationRole para impedir que alguien se registre como administrador.
 func (h *AuthHandler) Register(c *gin.Context) {
 	var body struct {
 		Name      string `json:"name" binding:"required"`
@@ -198,6 +208,9 @@ func registrationRole(requested string) (domain.UserRole, bool) {
 
 // Login godoc
 // POST /api/v1/auth/login
+// Login busca la cuenta por correo, compara la contraseña con bcrypt y emite
+// tokens si la cuenta está activa. La respuesta no revela si falló el correo
+// o la contraseña, para no facilitar enumeración de usuarios.
 func (h *AuthHandler) Login(c *gin.Context) {
 	var body struct {
 		Email    string `json:"email" binding:"required,email"`
@@ -246,6 +259,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 //
 // Recibe un Refresh Token válido, lo revoca (rotación: cada refresh token
 // sirve una sola vez) y genera un nuevo Access Token y un nuevo Refresh Token.
+// Refresh rota la sesión: acepta solo un refresh token válido, revoca su JTI
+// anterior y entrega un nuevo par de tokens. El token de renovación no sirve
+// para acceder a endpoints protegidos.
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	var body struct {
 		RefreshToken string `json:"refreshToken" binding:"required"`
@@ -352,6 +368,9 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 // El refresh token se verifica antes de revocarlo: firma válida, tipo
 // "refresh" y mismo usuario que el access token. Primero se valida todo y
 // después se revoca, para no dejar la sesión cerrada a medias.
+// Logout invalida el access token actual y, si se proporciona, la sesión de
+// renovación asociada. La revocación se comparte mediante Redis en despliegues
+// con varias réplicas.
 func (h *AuthHandler) Logout(c *gin.Context) {
 	var body struct {
 		RefreshToken string `json:"refreshToken"`
@@ -454,6 +473,8 @@ func (h *AuthHandler) verifyOwnRefreshToken(tokenStr, userID string) (string, ti
 // propio usuario cierre sesión (p.ej. cuenta comprometida, cambio de rol).
 // Al apoyarse en el RevocationStore compartido (Redis en el cluster), la
 // revocación es visible de inmediato en todas las réplicas del backend.
+// Revoke permite a un administrador invalidar un token ajeno identificado en
+// el body. El router restringe este endpoint al rol ADMIN.
 func (h *AuthHandler) Revoke(c *gin.Context) {
 	var body struct {
 		Token string `json:"token" binding:"required"`
@@ -500,6 +521,8 @@ func parseJTIAndExp(tokenStr string) (jti string, exp time.Time, err error) {
 
 // Me godoc
 // GET /api/v1/auth/me — requiere middleware Authenticate
+// Me devuelve el perfil asociado al JWT de acceso, usando el ID que Authenticate
+// colocó en el contexto; no acepta un ID de usuario enviado por el cliente.
 func (h *AuthHandler) Me(c *gin.Context) {
 	// Aserción verificada: si la ruta se registrara sin Authenticate, antes
 	// userID.(string) hacía panic (500); ahora responde 401.

@@ -8,6 +8,8 @@ import (
 
 // PublishAuthorizer decide si una cuenta puede publicar la posición de una
 // micro en una ruta. Devuelve el motivo del rechazo, o "" si puede.
+// Esta interfaz permite usar un autorizador real con repositorios o uno que
+// rechaza todo cuando no hay base de datos, sin acoplar Client a PostgreSQL.
 type PublishAuthorizer interface {
 	CanPublish(ctx context.Context, userID, role, busID, routeID string) string
 }
@@ -42,6 +44,9 @@ const (
 )
 
 func (a RepoAuthorizer) CanPublish(ctx context.Context, userID, role, busID, routeID string) string {
+	// Primero se verifica que la micro exista. Luego COMPANY debe ser dueño
+	// tanto de la micro como de la ruta; la empresa se obtiene desde la BD y no
+	// se confía en un dato que el cliente pudiera falsificar en el JWT.
 	bus, err := a.Buses.FindByID(ctx, busID)
 	if err != nil {
 		return errCannotVerify

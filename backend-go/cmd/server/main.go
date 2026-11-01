@@ -27,6 +27,9 @@ import (
 )
 
 func main() {
+	// El arranque sigue un orden intencional: primero configuración y base de
+	// datos; luego dependencias y servicios; después rutas HTTP; al final, el
+	// listener. Así ningún handler recibe dependencias a medio inicializar.
 	logger.Configure()
 
 	// â”€â”€ ConfiguraciÃ³n â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -40,6 +43,9 @@ func main() {
 	// Cuando SIMULATION_ENABLED=true y la BD no estÃ¡ disponible,
 	// el servidor arranca en modo degradado: solo WebSocket + simulaciÃ³n.
 	// Los endpoints REST que requieren BD devolverÃ¡n 503.
+	// La API puede ofrecer WebSocket y simulación aunque PostgreSQL no esté
+	// disponible. En ese caso pool == nil y los handlers que leen/escriben BD
+	// no se construyen; el router responderá 503 en esos endpoints.
 	pool := db.NewPoolOptional(cfg.DatabaseURL)
 	dbAvailable := pool != nil
 
@@ -53,6 +59,8 @@ func main() {
 	}
 
 	// Migraciones (antes del seed: crea o completa las tablas que usa).
+	// Las migraciones deben terminar antes de crear repositorios o sembrar
+	// usuarios: ambos esperan que existan las tablas y columnas actuales.
 	if dbAvailable && cfg.MigrationsEnabled {
 		res, err := db.RunMigrations(ctx, cfg.DatabaseURL)
 		if err != nil {
@@ -68,6 +76,8 @@ func main() {
 	}
 
 	// â”€â”€ Datos de prueba (solo si hay BD y no es producciÃ³n) â”€â”€â”€â”€
+	// El seed es idempotente y solo se ejecuta fuera de producción; permite
+	// probar login, empresas, rutas y micros en un entorno recién creado.
 	if dbAvailable && cfg.Env != "production" {
 		if err := seed.Run(ctx, pool); err != nil {
 			log.Warn().Err(err).Str("event", "seed_failed").Msg("Could not create seed data")
@@ -103,6 +113,9 @@ func main() {
 	occupancySvc := service.NewOccupancyService()
 	aforoSvc := service.NewAforoService(pool)
 
+	// Los repositorios encapsulan SQL; los handlers convierten HTTP en llamadas
+	// de aplicación. Se crean solo cuando existe pool para evitar dependencias
+	// nulas y fallos tardíos durante una petición.
 	if dbAvailable {
 		userRepo := repository.NewUserRepository(pool)
 		companyRepo := repository.NewCompanyRepository(pool)
@@ -124,6 +137,8 @@ func main() {
 	}
 
 	// ── Conectar predictor ML si está configurado ──────────────────────────────
+	// El predictor remoto es opcional. Si no está configurado o falla al
+	// conectarse, OccupancyService conserva su predictor heurístico local.
 	if cfg.PredictionTransport != "" {
 		predClient, err := transport.NewPredictionClient(transport.Config{
 			Transport:  transport.TransportType(cfg.PredictionTransport),
@@ -159,12 +174,17 @@ func main() {
 
 	// Conexión gRPC clientes de clima y micro
 	// â”€â”€ WebSocket Hub (Pub/Sub â€” no requiere BD) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+	// Hub centraliza las conexiones WebSocket: la simulación y las rutas HTTP
+	// publican aquí, y el Hub distribuye los eventos a los clientes suscritos.
 	hub := ws.NewHub(occupancySvc)
 	go hub.Run()
 
 	wsHandler := ws.NewWSHandler(hub, cfg.JWTSecret, cfg.CORSOrigins).WithRevocation(revStore)
 	// Una empresa solo publica la posición de sus micros, en sus rutas.
 	var telemetryH *handler.TelemetryHandler
+	// Publicar GPS requiere validar en PostgreSQL que la micro y la ruta
+	// pertenezcan a la empresa del usuario. Sin BD se rechazan publicaciones
+	// de clientes, aunque la simulación interna puede continuar.
 	if dbAvailable {
 		fleetBuses, fleetRoutes := repository.NewBusRepository(pool), repository.NewRouteRepository(pool)
 		publishAuthz := ws.RepoAuthorizer{Users: repository.NewUserRepository(pool), Buses: fleetBuses, Routes: fleetRoutes}
@@ -185,6 +205,8 @@ func main() {
 	log.Info().Str("event", "websocket_ready").Str("path", "/ws").Msg("WebSocket Pub/Sub active")
 
 	// â”€â”€ SimulaciÃ³n GPS (buses virtuales rutas 7A, 7B, 1C) â”€â”€â”€â”€â”€
+	// La simulación usa el mismo Hub que los datos reales para que el cliente
+	// consuma un solo protocolo en desarrollo y en producción.
 	if cfg.SimulationEnabled {
 		simRunner := simulation.NewRunner(hub, simulation.RunnerConfig{
 			TickDuration:    time.Duration(cfg.SimulationTickMs) * time.Millisecond,
@@ -201,6 +223,9 @@ func main() {
 	// Almacenamiento de imágenes de reclamos (ATTACHMENTS_DIR). Si la carpeta no
 	// sirve, el backend sigue funcionando con las imágenes desactivadas.
 	attachmentStore, err := filestore.OpenDisk(ctx, cfg.AttachmentsDir)
+	// El almacenamiento de adjuntos es independiente de PostgreSQL. Si el
+	// directorio no está disponible, el resto de la API sigue levantando, pero
+	// los endpoints de imágenes informan que no están disponibles.
 	if err != nil {
 		log.Warn().Err(err).Str("event", "attachments_storage_unavailable").
 			Str("dir", cfg.AttachmentsDir).
@@ -217,6 +242,8 @@ func main() {
 	// cuando cambia el estado de su reclamo (Expo Push).
 	var pushH *handler.PushTokenHandler
 	var complaintNotifier *push.ComplaintNotifier
+	// Las notificaciones guardan el token Expo por usuario. El notificador se
+	// conecta al servicio de Expo cuando un reclamo cambia de estado.
 	if dbAvailable {
 		pushTokens := repository.NewPushTokenRepository(pool)
 		pushH = handler.NewPushTokenHandler(pushTokens)
@@ -227,6 +254,8 @@ func main() {
 	}
 
 	var attachmentH *handler.AttachmentHandler
+	// El servicio coordina permisos, sanitización, almacenamiento y metadatos;
+	// exige simultáneamente base de datos y almacenamiento de archivos.
 	if dbAvailable && attachmentStore != nil {
 		attachmentSvc := service.NewAttachmentService(
 			repository.NewComplaintRepository(pool),
@@ -253,6 +282,9 @@ func main() {
 
 	// â”€â”€ Router â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 	// ── Clientes gRPC hacia microservicios ─────────────────────────────────
+	// Estos clientes conectan la API pública con microservicios internos. La
+	// API actúa como proxy para que el móvil no necesite conocer sus direcciones
+	// ni incluir sus claves privadas.
 	climateClient, err := grpcclient.NewClimateClient(cfg.ClimateGRPCTarget, cfg.ClimateAPIKey, cfg.GRPCTimeout)
 	if err != nil {
 		log.Fatal().Err(err).Str("event", "climate_client_failed").Msg("Could not connect to climate service")
@@ -282,6 +314,8 @@ func main() {
 	}
 
 	// ── Router ────────────────────────────────────────────────
+	// Setup conecta handlers y middlewares con sus rutas. Aquí se ensamblan las
+	// dependencias ya preparadas; la definición de permisos vive en router.
 	r := router.Setup(
 		cfg.CORSOrigins,
 		cfg.JWTSecret,
@@ -310,6 +344,9 @@ func main() {
 	// IP real del cliente detrás del Ingress: solo se acepta X-Forwarded-For de
 	// los proxies listados en TRUSTED_PROXIES (si está vacío, se mantiene el
 	// comportamiento por defecto de Gin).
+	// Solo se confía en X-Forwarded-For cuando el operador declara los proxies
+	// concretos del Ingress; aceptar cualquier proxy permitiría falsificar IPs
+	// y evadir límites por dirección.
 	if len(cfg.TrustedProxies) > 0 {
 		if err := r.SetTrustedProxies(cfg.TrustedProxies); err != nil {
 			log.Fatal().Err(err).Str("event", "trusted_proxies_invalid").Msg("Invalid TRUSTED_PROXIES")
@@ -321,6 +358,8 @@ func main() {
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	log.Info().Str("event", "server_starting").Str("address", addr).Str("environment", cfg.Env).Msg("HTTP server starting")
 
+	// Gin queda atendiendo hasta que el proceso termine. Los recursos con defer
+	// (pool, Redis y clientes gRPC) se cierran durante el cierre del proceso.
 	if err := r.Run(addr); err != nil {
 		log.Fatal().Err(err).Str("event", "server_failed").Msg("HTTP server stopped unexpectedly")
 	}

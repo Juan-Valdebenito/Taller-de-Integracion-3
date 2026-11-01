@@ -33,6 +33,9 @@ const (
 )
 
 // Client representa una conexión WebSocket individual.
+// Cada cliente tiene una goroutine lectora y otra escritora: Gorilla WebSocket
+// admite una lectura y una escritura concurrentes, pero no varias de cada tipo.
+// El canal send desacopla a los productores del socket.
 type Client struct {
 	hub  *Hub
 	conn *gorillaWS.Conn
@@ -67,6 +70,8 @@ func NewClient(hub *Hub, conn *gorillaWS.Conn, jwtSecret string) *Client {
 // readPump lee mensajes del WebSocket y los procesa.
 // Debe ejecutarse como goroutine dedicada por cliente.
 func (c *Client) readPump() {
+	// Esta goroutine es dueña de leer el socket. El límite y los plazos detectan
+	// mensajes abusivos y conexiones que dejaron de responder.
 	defer func() {
 		c.hub.unregister <- c
 		c.conn.Close()
@@ -95,6 +100,8 @@ func (c *Client) readPump() {
 // writePump escribe mensajes al WebSocket desde el channel send.
 // Debe ejecutarse como goroutine dedicada por cliente.
 func (c *Client) writePump() {
+	// Esta goroutine es la única que escribe al socket; los pings periódicos
+	// permiten detectar cortes incluso cuando no hay eventos de buses.
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
@@ -184,6 +191,8 @@ func (c *Client) handleSubscription(raw []byte, msgType string) {
 
 // handlePublish procesa mensajes de publicación (requiere JWT válido).
 func (c *Client) handlePublish(raw []byte) {
+	// Publicar ubicación cambia datos que otros usuarios observan. A diferencia
+	// de suscribirse, requiere JWT, rol permitido y verificación de propiedad.
 	var msg PublishMessage
 	if err := json.Unmarshal(raw, &msg); err != nil {
 		c.sendError("INVALID_MESSAGE", "Formato de publicación inválido")

@@ -10,6 +10,9 @@ import (
 
 // Hub es el motor central del patrón Pub/Sub.
 // Gestiona clientes conectados, suscripciones a topics y fan-out de mensajes.
+// Solo la goroutine Run modifica clients y topics. El resto del sistema envía
+// operaciones por canales, de modo que todas las conexiones se procesan en un
+// único orden y no hay escrituras concurrentes a estos mapas.
 type Hub struct {
 	// Clientes registrados.
 	clients map[*Client]bool
@@ -47,6 +50,8 @@ func NewHub(occupancySvc *service.OccupancyService) *Hub {
 //
 //	go hub.Run()
 func (h *Hub) Run() {
+	// Este select funciona como el bucle de eventos del servidor en tiempo real.
+	// Se mantiene activo durante la vida del proceso y despacha cada operación.
 	for {
 		select {
 		case client := <-h.register:
@@ -90,6 +95,8 @@ func (h *Hub) Unsubscribe(client *Client, topicKey string) {
 // handlePublish procesa un mensaje de publicación: enriquece con predicción
 // de ocupación y hace broadcast a los topics correspondientes.
 func (h *Hub) handlePublish(msg *PublishMessage) {
+	// Una publicación se convierte en un evento enriquecido (por ejemplo, con
+	// nivel de ocupación) y se entrega a quienes siguen la ruta o la micro.
 	data := msg.Data
 
 	// Construir predicción de ocupación
@@ -158,6 +165,8 @@ func (h *Hub) handlePublish(msg *PublishMessage) {
 
 // broadcastToTopic envía un payload a todos los clientes suscritos a un topic.
 func (h *Hub) broadcastToTopic(topicKey string, payload []byte) {
+	// Un cliente lento nunca debe bloquear a los demás. Si su canal de salida
+	// está lleno, se quita su suscripción y se cierra esa conexión.
 	subscribers, ok := h.topics[topicKey]
 	if !ok {
 		return

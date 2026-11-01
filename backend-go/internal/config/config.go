@@ -10,7 +10,9 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// Config contiene todas las variables de entorno de la aplicación.
+// Config contiene la configuración ya interpretada que consumen los paquetes.
+// El resto del backend recibe este objeto en vez de leer el entorno por su
+// cuenta, lo que centraliza valores por defecto y facilita pruebas.
 type Config struct {
 	Port        string
 	DatabaseURL string
@@ -114,6 +116,9 @@ type Config struct {
 
 // Load carga las variables desde el archivo .env y el entorno del sistema.
 func Load() *Config {
+	// En local se leen valores de .env; en Kubernetes se inyectan como variables
+	// del contenedor. godotenv no reemplaza variables que ya existan en el
+	// proceso, así que el entorno de despliegue conserva precedencia.
 	// Intentar cargar .env (no falla si no existe en producción)
 	if err := godotenv.Load(); err != nil {
 		log.Debug().Str("event", "dotenv_missing").Msg("No .env file found; using system environment")
@@ -208,6 +213,8 @@ func attachmentsDir() string {
 
 // corsOrigins lee CORS_ORIGIN (uno o varios orígenes separados por coma).
 func corsOrigins() []string {
+	// CORS_ORIGIN puede contener varios orígenes separados por coma. Se recortan
+	// espacios para que los valores copiados de una lista no generen rechazos.
 	if origins := getEnvList("CORS_ORIGIN"); len(origins) > 0 {
 		return origins
 	}

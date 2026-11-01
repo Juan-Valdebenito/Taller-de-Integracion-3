@@ -1,5 +1,9 @@
 package router
 
+// Este paquete concentra la tabla de rutas HTTP y sus políticas de acceso.
+// Los handlers implementan operaciones; aquí se decide qué middleware se
+// ejecuta antes de cada operación (BD, JWT, rol, límites y enmascaramiento).
+
 import (
 	"context"
 	"net/http"
@@ -31,6 +35,9 @@ func Setup(
 	occupancyH *handler.OccupancyHandler,
 	extras ...interface{},
 ) *gin.Engine {
+	// Los parámetros extra son dependencias opcionales agregadas con el tiempo
+	// (WebSocket, adjuntos, gRPC, aforo, etc.). Se identifican por tipo para
+	// conservar compatibilidad con los tests y llamadas antiguas a Setup.
 	var wsHandler *ws.WSHandler
 	var grpcH *handler.GRPCProxyHandler
 	var aforoH *handler.AforoHandler
@@ -114,8 +121,9 @@ func Setup(
 	auth := func() gin.HandlerFunc { return middleware.Authenticate(jwtSecret, revStore) }
 	optionalAuth := func() gin.HandlerFunc { return middleware.OptionalAuthenticate(jwtSecret, revStore) }
 
-	// Rutas que usan PostgreSQL: en modo degradado (sin BD) main.go no crea sus
-	// handlers y estas guardas responden 503 en vez de un panic → 500.
+	// Estas guardas se colocan antes de los handlers. En modo degradado (sin BD)
+	// main.go no crea los handlers que requieren repositorios y la guarda
+	// responde 503 antes de que una llamada pueda desreferenciar nil.
 	authDB := middleware.RequireDatabase(authH != nil)
 	usersDB := middleware.RequireDatabase(userH != nil)
 	busesDB := middleware.RequireDatabase(busH != nil)

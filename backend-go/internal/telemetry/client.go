@@ -29,6 +29,8 @@ type GPSReading struct {
 }
 
 // Client llama a micro_telemetry.
+// La API lo usa como consumidor HTTP de servidor a servidor: el teléfono nunca
+// recibe la clave que autentica el servicio de telemetría.
 type Client struct {
 	URL    string // ej. http://micro-telemetry-svc:8080/api/v1/telemetry/gps
 	APIKey string // header X-API-Key (secreto)
@@ -41,6 +43,8 @@ func NewClient(url, apiKey string) *Client {
 
 // SendGPS envía una lectura. micro_telemetry responde 202 si la guardó.
 func (c *Client) SendGPS(ctx context.Context, reading GPSReading) error {
+	// Se envía un evento con ID estable para permitir deduplicación aguas abajo;
+	// el contexto permite cancelar una llamada si vence el tiempo del request.
 	body, err := json.Marshal(reading)
 	if err != nil {
 		return err

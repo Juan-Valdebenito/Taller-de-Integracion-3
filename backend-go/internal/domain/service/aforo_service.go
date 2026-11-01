@@ -62,6 +62,8 @@ func NewAforoService(pool *pgxpool.Pool) *AforoService {
 
 // CalculateStrictAforo ejecuta el cálculo estricto de aforo vehicular con validación de invariantes.
 func (s *AforoService) CalculateStrictAforo(input AforoCalculationInput) (*AforoCalculationResult, error) {
+	// Este cálculo no consulta la BD: valida invariantes y devuelve un resultado
+	// puro. ProcessBusFlow reutiliza el mismo cálculo dentro de una transacción.
 	// 1. Invariante: Capacidad debe ser estrictamente positiva
 	if input.Capacity <= 0 {
 		return nil, ErrInvalidCapacity
@@ -154,6 +156,9 @@ func (s *AforoService) ProcessBusFlow(ctx context.Context, busID string, boardin
 		return nil, errors.New("conexión a base de datos no configurada en AforoService")
 	}
 
+	// FOR UPDATE en la consulta siguiente bloquea esta fila hasta Commit/Rollback.
+	// Así dos eventos simultáneos no calculan el nuevo aforo desde el mismo valor
+	// antiguo y pierden subidas o bajadas.
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error iniciando transacción: %w", err)
