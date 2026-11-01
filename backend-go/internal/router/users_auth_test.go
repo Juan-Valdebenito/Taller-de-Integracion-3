@@ -116,3 +116,24 @@ func TestAdminCannotLockThemselvesOut(t *testing.T) {
 		}
 	}
 }
+
+// Registrar el teléfono para notificaciones exige sesión; sin base de datos, 503.
+func TestPushTokenRoutes(t *testing.T) {
+	r := setupUsers(t) // sin handler de push: modo sin base de datos
+	if w := serveUsers(r, http.MethodPut, "/api/v1/me/push-token", "", `{}`); w.Code != http.StatusServiceUnavailable && w.Code != http.StatusUnauthorized {
+		t.Errorf("PUT sin base ni token: got %d", w.Code)
+	}
+
+	withPush := Setup([]string{"http://localhost:5173"}, testSecret, nil, token.NewMemoryStore(),
+		nil, nil, nil, nil, nil, nil, nil, nil, handler.NewPushTokenHandler(nil))
+	for _, method := range []string{http.MethodPut, http.MethodDelete} {
+		if w := serveUsers(withPush, method, "/api/v1/me/push-token", "", `{"token":"x"}`); w.Code != http.StatusUnauthorized {
+			t.Errorf("%s sin token: got %d", method, w.Code)
+		}
+	}
+	// Con sesión, un token inválido se rechaza antes de tocar la base.
+	bearer := accessToken(t, "usr-pass-01", "PASSENGER")
+	if w := serveUsers(withPush, http.MethodPut, "/api/v1/me/push-token", bearer, `{"token":"x","platform":"ios"}`); w.Code != http.StatusBadRequest {
+		t.Errorf("token inválido con sesión: got %d", w.Code)
+	}
+}

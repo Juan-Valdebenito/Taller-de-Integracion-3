@@ -202,6 +202,12 @@ func main() {
 
 	// Servicio y endpoints de imágenes: requieren base de datos y almacenamiento.
 	// Sin alguno de los dos, attachmentH queda nil y las rutas responden 503.
+	// Teléfonos registrados para notificaciones push.
+	var pushH *handler.PushTokenHandler
+	if dbAvailable {
+		pushH = handler.NewPushTokenHandler(repository.NewPushTokenRepository(pool))
+	}
+
 	var attachmentH *handler.AttachmentHandler
 	if dbAvailable && attachmentStore != nil {
 		attachmentSvc := service.NewAttachmentService(
@@ -279,6 +285,7 @@ func main() {
 		authLimits,
 		attachmentH,
 		uploadLimiter,
+		pushH,
 	)
 
 	// IP real del cliente detrás del Ingress: solo se acepta X-Forwarded-For de

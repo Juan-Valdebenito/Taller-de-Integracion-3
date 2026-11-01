@@ -228,6 +228,8 @@ Base URL: `http://localhost:3001/api/v1`
 | Usuarios | PUT | `/users/:id` | ADMIN |
 | Usuarios | PATCH | `/users/:id` | ADMIN |
 | Usuarios | DELETE | `/users/:id` | ADMIN |
+| Notificaciones | PUT | `/me/push-token` | Autenticado (registra el teléfono para push) |
+| Notificaciones | DELETE | `/me/push-token` | Autenticado (solo su propio teléfono) |
 | Empresas | GET | `/companies` (todas, con RUT y contacto; `?active=true` solo activas) | ADMIN |
 | Empresas | GET | `/companies/:id` | ADMIN |
 | Empresas | POST | `/companies` (`name`, `rut`, `email`, `phone?`, `address?`; 409 si el RUT o el correo ya existen) | ADMIN |

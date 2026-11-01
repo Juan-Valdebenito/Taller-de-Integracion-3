@@ -38,6 +38,7 @@ func Setup(
 	var authLimits *middleware.AuthRateLimiters
 	var attachmentH *handler.AttachmentHandler
 	var uploadLimiter *middleware.IPRateLimiter
+	var pushH *handler.PushTokenHandler
 	for _, extra := range extras {
 		switch value := extra.(type) {
 		case *middleware.AuthRateLimiters:
@@ -55,6 +56,8 @@ func Setup(
 			aforoH = value
 		case *handler.RecaudoHandler:
 			recaudoH = value
+		case *handler.PushTokenHandler:
+			pushH = value
 		}
 	}
 	r := gin.New()
@@ -184,6 +187,14 @@ func Setup(
 		users.PUT("/:id", middleware.ValidateUserUpdatePayload(), userH.Update)
 		users.PATCH("/:id", middleware.ValidateUserUpdatePayload(), userH.Patch)
 		users.DELETE("/:id", userH.Delete)
+	}
+
+	// Teléfono de la cuenta con sesión para notificaciones push (cualquier rol).
+	// Sin base de datos, RequireDatabase responde 503 antes de llegar al handler.
+	me := api.Group("/me", middleware.RequireDatabase(pushH != nil), auth())
+	{
+		me.PUT("/push-token", pushH.Register)
+		me.DELETE("/push-token", pushH.Unregister)
 	}
 
 	// Empresas (requiere autenticación; operaciones de admin requieren rol)
