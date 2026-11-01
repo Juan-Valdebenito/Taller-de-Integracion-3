@@ -174,8 +174,9 @@ src/
 
 - **Almacenamiento:** `accessToken` y `refreshToken` se guardan con `expo-secure-store`
   (Keychain en iOS, cifrado con Android Keystore en Android), con
-  `WHEN_UNLOCKED_THIS_DEVICE_ONLY`: solo se leen con el teléfono desbloqueado y no
-  pasan a respaldos ni a otro dispositivo. Nunca se usa AsyncStorage.
+  `AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY`: se leen después del primer desbloqueo desde
+  que se encendió el teléfono (el modo conductor envía la ubicación con la pantalla
+  bloqueada) y no pasan a respaldos ni a otro dispositivo. Nunca se usa AsyncStorage.
 - **Al abrir la app** se recupera la sesión guardada (`GET /auth/me`). Si no se puede
   por una falla pasajera (sin conexión, 429 o 5xx, ver la tabla de abajo), se muestra
   el login con el aviso y el botón **Reintentar conexión**, y los tokens se conservan:

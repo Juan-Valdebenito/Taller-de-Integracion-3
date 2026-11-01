@@ -39,6 +39,7 @@ func Setup(
 	var attachmentH *handler.AttachmentHandler
 	var uploadLimiter *middleware.IPRateLimiter
 	var pushH *handler.PushTokenHandler
+	var telemetryH *handler.TelemetryHandler
 	for _, extra := range extras {
 		switch value := extra.(type) {
 		case *middleware.AuthRateLimiters:
@@ -58,6 +59,8 @@ func Setup(
 			recaudoH = value
 		case *handler.PushTokenHandler:
 			pushH = value
+		case *handler.TelemetryHandler:
+			telemetryH = value
 		}
 	}
 	r := gin.New()
@@ -195,6 +198,13 @@ func Setup(
 	{
 		me.PUT("/push-token", pushH.Register)
 		me.DELETE("/push-token", pushH.Unregister)
+	}
+
+	// GPS del modo conductor por HTTP (la app en segundo plano): mapa en vivo y
+	// reenvío a micro_telemetry. Mismas reglas que publicar por el WebSocket.
+	telemetryGroup := api.Group("/telemetry", middleware.RequireDatabase(telemetryH != nil), auth(), middleware.Authorize("ADMIN", "COMPANY"))
+	{
+		telemetryGroup.POST("/gps", telemetryH.ReportGPS)
 	}
 
 	// Empresas (requiere autenticación; operaciones de admin requieren rol)

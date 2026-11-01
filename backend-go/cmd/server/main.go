@@ -17,6 +17,7 @@ import (
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/middleware"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/push"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/repository"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/telemetry"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/router"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/seed"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/simulation"
@@ -163,12 +164,21 @@ func main() {
 
 	wsHandler := ws.NewWSHandler(hub, cfg.JWTSecret, cfg.CORSOrigins).WithRevocation(revStore)
 	// Una empresa solo publica la posición de sus micros, en sus rutas.
+	var telemetryH *handler.TelemetryHandler
 	if dbAvailable {
-		wsHandler.WithPublishAuthorizer(ws.RepoAuthorizer{
-			Users:  repository.NewUserRepository(pool),
-			Buses:  repository.NewBusRepository(pool),
-			Routes: repository.NewRouteRepository(pool),
-		})
+		fleetBuses, fleetRoutes := repository.NewBusRepository(pool), repository.NewRouteRepository(pool)
+		publishAuthz := ws.RepoAuthorizer{Users: repository.NewUserRepository(pool), Buses: fleetBuses, Routes: fleetRoutes}
+		wsHandler.WithPublishAuthorizer(publishAuthz)
+
+		// GPS por HTTP (app en segundo plano): mapa en vivo + micro_telemetry.
+		var forwarder *telemetry.Forwarder
+		if cfg.MicroTelemetryURL != "" {
+			forwarder = telemetry.NewForwarder(telemetry.NewClient(cfg.MicroTelemetryURL, cfg.MicroTelemetryAPIKey))
+			telemetryH = handler.NewTelemetryHandler(publishAuthz, fleetBuses, fleetRoutes, hub, forwarder)
+		} else {
+			log.Warn().Str("event", "telemetry_forward_disabled").Msg("MICRO_TELEMETRY_URL not set; GPS readings only go to the live map")
+			telemetryH = handler.NewTelemetryHandler(publishAuthz, fleetBuses, fleetRoutes, hub, nil)
+		}
 	} else {
 		wsHandler.WithPublishAuthorizer(ws.UnavailableAuthorizer{})
 	}
@@ -294,6 +304,7 @@ func main() {
 		attachmentH,
 		uploadLimiter,
 		pushH,
+		telemetryH,
 	)
 
 	// IP real del cliente detrás del Ingress: solo se acepta X-Forwarded-For de

@@ -230,6 +230,7 @@ Base URL: `http://localhost:3001/api/v1`
 | Usuarios | DELETE | `/users/:id` | ADMIN |
 | Notificaciones | PUT | `/me/push-token` | Autenticado (registra el teléfono para push) |
 | Notificaciones | DELETE | `/me/push-token` | Autenticado (solo su propio teléfono) |
+| Telemetría | POST | `/telemetry/gps` | COMPANY (sus micros), ADMIN — mapa en vivo + reenvío a micro_telemetry |
 | Empresas | GET | `/companies` (todas, con RUT y contacto; `?active=true` solo activas) | ADMIN |
 | Empresas | GET | `/companies/:id` | ADMIN |
 | Empresas | POST | `/companies` (`name`, `rut`, `email`, `phone?`, `address?`; 409 si el RUT o el correo ya existen) | ADMIN |
@@ -356,6 +357,8 @@ sandbox` y `Cache-Control: private, no-store` (no se guarda en cachés intermedi
 | `ATTACHMENTS_DIR` | `./data/attachments` | Carpeta de las imágenes (excluida de Git). En el cluster, un volumen persistente |
 | `EXPO_PUSH_URL` | `https://exp.host/--/api/v2/push/send` | Servicio de Expo Push para avisar al pasajero cuando cambia su reclamo |
 | `EXPO_ACCESS_TOKEN` | — | Opcional (secreto): solo si el proyecto de EAS exige autenticación para enviar push |
+| `MICRO_TELEMETRY_URL` | — | Ingesta GPS de `micro_telemetry`; vacío = las posiciones solo van al mapa en vivo |
+| `MICRO_TELEMETRY_API_KEY` | — | Secreto: header `X-API-Key` de `micro_telemetry` |
 | `RATE_LIMIT_UPLOAD_PER_MIN` | `10` | Subidas por minuto por IP |
 | `RATE_LIMIT_UPLOAD_BURST` | `3` | Subidas seguidas permitidas por IP |
 

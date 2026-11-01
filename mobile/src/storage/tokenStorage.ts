@@ -2,8 +2,10 @@
  * Almacenamiento cifrado de los tokens JWT con expo-secure-store.
  *
  * - iOS: Keychain. Android: valores cifrados con una clave del Android Keystore.
- * - WHEN_UNLOCKED_THIS_DEVICE_ONLY: los tokens solo se leen con el dispositivo
- *   desbloqueado y no se copian a respaldos ni a otro teléfono.
+ * - AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: los tokens se leen después del primer
+ *   desbloqueo desde que se encendió el teléfono (así el modo conductor puede
+ *   enviar la ubicación con la pantalla bloqueada) y no se copian a respaldos
+ *   ni a otro teléfono.
  * - Nunca se guardan en AsyncStorage (texto plano).
  *
  * Vista previa web: el navegador no tiene almacenamiento cifrado; se usa
@@ -19,7 +21,7 @@ export const ACCESS_TOKEN_KEY = 'transithub.accessToken';
 export const REFRESH_TOKEN_KEY = 'transithub.refreshToken';
 
 const STORE_OPTIONS: SecureStore.SecureStoreOptions = {
-  keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+  keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
 };
 
 interface KeyValueStore {

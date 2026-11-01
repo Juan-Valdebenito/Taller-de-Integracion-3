@@ -4,6 +4,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo } from 'react';
 
 import { AuthProvider, useAuth } from '../auth/AuthContext';
+// Registra la tarea de GPS en segundo plano del modo conductor al cargar la app.
+import '../company/backgroundTracking';
 import { useNotificationNavigation } from '../hooks/useNotificationNavigation';
 import { usePushRegistrationSync } from '../hooks/usePushRegistration';
 import { setupNotifications } from '../notifications/notificationService';

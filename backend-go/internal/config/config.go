@@ -32,6 +32,14 @@ type Config struct {
 	// autenticación para enviar push (EXPO_ACCESS_TOKEN). Es un secreto.
 	ExpoAccessToken string
 
+	// ── Telemetría GPS (microservicio micro_telemetry) ─────────────────────
+	// MicroTelemetryURL: endpoint de ingesta de GPS (MICRO_TELEMETRY_URL, ej.
+	// http://micro-telemetry-svc:8080/api/v1/telemetry/gps). Vacío = no se
+	// reenvía (la posición igual se publica en el mapa en vivo).
+	MicroTelemetryURL string
+	// MicroTelemetryAPIKey: header X-API-Key de micro_telemetry. Es un secreto.
+	MicroTelemetryAPIKey string
+
 	// MigrationsEnabled: aplicar las migraciones de internal/migrations al
 	// iniciar (MIGRATIONS_ENABLED, por defecto true).
 	MigrationsEnabled bool
@@ -139,6 +147,8 @@ func Load() *Config {
 		AttachmentsDir: attachmentsDir(),
 		ExpoPushURL:     getEnv("EXPO_PUSH_URL", DefaultExpoPushURL),
 		ExpoAccessToken: os.Getenv("EXPO_ACCESS_TOKEN"),
+		MicroTelemetryURL:    strings.TrimSpace(os.Getenv("MICRO_TELEMETRY_URL")),
+		MicroTelemetryAPIKey: os.Getenv("MICRO_TELEMETRY_API_KEY"),
 
 		MigrationsEnabled: getEnvBool("MIGRATIONS_ENABLED", true),
 

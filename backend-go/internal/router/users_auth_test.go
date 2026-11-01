@@ -137,3 +137,19 @@ func TestPushTokenRoutes(t *testing.T) {
 		t.Errorf("token inválido con sesión: got %d", w.Code)
 	}
 }
+
+// El GPS por HTTP exige sesión de empresa o administrador.
+func TestTelemetryRouteAuth(t *testing.T) {
+	withTelemetry := Setup([]string{"http://localhost:5173"}, testSecret, nil, token.NewMemoryStore(),
+		nil, nil, nil, nil, nil, nil, nil, nil, handler.NewTelemetryHandler(nil, nil, nil, nil, nil))
+	if w := serveUsers(withTelemetry, http.MethodPost, "/api/v1/telemetry/gps", "", `{}`); w.Code != http.StatusUnauthorized {
+		t.Errorf("sin token: got %d", w.Code)
+	}
+	if w := serveUsers(withTelemetry, http.MethodPost, "/api/v1/telemetry/gps", accessToken(t, "usr-pass-01", "PASSENGER"), `{}`); w.Code != http.StatusForbidden {
+		t.Errorf("pasajero: got %d", w.Code)
+	}
+	// Sin base de datos (sin handler) responde 503.
+	if w := serveUsers(setupUsers(t), http.MethodPost, "/api/v1/telemetry/gps", accessToken(t, "usr-emp", "COMPANY"), `{}`); w.Code != http.StatusServiceUnavailable {
+		t.Errorf("sin base: got %d", w.Code)
+	}
+}
