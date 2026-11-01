@@ -1,5 +1,5 @@
 /**
- * Fotos adjuntas de un reclamo en backend-go (GET/DELETE
+ * Fotos adjuntas de un reclamo en backend-go (GET
  * /complaints/:id/attachments). Las ven el pasajero dueño y el administrador.
  * El archivo se pide con la sesión y se convierte en data URI, porque <Image>
  * no puede mandar el token en todas las plataformas (en la web no).
@@ -47,11 +47,6 @@ export async function loadComplaintPhoto(complaintId: string, photoId: string): 
   const response = await authFetch(`${photosPath(complaintId)}/${encodeURIComponent(photoId)}/file`, { method: 'GET' });
   if (!response.ok) throw toApiError(response, await readJson(response));
   return blobToDataUri(await response.blob());
-}
-
-/** Borra la foto y su archivo (204 sin contenido). */
-export async function deleteComplaintPhoto(complaintId: string, photoId: string): Promise<void> {
-  await apiRequest(`${photosPath(complaintId)}/${encodeURIComponent(photoId)}`, { method: 'DELETE' });
 }
 
 /** 503: el servidor no tiene configurado dónde guardar las fotos. */

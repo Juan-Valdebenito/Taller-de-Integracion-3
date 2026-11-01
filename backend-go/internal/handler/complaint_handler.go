@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
+	"github.com/rs/zerolog/log"
 
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain/service"
@@ -23,6 +25,20 @@ type ComplaintHandler struct {
 	routeRepo        *repository.RouteRepository
 	// users da la empresa de una cuenta COMPANY (ver complaint_access.go).
 	users userFinder
+	// files borra los archivos de las imágenes al eliminar un reclamo; nil si
+	// no hay almacenamiento de imágenes.
+	files complaintFilesRemover
+}
+
+// complaintFilesRemover lo implementa service.AttachmentService.
+type complaintFilesRemover interface {
+	DeleteComplaintWithFiles(ctx context.Context, complaintID string, deleteComplaint func(context.Context) error) (int, error)
+}
+
+// WithAttachmentFiles conecta el borrado de archivos de imágenes al eliminar reclamos.
+func (h *ComplaintHandler) WithAttachmentFiles(files complaintFilesRemover) *ComplaintHandler {
+	h.files = files
+	return h
 }
 
 func NewComplaintHandler(
@@ -342,8 +358,21 @@ func (h *ComplaintHandler) UpdateStatus(c *gin.Context) {
 
 // Delete godoc
 // DELETE /api/v1/complaints/:id — admin
+// También borra los archivos de sus imágenes (la base solo borra los registros).
 func (h *ComplaintHandler) Delete(c *gin.Context) {
-	err := h.complaintRepo.Delete(c.Request.Context(), c.Param("id"))
+	id := c.Param("id")
+	deleteComplaint := func(ctx context.Context) error { return h.complaintRepo.Delete(ctx, id) }
+	var err error
+	if h.files != nil {
+		var left int
+		left, err = h.files.DeleteComplaintWithFiles(c.Request.Context(), id, deleteComplaint)
+		if err == nil && left > 0 {
+			log.Warn().Str("event", "complaint_files_left").Str("complaint_id", id).Int("files", left).
+				Msg("Complaint deleted but some image files could not be removed")
+		}
+	} else {
+		err = deleteComplaint(c.Request.Context())
+	}
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Reclamo no encontrado"})

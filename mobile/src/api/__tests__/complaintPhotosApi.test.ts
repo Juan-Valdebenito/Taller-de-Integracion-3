@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import { saveTokens } from '../../storage/tokenStorage';
 import { authHeaderOf, fakeResponse, installFetchMock, type FetchMock } from '../../test-utils/http';
 import { deleteComplaint } from '../adminApi';
-import { deleteComplaintPhoto, fetchComplaintPhotos, isPhotoStorageUnavailable, loadComplaintPhoto } from '../complaintPhotosApi';
+import { fetchComplaintPhotos, isPhotoStorageUnavailable, loadComplaintPhoto } from '../complaintPhotosApi';
 import { ApiError } from '../errors';
 
 const mockStore = SecureStore as unknown as { __reset: () => void };
@@ -67,42 +67,16 @@ describe('loadComplaintPhoto', () => {
 });
 
 describe('deleteComplaint', () => {
-  it('borra primero cada foto (para que no queden archivos) y después el reclamo', async () => {
-    fetchMock
-      .mockResolvedValueOnce(fakeResponse({ body: [photo, { ...photo, id: 'p2' }] }))
-      .mockResolvedValueOnce(fakeResponse({ status: 204 }))
-      .mockResolvedValueOnce(fakeResponse({ status: 204 }))
-      .mockResolvedValueOnce(fakeResponse({ body: { message: 'Reclamo eliminado correctamente' } }));
+  it('pide un solo DELETE: backend-go borra el reclamo y los archivos de sus fotos', async () => {
+    fetchMock.mockResolvedValueOnce(fakeResponse({ body: { message: 'Reclamo eliminado correctamente' } }));
 
-    await deleteComplaint('c1');
-    expect(fetchMock.mock.calls.map((_, i) => `${methodOf(i)} ${pathOf(i).replace(/^.*\/api\/v1/, '')}`)).toEqual([
-      'GET /complaints/c1/attachments',
-      'DELETE /complaints/c1/attachments/p1',
-      'DELETE /complaints/c1/attachments/p2',
-      'DELETE /complaints/c1',
-    ]);
+    await deleteComplaint('c 1');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(`${methodOf(0)} ${pathOf(0)}`).toMatch(/^DELETE .*\/complaints\/c%201$/);
   });
 
-  it('si una foto no se puede borrar, no elimina el reclamo', async () => {
-    fetchMock
-      .mockResolvedValueOnce(fakeResponse({ body: [photo] }))
-      .mockResolvedValueOnce(fakeResponse({ status: 500, body: { error: 'Error al borrar la imagen' } }));
-
-    await expect(deleteComplaint('c1')).rejects.toMatchObject({ status: 500 });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-  });
-
-  it('sin almacenamiento de fotos (503) elimina el reclamo igual', async () => {
-    fetchMock
-      .mockResolvedValueOnce(fakeResponse({ status: 503, body: { error: 'Almacenamiento no disponible' } }))
-      .mockResolvedValueOnce(fakeResponse({ body: { message: 'Reclamo eliminado correctamente' } }));
-
-    await deleteComplaint('c1');
-    expect(`${methodOf(1)} ${pathOf(1)}`).toMatch(/^DELETE .*\/complaints\/c1$/);
-  });
-
-  it('deleteComplaintPhoto acepta el 204 sin contenido', async () => {
-    fetchMock.mockResolvedValueOnce(fakeResponse({ status: 204 }));
-    await expect(deleteComplaintPhoto('c1', 'p1')).resolves.toBeUndefined();
+  it('un error del backend llega como ApiError', async () => {
+    fetchMock.mockResolvedValueOnce(fakeResponse({ status: 404, body: { error: 'Reclamo no encontrado' } }));
+    await expect(deleteComplaint('c9')).rejects.toMatchObject({ name: 'ApiError', status: 404 });
   });
 });

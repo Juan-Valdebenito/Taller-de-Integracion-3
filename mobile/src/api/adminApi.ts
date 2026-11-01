@@ -2,7 +2,6 @@
 import { apiRequest } from './client';
 import type { UserRole } from '../auth/types';
 import type { CompanyRoute } from './companyApi';
-import { deleteComplaintPhoto, fetchComplaintPhotos, isPhotoStorageUnavailable } from './complaintPhotosApi';
 import { toComplaint, type Complaint } from './complaintsApi';
 
 /** Estadísticas de reclamos (GET /complaints/stats), de toda la plataforma o de una empresa. */
@@ -236,20 +235,7 @@ export async function fetchAllComplaints(): Promise<Complaint[]> {
     .filter((complaint): complaint is Complaint => complaint !== null);
 }
 
-/**
- * Elimina un reclamo (DELETE /complaints/:id, solo ADMIN). Antes borra sus
- * fotos una por una: al borrar el reclamo, backend-go elimina los registros de
- * las fotos pero deja los archivos guardados, y son datos personales. Si una
- * foto no se puede borrar, el reclamo no se elimina.
- */
+/** Elimina un reclamo (DELETE /complaints/:id, solo ADMIN). backend-go borra también los archivos de sus fotos. */
 export async function deleteComplaint(id: string): Promise<void> {
-  let photos: Awaited<ReturnType<typeof fetchComplaintPhotos>> = [];
-  try {
-    photos = await fetchComplaintPhotos(id);
-  } catch (e) {
-    // Sin almacenamiento de fotos configurado no hay archivos que borrar.
-    if (!isPhotoStorageUnavailable(e)) throw e;
-  }
-  for (const photo of photos) await deleteComplaintPhoto(id, photo.id);
   await apiRequest(`/complaints/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }

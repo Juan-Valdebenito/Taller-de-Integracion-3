@@ -200,6 +200,10 @@ func main() {
 			attachmentStore,
 		)
 		attachmentH = handler.NewAttachmentHandler(attachmentSvc)
+		// Al eliminar un reclamo se borran también los archivos de sus imágenes.
+		if complaintH != nil {
+			complaintH.WithAttachmentFiles(attachmentSvc)
+		}
 	}
 
 	// Límite de subidas de imágenes por IP (se desactiva con RATE_LIMIT_ENABLED=false).
