@@ -160,7 +160,7 @@ func main() {
 	hub := ws.NewHub(occupancySvc)
 	go hub.Run()
 
-	wsHandler := ws.NewWSHandler(hub, cfg.JWTSecret, cfg.CORSOrigins)
+	wsHandler := ws.NewWSHandler(hub, cfg.JWTSecret, cfg.CORSOrigins).WithRevocation(revStore)
 	log.Info().Str("event", "websocket_ready").Str("path", "/ws").Msg("WebSocket Pub/Sub active")
 
 	// â”€â”€ SimulaciÃ³n GPS (buses virtuales rutas 7A, 7B, 1C) â”€â”€â”€â”€â”€

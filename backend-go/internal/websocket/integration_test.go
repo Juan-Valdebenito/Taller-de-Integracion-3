@@ -51,6 +51,8 @@ func generateJWT(role string) string {
 		"id":    "test-user-id",
 		"email": "test@example.com",
 		"role":  role,
+		"type":  "access",
+		"jti":   "jti-test-" + role,
 		"exp":   time.Now().Add(time.Hour).Unix(),
 	})
 	tokenStr, _ := token.SignedString([]byte(testJWTSecret))

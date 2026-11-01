@@ -7,6 +7,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	gorillaWS "github.com/gorilla/websocket"
 	"github.com/rs/zerolog/log"
+
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/token"
 )
 
 const (
@@ -37,6 +39,10 @@ type Client struct {
 
 	// Secreto JWT para validar mensajes de publicación.
 	jwtSecret string
+
+	// revStore rechaza tokens revocados (logout o revocación de un admin);
+	// nil = sin comprobación (solo en la demo local).
+	revStore token.RevocationStore
 }
 
 // NewClient crea un nuevo Client asociado al Hub.
@@ -182,9 +188,9 @@ func (c *Client) handlePublish(raw []byte) {
 		return
 	}
 
-	claims, err := c.validateJWT(msg.Token)
-	if err != nil {
-		c.sendError("AUTH_REQUIRED", "Token JWT inválido: "+err.Error())
+	claims, problem := validatePublishToken(c.jwtSecret, c.revStore, msg.Token)
+	if problem != "" {
+		c.sendError("AUTH_REQUIRED", problem)
 		return
 	}
 
@@ -205,24 +211,43 @@ func (c *Client) handlePublish(raw []byte) {
 	c.hub.publish <- &msg
 }
 
-// validateJWT valida un token JWT y retorna los claims.
-func (c *Client) validateJWT(tokenString string) (jwt.MapClaims, error) {
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+// validatePublishToken valida el token de una publicación con las mismas
+// reglas que la API REST (middleware.Authenticate): firma y vencimiento, que
+// sea un access token (no uno de renovación) y que no esté revocado. Devuelve
+// los claims o el motivo del rechazo.
+func validatePublishToken(secret string, store token.RevocationStore, tokenString string) (jwt.MapClaims, string) {
+	parsed, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, jwt.ErrSignatureInvalid
 		}
-		return []byte(c.jwtSecret), nil
+		return []byte(secret), nil
 	})
+	if err != nil || !parsed.Valid {
+		return nil, "Token JWT inválido o vencido"
+	}
+	claims, ok := parsed.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, "Token JWT inválido o vencido"
+	}
+	if tokenType, _ := claims["type"].(string); tokenType != "access" {
+		return nil, "Se requiere un access token"
+	}
+	if store == nil {
+		return claims, ""
+	}
+	jti, _ := claims["jti"].(string)
+	if jti == "" {
+		return nil, "Token JWT inválido o vencido"
+	}
+	revoked, err := store.IsRevoked(jti)
 	if err != nil {
-		return nil, err
+		// Fail-closed, como la API: si no se puede consultar, se rechaza.
+		return nil, "No se pudo verificar el estado del token, intenta nuevamente"
 	}
-
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok || !token.Valid {
-		return nil, jwt.ErrSignatureInvalid
+	if revoked {
+		return nil, "El token ha sido revocado. Por favor inicia sesión nuevamente"
 	}
-
-	return claims, nil
+	return claims, ""
 }
 
 // sendError envía un mensaje de error al cliente.

@@ -5,6 +5,8 @@ import (
 
 	gorillaWS "github.com/gorilla/websocket"
 	"github.com/rs/zerolog/log"
+
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/token"
 )
 
 // upgrader configura el upgrade HTTP → WebSocket.
@@ -22,6 +24,15 @@ type WSHandler struct {
 	hub       *Hub
 	jwtSecret string
 	origins   []string
+	// revStore rechaza tokens revocados al publicar (ver WithRevocation).
+	revStore token.RevocationStore
+}
+
+// WithRevocation hace que las publicaciones con un token revocado (logout o
+// revocación de un admin) se rechacen, igual que en la API REST.
+func (h *WSHandler) WithRevocation(store token.RevocationStore) *WSHandler {
+	h.revStore = store
+	return h
 }
 
 // NewWSHandler crea un handler WebSocket configurado.
@@ -60,6 +71,7 @@ func (h *WSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	client := NewClient(h.hub, conn, h.jwtSecret)
+	client.revStore = h.revStore
 	h.hub.register <- client
 
 	// Lanzar goroutines de lectura y escritura

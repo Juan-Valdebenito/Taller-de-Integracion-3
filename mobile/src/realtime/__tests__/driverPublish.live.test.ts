@@ -81,4 +81,24 @@ describeLive('posición del conductor por el WebSocket en backend-go real', () =
       await logout();
     }
   });
+
+  it('después de cerrar sesión, el token anterior ya no sirve para publicar', async () => {
+    const client = new RealtimeClient(resolveWsUrl());
+    const received: IncomingMessage[] = [];
+    client.onMessage((msg) => received.push(msg));
+    await login(SEED_COMPANY);
+    const bus = (await fetchCompanyBuses(SEED_COMPANY_ID)).find((b) => b.companyId === SEED_COMPANY_ID)!;
+    const token = (await getAccessToken())!;
+    // Al cerrar sesión, backend-go revoca el access token.
+    await logout();
+    try {
+      await connected(client);
+      client.publish(buildPublishMessage(token, bus, SEED_ROUTE_ID, { latitude: -38.7, longitude: -72.6 }, { heading: 0, speed: 0 }));
+
+      const error = await waitFor(() => received.find((m): m is Extract<IncomingMessage, { type: 'error' }> => m.type === 'error'));
+      expect(error).toMatchObject({ code: 'AUTH_REQUIRED', message: 'El token ha sido revocado. Por favor inicia sesión nuevamente' });
+    } finally {
+      client.disconnect();
+    }
+  });
 });
