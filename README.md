@@ -236,15 +236,15 @@ Base URL: `http://localhost:3001/api/v1`
 | Buses | GET | `/buses?routeId=` | Autenticado |
 | Buses | GET | `/buses/:id` | Autenticado |
 | Buses | GET | `/buses/:id/location` | Autenticado |
-| Buses | POST | `/buses` | ADMIN, COMPANY |
-| Buses | PUT | `/buses/:id` | ADMIN, COMPANY |
-| Buses | DELETE | `/buses/:id` | ADMIN |
+| Buses | POST | `/buses` | ADMIN, COMPANY (siempre en su empresa y con rutas propias) |
+| Buses | PUT/PATCH | `/buses/:id` | ADMIN, COMPANY (solo sus micros y rutas propias) |
+| Buses | DELETE | `/buses/:id` | ADMIN, COMPANY (solo sus micros) |
 | Rutas | GET | `/routes` | Autenticado |
 | Rutas | GET | `/routes/:id` | Autenticado |
 | Rutas | GET | `/routes/:id/stops` | Autenticado |
 | Rutas | GET | `/routes/:id/buses` | Autenticado |
 | Rutas | POST | `/routes` | ADMIN |
-| Rutas | PUT | `/routes/:id` | ADMIN, COMPANY |
+| Rutas | PUT | `/routes/:id` | ADMIN, COMPANY (solo sus rutas) |
 | Rutas | DELETE | `/routes/:id` | ADMIN |
 | Reclamos | GET | `/complaints` | ADMIN (todos), COMPANY (solo los de su empresa) |
 | Reclamos | GET | `/complaints/stats` | ADMIN (todos), COMPANY (solo su empresa) |

@@ -16,9 +16,9 @@ import (
 func strPtr(s string) *string { return &s }
 
 var (
-	admin      = complaintActor{userID: "adm", role: "ADMIN"}
-	companyA   = complaintActor{userID: "emp-a", role: "COMPANY", companyID: "co-a"}
-	passenger  = complaintActor{userID: "pas-1", role: "PASSENGER"}
+	admin      = requestActor{userID: "adm", role: "ADMIN"}
+	companyA   = requestActor{userID: "emp-a", role: "COMPANY", companyID: "co-a"}
+	passenger  = requestActor{userID: "pas-1", role: "PASSENGER"}
 	ofCompanyA = &domain.Complaint{ID: "c1", CompanyID: strPtr("co-a"), PassengerID: strPtr("pas-1")}
 	ofCompanyB = &domain.Complaint{ID: "c2", CompanyID: strPtr("co-b"), PassengerID: strPtr("pas-2")}
 )
@@ -41,7 +41,7 @@ func TestCompanyScope(t *testing.T) {
 func TestComplaintVisibility(t *testing.T) {
 	tests := []struct {
 		name          string
-		actor         complaintActor
+		actor         requestActor
 		complaint     *domain.Complaint
 		view, respond bool
 	}{
@@ -51,7 +51,7 @@ func TestComplaintVisibility(t *testing.T) {
 		{"pasajero ve el suyo pero no responde", passenger, ofCompanyA, true, false},
 		{"pasajero no ve el de otro", passenger, ofCompanyB, false, false},
 		{"reclamo sin empresa: solo el admin", companyA, &domain.Complaint{ID: "c3"}, false, false},
-		{"rol desconocido", complaintActor{userID: "x", role: "OTRO"}, ofCompanyA, false, false},
+		{"rol desconocido", requestActor{userID: "x", role: "OTRO"}, ofCompanyA, false, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -72,7 +72,7 @@ type fakeUsers struct {
 
 func (f fakeUsers) FindByID(context.Context, string) (*domain.User, error) { return f.user, f.err }
 
-func actorRequest(h *ComplaintHandler, role string) (complaintActor, bool, *httptest.ResponseRecorder) {
+func actorRequest(h *ComplaintHandler, role string) (requestActor, bool, *httptest.ResponseRecorder) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
