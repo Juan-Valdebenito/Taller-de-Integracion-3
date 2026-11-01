@@ -1,15 +1,15 @@
-# 1. SOLICITUD DE ALMACENAMIENTO PERSISTENTE (PVC) por ahora no se puede por permisos del cluster
-# apiVersion: v1
-# kind: PersistentVolumeClaim
-# metadata:
-#   name: micros-db-pvc
-#   namespace: student-jvaldebenito
-# spec:
-#   accessModes:
-#     - ReadWriteOnce # El disco se monta en un solo Pod a la vez
-#   resources:
-#     requests:
-#       storage: 5Gi # 5 Gigabytes de espacio para datos de tránsito
+# 1. SOLICITUD DE ALMACENAMIENTO PERSISTENTE (PVC)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: micros-db-pvc
+  namespace: student-jvaldebenito
+spec:
+  accessModes:
+    - ReadWriteOnce # El disco se monta en un solo Pod a la vez
+  resources:
+    requests:
+      storage: 1Gi # 1 Gigabytes de espacio para datos de tránsito
 ---
 # 2. DESPLIEGUE DE POSTGIS (DEPLOYMENT)
 apiVersion: apps/v1
@@ -21,6 +21,8 @@ metadata:
     app: micros-db
 spec:
   replicas: 1 # Las bases de datos relacionales en K8s corren con 1 réplica principal
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: micros-db
@@ -63,6 +65,8 @@ spec:
                 name: micros-secrets # Carga DB_PASSWORD
           env:
             # PostgreSQL oficial exige la variable POSTGRES_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -86,9 +90,8 @@ spec:
               mountPath: /docker-entrypoint-initdb.d
       volumes:
         - name: micros-db-data
-          emptyDir: {} # No hay permisos para montar PVC en el cluster
-          #persistentVolumeClaim:
-          #  claimName: micros-db-pvc
+          persistentVolumeClaim:
+            claimName: micros-db-pvc
         - name: init-scripts-volume
           configMap:
             name: micros-db-init-scripts

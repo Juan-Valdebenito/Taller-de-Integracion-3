@@ -124,6 +124,33 @@ registro DNS (puede tardar unos minutos).
 La telemetría se aplica en `REALTIME_NAMESPACE` y consume NATS desde
 `nats-svc.FOUNDATION_NAMESPACE.svc.cluster.local`.
 
+## Autoscaling
+
+`micro-telemetry` tiene un HPA activo con entre 1 y 3 réplicas y un objetivo de
+70% de utilización promedio de CPU. El escalado hacia abajo se estabiliza durante
+5 minutos para evitar oscilaciones. El HPA usa los `requests` del Deployment;
+con el request actual de `50m`, el objetivo se alcanza alrededor de `35m` por
+pod, por lo que conviene observar `kubectl top` antes de ajustar el valor.
+
+El HPA requiere que el cluster tenga `metrics-server` funcionando. Verificarlo
+antes de aplicar:
+
+```bash
+kubectl get apiservice v1beta1.metrics.k8s.io
+kubectl top pods -n student-iglausser
+kubectl get hpa -n student-iglausser
+```
+
+`realtime` incluye un manifiesto HPA preparado, pero no se aplica desde
+`deploy.sh` y permanece limitado a una réplica. Su simulación y sus broadcasts
+viven en memoria; habilitar más de un pod sin estado compartido produciría
+mapas divergentes y eventos duplicados. Antes de aumentar `maxReplicas` hay que
+externalizar ese estado y configurar un adapter compartido para Socket.IO.
+
+Cada réplica adicional de `micro-telemetry` aumenta las conexiones y
+transacciones contra la base de telemetría y NATS. No subir el máximo de 3 sin
+medir primero esa capacidad y confirmar la cuota del namespace.
+
 Los Ingress del repo usan `ingressClassName: nginx`, que es la clase global del
 controlador `ingress-nginx` del clúster. No se crean `IngressClass` ni
 controladores a nivel de namespace; eso lo gestiona el administrador del cluster.

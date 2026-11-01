@@ -51,10 +51,8 @@ func toPhaseJSON(r PhaseResult) PhaseJSON {
 		codes[code] = cnt // code ya es string en vegeta
 	}
 	// m.Errors es []string en vegeta v12 (mensajes de error de red)
-	errors := make([]string, 0, len(m.Errors))
-	for _, errMsg := range m.Errors {
-		errors = append(errors, errMsg)
-	}
+	// Copia (no alias) para que el JSON no dependa del slice interno de vegeta.
+	errors := append(make([]string, 0, len(m.Errors)), m.Errors...)
 	return PhaseJSON{
 		Phase:        r.Phase.Name,
 		RateTarget:   r.Phase.Rate,

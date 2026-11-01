@@ -56,45 +56,44 @@ type BusDetail struct {
 	Route               *domain.Route `json:"route,omitempty"`
 }
 
-// FindAll retorna los buses aplicando filtros opcionales de línea, estado, ruta y empresa.
-func (r *BusRepository) FindAll(ctx context.Context, filter BusFilter) ([]domain.Bus, error) {
+// buildBusFindAllQuery arma el SELECT de FindAll con los filtros presentes.
+// Es una función pura para poder probar el SQL sin base de datos.
+func buildBusFindAllQuery(filter BusFilter) (string, []any) {
 	query := `SELECT ` + busSelectColumns + ` FROM buses WHERE 1=1`
-	var args []any
-	argIdx := 1
+	var args queryArgs
 
 	if filter.RouteID != nil && *filter.RouteID != "" {
-		query += fmt.Sprintf(` AND "routeId" = $%d`, argIdx)
-		args = append(args, *filter.RouteID)
-		argIdx++
+		query += ` AND "routeId" = ` + args.add(*filter.RouteID)
 	}
 	if filter.CompanyID != nil && *filter.CompanyID != "" {
-		query += fmt.Sprintf(` AND "companyId" = $%d`, argIdx)
-		args = append(args, *filter.CompanyID)
-		argIdx++
+		query += ` AND "companyId" = ` + args.add(*filter.CompanyID)
 	}
 	if filter.Status != nil && *filter.Status != "" {
-		query += fmt.Sprintf(` AND status = $%d`, argIdx)
-		args = append(args, *filter.Status)
-		argIdx++
+		query += ` AND status = ` + args.add(*filter.Status)
 	}
 	if filter.Line != nil && *filter.Line != "" {
 		cleanLine := strings.ToUpper(strings.TrimSpace(*filter.Line))
 		cleanLine = strings.TrimPrefix(cleanLine, "LINEA")
 		cleanLine = strings.TrimPrefix(cleanLine, "LÍNEA")
 		cleanLine = strings.TrimSpace(cleanLine)
+		like := "%" + cleanLine + "%"
 		query += fmt.Sprintf(` AND (
 			EXISTS (
-				SELECT 1 FROM routes r 
-				WHERE r.id = buses."routeId" 
-				AND (UPPER(r.code) = $%d OR UPPER(r.code) ILIKE $%d OR UPPER(r.name) ILIKE $%d)
+				SELECT 1 FROM routes r
+				WHERE r.id = buses."routeId"
+				AND (UPPER(r.code) = %s OR UPPER(r.code) ILIKE %s OR UPPER(r.name) ILIKE %s)
 			)
-			OR UPPER("routeId") ILIKE $%d
-			OR UPPER(id) ILIKE $%d
-		)`, argIdx, argIdx+1, argIdx+2, argIdx+3, argIdx+4)
-		args = append(args, cleanLine, "%"+cleanLine+"%", "%"+cleanLine+"%", "%"+cleanLine+"%", "%"+cleanLine+"%")
-		argIdx += 5
+			OR UPPER("routeId") ILIKE %s
+			OR UPPER(id) ILIKE %s
+		)`, args.add(cleanLine), args.add(like), args.add(like), args.add(like), args.add(like))
 	}
 	query += ` ORDER BY "createdAt" DESC`
+	return query, args
+}
+
+// FindAll retorna los buses aplicando filtros opcionales de línea, estado, ruta y empresa.
+func (r *BusRepository) FindAll(ctx context.Context, filter BusFilter) ([]domain.Bus, error) {
+	query, args := buildBusFindAllQuery(filter)
 
 	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {

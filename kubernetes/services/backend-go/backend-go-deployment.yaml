@@ -105,6 +105,25 @@ spec:
               value: "15m"
             - name: JWT_REFRESH_EXPIRES_IN
               value: "168h"
+            # ── Rate limiting por IP en /auth/* (contra DoS y fuerza bruta) ──
+            # Login y registro: 10 solicitudes/min por IP, ráfaga de 5.
+            # Rotación de tokens (refresh, logout, revoke): 30/min, ráfaga de 10.
+            # Con varias réplicas cada pod limita por separado.
+            - name: RATE_LIMIT_ENABLED
+              value: "true"
+            - name: RATE_LIMIT_AUTH_PER_MIN
+              value: "10"
+            - name: RATE_LIMIT_AUTH_BURST
+              value: "5"
+            - name: RATE_LIMIT_TOKEN_PER_MIN
+              value: "30"
+            - name: RATE_LIMIT_TOKEN_BURST
+              value: "10"
+            # IP real del cliente: el límite se aplica por la IP que llega en
+            # X-Forwarded-For. Para que no se pueda falsificar, listar aquí las
+            # redes del Ingress Controller (verificar con: kubectl get pods -A -o wide).
+            # - name: TRUSTED_PROXIES
+            #   value: "10.0.0.0/8"
             # ── gRPC hacia los microservicios de Ignacio (namespace student-jvaldebenito) ──
             - name: CLIMATE_GRPC_TARGET
               value: "clima-service-svc.student-jvaldebenito.svc.cluster.local:9090"
@@ -125,8 +144,13 @@ spec:
             # ── Revocación de tokens compartida (opcional) ──────
             # Sin REDIS_ADDR la revocación (logout / refresh) vive en memoria del
             # pod: válido solo con replicas: 1. Con Redis en el cluster:
-            # - name: REDIS_ADDR
-            #   value: "redis-svc.<namespace>.svc.cluster.local:6379"
+            - name: REDIS_ADDR
+              value: "redis-svc:6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-auth
+                  key: REDIS_PASSWORD
           # /readyz comprueba la conexión a PostgreSQL: el Service no envía
           # tráfico al pod hasta que la BD responde.
           readinessProbe:

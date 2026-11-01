@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -163,7 +164,7 @@ func (h *RouteHandler) Update(c *gin.Context) {
 func (h *RouteHandler) Delete(c *gin.Context) {
 	err := h.routeRepo.Delete(c.Request.Context(), c.Param("id"))
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Ruta no encontrada"})
 			return
 		}

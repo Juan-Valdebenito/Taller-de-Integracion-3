@@ -7,6 +7,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// CompanySummary es lo que devuelve GET /api/v1/companies.
+// Las etiquetas json no llevan espacio tras los dos puntos: con `json: "id"`
+// Go las ignora y la API respondía "ID", "Name" e "IsActive".
 type CompanySummary struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`

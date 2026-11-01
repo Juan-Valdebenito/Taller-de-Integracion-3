@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -327,7 +328,7 @@ func (h *ComplaintHandler) UpdateStatus(c *gin.Context) {
 func (h *ComplaintHandler) Delete(c *gin.Context) {
 	err := h.complaintRepo.Delete(c.Request.Context(), c.Param("id"))
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Reclamo no encontrado"})
 			return
 		}

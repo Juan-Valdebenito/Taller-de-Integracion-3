@@ -39,6 +39,7 @@ FOUNDATION_FILES=(
   transporte-db-secret.yaml
   services/transporte_db/transporte-db-init-scripts.yaml
   services/transporte_db/transporte-db-deployment.yaml
+  services/redis_server/redis-server-deployment.yml
   services/backend-go/backend-go-deployment.yaml
   services/backend-go/backend-go-service.yaml
 )
@@ -48,6 +49,7 @@ APP_FILES=(
   services/frontend/frontend-deployment.yaml
   ingress/backend-go-ingress.yaml
   ingress/backend-go-bridge.yaml
+  ingress/frontend-ingress.yaml
 )
 
 # ── Stack "realtime": student-iglausser ──────────────────────
@@ -59,6 +61,8 @@ REALTIME_FILES=(
   services/micro_telemetry/micro-telemetry-db-init-scripts.yaml
   services/micro_telemetry/micro-telemetry-db.yml
   services/micro_telemetry/micro-telemetry-deployment.yaml
+  services/micro_telemetry/micro-telemetry-hpa.yaml
+  services/clima_simulator/clima-simulator-deployment.yaml
   services/realtime/realtime-deployment.yaml
   ingress/realtime-ingress.yaml
 )
@@ -195,7 +199,7 @@ cmd_check() {
       warn "No se pudieron listar todos los servicios foundation en $FOUNDATION_NAMESPACE"
     fi
   elif [ "$STACK" = "app" ]; then
-    warn "backend-go vive en $FOUNDATION_NAMESPACE; verifica el bridge backend-go-ingress-svc antes de aplicar"
+    warn "backend-go vive en $FOUNDATION_NAMESPACE; se accede mediante bridge-to-backend usando DNS interno de Kubernetes"
   elif [ "$STACK" = "realtime" ]; then
     if "${KUBECTL[@]}" get svc nats-svc -n "$FOUNDATION_NAMESPACE" >/dev/null 2>&1; then
       ok "NATS visible en $FOUNDATION_NAMESPACE"
@@ -220,9 +224,11 @@ cmd_build() {
   docker build -f backend-go/Dockerfile -t "$DOCKERHUB_USER/backend-go:$IMAGE_TAG" .
   docker build -t "$DOCKERHUB_USER/transithub-realtime:$IMAGE_TAG" backend/
   docker build -t "$DOCKERHUB_USER/transithub-frontend:$IMAGE_TAG" frontend/
+  docker build -t "$DOCKERHUB_USER/clima-simulator:$IMAGE_TAG" kubernetes/services/clima_simulator/
   docker push "$DOCKERHUB_USER/backend-go:$IMAGE_TAG"
   docker push "$DOCKERHUB_USER/transithub-realtime:$IMAGE_TAG"
   docker push "$DOCKERHUB_USER/transithub-frontend:$IMAGE_TAG"
+  docker push "$DOCKERHUB_USER/clima-simulator:$IMAGE_TAG"
   ok "Imágenes publicadas"
 }
 
