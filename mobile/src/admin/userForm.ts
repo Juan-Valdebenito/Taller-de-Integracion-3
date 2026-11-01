@@ -2,8 +2,8 @@
  * Formulario de usuario, con los campos de UserModal del web: nombre, correo,
  * rol, empresa (solo para el rol Empresa) y "Usuario activo". Al crear se
  * pide además la contraseña inicial (el web usa una fija para todos).
- * backend-go responde un 500 genérico si el correo ya existe, así que la app
- * lo revisa antes contra las cuentas cargadas.
+ * El correo repetido se revisa antes contra las cuentas cargadas (backend-go
+ * igual responde 409).
  */
 import type { AdminUser, NewUserInput, UserPatch } from '../api/adminApi';
 import type { UserRole } from '../auth/types';
@@ -76,8 +76,8 @@ export function toUserPatch(values: UserFormValues, original: AdminUser): UserPa
   return patch;
 }
 
-/** Si la cuenta deja de ser Empresa conserva su empresa: el backend no permite quitarla. */
-export const keepsOldCompany = (values: UserFormValues, original: AdminUser | null): boolean =>
+/** Si la cuenta deja de ser Empresa, backend-go la desvincula de su empresa. */
+export const losesCompany = (values: UserFormValues, original: AdminUser | null): boolean =>
   !!original?.companyId && values.role !== 'COMPANY';
 
 /** Datos para crear la cuenta; "Usuario activo" se aplica después (el registro siempre la crea activa). */

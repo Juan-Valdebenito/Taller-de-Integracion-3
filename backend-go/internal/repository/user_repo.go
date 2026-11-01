@@ -132,6 +132,10 @@ func (r *UserRepository) Update(ctx context.Context, id, name string, role domai
 		args = append(args, *isActive)
 		argIdx++
 	}
+	// Solo las cuentas de empresa pertenecen a una empresa.
+	if role != domain.UserRoleCompany {
+		setClauses = append(setClauses, `"companyId" = NULL`)
+	}
 
 	query := fmt.Sprintf(`
 		UPDATE users
@@ -149,12 +153,13 @@ func (r *UserRepository) Update(ctx context.Context, id, name string, role domai
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("UserRepository.Update: %w", err)
+		return nil, mapUserWriteError("Update", err)
 	}
 	return &u, nil
 }
 
 // UpdatePartial actualiza selectivamente campos específicos de un usuario (para PATCH).
+// companyID vacío ("") quita la empresa (NULL).
 func (r *UserRepository) UpdatePartial(ctx context.Context, id string, name *string, email *string, role *domain.UserRole, isActive *bool, companyID *string) (*domain.User, error) {
 	setClauses := []string{`"updatedAt" = NOW()`}
 	var args []any
@@ -182,7 +187,11 @@ func (r *UserRepository) UpdatePartial(ctx context.Context, id string, name *str
 	}
 	if companyID != nil {
 		setClauses = append(setClauses, fmt.Sprintf("\"companyId\" = $%d", argIdx))
-		args = append(args, *companyID)
+		if *companyID == "" {
+			args = append(args, nil)
+		} else {
+			args = append(args, *companyID)
+		}
 		argIdx++
 	}
 
@@ -202,7 +211,7 @@ func (r *UserRepository) UpdatePartial(ctx context.Context, id string, name *str
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("UserRepository.UpdatePartial: %w", err)
+		return nil, mapUserWriteError("UpdatePartial", err)
 	}
 	return &u, nil
 }

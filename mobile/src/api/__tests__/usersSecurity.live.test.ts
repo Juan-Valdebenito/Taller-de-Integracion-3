@@ -1,5 +1,6 @@
 import { login, logout, register } from '../../api/authApi';
 import { describeLive, resetSecureStore, SEED_ADMIN, SEED_COMPANY, SEED_COMPANY_ID, SEED_PASSENGER } from '../../test-utils/live/backend';
+import { createUser, updateUser } from '../adminApi';
 import { apiRequest } from '../client';
 
 // Seguridad de usuarios contra backend-go real: lo que antes se podía hacer
@@ -55,5 +56,38 @@ describeLive('seguridad de usuarios en backend-go real', () => {
     // El registro de pasajeros sigue funcionando.
     await expect(register({ name: 'Pasajera Nueva', email: `pasajera.${suffix}@example.com`, password: 'Password123!' })).resolves.toMatchObject({ role: 'PASSENGER' });
     await logout();
+  });
+
+  it('el administrador no puede dejarse fuera del panel', async () => {
+    const admin = await login(SEED_ADMIN);
+    try {
+      await expect(updateUser(admin.id, { role: 'PASSENGER' })).rejects.toMatchObject({ status: 403, message: 'No puedes quitarte el rol de administrador' });
+      await expect(updateUser(admin.id, { isActive: false })).rejects.toMatchObject({ status: 403, message: 'No puedes desactivar tu propia cuenta' });
+      await expect(apiRequest(`/users/${admin.id}`, { method: 'DELETE' })).rejects.toMatchObject({ status: 403 });
+      // Cambiar su propio nombre sí puede.
+      await expect(updateUser(admin.id, { name: admin.name })).resolves.toMatchObject({ role: 'ADMIN', isActive: true });
+    } finally {
+      await logout();
+    }
+  });
+
+  it('al dejar de ser Empresa la cuenta pierde su empresa; correo repetido y rol inválido son errores claros', async () => {
+    const suffix = Date.now();
+    await login(SEED_ADMIN);
+    try {
+      const operator = await createUser({ name: 'Operador Temporal', email: `temporal.${suffix}@example.com`, password: 'Password123!', role: 'COMPANY', companyId: SEED_COMPANY_ID });
+      expect(operator.companyId).toBe(SEED_COMPANY_ID);
+
+      await expect(updateUser(operator.id, { role: 'PASSENGER' })).resolves.toMatchObject({ role: 'PASSENGER', companyId: null });
+
+      await expect(updateUser(operator.id, { email: SEED_PASSENGER.email })).rejects.toMatchObject({ status: 409, message: 'El email ya está registrado por otra cuenta' });
+      await expect(apiRequest(`/users/${operator.id}`, { method: 'PATCH', body: { role: 'ROOT' } })).rejects.toMatchObject({ status: 400 });
+      await expect(apiRequest(`/users/${operator.id}`, { method: 'PATCH', body: { role: 'COMPANY', companyId: 'no-existe' } })).rejects.toMatchObject({
+        status: 400,
+        message: 'La empresa indicada no existe',
+      });
+    } finally {
+      await logout();
+    }
   });
 });

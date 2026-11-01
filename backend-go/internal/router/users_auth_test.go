@@ -87,3 +87,32 @@ func TestAdminCreateUserValidation(t *testing.T) {
 		t.Errorf("contraseña corta: got %d %s", w.Code, w.Body.String())
 	}
 }
+
+// El administrador no puede dejarse fuera del panel, y un rol inválido es 400
+// (antes era un 500 con el error de la base de datos).
+func TestAdminCannotLockThemselvesOut(t *testing.T) {
+	r := setupUsers(t)
+	bearer := accessToken(t, "usr-admin", "ADMIN")
+
+	cases := []struct {
+		method, body string
+	}{
+		{http.MethodPatch, `{"role":"PASSENGER"}`},
+		{http.MethodPatch, `{"isActive":false}`},
+		{http.MethodPut, `{"name":"Admin","role":"COMPANY"}`},
+		{http.MethodPut, `{"name":"Admin","role":"ADMIN","isActive":false}`},
+		{http.MethodDelete, ``},
+	}
+	for _, tc := range cases {
+		if w := serveUsers(r, tc.method, "/api/v1/users/usr-admin", bearer, tc.body); w.Code != http.StatusForbidden {
+			t.Errorf("%s %s sobre sí mismo: got %d %s", tc.method, tc.body, w.Code, w.Body.String())
+		}
+	}
+
+	for _, method := range []string{http.MethodPatch, http.MethodPut} {
+		w := serveUsers(r, method, "/api/v1/users/otro", bearer, `{"name":"X","role":"SUPERADMIN"}`)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("%s rol inválido: got %d %s", method, w.Code, w.Body.String())
+		}
+	}
+}

@@ -1,5 +1,5 @@
 import type { AdminUser } from '../../api/adminApi';
-import { formFromUser, keepsOldCompany, newUserForm, toNewUserInput, toUserPatch, validateUserForm } from '../userForm';
+import { formFromUser, losesCompany, newUserForm, toNewUserInput, toUserPatch, validateUserForm } from '../userForm';
 
 const users: AdminUser[] = [
   { id: 'u1', name: 'Administrador Sistema', email: 'admin@transporte.cl', role: 'ADMIN', isActive: true, companyId: null, createdAt: null },
@@ -51,10 +51,10 @@ describe('toUserPatch', () => {
     expect(toUserPatch({ ...formFromUser(users[1]!), role: 'PASSENGER' }, users[1]!)).toEqual({ role: 'PASSENGER' });
   });
 
-  it('avisa que una cuenta que deja de ser Empresa conserva su empresa', () => {
-    expect(keepsOldCompany({ ...formFromUser(users[1]!), role: 'PASSENGER' }, users[1]!)).toBe(true);
-    expect(keepsOldCompany(formFromUser(users[1]!), users[1]!)).toBe(false);
-    expect(keepsOldCompany(formFromUser(users[2]!), users[2]!)).toBe(false);
+  it('avisa que una cuenta que deja de ser Empresa pierde su empresa', () => {
+    expect(losesCompany({ ...formFromUser(users[1]!), role: 'PASSENGER' }, users[1]!)).toBe(true);
+    expect(losesCompany(formFromUser(users[1]!), users[1]!)).toBe(false);
+    expect(losesCompany(formFromUser(users[2]!), users[2]!)).toBe(false);
   });
 });
 

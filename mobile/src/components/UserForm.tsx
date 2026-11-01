@@ -4,7 +4,7 @@ import { KeyboardAvoidingView, Modal, Platform, ScrollView, Text, View } from 'r
 import { createUser, updateUser, type AdminUser, type CompanySummary } from '../api/adminApi';
 import { ApiError } from '../api/errors';
 import { MIN_PASSWORD_LENGTH } from '../auth/validation';
-import { formFromUser, keepsOldCompany, newUserForm, ROLE_OPTIONS, toNewUserInput, toUserPatch, validateUserForm, type UserFormValues } from '../admin/userForm';
+import { formFromUser, losesCompany, newUserForm, ROLE_OPTIONS, toNewUserInput, toUserPatch, validateUserForm, type UserFormValues } from '../admin/userForm';
 import { makeStyles, radius, spacing } from '../theme';
 import { Button } from './Button';
 import { SelectField } from './SelectField';
@@ -163,8 +163,8 @@ export function UserForm({ user: target, users, companies, myId, onClose, onSave
               ) : (
                 <SelectField label="Empresa" value={values.companyId} options={companyOptions} onChange={set('companyId')} />
               )
-            ) : keepsOldCompany(values, user) ? (
-              <Text style={styles.hint}>La cuenta seguirá vinculada a su empresa anterior: el backend no permite quitarla.</Text>
+            ) : losesCompany(values, user) ? (
+              <Text style={styles.hint}>Al dejar de ser Empresa, la cuenta deja de estar vinculada a su empresa.</Text>
             ) : null}
             {isSelf ? null : <SettingSwitchRow label="Usuario activo" value={values.isActive} onValueChange={set('isActive')} disabled={saving} />}
             <View style={styles.actions}>

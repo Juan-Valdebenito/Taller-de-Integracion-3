@@ -76,3 +76,40 @@ func TestRegisterRejectsAdminRole(t *testing.T) {
 		t.Fatalf("got %d, body=%s", w.Code, w.Body.String())
 	}
 }
+
+func TestSelfChangeError(t *testing.T) {
+	passenger, admin := domain.UserRolePassenger, domain.UserRoleAdmin
+	off, on := false, true
+	tests := []struct {
+		name     string
+		actor    string
+		role     *domain.UserRole
+		isActive *bool
+		wantErr  bool
+	}{
+		{"quitarse el rol", "u1", &passenger, nil, true},
+		{"desactivarse", "u1", nil, &off, true},
+		{"seguir siendo admin y activo", "u1", &admin, &on, false},
+		{"cambiar solo el nombre", "u1", nil, nil, false},
+		{"a otra cuenta sí puede", "u2", &passenger, &off, false},
+		{"sin actor (sin sesión)", "", &passenger, &off, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := selfChangeError(tt.actor, "u1", tt.role, tt.isActive); (got != "") != tt.wantErr {
+				t.Errorf("got %q, wantErr %v", got, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestParseRole(t *testing.T) {
+	if role, ok := parseRole(" COMPANY "); !ok || role != domain.UserRoleCompany {
+		t.Errorf("COMPANY: got %q %v", role, ok)
+	}
+	for _, raw := range []string{"", "admin", "ROOT"} {
+		if _, ok := parseRole(raw); ok {
+			t.Errorf("%q no debería ser un rol válido", raw)
+		}
+	}
+}

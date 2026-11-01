@@ -172,13 +172,13 @@ describe('AdminUsersScreen: gestión', () => {
     expect(admin.updateUser).not.toHaveBeenCalled();
   });
 
-  it('al quitarle el rol Empresa avisa que conserva su empresa', async () => {
+  it('al quitarle el rol Empresa avisa que pierde su empresa', async () => {
     await render(<AdminUsersScreen />);
     await fireEvent.press(await screen.findByRole('button', { name: 'Editar Claudia Torres' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Rol: Empresa' }));
     await fireEvent.press(screen.getByRole('radio', { name: 'Pasajero' }));
 
-    expect(screen.getByText('La cuenta seguirá vinculada a su empresa anterior: el backend no permite quitarla.')).toBeTruthy();
+    expect(screen.getByText('Al dejar de ser Empresa, la cuenta deja de estar vinculada a su empresa.')).toBeTruthy();
   });
 
   it('en tu propia cuenta no se puede cambiar el rol ni desactivarla', async () => {
