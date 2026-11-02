@@ -7,7 +7,8 @@ y los aplica en orden.
 
 | Stack | Cuenta / namespace | Responsables | Qué despliega |
 |---|---|---|---|
-| `micro` | `student-jvaldebenito` | Ignacio | NATS · clima (BD, servicio, simulador) · micros (BD, servicio) · telemetría (BD, servicio) |
+| `foundation` | `student-jvaldebenito` | Ignacio | NATS · clima (BD, servicio, simulador) · BD de micros · backend-go · transporte-db |
+| `micros` | `student-tpenroz` | Tomás | servicio de micros |
 | `app` | `student-tpenroz` | Tomás + Juan | frontend · bridge al backend remoto · Ingress |
 
 ```
@@ -17,12 +18,12 @@ y los aplica en orden.
                             │
 ┌──────────────── student-tpenroz (app) ────────────────┐
 │ Ingress backend-go ──► bridge-to-backend (ExternalName)│
-│ frontend-ingress ────► frontend-svc                    │
+│ micros-service · frontend-ingress ──► frontend-svc     │
 └──────────────────────────┬────────────────────────────┘
                            │ DNS interno de Kubernetes
 ┌──────────────────────────▼ student-jvaldebenito ──────┐
 │ backend-go-svc ──► backend-go                         │
-│ clima-service · micros-service · NATS · telemetría    │
+│ backend-go · clima-service · BD micros · NATS · telemetría │
 └───────────────────────────────────────────────────────┘
 ```
 
@@ -49,23 +50,42 @@ cp kubernetes/cluster.env.example kubernetes/cluster.env
 nano kubernetes/cluster.env      # completar DOCKERHUB_USER y revisar namespaces
 ```
 
-Si en la misma máquina están configuradas **las dos cuentas** (dos contextos de
-kubectl), poner sus nombres en `MICRO_KUBE_CONTEXT` y `APP_KUBE_CONTEXT`
-(`kubectl config get-contexts`). Si cada persona usa su propia máquina, dejarlos vacíos.
+Si en la misma máquina están configuradas las cuentas (contextos de kubectl),
+poner sus nombres en `FOUNDATION_KUBE_CONTEXT` y `APP_KUBE_CONTEXT`
+(`kubectl config get-contexts`). El stack `micros` usa `APP_KUBE_CONTEXT`.
+Si cada persona usa su propia máquina, dejar los contextos vacíos.
 
 ## Secuencia de arranque
 
-### 1. Stack `micro` — con la sesión de la cuenta **jvaldebenito**
+### 1. Stack `foundation` — con la sesión de la cuenta **jvaldebenito**
 
 ```bash
-bash kubernetes/deploy.sh micro check    # sesión, permisos y cuota
-bash kubernetes/deploy.sh micro apply    # configuración → BDs → NATS → microservicios
-bash kubernetes/deploy.sh micro status
+bash kubernetes/deploy.sh foundation check
+bash kubernetes/deploy.sh foundation apply
+bash kubernetes/deploy.sh foundation status
 ```
 
-Las imágenes de los microservicios ya están publicadas en `ignaciogsm/*`: no hay que construirlas.
+### 2. Servicio `micros` — con la sesión de la cuenta **tpenroz**
 
-### 2. Stack `app` — con la sesión de la cuenta **tpenroz**
+```bash
+bash kubernetes/deploy.sh micros check   # verifica acceso al namespace y visibilidad de la BD
+bash kubernetes/deploy.sh micros apply
+bash kubernetes/deploy.sh micros status
+```
+
+Este stack despliega el servicio, su ConfigMap y Secret en `APP_NAMESPACE`. La BD
+permanece en `FOUNDATION_NAMESPACE`; el servicio la alcanza mediante DNS interno.
+La cuenta de tpenroz debe poder resolver y conectar con esa BD desde el cluster.
+Después de comprobar que el nuevo servicio responde y alcanza la BD, retirar la
+instancia antigua del namespace foundation con:
+
+```bash
+kubectl -n student-jvaldebenito delete deployment micros-service service micros-service-svc configmap micros-configmap
+```
+
+Deja `micros-secrets` en foundation: `backend-go` lo usa para su `MICRO_API_KEY`.
+
+### 3. Stack `app` — con la sesión de la cuenta **tpenroz**
 
 ```bash
 bash kubernetes/deploy.sh app check      # sesión, permisos, cuota y si ve los microservicios
@@ -101,7 +121,7 @@ registro DNS (puede tardar unos minutos).
 | En el repo | Queda como |
 |---|---|
 | `namespace: student-*` | El namespace del stack (`MICRO_NAMESPACE` o `APP_NAMESPACE`) |
-| `<svc>.student-*.svc.cluster.local` | `transporte-db`, `backend-go`, `realtime` y `frontend` → `APP_NAMESPACE`; el resto (clima, micros, NATS, telemetría) → `MICRO_NAMESPACE` |
+| `<svc>.student-*.svc.cluster.local` | `backend-go` → `FOUNDATION_NAMESPACE`; Micros → `APP_NAMESPACE`; BD Micros, clima, NATS y telemetría → `FOUNDATION_NAMESPACE` |
 | `backend-jvaldebenito.dev.censei.cl` / `<HOST>` | `APP_HOST` |
 | `CORS_ORIGIN`, `SOCKET_CORS_ORIGIN` | `APP_SCHEME://APP_HOST` |
 | `<DOCKERHUB_USER>/…:v1` | `DOCKERHUB_USER/…:IMAGE_TAG` |

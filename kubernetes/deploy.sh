@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
 # Despliega TransitHub en el cluster, repartido en TRES cuentas (ver kubernetes/DEPLOY.md):
 #
-#   foundation → student-jvaldebenito: NATS, clima, micros, backend-go y transporte-db
+#   foundation → student-jvaldebenito: NATS, clima, BD micros, backend-go y transporte-db
+#   micros     → student-tpenroz:      servicio de micros
 #   app        → student-tpenroz:      frontend, bridge e Ingress principal
 #   realtime   → student-iglausser:    telemetría, realtime e Ingress realtime
 #
 # Uso (desde la raíz del repo):
-#   bash kubernetes/deploy.sh <foundation|app|realtime> render
-#   bash kubernetes/deploy.sh <foundation|app|realtime> check
-#   bash kubernetes/deploy.sh <foundation|app|realtime> apply
-#   bash kubernetes/deploy.sh <foundation|app|realtime> status
-#   bash kubernetes/deploy.sh <foundation|app|realtime> delete
+#   bash kubernetes/deploy.sh <foundation|micros|app|realtime> render
+#   bash kubernetes/deploy.sh <foundation|micros|app|realtime> check
+#   bash kubernetes/deploy.sh <foundation|micros|app|realtime> apply
+#   bash kubernetes/deploy.sh <foundation|micros|app|realtime> status
+#   bash kubernetes/deploy.sh <foundation|micros|app|realtime> delete
 #   bash kubernetes/deploy.sh foundation build
 #
-# Orden recomendado: foundation primero; después app y realtime.
+# Orden recomendado: foundation primero; después micros, app y realtime.
 # El inicio de sesión en el cluster NO lo hace este script ni guarda contraseñas.
 
 set -euo pipefail
@@ -25,7 +26,6 @@ ENV_FILE="${CLUSTER_ENV_FILE:-$K8S/cluster.env}"
 # ── Stack "foundation": student-jvaldebenito ──────────────────
 FOUNDATION_FILES=(
   services/clima_service/clima-configmap.yaml
-  services/micro_service/micros-configmap.yaml
   services/micro_service/micros-secret.yaml
   services/clima_db/clima-db-init-scripts.yaml
   services/micro_db/micros-db-init-scripts.yaml
@@ -33,7 +33,6 @@ FOUNDATION_FILES=(
   services/micro_db/micros-db.yml
   services/nats-jetstream.yml
   services/clima_service/clima-deployment.yaml
-  services/micro_service/micros-deployment.yaml
   services/clima_simulator/clima-simulator-deployment.yaml
   transporte-db-configmap.yaml
   transporte-db-secret.yaml
@@ -43,6 +42,13 @@ FOUNDATION_FILES=(
   services/backend-go/backend-go-deployment.yaml
   services/backend-go/backend-go-service.yaml
   ingress/backend-go-ingress.yaml
+)
+
+# ── Stack "micros": student-tpenroz ───────────────────────────
+MICROS_FILES=(
+  services/micro_service/micros-configmap.yaml
+  services/micro_service/micros-secret.yaml
+  services/micro_service/micros-deployment.yaml
 )
 
 # ── Stack "app": student-tpenroz ──────────────────────────────
@@ -111,6 +117,11 @@ load_env() {
       NAMESPACE="$APP_NAMESPACE"
       CONTEXT="${APP_KUBE_CONTEXT:-}"
       FILES=("${APP_FILES[@]}")
+      ;;
+    micros)
+      NAMESPACE="$APP_NAMESPACE"
+      CONTEXT="${APP_KUBE_CONTEXT:-}"
+      FILES=("${MICROS_FILES[@]}")
       ;;
     realtime)
       NAMESPACE="$REALTIME_NAMESPACE"
@@ -190,7 +201,7 @@ cmd_check() {
   done
 
   if [ "$STACK" = "foundation" ]; then
-    if "${KUBECTL[@]}" get svc clima-service-svc micros-service-svc nats-svc -n "$FOUNDATION_NAMESPACE" >/dev/null 2>&1; then
+    if "${KUBECTL[@]}" get svc clima-service-svc nats-svc -n "$FOUNDATION_NAMESPACE" >/dev/null 2>&1; then
       ok "Servicios foundation visibles en $FOUNDATION_NAMESPACE"
     else
       warn "No se pudieron listar todos los servicios foundation en $FOUNDATION_NAMESPACE"
@@ -202,6 +213,12 @@ cmd_check() {
       ok "NATS visible en $FOUNDATION_NAMESPACE"
     else
       warn "No se pudo listar nats-svc en $FOUNDATION_NAMESPACE"
+    fi
+  elif [ "$STACK" = "micros" ]; then
+    if "${KUBECTL[@]}" get svc micros-db-svc -n "$FOUNDATION_NAMESPACE" >/dev/null 2>&1; then
+      ok "Base de datos de micros visible en $FOUNDATION_NAMESPACE"
+    else
+      warn "No se pudo listar micros-db-svc en $FOUNDATION_NAMESPACE; el servicio no podrá conectarse a la BD"
     fi
   fi
 
@@ -228,7 +245,7 @@ cmd_build() {
 }
 
 cmd_apply() {
-  if [ -z "$DOCKERHUB_USER" ]; then
+  if [ "$STACK" != "micros" ] && [ -z "$DOCKERHUB_USER" ]; then
     die "Falta DOCKERHUB_USER en cluster.env (necesario para las imágenes del stack $STACK)."
   fi
   cmd_render
@@ -290,7 +307,7 @@ cmd_delete() {
 STACK="${1:-}"
 COMMAND="${2:-}"
 case "$STACK" in
-  foundation|app|realtime) ;;
+  foundation|micros|app|realtime) ;;
   *) usage ;;
 esac
 load_env

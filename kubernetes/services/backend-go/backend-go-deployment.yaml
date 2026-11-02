@@ -8,9 +8,8 @@
 # Cuentas del cluster:
 #   - Este backend, la BD transporte_db y el Ingress corren en la cuenta de Tomás
 #     (deploy.sh cambia el namespace según kubernetes/cluster.env).
-#   - Los microservicios de Ignacio (clima, micros, NATS) corren en
-#     student-jvaldebenito: por eso CLIMATE/MICRO_GRPC_TARGET apuntan a ese
-#     namespace (deploy.sh los ajusta a MICRO_NAMESPACE de cluster.env).
+#   - Clima corre en student-jvaldebenito y Micros en student-tpenroz; deploy.sh
+#     renderiza sus destinos usando FOUNDATION_NAMESPACE y APP_NAMESPACE.
 #
 # Requisitos previos en el MISMO namespace (los Secrets no se comparten entre namespaces):
 #   ConfigMap transporte-db-configmap · Secrets transporte-db-secrets, clima-secrets, micros-secrets
@@ -114,7 +113,7 @@ spec:
                   name: clima-secrets
                   key: WEATHER_API_KEY
             - name: MICRO_GRPC_TARGET
-              value: "micros-service-svc.student-jvaldebenito.svc.cluster.local:9091"
+              value: "micros-service-svc.<APP_NAMESPACE>.svc.cluster.local:9091"
             - name: MICRO_API_KEY
               valueFrom:
                 secretKeyRef:
