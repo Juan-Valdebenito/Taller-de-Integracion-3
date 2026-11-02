@@ -8,12 +8,10 @@
 # Cuentas del cluster:
 #   - Este backend, la BD transporte_db y el Ingress corren en la cuenta de Tomás
 #     (deploy.sh cambia el namespace según kubernetes/cluster.env).
-#   - Los microservicios de Ignacio (clima, micros, NATS) corren en
-#     student-jvaldebenito: por eso CLIMATE/MICRO_GRPC_TARGET apuntan a ese
-#     namespace (deploy.sh los ajusta a MICRO_NAMESPACE de cluster.env).
+#   - Clima corre en student-iglausser y micros/NATS en student-jvaldebenito.
 #
 # Requisitos previos en el MISMO namespace (los Secrets no se comparten entre namespaces):
-#   ConfigMap transporte-db-configmap · Secrets transporte-db-secrets, clima-secrets, micros-secrets
+#   ConfigMap transporte-db-configmap · Secrets transporte-db-secrets, clima-client-secrets, micros-secrets
 #   y la BD transporte-db-svc levantada.
 apiVersion: apps/v1
 kind: Deployment
@@ -41,7 +39,7 @@ spec:
     spec:
       containers:
         - name: backend-go
-          # deploy.sh la reemplaza por <DOCKERHUB_USER>/backend-go:<IMAGE_TAG> (cluster.env).
+          # deploy.sh la reemplaza por <DOCKERHUB_USER>/backend-go:<BACKEND_GO_IMAGE_TAG> (cluster.env).
           # Construir desde la raíz del repo: docker build -f backend-go/Dockerfile -t <usuario>/backend-go:v1 .
           image: <DOCKERHUB_USER>/backend-go:v1
           imagePullPolicy: Always
@@ -124,13 +122,13 @@ spec:
             # redes del Ingress Controller (verificar con: kubectl get pods -A -o wide).
             # - name: TRUSTED_PROXIES
             #   value: "10.0.0.0/8"
-            # ── gRPC hacia los microservicios de Ignacio (namespace student-jvaldebenito) ──
+            # ── gRPC hacia los microservicios de Ignacio ──
             - name: CLIMATE_GRPC_TARGET
-              value: "clima-service-svc.student-jvaldebenito.svc.cluster.local:9090"
+              value: "clima-service-svc.<REALTIME_NAMESPACE>.svc.cluster.local:9090"
             - name: CLIMATE_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: clima-secrets
+                  name: clima-client-secrets
                   key: WEATHER_API_KEY
             - name: MICRO_GRPC_TARGET
               value: "micros-service-svc.student-jvaldebenito.svc.cluster.local:9091"
