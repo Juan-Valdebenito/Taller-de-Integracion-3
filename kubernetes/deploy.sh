@@ -192,7 +192,7 @@ cmd_check() {
   ok "Sesión activa con acceso a $NAMESPACE (contexto: $("${KUBECTL[@]}" config current-context 2>/dev/null || echo '?'))"
 
   local r
-  for r in deployments services configmaps secrets ingresses persistentvolumeclaims; do
+  for r in deployments services configmaps secrets ingresses; do
     if [ "$("${KUBECTL[@]}" auth can-i create "$r" -n "$NAMESPACE" 2>/dev/null)" = "yes" ]; then
       ok "puede crear $r"
     else

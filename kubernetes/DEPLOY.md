@@ -8,7 +8,7 @@ y los aplica en orden.
 | Stack | Cuenta / namespace | Responsables | Qué despliega |
 |---|---|---|---|
 | `foundation` | `student-jvaldebenito` | Ignacio | NATS · clima (BD, servicio, simulador) · backend-go · transporte-db |
-| `micros` | `student-tpenroz` | Tomás | BD (PVC, PostGIS) y servicio de micros |
+| `micros` | `student-tpenroz` | Tomás | BD (PostGIS con almacenamiento temporal) y servicio de micros |
 | `app` | `student-tpenroz` | Tomás + Juan | frontend · bridge al backend remoto · Ingress |
 
 ```
@@ -69,17 +69,25 @@ bash kubernetes/deploy.sh foundation status
 ### 2. Stack `micros` — con la sesión de la cuenta **tpenroz**
 
 ```bash
-bash kubernetes/deploy.sh micros check   # verifica acceso y permisos, incluido PVC
+bash kubernetes/deploy.sh micros check   # verifica acceso y permisos
 bash kubernetes/deploy.sh micros apply
 bash kubernetes/deploy.sh micros status
 ```
 
-Este stack despliega la BD (PVC, PostGIS, Service y scripts de inicialización) y
-el servicio en `APP_NAMESPACE`. La primera aplicación crea una BD nueva y ejecuta
-los seeds, pero **no copia los datos** del PVC anterior. Si necesitas conservar
-datos existentes, migra la BD con `pg_dump`/`pg_restore` y valida los datos antes
-de retirar recursos antiguos. El PVC antiguo queda en foundation hasta borrarlo
-explícitamente.
+Este stack despliega la BD (PostGIS, Service y scripts de inicialización) y el
+servicio en `APP_NAMESPACE`. La BD usa `emptyDir`: no requiere PVC, pero sus datos
+se pierden cuando Kubernetes recrea el pod. La definición de PVC queda comentada
+en `services/micro_db/micros-db.yml` para reactivarla cuando haya cuota disponible.
+La BD nueva se inicializa con los seeds y **no copia los datos** del PVC anterior.
+Si necesitas conservarlos, migra la BD con `pg_dump`/`pg_restore` antes de retirar
+los recursos antiguos.
+Como ya se creó un PVC `Pending` durante el intento anterior, `apply` no lo elimina
+automáticamente al cambiar a `emptyDir`. Cuando el Deployment ya use `emptyDir`,
+puedes retirar ese reclamo sin volumen asignado con:
+
+```bash
+kubectl -n student-tpenroz delete pvc micros-db-pvc
+```
 
 Después de comprobar la nueva BD y el servicio, se pueden retirar el servicio y
 la configuración antiguos de foundation con:
@@ -89,10 +97,10 @@ kubectl -n student-jvaldebenito delete deployment micros-service service micros-
 ```
 
 Deja `micros-secrets` en foundation: `backend-go` lo usa para su `MICRO_API_KEY`.
-No borres el PVC ni la BD antiguos hasta confirmar la migración de datos.
-Para liberar el espacio del namespace antiguo una vez respaldados/migrados los
-datos, elimina allí `micros-db`, `micros-db-svc`, `micros-db-pvc` y
-`micros-db-init-scripts`; borrar el PVC elimina permanentemente su contenido.
+No borres la BD antigua hasta confirmar la migración de datos. Para liberar el
+espacio del namespace antiguo, elimina allí `micros-db`, `micros-db-svc`,
+`micros-db-pvc` y `micros-db-init-scripts` después de respaldar lo necesario;
+borrar el PVC elimina permanentemente su contenido.
 
 ### 3. Stack `app` — con la sesión de la cuenta **tpenroz**
 
