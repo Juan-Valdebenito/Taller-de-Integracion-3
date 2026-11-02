@@ -1,14 +1,16 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import type { CompanyBus, CompanyRoute, RouteStop } from '../../api/companyApi';
+import { useBackgroundTracking } from '../../hooks/useBackgroundTracking';
 import { useDriverLocation, type DriverLocationState } from '../../hooks/useDriverLocation';
 import { useDriverTrip, type UseDriverTripResult } from '../../hooks/useDriverTrip';
 import { useRouteStops } from '../../hooks/useRouteStops';
-import { connectionLabel, DriverModeScreen } from '../DriverModeScreen';
+import { backgroundStatusText, connectionLabel, DriverModeScreen } from '../DriverModeScreen';
 
 jest.mock('../../hooks/useDriverTrip', () => ({ useDriverTrip: jest.fn() }));
 jest.mock('../../hooks/useRouteStops', () => ({ useRouteStops: jest.fn() }));
 jest.mock('../../hooks/useDriverLocation', () => ({ useDriverLocation: jest.fn() }));
+jest.mock('../../hooks/useBackgroundTracking', () => ({ useBackgroundTracking: jest.fn(() => 'off') }));
 
 function mockLocation(overrides: Partial<DriverLocationState> = {}) {
   const value: DriverLocationState = {
@@ -131,6 +133,19 @@ describe('DriverModeScreen', () => {
     expect(screen.queryByRole('header', { name: 'Preparar recorrido' })).toBeNull();
     await fireEvent.press(screen.getByRole('button', { name: 'Finalizar' }));
     expect(driver.stop).toHaveBeenCalled();
+  });
+
+  it('dice si la ubicación se sigue enviando con la pantalla bloqueada', async () => {
+    mockDriver({ trip: { bus: { ...buses[0], status: 'ACTIVE', routeId: 'r1' }, route: routes[0], startedAt: Date.now() } });
+    jest.mocked(useBackgroundTracking).mockReturnValue('active');
+    await render(<DriverModeScreen />);
+    expect(screen.getByText('También se envía con la pantalla bloqueada.')).toBeTruthy();
+    expect(useBackgroundTracking).toHaveBeenCalledWith(expect.objectContaining({ route: routes[0] }));
+
+    expect(backgroundStatusText('denied')).toContain('permite la ubicación "Siempre"');
+    expect(backgroundStatusText('unavailable')).toContain('solo se envía con la pantalla encendida');
+    expect(backgroundStatusText('off')).toBeNull();
+    jest.mocked(useBackgroundTracking).mockReturnValue('off');
   });
 
   describe('tarjeta "En recorrido"', () => {

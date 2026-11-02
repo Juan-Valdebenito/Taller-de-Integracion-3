@@ -1,5 +1,5 @@
-import { ComingSoonScreen } from '../../components/ComingSoonScreen';
+import { AdminComplaintsScreen } from '../../screens/AdminComplaintsScreen';
 
 export default function AdminComplaintsRoute() {
-  return <ComingSoonScreen emoji="📋" title="Reclamos" description="Revisar, cambiar el estado y responder los reclamos." />;
+  return <AdminComplaintsScreen />;
 }

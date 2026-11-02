@@ -76,10 +76,19 @@ describe('fetchMyComplaints', () => {
         routeId: null,
         companyId: 'co1',
         adminResponse: 'Estamos revisando',
+        rating: null,
+        lineName: null,
         createdAt: '2026-10-29T12:00:00Z',
         updatedAt: '2026-10-29T13:00:00Z',
       },
     ]);
+  });
+
+  it('trae la calificación (1 a 5) y la línea cuando el backend las manda', async () => {
+    fetchMock.mockResolvedValueOnce(fakeResponse({ body: [{ ...complaint, rating: 4, lineName: '7B' }, { ...complaint, id: 'c2', rating: 9 }] }));
+    const [valid, outOfRange] = await fetchMyComplaints();
+    expect(valid).toMatchObject({ rating: 4, lineName: '7B' });
+    expect(outOfRange).toMatchObject({ rating: null });
   });
 
   it('sin reclamos el backend puede responder null: lista vacía', async () => {

@@ -55,6 +55,8 @@ type Config struct {
 //	if err != nil { log.Fatal(err) }
 //	defer client.Close()
 func NewPredictionClient(cfg Config) (PredictionClient, error) {
+	// El resto del sistema depende de la interfaz PredictionClient, no de HTTP o
+	// gRPC. Esta factory elige una implementación y normaliza el timeout.
 	timeout := time.Duration(cfg.TimeoutSec) * time.Second
 	if timeout <= 0 {
 		timeout = 5 * time.Second

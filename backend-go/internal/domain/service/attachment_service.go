@@ -49,6 +49,8 @@ const cleanupTimeout = 10 * time.Second
 // permisos, procesamiento (paquete attachment), archivos (filestore) y
 // metadatos (repositorio). Los endpoints solo lo llaman.
 type AttachmentService struct {
+	// Estas dependencias se inyectan para separar reglas de negocio de SQL,
+	// filesystem y transporte HTTP; los tests pueden sustituirlas por dobles.
 	complaints ComplaintFinder
 	repo       AttachmentRepository
 	store      filestore.Store
@@ -208,6 +210,33 @@ func (s *AttachmentService) Delete(ctx context.Context, actor domain.Actor, comp
 		_ = s.removeOrphan(ctx, deleted.StorageKey)
 	}
 	return nil
+}
+
+// DeleteComplaintWithFiles elimina un reclamo y los archivos de sus imágenes.
+// Al borrar el reclamo, la base borra en cascada los registros de las imágenes
+// pero no puede tocar los archivos; por eso se anotan antes y se borran
+// después. deleteComplaint borra el reclamo (si falla, no se toca ningún
+// archivo). Devuelve cuántos archivos quedaron sin borrar: el reclamo ya no
+// existe, así que no es un error para quien llama, pero conviene registrarlo.
+func (s *AttachmentService) DeleteComplaintWithFiles(ctx context.Context, complaintID string, deleteComplaint func(context.Context) error) (int, error) {
+	atts, err := s.repo.FindByComplaintID(ctx, complaintID)
+	if err != nil {
+		return 0, fmt.Errorf("AttachmentService.DeleteComplaintWithFiles: %w", err)
+	}
+	if err := deleteComplaint(ctx); err != nil {
+		return 0, err
+	}
+	if s.store == nil {
+		return len(atts), nil
+	}
+	left := 0
+	for _, att := range atts {
+		// Solo se toca el archivo si su nombre interno es válido y de este reclamo.
+		if attachment.ValidateStorageKeyFor(att.StorageKey, complaintID) != nil || s.removeOrphan(ctx, att.StorageKey) != nil {
+			left++
+		}
+	}
+	return left, nil
 }
 
 // removeOrphan borra un archivo que ya no tiene registro en la base: el de una

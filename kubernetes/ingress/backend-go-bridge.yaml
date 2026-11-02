@@ -1,5 +1,7 @@
 apiVersion: v1
 kind: Service
+# ExternalName crea un alias DNS entre namespaces. El frontend puede usar un
+# nombre local, mientras Kubernetes resuelve al Service real de foundation.
 metadata:
   name: bridge-to-backend
   namespace: student-tpenroz

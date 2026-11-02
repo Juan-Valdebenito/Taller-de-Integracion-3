@@ -29,8 +29,11 @@
         "expo-location",
         {
           "locationWhenInUsePermission": "TransitHub usa tu ubicación para comprobar si estás cerca de un paradero antes de enviarte alertas de proximidad.",
-          "locationAlwaysAndWhenInUsePermission": false,
-          "locationAlwaysPermission": false
+          "locationAlwaysAndWhenInUsePermission": "En el modo conductor, TransitHub sigue enviando la ubicación de la micro durante el recorrido aunque bloquees la pantalla, para que los pasajeros la vean en el mapa.",
+          "locationAlwaysPermission": false,
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ],
       [

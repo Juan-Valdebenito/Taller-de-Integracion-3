@@ -31,6 +31,10 @@ export interface Complaint {
   routeId: string | null;
   companyId: string | null;
   adminResponse: string | null;
+  /** Calificación de 1 a 5 que dio el pasajero (si la mandó el backend). */
+  rating?: number | null;
+  /** Línea del reclamo (7A, 7B o 1C). */
+  lineName?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -80,7 +84,7 @@ export interface ComplaintFilters {
 }
 
 /** Normaliza un reclamo de la respuesta; null si no trae id. */
-function toComplaint(raw: Partial<Record<keyof Complaint, unknown>>): Complaint | null {
+export function toComplaint(raw: Partial<Record<keyof Complaint, unknown>>): Complaint | null {
   const id = String(raw.id ?? '');
   if (!id) return null;
   const optional = (value: unknown) => (typeof value === 'string' && value !== '' ? value : null);
@@ -94,6 +98,8 @@ function toComplaint(raw: Partial<Record<keyof Complaint, unknown>>): Complaint 
     routeId: optional(raw.routeId),
     companyId: optional(raw.companyId),
     adminResponse: optional(raw.adminResponse),
+    rating: typeof raw.rating === 'number' && raw.rating >= 1 && raw.rating <= 5 ? raw.rating : null,
+    lineName: optional(raw.lineName),
     createdAt: String(raw.createdAt ?? ''),
     updatedAt: String(raw.updatedAt ?? ''),
   };

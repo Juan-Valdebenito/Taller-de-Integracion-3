@@ -18,6 +18,10 @@
 
 set -euo pipefail
 
+# El script no envía los manifiestos originales sin procesar: renderiza copias
+# con nombres de host, namespaces, imagen y clase Ingress tomados de cluster.env.
+# `check` permite revisar esos YAML antes de `apply`.
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 K8S="$ROOT/kubernetes"
 ENV_FILE="${CLUSTER_ENV_FILE:-$K8S/cluster.env}"
@@ -104,6 +108,8 @@ load_env() {
   DOCKERHUB_USER="${DOCKERHUB_USER:-}"
   IMAGE_TAG="${IMAGE_TAG:-v1}"
 
+  # Cada stack se aplica con su propio namespace/contexto. Esto refleja que la
+  # aplicación está repartida entre cuentas distintas del cluster.
   case "$STACK" in
     foundation)
       NAMESPACE="$FOUNDATION_NAMESPACE"

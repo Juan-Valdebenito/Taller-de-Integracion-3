@@ -1,5 +1,8 @@
 package service
 
+// ComplaintService contiene reglas independientes de HTTP y PostgreSQL para
+// categorías, calificaciones y cambios de estado de los reclamos.
+
 import (
 	"errors"
 	"fmt"
@@ -91,6 +94,8 @@ func (s *ComplaintService) IsValidRating(rating *int) bool {
 
 // ValidateTransition evalúa si la transición entre el estado actual y el nuevo estado es legal
 func (s *ComplaintService) ValidateTransition(current, next domain.ComplaintStatus) error {
+	// Validar ambos extremos evita aceptar estados desconocidos aunque alguien
+	// haya insertado datos antiguos o malformados directamente en la BD.
 	if !s.IsValidStatus(current) {
 		return fmt.Errorf("%w: estado actual '%s'", ErrInvalidStatus, current)
 	}

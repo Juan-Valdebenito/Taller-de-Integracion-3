@@ -1,5 +1,9 @@
 package websocket
 
+// Este archivo define el contrato JSON entre app y servidor WebSocket. Los
+// valores de type/topic y los nombres json deben coincidir con los clientes:
+// cambiarlos aquí sin actualizar móvil/web rompe el protocolo.
+
 // ── Tipos de mensajes del protocolo WebSocket Pub/Sub ──────────────────────
 
 // IncomingMessage es el envelope genérico de cualquier mensaje entrante.

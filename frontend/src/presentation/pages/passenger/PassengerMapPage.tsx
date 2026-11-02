@@ -13,6 +13,8 @@
  *  - Panel lateral ordenado por ocupación con badges de predicción
  *  - Barra de estado con latencia WS y mensajes/segundo
  *  - Overlay de reconexión cuando se pierde la conexión
+ *  - Panel de simulación de sensores y pagos (solo en desarrollo), que publica
+ *    por el WebSocket nativo /ws de Go
  */
 
 import { useCallback, useState } from 'react';
@@ -28,6 +30,25 @@ import { RouteFilter } from '../../components/map/RouteFilter';
 import { MapStatusBar } from '../../components/map/MapStatusBar';
 import { ConnectionOverlay } from '../../components/map/ConnectionOverlay';
 import { RouteNodesLayer } from '../../components/map/RouteNodesLayer';
+import { SimulationDevTools, type SimEventType } from '../../components/passenger/SimulationDevTools';
+
+// El simulador es una herramienta de desarrollo: no se muestra en producción.
+const SHOW_DEVTOOLS = import.meta.env.DEV;
+
+/** Pasajeros de una micro después de un evento simulado (sin salirse de 0..capacidad). */
+function passengersAfter(bus: BusState, event: SimEventType): number {
+  switch (event) {
+    case 'tap_in_normal':
+    case 'tap_in_student':
+      return Math.min(bus.capacity, bus.currentPassengers + 1);
+    case 'sensor_alight':
+      return Math.max(0, bus.currentPassengers - 1);
+    case 'fill_capacity':
+      return bus.capacity;
+    case 'empty_capacity':
+      return 0;
+  }
+}
 
 // Centro del mapa: Plaza de Armas de Temuco
 const TEMUCO_CENTER: [number, number] = [-38.7359, -72.5904];
@@ -56,8 +77,16 @@ export function PassengerMapPage() {
   );
   const wsState = useSocketBuses(setBusesCallback, true);
 
+  // Eventos del simulador aplicados solo en este mapa (sin servidor, o si lo
+  // rechaza). Duran hasta que llega un dato nuevo de esa micro (base distinta).
+  const [localPassengers, setLocalPassengers] = useState<Record<string, { base: number; value: number }>>({});
+
   // WebSocket es la fuente primaria; simulación es fallback
-  const activeBuses = wsState.status === 'connected' ? buses : simulatedBuses;
+  const sourceBuses = wsState.status === 'connected' ? buses : simulatedBuses;
+  const activeBuses = sourceBuses.map((bus) => {
+    const local = localPassengers[bus.id];
+    return local && local.base === bus.currentPassengers ? { ...bus, currentPassengers: local.value } : bus;
+  });
   const isInitialLoading = wsState.status === 'connecting' && wsState.totalMessages === 0;
 
   // ── Filtro de ruta ────────────────────────────────────────────
@@ -69,6 +98,14 @@ export function PassengerMapPage() {
   // ── Handlers ─────────────────────────────────────────────────
   const handleSelectBus = (id: string) => {
     setSelectedBusId((prev) => (prev === id ? null : id));
+  };
+
+  const handleLocalEvent = (busId: string, event: SimEventType) => {
+    const source = sourceBuses.find((b) => b.id === busId);
+    const shown = activeBuses.find((b) => b.id === busId);
+    if (source && shown) {
+      setLocalPassengers((prev) => ({ ...prev, [busId]: { base: source.currentPassengers, value: passengersAfter(shown, event) } }));
+    }
   };
 
   return (
@@ -122,6 +159,16 @@ export function PassengerMapPage() {
 
           {/* Overlay de conexión */}
           <ConnectionOverlay status={wsState.status} />
+
+          {SHOW_DEVTOOLS && activeBuses.length > 0 ? (
+            <SimulationDevTools
+              buses={activeBuses}
+              selectedBusId={selectedBusId}
+              onSelectBus={(id) => setSelectedBusId(id)}
+              wsStatus={wsState.status}
+              onLocalEvent={handleLocalEvent}
+            />
+          ) : null}
         </div>
 
         {/* Panel lateral */}

@@ -4,6 +4,10 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo } from 'react';
 
 import { AuthProvider, useAuth } from '../auth/AuthContext';
+// Registra la tarea de GPS en segundo plano del modo conductor al cargar la app.
+import '../company/backgroundTracking';
+import { useNotificationNavigation } from '../hooks/useNotificationNavigation';
+import { usePushRegistrationSync } from '../hooks/usePushRegistration';
 import { setupNotifications } from '../notifications/notificationService';
 import { SettingsProvider, useSettings } from '../settings/SettingsContext';
 import { ThemeProvider, useTheme } from '../theme';
@@ -19,6 +23,10 @@ function RootNavigator() {
   const { loaded: settingsLoaded } = useSettings();
   // Si Inter no carga (fontError), la app sigue con la fuente del sistema.
   const [fontsLoaded, fontError] = useFonts(INTER_FONTS);
+  // Registra el teléfono para push del servidor (si hay sesión y están activas).
+  usePushRegistrationSync();
+  // Tocar un aviso del servidor abre su pantalla (ej. Reclamos).
+  useNotificationNavigation();
   const ready = status !== 'loading' && settingsLoaded && (fontsLoaded || fontError !== null);
 
   useEffect(() => {

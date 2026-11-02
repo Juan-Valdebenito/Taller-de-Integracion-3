@@ -32,6 +32,8 @@ type MigrationResult struct {
 func (r MigrationResult) Changed() bool { return r.From != r.To }
 
 // RunMigrations aplica las migraciones pendientes de internal/migrations.
+// Mantiene un advisory lock de PostgreSQL durante todo el proceso para que dos
+// pods que arranquen juntos no ejecuten el mismo cambio de esquema a la vez.
 //
 // Una base creada a mano (con database_setup.sql o aplicando la 000001 con psql)
 // ya tiene lo de la 000001 (y la 000002 si se aplicó a mano), pero no la tabla
@@ -104,6 +106,8 @@ func RunMigrations(ctx context.Context, databaseURL string) (MigrationResult, er
 // legacyBaseline devuelve la versión que corresponde a una base creada a mano,
 // o 0 si la base está vacía o ya la manejan las migraciones.
 func legacyBaseline(ctx context.Context, conn *sql.Conn) (uint, error) {
+	// Compatibilidad con instalaciones antiguas que ejecutaron SQL manualmente:
+	// se inspecciona el esquema y se marca la versión conocida antes de avanzar.
 	var hasVersionTable, hasUsers, hasAttachments bool
 	err := conn.QueryRowContext(ctx, `
 		SELECT to_regclass('schema_migrations') IS NOT NULL,

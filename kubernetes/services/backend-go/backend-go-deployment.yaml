@@ -23,6 +23,7 @@ metadata:
   labels:
     app: backend-go
 spec:
+  # Deployment mantiene el pod deseado y recrea el contenedor si falla.
   # Con 1 réplica la revocación de tokens en memoria es consistente; para más
   # réplicas configurar REDIS_ADDR (ver más abajo).
   replicas: 1
@@ -49,6 +50,8 @@ spec:
             - name: http
               containerPort: 3001
           env:
+            # Kubernetes inyecta configuración al iniciar el contenedor. Los
+            # valores no sensibles vienen de ConfigMap; contraseñas/claves de Secret.
             # ── Servidor (ConfigMap de Ignacio) ─────────────────
             - name: PORT
               valueFrom:
@@ -93,6 +96,7 @@ spec:
                   key: DB_PASSWORD
             # backend-go espera una URL de conexión única
             - name: DATABASE_URL
+              # La expansión $(VAR) ocurre dentro del Pod; backend-go consume una URL.
               value: "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)"
             # ── JWT (clave en el Secret de Ignacio) ─────────────
             - name: JWT_SECRET
@@ -154,6 +158,8 @@ spec:
           # /readyz comprueba la conexión a PostgreSQL: el Service no envía
           # tráfico al pod hasta que la BD responde.
           readinessProbe:
+            # readiness decide si el pod recibe tráfico; un fallo lo saca
+            # temporalmente del Service sin reiniciar el proceso.
             httpGet:
               path: /readyz
               port: http
@@ -162,6 +168,7 @@ spec:
           # /healthz solo verifica que el proceso responde (no reinicia el pod
           # porque la BD esté caída).
           livenessProbe:
+            # liveness detecta un proceso trabado y Kubernetes lo reinicia.
             httpGet:
               path: /healthz
               port: http

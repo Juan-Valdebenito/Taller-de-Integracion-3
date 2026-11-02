@@ -19,12 +19,12 @@ const mockStore = SecureStore as unknown as typeof SecureStore & {
 beforeEach(() => mockStore.__reset());
 
 describe('tokenStorage', () => {
-  it('guarda ambos tokens cifrados con acceso solo en este dispositivo y desbloqueado', async () => {
+  it('guarda ambos tokens cifrados, solo en este dispositivo y legibles tras el primer desbloqueo', async () => {
     await saveTokens({ accessToken: 'access-1', refreshToken: 'refresh-1' });
 
     expect(mockStore.__dump()).toEqual({ [ACCESS_TOKEN_KEY]: 'access-1', [REFRESH_TOKEN_KEY]: 'refresh-1' });
     for (const call of (SecureStore.setItemAsync as jest.Mock).mock.calls) {
-      expect(call[2]).toEqual({ keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY });
+      expect(call[2]).toEqual({ keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY });
     }
   });
 

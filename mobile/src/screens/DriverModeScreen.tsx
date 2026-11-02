@@ -7,7 +7,9 @@ import { SelectField } from '../components/SelectField';
 import { busOptionLabel, canDrive, routeOptionLabel } from '../company/driverTrip';
 import { useDriverTrip } from '../hooks/useDriverTrip';
 import { useRouteStops } from '../hooks/useRouteStops';
+import { useBackgroundTracking } from '../hooks/useBackgroundTracking';
 import { useDriverLocation, type DriverLocationState } from '../hooks/useDriverLocation';
+import type { BackgroundTrackingStatus } from '../company/backgroundTracking';
 import { useElapsedMinutes, useTripProgress } from '../hooks/useTripProgress';
 import type { ConnectionStatus } from '../realtime/types';
 import { makeStyles, radius, spacing, useTheme } from '../theme';
@@ -29,11 +31,13 @@ const INFO = '#0ea5e9';
  * progreso por los paraderos reales de la ruta, próxima parada, pasajeros,
  * tiempo transcurrido y paradas. Durante el recorrido el GPS del teléfono se
  * publica por el WebSocket (los pasajeros ven la micro moverse) y esa misma
- * posición hace avanzar el progreso.
+ * posición hace avanzar el progreso. Con la pantalla bloqueada, la ubicación
+ * se sigue enviando en segundo plano (ver backgroundTracking.ts).
  */
 export function DriverModeScreen() {
   const driver = useDriverTrip();
   const location = useDriverLocation(driver.trip);
+  const background = useBackgroundTracking(driver.trip);
   const { colors } = useTheme();
   const styles = useStyles();
   const header = connectionLabel(!!driver.trip, location.connection, !driver.error);
@@ -67,7 +71,7 @@ export function DriverModeScreen() {
           </View>
         ) : null}
 
-        {driver.trip ? <ActiveTripCard driver={driver} location={location} /> : <SetupCard driver={driver} />}
+        {driver.trip ? <ActiveTripCard driver={driver} location={location} background={background} /> : <SetupCard driver={driver} />}
 
         <View style={styles.hint}>
           <Ionicons name="checkmark-circle" size={14} color={SUCCESS} />
@@ -93,6 +97,33 @@ export function connectionLabel(
 }
 
 type Driver = ReturnType<typeof useDriverTrip>;
+
+/** Si la ubicación se sigue enviando con la pantalla bloqueada. */
+export function backgroundStatusText(status: BackgroundTrackingStatus): string | null {
+  switch (status) {
+    case 'active':
+      return 'También se envía con la pantalla bloqueada.';
+    case 'denied':
+      return 'Con la pantalla bloqueada se deja de enviar la ubicación. Para evitarlo, permite la ubicación "Siempre" en los ajustes del teléfono.';
+    case 'unavailable':
+      return 'En esta versión de la app la ubicación solo se envía con la pantalla encendida y la app abierta.';
+    default:
+      return null;
+  }
+}
+
+function BackgroundStatus({ status }: { status: BackgroundTrackingStatus }) {
+  const styles = useStyles();
+  const text = backgroundStatusText(status);
+  if (!text) return null;
+  const color = status === 'active' ? SUCCESS : WARNING;
+  return (
+    <View style={styles.locationRow} accessible accessibilityLabel={text}>
+      <Ionicons name={status === 'active' ? 'lock-closed' : 'phone-portrait-outline'} size={16} color={color} />
+      <Text style={[styles.locationText, { color }]}>{text}</Text>
+    </View>
+  );
+}
 
 /** Línea con el estado del envío de la ubicación, dentro de la tarjeta "En recorrido". */
 function LocationStatus({ location }: { location: DriverLocationState }) {
@@ -220,7 +251,7 @@ function SetupCard({ driver }: { driver: Driver }) {
   );
 }
 
-function ActiveTripCard({ driver, location }: { driver: Driver; location: DriverLocationState }) {
+function ActiveTripCard({ driver, location, background }: { driver: Driver; location: DriverLocationState; background: BackgroundTrackingStatus }) {
   const styles = useStyles();
   const { colors } = useTheme();
   const trip = driver.trip!;
@@ -258,6 +289,7 @@ function ActiveTripCard({ driver, location }: { driver: Driver; location: Driver
       </Pressable>
 
       <LocationStatus location={location} />
+      <BackgroundStatus status={background} />
 
       {loading ? (
         <Text style={[styles.muted, styles.spaced]}>Cargando paraderos...</Text>

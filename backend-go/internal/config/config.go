@@ -10,7 +10,9 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// Config contiene todas las variables de entorno de la aplicación.
+// Config contiene la configuración ya interpretada que consumen los paquetes.
+// El resto del backend recibe este objeto en vez de leer el entorno por su
+// cuenta, lo que centraliza valores por defecto y facilita pruebas.
 type Config struct {
 	Port        string
 	DatabaseURL string
@@ -23,6 +25,22 @@ type Config struct {
 	// AttachmentsDir es la carpeta donde se guardan las imágenes de los reclamos
 	// (ATTACHMENTS_DIR). En el cluster, un volumen persistente montado ahí.
 	AttachmentsDir string
+
+	// ── Notificaciones push (Expo Push) ───────────────────────────────────
+	// ExpoPushURL: servicio de envío (EXPO_PUSH_URL; por defecto el de Expo).
+	// En las pruebas en vivo apunta a un servidor falso.
+	ExpoPushURL string
+	// ExpoAccessToken: token opcional de EAS si el proyecto exige
+	// autenticación para enviar push (EXPO_ACCESS_TOKEN). Es un secreto.
+	ExpoAccessToken string
+
+	// ── Telemetría GPS (microservicio micro_telemetry) ─────────────────────
+	// MicroTelemetryURL: endpoint de ingesta de GPS (MICRO_TELEMETRY_URL, ej.
+	// http://micro-telemetry-svc:8080/api/v1/telemetry/gps). Vacío = no se
+	// reenvía (la posición igual se publica en el mapa en vivo).
+	MicroTelemetryURL string
+	// MicroTelemetryAPIKey: header X-API-Key de micro_telemetry. Es un secreto.
+	MicroTelemetryAPIKey string
 
 	// MigrationsEnabled: aplicar las migraciones de internal/migrations al
 	// iniciar (MIGRATIONS_ENABLED, por defecto true).
@@ -98,6 +116,9 @@ type Config struct {
 
 // Load carga las variables desde el archivo .env y el entorno del sistema.
 func Load() *Config {
+	// En local se leen valores de .env; en Kubernetes se inyectan como variables
+	// del contenedor. godotenv no reemplaza variables que ya existan en el
+	// proceso, así que el entorno de despliegue conserva precedencia.
 	// Intentar cargar .env (no falla si no existe en producción)
 	if err := godotenv.Load(); err != nil {
 		log.Debug().Str("event", "dotenv_missing").Msg("No .env file found; using system environment")
@@ -129,6 +150,10 @@ func Load() *Config {
 		Env:         getEnv("NODE_ENV", "development"),
 
 		AttachmentsDir: attachmentsDir(),
+		ExpoPushURL:     getEnv("EXPO_PUSH_URL", DefaultExpoPushURL),
+		ExpoAccessToken: os.Getenv("EXPO_ACCESS_TOKEN"),
+		MicroTelemetryURL:    strings.TrimSpace(os.Getenv("MICRO_TELEMETRY_URL")),
+		MicroTelemetryAPIKey: os.Getenv("MICRO_TELEMETRY_API_KEY"),
 
 		MigrationsEnabled: getEnvBool("MIGRATIONS_ENABLED", true),
 
@@ -171,6 +196,9 @@ func Load() *Config {
 	}
 }
 
+// DefaultExpoPushURL es el servicio de envío de Expo Push.
+const DefaultExpoPushURL = "https://exp.host/--/api/v2/push/send"
+
 // DefaultAttachmentsDir: carpeta de imágenes si no se define ATTACHMENTS_DIR
 // (relativa a donde se ejecuta el backend; está excluida de Git).
 const DefaultAttachmentsDir = "./data/attachments"
@@ -185,6 +213,8 @@ func attachmentsDir() string {
 
 // corsOrigins lee CORS_ORIGIN (uno o varios orígenes separados por coma).
 func corsOrigins() []string {
+	// CORS_ORIGIN puede contener varios orígenes separados por coma. Se recortan
+	// espacios para que los valores copiados de una lista no generen rechazos.
 	if origins := getEnvList("CORS_ORIGIN"); len(origins) > 0 {
 		return origins
 	}

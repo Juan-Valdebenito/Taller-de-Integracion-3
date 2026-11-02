@@ -174,8 +174,9 @@ src/
 
 - **Almacenamiento:** `accessToken` y `refreshToken` se guardan con `expo-secure-store`
   (Keychain en iOS, cifrado con Android Keystore en Android), con
-  `WHEN_UNLOCKED_THIS_DEVICE_ONLY`: solo se leen con el teléfono desbloqueado y no
-  pasan a respaldos ni a otro dispositivo. Nunca se usa AsyncStorage.
+  `AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY`: se leen después del primer desbloqueo desde
+  que se encendió el teléfono (el modo conductor envía la ubicación con la pantalla
+  bloqueada) y no pasan a respaldos ni a otro dispositivo. Nunca se usa AsyncStorage.
 - **Al abrir la app** se recupera la sesión guardada (`GET /auth/me`). Si no se puede
   por una falla pasajera (sin conexión, 429 o 5xx, ver la tabla de abajo), se muestra
   el login con el aviso y el botón **Reintentar conexión**, y los tokens se conservan:
@@ -315,6 +316,9 @@ los tests unitarios.
 | `api/__tests__/fleet.live.test.ts` | Flota: registrar una micro en la empresa (queda `INACTIVE`), aplicarle el estado elegido, editar patente, capacidad, ruta y estado, y que el backend rechace una patente inválida |
 | `api/__tests__/companyComplaints.live.test.ts` | Reclamos de empresa: el pasajero reclama, la empresa lo ve, lo responde y lo cierra (y el backend no deja pasar de Resuelto a Pendiente); el pasajero ve la respuesta. Dar de baja una micro la elimina y una segunda vez da 404 |
 | `api/__tests__/adminDashboard.live.test.ts` | Dashboard del administrador: un reclamo nuevo suma al total, a los pendientes, a su categoría y a su línea (`GET /complaints/stats`) |
+| `api/__tests__/adminCompanies.live.test.ts` | Empresas del administrador: la empresa del seed con sus micros y rutas, un reclamo nuevo suma a sus pendientes, y una cuenta de empresa no puede listar empresas (403) |
+| `api/__tests__/companiesBackend.live.test.ts` | API de empresas (solo ADMIN): sin sesión 401, empresa 403; crear (RUT con formato y correo en minúsculas), RUT repetido 409, RUT inválido 400, editar, desactivar e incluir inactivas |
+| `api/__tests__/adminRoutes.live.test.ts` | Rutas del administrador: la ruta del seed con el nombre de su empresa y sus micros, y sus paraderos en el orden del recorrido |
 
 Las pruebas revisan la secuencia exacta de solicitudes que recibe el backend (ej.
 `/auth/me 401` → `/auth/refresh 200` → `/auth/me 200`), no solo el resultado final.

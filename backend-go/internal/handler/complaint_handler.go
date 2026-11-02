@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
+	"github.com/rs/zerolog/log"
 
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain/service"
@@ -21,6 +23,35 @@ type ComplaintHandler struct {
 	complaintService *service.ComplaintService
 	busRepo          *repository.BusRepository
 	routeRepo        *repository.RouteRepository
+	// users da la empresa de una cuenta COMPANY (ver complaint_access.go).
+	users userFinder
+	// files borra los archivos de las imágenes al eliminar un reclamo; nil si
+	// no hay almacenamiento de imágenes.
+	files complaintFilesRemover
+	// notifier avisa al pasajero por push cuando cambia su reclamo; nil = sin avisos.
+	notifier complaintNotifier
+}
+
+// complaintNotifier lo implementa push.ComplaintNotifier (envía en segundo plano).
+type complaintNotifier interface {
+	ComplaintUpdated(before, after *domain.Complaint)
+}
+
+// WithNotifier conecta los avisos push al pasajero cuando cambia su reclamo.
+func (h *ComplaintHandler) WithNotifier(notifier complaintNotifier) *ComplaintHandler {
+	h.notifier = notifier
+	return h
+}
+
+// complaintFilesRemover lo implementa service.AttachmentService.
+type complaintFilesRemover interface {
+	DeleteComplaintWithFiles(ctx context.Context, complaintID string, deleteComplaint func(context.Context) error) (int, error)
+}
+
+// WithAttachmentFiles conecta el borrado de archivos de imágenes al eliminar reclamos.
+func (h *ComplaintHandler) WithAttachmentFiles(files complaintFilesRemover) *ComplaintHandler {
+	h.files = files
+	return h
 }
 
 func NewComplaintHandler(
@@ -47,15 +78,15 @@ func emptyToNil(s *string) *string {
 
 // GetStats godoc
 // GET /api/v1/complaints/stats — resumen analítico para el dashboard administrativo
+// Una empresa solo ve las cifras de la suya (se ignora el companyId pedido).
 func (h *ComplaintHandler) GetStats(c *gin.Context) {
-	var compIDPtr *string
-	if comp := c.Query("companyId"); comp != "" {
-		compIDPtr = &comp
+	actor, ok := h.actorForComplaints(c)
+	if !ok {
+		return
 	}
-
-	stats, err := h.complaintRepo.GetStats(c.Request.Context(), compIDPtr)
+	stats, err := h.complaintRepo.GetStats(c.Request.Context(), companyScope(actor, c.Query("companyId")))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al calcular estadísticas de reclamos: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al calcular estadísticas de reclamos"})
 		return
 	}
 	c.JSON(http.StatusOK, stats)
@@ -63,14 +94,19 @@ func (h *ComplaintHandler) GetStats(c *gin.Context) {
 // GetAll godoc
 // GET /api/v1/complaints
 // Soporta filtros: status, category, lineName, busId, companyId, rating, minRating, maxRating, page, limit
+// Una empresa solo recibe los reclamos de la suya (se ignora el companyId pedido).
 func (h *ComplaintHandler) GetAll(c *gin.Context) {
+	actor, ok := h.actorForComplaints(c)
+	if !ok {
+		return
+	}
 	var filter repository.ComplaintFilter
 	if s := c.Query("status"); s != "" { v := domain.ComplaintStatus(s); filter.Status = &v }
 	if s := c.Query("category"); s != "" { v := domain.ComplaintCategory(s); filter.Category = &v }
 	if s := c.Query("busId"); s != "" { filter.BusID = &s }
 	if s := c.Query("passengerId"); s != "" { filter.PassengerID = &s }
 	if s := c.Query("lineName"); s != "" { filter.LineName = &s }
-	if s := c.Query("companyId"); s != "" { filter.CompanyID = &s }
+	filter.CompanyID = companyScope(actor, c.Query("companyId"))
 	if s := c.Query("rating"); s != "" { if v, err := strconv.Atoi(s); err == nil { filter.Rating = &v } }
 	if s := c.Query("minRating"); s != "" { if v, err := strconv.Atoi(s); err == nil { filter.MinRating = &v } }
 	if s := c.Query("maxRating"); s != "" { if v, err := strconv.Atoi(s); err == nil { filter.MaxRating = &v } }
@@ -83,7 +119,7 @@ func (h *ComplaintHandler) GetAll(c *gin.Context) {
 	}
 	complaints, err := h.complaintRepo.FindAll(c.Request.Context(), filter, pagination...)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener reclamos: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener reclamos"})
 		return
 	}
 	if complaints == nil { complaints = []domain.Complaint{} }
@@ -130,13 +166,18 @@ func (h *ComplaintHandler) GetMine(c *gin.Context) {
 
 // GetByID godoc
 // GET /api/v1/complaints/:id
+// Un reclamo ajeno responde 404, igual que uno que no existe (no se revela).
 func (h *ComplaintHandler) GetByID(c *gin.Context) {
+	actor, ok := h.actorForComplaints(c)
+	if !ok {
+		return
+	}
 	complaint, err := h.complaintRepo.FindByID(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener reclamo"})
 		return
 	}
-	if complaint == nil {
+	if complaint == nil || !canViewComplaint(actor, complaint) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Reclamo no encontrado"})
 		return
 	}
@@ -295,12 +336,17 @@ func (h *ComplaintHandler) UpdateStatus(c *gin.Context) {
 		return
 	}
 
+	actor, ok := h.actorForComplaints(c)
+	if !ok {
+		return
+	}
 	existing, err := h.complaintRepo.FindByID(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al consultar reclamo"})
 		return
 	}
-	if existing == nil {
+	// Una empresa no puede responder reclamos de otra: se responde como si no existiera.
+	if existing == nil || !canRespondComplaint(actor, existing) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Reclamo no encontrado"})
 		return
 	}
@@ -320,13 +366,30 @@ func (h *ComplaintHandler) UpdateStatus(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar estado del reclamo"})
 		return
 	}
+	// El pasajero recibe un aviso en el teléfono (no se espera a que llegue).
+	if h.notifier != nil && complaint != nil {
+		h.notifier.ComplaintUpdated(existing, complaint)
+	}
 	c.JSON(http.StatusOK, complaint)
 }
 
 // Delete godoc
 // DELETE /api/v1/complaints/:id — admin
+// También borra los archivos de sus imágenes (la base solo borra los registros).
 func (h *ComplaintHandler) Delete(c *gin.Context) {
-	err := h.complaintRepo.Delete(c.Request.Context(), c.Param("id"))
+	id := c.Param("id")
+	deleteComplaint := func(ctx context.Context) error { return h.complaintRepo.Delete(ctx, id) }
+	var err error
+	if h.files != nil {
+		var left int
+		left, err = h.files.DeleteComplaintWithFiles(c.Request.Context(), id, deleteComplaint)
+		if err == nil && left > 0 {
+			log.Warn().Str("event", "complaint_files_left").Str("complaint_id", id).Int("files", left).
+				Msg("Complaint deleted but some image files could not be removed")
+		}
+	} else {
+		err = deleteComplaint(c.Request.Context())
+	}
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Reclamo no encontrado"})

@@ -1,5 +1,9 @@
 package main
 
+// Productor de datos de clima de desarrollo. Genera lecturas plausibles y las
+// publica con el mismo esquema que usarían sensores reales, para probar la
+// API, la persistencia y la distribución por NATS sin hardware.
+
 import (
 	"bytes"
 	"encoding/json"
