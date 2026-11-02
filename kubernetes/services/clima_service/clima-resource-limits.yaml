@@ -1,18 +1,14 @@
 # ==============================================================================
-# Resource Quotas y Limit Ranges – Namespace: student-jvaldebenito
+# Resource Quotas y Limit Ranges – Namespace: student-iglausser
 # Microservicio de Clima (clima-service + clima-db + clima-simulator)
 #
 # Inventario de pods en el namespace:
-#   - clima-service   (Go API)       → cpu: 50m/300m   mem: 64Mi/256Mi
-#   - clima-db        (TimescaleDB)  → cpu: 100m/750m  mem: 256Mi/768Mi
-#   - clima-simulator (Go sender)    → cpu: 25m/150m   mem: 32Mi/128Mi
+#   - clima-service   (Go API)       → cpu: 25m/100m   mem: 32Mi/128Mi
+#   - clima-db        (TimescaleDB)  → cpu: 50m/250m   mem: 128Mi/384Mi
+#   - clima-simulator (Go sender)    → cpu: 10m/75m    mem: 16Mi/64Mi
 #
-# Totales consumidos actualmente:
-#   requests → cpu: 175m  / memory: 352Mi
-#   limits   → cpu: 1200m / memory: 1152Mi
-#
-# Los valores de la quota incluyen ~40 % de margen sobre los totales actuales
-# para permitir reinicios, rolling updates y futuras réplicas de lectura.
+# La cuota contempla clima, micro-telemetry y realtime en el namespace destino,
+# además de margen para el HPA de clima y reinicios durante actualizaciones.
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
@@ -22,30 +18,26 @@ apiVersion: v1
 kind: ResourceQuota
 metadata:
   name: clima-resource-quota
-  namespace: student-jvaldebenito
+  namespace: student-iglausser
   labels:
     app.kubernetes.io/part-of: clima
     app.kubernetes.io/managed-by: kubectl
 spec:
   hard:
     # ── Cómputo ──────────────────────────────────────────────────────────────
-    # Margen ≈ 175m × 1.4 ≈ 250m → redondeado a 300m
-    requests.cpu: "300m"
-    # Margen ≈ 1200m × 1.4 ≈ 1680m → redondeado a 2 cores
-    limits.cpu: "2"
+    requests.cpu: "1"
+    limits.cpu: "4"
 
     # ── Memoria ──────────────────────────────────────────────────────────────
-    # Margen ≈ 352Mi × 1.4 ≈ 493Mi → redondeado a 512Mi
-    requests.memory: "512Mi"
-    # Margen ≈ 1152Mi × 1.4 ≈ 1613Mi → redondeado a 2Gi
-    limits.memory: "2Gi"
+    requests.memory: "1Gi"
+    limits.memory: "4Gi"
 
     # ── Objetos Kubernetes ───────────────────────────────────────────────────
-    pods: "10"                  # máximo de pods simultáneos en el namespace
-    services: "6"               # clima-service-svc, clima-db-svc + margen
-    secrets: "10"               # secrets de app, TLS, imagen, etc.
-    configmaps: "10"
-    persistentvolumeclaims: "4" # PVCs actuales (emptyDir) + margen para prod
+    pods: "20"
+    services: "10"
+    secrets: "20"
+    configmaps: "20"
+    persistentvolumeclaims: "8"
 
 ---
 # ------------------------------------------------------------------------------
@@ -55,7 +47,7 @@ apiVersion: v1
 kind: LimitRange
 metadata:
   name: clima-limit-range
-  namespace: student-jvaldebenito
+  namespace: student-iglausser
   labels:
     app.kubernetes.io/part-of: clima
     app.kubernetes.io/managed-by: kubectl

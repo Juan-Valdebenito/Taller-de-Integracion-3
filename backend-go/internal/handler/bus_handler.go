@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -42,6 +43,9 @@ func FormatPatente(patente string) string {
 // BusHandler maneja los endpoints de buses.
 type BusHandler struct {
 	busRepo *repository.BusRepository
+	// users y routes aplican los permisos por empresa (ver fleet_access.go).
+	users  userFinder
+	routes routeFinder
 }
 
 func NewBusHandler(busRepo *repository.BusRepository) *BusHandler {
@@ -238,6 +242,10 @@ func (h *BusHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos inválidos: " + err.Error()})
 		return
 	}
+	actor, ok := resolveActor(c, h.users)
+	if !ok {
+		return
+	}
 
 	// 1. Validar formato de patente
 	cleanPatente := strings.TrimSpace(body.Patente)
@@ -254,14 +262,19 @@ func (h *BusHandler) Create(c *gin.Context) {
 		body.Capacity = 35
 	}
 
-	// 3. Empresa por defecto
-	if body.CompanyID == "" {
+	// 3. Empresa: una cuenta de empresa siempre crea micros de la suya.
+	if actor.isCompany() {
+		body.CompanyID = actor.companyID
+	} else if body.CompanyID == "" {
 		body.CompanyID = "comp-temuco-01"
+	}
+	if !checkRouteForCompany(c, h.routes, body.RouteID, body.CompanyID) {
+		return
 	}
 
 	bus, err := h.busRepo.Create(c.Request.Context(), formattedPatente, body.Capacity, body.CompanyID, body.RouteID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al crear unidad de bus: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al crear unidad de bus"})
 		return
 	}
 	c.JSON(http.StatusCreated, bus)
@@ -294,10 +307,14 @@ func (h *BusHandler) Update(c *gin.Context) {
 		})
 		return
 	}
+	current, ok := h.ownBus(c)
+	if !ok || !checkRouteForCompany(c, h.routes, body.RouteID, current.CompanyID) {
+		return
+	}
 
 	bus, err := h.busRepo.Update(c.Request.Context(), c.Param("id"), formattedPatente, body.Capacity, status, body.RouteID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar bus: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar bus"})
 		return
 	}
 	if bus == nil {
@@ -347,10 +364,14 @@ func (h *BusHandler) Patch(c *gin.Context) {
 		}
 		statusPtr = &s
 	}
+	current, ok := h.ownBus(c)
+	if !ok || !checkRouteForCompany(c, h.routes, body.RouteID, current.CompanyID) {
+		return
+	}
 
 	bus, err := h.busRepo.UpdatePartial(c.Request.Context(), c.Param("id"), formattedPatente, body.Capacity, statusPtr, body.RouteID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar parcialmente bus: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar parcialmente bus"})
 		return
 	}
 	if bus == nil {
@@ -372,14 +393,36 @@ func isValidOperationalStatus(status domain.BusStatus) bool {
 // Delete godoc
 // DELETE /api/v1/buses/:id
 func (h *BusHandler) Delete(c *gin.Context) {
+	if _, ok := h.ownBus(c); !ok {
+		return
+	}
 	err := h.busRepo.Delete(c.Request.Context(), c.Param("id"))
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Bus no encontrado"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al eliminar bus: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al eliminar bus"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Bus eliminado correctamente"})
+}
+
+// ownBus busca la micro de la URL y comprueba que el actor pueda modificarla.
+// Una micro de otra empresa responde 404, como si no existiera.
+func (h *BusHandler) ownBus(c *gin.Context) (*domain.Bus, bool) {
+	actor, ok := resolveActor(c, h.users)
+	if !ok {
+		return nil, false
+	}
+	bus, err := h.busRepo.FindByID(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener bus"})
+		return nil, false
+	}
+	if bus == nil || !belongsToActor(actor, bus.CompanyID) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Bus no encontrado"})
+		return nil, false
+	}
+	return bus, true
 }

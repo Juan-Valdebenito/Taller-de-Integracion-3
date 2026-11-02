@@ -8,11 +8,10 @@
 # Cuentas del cluster:
 #   - Este backend, la BD transporte_db y el Ingress corren en la cuenta de Tomás
 #     (deploy.sh cambia el namespace según kubernetes/cluster.env).
-#   - Clima corre en student-jvaldebenito y Micros en student-tpenroz; deploy.sh
-#     renderiza sus destinos usando FOUNDATION_NAMESPACE y APP_NAMESPACE.
+#   - Clima corre en student-iglausser y micros/NATS en student-jvaldebenito.
 #
 # Requisitos previos en el MISMO namespace (los Secrets no se comparten entre namespaces):
-#   ConfigMap transporte-db-configmap · Secrets transporte-db-secrets, clima-secrets, micros-secrets
+#   ConfigMap transporte-db-configmap · Secrets transporte-db-secrets, clima-client-secrets, micros-secrets
 #   y la BD transporte-db-svc levantada.
 apiVersion: apps/v1
 kind: Deployment
@@ -22,6 +21,7 @@ metadata:
   labels:
     app: backend-go
 spec:
+  # Deployment mantiene el pod deseado y recrea el contenedor si falla.
   # Con 1 réplica la revocación de tokens en memoria es consistente; para más
   # réplicas configurar REDIS_ADDR (ver más abajo).
   replicas: 1
@@ -40,7 +40,7 @@ spec:
     spec:
       containers:
         - name: backend-go
-          # deploy.sh la reemplaza por <DOCKERHUB_USER>/backend-go:<IMAGE_TAG> (cluster.env).
+          # deploy.sh la reemplaza por <DOCKERHUB_USER>/backend-go:<BACKEND_GO_IMAGE_TAG> (cluster.env).
           # Construir desde la raíz del repo: docker build -f backend-go/Dockerfile -t <usuario>/backend-go:v1 .
           image: <DOCKERHUB_USER>/backend-go:v1
           imagePullPolicy: Always
@@ -48,6 +48,8 @@ spec:
             - name: http
               containerPort: 3001
           env:
+            # Kubernetes inyecta configuración al iniciar el contenedor. Los
+            # valores no sensibles vienen de ConfigMap; contraseñas/claves de Secret.
             # ── Servidor (ConfigMap de Ignacio) ─────────────────
             - name: PORT
               valueFrom:
@@ -92,6 +94,7 @@ spec:
                   key: DB_PASSWORD
             # backend-go espera una URL de conexión única
             - name: DATABASE_URL
+              # La expansión $(VAR) ocurre dentro del Pod; backend-go consume una URL.
               value: "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)"
             # ── JWT (clave en el Secret de Ignacio) ─────────────
             - name: JWT_SECRET
@@ -104,13 +107,32 @@ spec:
               value: "15m"
             - name: JWT_REFRESH_EXPIRES_IN
               value: "168h"
-            # ── gRPC hacia los microservicios de Ignacio (namespace student-jvaldebenito) ──
+            # ── Rate limiting por IP en /auth/* (contra DoS y fuerza bruta) ──
+            # Login y registro: 10 solicitudes/min por IP, ráfaga de 5.
+            # Rotación de tokens (refresh, logout, revoke): 30/min, ráfaga de 10.
+            # Con varias réplicas cada pod limita por separado.
+            - name: RATE_LIMIT_ENABLED
+              value: "true"
+            - name: RATE_LIMIT_AUTH_PER_MIN
+              value: "10"
+            - name: RATE_LIMIT_AUTH_BURST
+              value: "5"
+            - name: RATE_LIMIT_TOKEN_PER_MIN
+              value: "30"
+            - name: RATE_LIMIT_TOKEN_BURST
+              value: "10"
+            # IP real del cliente: el límite se aplica por la IP que llega en
+            # X-Forwarded-For. Para que no se pueda falsificar, listar aquí las
+            # redes del Ingress Controller (verificar con: kubectl get pods -A -o wide).
+            # - name: TRUSTED_PROXIES
+            #   value: "10.0.0.0/8"
+            # ── gRPC hacia los microservicios de Ignacio ──
             - name: CLIMATE_GRPC_TARGET
-              value: "clima-service-svc.student-jvaldebenito.svc.cluster.local:9090"
+              value: "clima-service-svc.<REALTIME_NAMESPACE>.svc.cluster.local:9090"
             - name: CLIMATE_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: clima-secrets
+                  name: clima-client-secrets
                   key: WEATHER_API_KEY
             - name: MICRO_GRPC_TARGET
               value: "micros-service-svc.<APP_NAMESPACE>.svc.cluster.local:9091"
@@ -134,6 +156,8 @@ spec:
           # /readyz comprueba la conexión a PostgreSQL: el Service no envía
           # tráfico al pod hasta que la BD responde.
           readinessProbe:
+            # readiness decide si el pod recibe tráfico; un fallo lo saca
+            # temporalmente del Service sin reiniciar el proceso.
             httpGet:
               path: /readyz
               port: http
@@ -142,6 +166,7 @@ spec:
           # /healthz solo verifica que el proceso responde (no reinicia el pod
           # porque la BD esté caída).
           livenessProbe:
+            # liveness detecta un proceso trabado y Kubernetes lo reinicia.
             httpGet:
               path: /healthz
               port: http

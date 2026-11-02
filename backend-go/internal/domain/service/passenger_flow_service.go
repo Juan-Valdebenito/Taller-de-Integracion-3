@@ -1,5 +1,9 @@
 package service
 
+// PassengerFlowService transforma eventos de subida/bajada en métricas de
+// flujo de pasajeros. El handler valida el transporte; el servicio aplica las
+// reglas y el repositorio persiste el resultado cuando corresponde.
+
 import "sync"
 
 // PassengerFlowInput describe la llegada de una micro a un paradero.
@@ -46,6 +50,8 @@ func NewPassengerFlowService() *PassengerFlowService {
 // que las pruebas y la simulacion sean reproducibles, pero varia por ruta y
 // paradero. Las bajadas liberan capacidad antes de calcular las subidas.
 func (s *PassengerFlowService) ProcessStop(input PassengerFlowInput) PassengerFlowResult {
+	// El orden importa: primero se acota el estado inicial, luego bajan pasajeros
+	// y recién entonces las subidas ocupan los espacios liberados.
 	capacity := input.Capacity
 	if capacity < 0 {
 		capacity = 0
@@ -58,6 +64,8 @@ func (s *PassengerFlowService) ProcessStop(input PassengerFlowInput) PassengerFl
 	rejected := demand - boardings
 	students := min(boardings, studentDemand(input.RouteID, input.StopIndex))
 
+	// El simulador puede actualizar varias micros concurrentemente. El mutex
+	// protege el mapa de acumulados; el cálculo previo es local a esta llamada.
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

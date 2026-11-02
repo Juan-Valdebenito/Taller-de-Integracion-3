@@ -1,13 +1,14 @@
 # SERVIDOR DE TIEMPO REAL (Socket.io) — backend/ en Node
-# El Ingress le envía solo wss://<HOST>/socket.io (ver kubernetes/ingress/).
+# El Ingress dedicado de realtime le envía tráfico desde realtime.<HOST> (ver kubernetes/ingress/).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: realtime
-  namespace: student-jvaldebenito
+  namespace: student-iglausser
   labels:
     app: realtime
 spec:
+  # Socket.IO guarda conexiones y buses en memoria; por eso se usa una réplica.
   # La simulación de buses vive en memoria del proceso: con 2+ réplicas cada
   # pod tendría buses distintos y los clientes verían mapas diferentes.
   # Escalar requiere un adapter compartido (ej. @socket.io/redis-adapter).
@@ -31,14 +32,15 @@ spec:
             - name: http
               containerPort: 3001
           env:
+            # El dominio permitido debe ser el origen público que abre el socket.
             - name: PORT
               value: "3001"
             - name: NODE_ENV
               value: "production"
-            # Origen público del frontend (mismo host que el Ingress).
-            # deploy.sh reemplaza <HOST> por APP_HOST de cluster.env (mismo host que el Ingress)
+            # Origen público del frontend.
+            # deploy.sh reemplaza <REALTIME_HOST> desde cluster.env.
             - name: SOCKET_CORS_ORIGIN
-              value: "https://<HOST>"
+              value: "https://<REALTIME_HOST>"
             # Prisma solo conecta si se usan las rutas REST de este servidor
             # (el Ingress no las expone), pero se deja configurado.
             - name: DB_HOST
@@ -87,17 +89,17 @@ spec:
             periodSeconds: 20
           resources:
             requests:
-              memory: "96Mi"
-              cpu: "50m"
+              memory: "48Mi"
+              cpu: "25m"
             limits:
-              memory: "256Mi"
-              cpu: "200m"
+              memory: "128Mi"
+              cpu: "100m"
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: realtime-svc
-  namespace: student-jvaldebenito
+  namespace: student-iglausser
 spec:
   type: ClusterIP
   selector:

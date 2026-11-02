@@ -1,12 +1,19 @@
 package handler
 
+// AuthHandler adapta los endpoints de sesión al repositorio de usuarios.
+// Aquí se validan credenciales y se emiten/revocan JWT; Authenticate, en
+// middleware, valida esos tokens en peticiones posteriores.
+
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -27,6 +34,9 @@ type AuthHandler struct {
 	refreshExpires time.Duration
 }
 
+// parseTokenDuration acepta formatos Go como "15m" y una comodidad de
+// configuración, "7d". Rechaza cero/negativos para evitar tokens que nazcan
+// vencidos o no tengan vencimiento útil.
 func parseTokenDuration(value string) (time.Duration, error) {
 	value = strings.TrimSpace(strings.ToLower(value))
 	if strings.HasSuffix(value, "d") {
@@ -123,16 +133,24 @@ func (h *AuthHandler) generateToken(user *domain.User, tokenType string, duratio
 
 // Register godoc
 // POST /api/v1/auth/register
+// Register crea una cuenta, guarda solo el hash bcrypt de la contraseña y
+// devuelve access/refresh tokens. La política de roles públicos se aplica en
+// registrationRole para impedir que alguien se registre como administrador.
 func (h *AuthHandler) Register(c *gin.Context) {
 	var body struct {
 		Name      string `json:"name" binding:"required"`
 		Email     string `json:"email" binding:"required,email"`
 		Password  string `json:"password" binding:"required,min=6"`
 		Role      string `json:"role"`
-		CompanyID string `json:"companyId"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	role, allowed := registrationRole(body.Role)
+	if !allowed {
+		c.JSON(http.StatusForbidden, gin.H{"error": "No se puede registrar una cuenta de administrador. Las crea un administrador desde el panel."})
 		return
 	}
 
@@ -154,19 +172,9 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	role := domain.UserRolePassenger
-	if body.Role == string(domain.UserRoleCompany) {
-		role = domain.UserRoleCompany
-	} else if body.Role == string(domain.UserRoleAdmin) {
-		role = domain.UserRoleAdmin
-	}
-
-	var companyID *string
-	if body.CompanyID != "" {
-		companyID = &body.CompanyID
-	}
-
-	user, err := h.userRepo.Create(c.Request.Context(), body.Name, body.Email, string(hash), role, companyID)
+	// Sin empresa: quien se registra no puede elegir a qué empresa pertenece
+	// (vería sus reclamos y micros). Se la asigna un administrador.
+	user, err := h.userRepo.Create(c.Request.Context(), body.Name, body.Email, string(hash), role, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al crear usuario"})
 		return
@@ -185,8 +193,24 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	c.JSON(http.StatusCreated, resp)
 }
 
+// registrationRole decide el rol de una cuenta del registro público: pasajero
+// (por defecto) o empresa. Una cuenta de administrador no se puede registrar.
+func registrationRole(requested string) (domain.UserRole, bool) {
+	switch domain.UserRole(requested) {
+	case domain.UserRoleAdmin:
+		return "", false
+	case domain.UserRoleCompany:
+		return domain.UserRoleCompany, true
+	default:
+		return domain.UserRolePassenger, true
+	}
+}
+
 // Login godoc
 // POST /api/v1/auth/login
+// Login busca la cuenta por correo, compara la contraseña con bcrypt y emite
+// tokens si la cuenta está activa. La respuesta no revela si falló el correo
+// o la contraseña, para no facilitar enumeración de usuarios.
 func (h *AuthHandler) Login(c *gin.Context) {
 	var body struct {
 		Email    string `json:"email" binding:"required,email"`
@@ -235,6 +259,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 //
 // Recibe un Refresh Token válido, lo revoca (rotación: cada refresh token
 // sirve una sola vez) y genera un nuevo Access Token y un nuevo Refresh Token.
+// Refresh rota la sesión: acepta solo un refresh token válido, revoca su JTI
+// anterior y entrega un nuevo par de tokens. El token de renovación no sirve
+// para acceder a endpoints protegidos.
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	var body struct {
 		RefreshToken string `json:"refreshToken" binding:"required"`
@@ -334,41 +361,110 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 
 // Logout godoc
 // POST /api/v1/auth/logout — requiere middleware Authenticate
-// Revoca el token actual en el RevocationStore hasta su expiración.
-// Si el body trae {"refreshToken": "..."}, también se revoca, para que no
-// pueda usarse en /auth/refresh después de cerrar sesión.
+// Agrega a la lista negra (RevocationStore) el access token actual hasta su
+// expiración. Si el body trae {"refreshToken": "..."}, también lo revoca, para
+// que no pueda usarse en /auth/refresh después de cerrar sesión.
+//
+// El refresh token se verifica antes de revocarlo: firma válida, tipo
+// "refresh" y mismo usuario que el access token. Primero se valida todo y
+// después se revoca, para no dejar la sesión cerrada a medias.
+// Logout invalida el access token actual y, si se proporciona, la sesión de
+// renovación asociada. La revocación se comparte mediante Redis en despliegues
+// con varias réplicas.
 func (h *AuthHandler) Logout(c *gin.Context) {
 	var body struct {
 		RefreshToken string `json:"refreshToken"`
 	}
 	_ = c.ShouldBindJSON(&body) // body opcional
-	if body.RefreshToken != "" {
-		if jti, exp, err := parseJTIAndExp(body.RefreshToken); err == nil {
-			if revokeErr := h.revStore.Revoke(jti, exp); revokeErr != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "No se pudo cerrar la sesión, intenta nuevamente"})
-				return
-			}
+
+	type revocation struct {
+		jti string
+		exp time.Time
+	}
+	var toRevoke []revocation
+
+	// Access token del header (el middleware Authenticate ya verificó la firma).
+	if authHeader := c.GetHeader("Authorization"); strings.HasPrefix(authHeader, "Bearer ") {
+		if jti, exp, err := parseJTIAndExp(strings.TrimPrefix(authHeader, "Bearer ")); err == nil {
+			toRevoke = append(toRevoke, revocation{jti, exp})
 		}
 	}
 
-	authHeader := c.GetHeader("Authorization")
-	if !strings.HasPrefix(authHeader, "Bearer ") {
-		c.JSON(http.StatusOK, gin.H{"message": "Sesión cerrada correctamente"})
-		return
+	refreshRevoked := false
+	if body.RefreshToken != "" {
+		userID, _ := c.Get(middleware.ContextUserID)
+		jti, exp, err := h.verifyOwnRefreshToken(body.RefreshToken, fmt.Sprint(userID))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": userMessage(err)})
+			return
+		}
+		// Un refresh token ya vencido no sirve: no hace falta guardarlo.
+		if exp.After(time.Now()) {
+			toRevoke = append(toRevoke, revocation{jti, exp})
+			refreshRevoked = true
+		}
 	}
 
-	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
-
-	// Parsear sin verificar nuevamente (el middleware ya lo hizo)
-	jti, exp, err := parseJTIAndExp(tokenStr)
-	if err == nil {
-		if revokeErr := h.revStore.Revoke(jti, exp); revokeErr != nil {
+	for _, r := range toRevoke {
+		if err := h.revStore.Revoke(r.jti, r.exp); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "No se pudo cerrar la sesión, intenta nuevamente"})
 			return
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Sesión cerrada correctamente"})
+	c.JSON(http.StatusOK, gin.H{
+		"message":        "Sesión cerrada correctamente",
+		"refreshRevoked": refreshRevoked,
+	})
+}
+
+// Errores de verificación del refresh token en el logout. Siguen la convención
+// de Go (minúscula, comparables con errors.Is); userMessage arma el texto que
+// se muestra al usuario.
+var (
+	errRefreshInvalid   = errors.New("refresh token inválido")
+	errRefreshWrongType = errors.New("el token enviado no es un refresh token")
+	errRefreshNotOwned  = errors.New("el refresh token no pertenece a la sesión actual")
+	errRefreshClaims    = errors.New("refresh token sin claims jti/exp válidos")
+)
+
+// userMessage devuelve el mensaje del error con la primera letra en mayúscula,
+// para mostrarlo en la respuesta JSON.
+func userMessage(err error) string {
+	msg := err.Error()
+	for i, r := range msg {
+		return string(unicode.ToUpper(r)) + msg[i+utf8.RuneLen(r):]
+	}
+	return msg
+}
+
+// verifyOwnRefreshToken comprueba que tokenStr sea un refresh token firmado por
+// este backend y que pertenezca a userID. No exige que esté vigente: el
+// llamador decide qué hacer con uno vencido. Devuelve su jti y expiración.
+func (h *AuthHandler) verifyOwnRefreshToken(tokenStr, userID string) (string, time.Time, error) {
+	parser := jwt.NewParser(jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}), jwt.WithoutClaimsValidation())
+	parsed, err := parser.Parse(tokenStr, func(*jwt.Token) (interface{}, error) {
+		return []byte(h.jwtSecret), nil
+	})
+	if err != nil || !parsed.Valid {
+		return "", time.Time{}, errRefreshInvalid
+	}
+	claims, ok := parsed.Claims.(jwt.MapClaims)
+	if !ok {
+		return "", time.Time{}, errRefreshInvalid
+	}
+	if tokenType, _ := claims["type"].(string); tokenType != "refresh" {
+		return "", time.Time{}, errRefreshWrongType
+	}
+	if owner, _ := claims["id"].(string); owner == "" || owner != userID {
+		return "", time.Time{}, errRefreshNotOwned
+	}
+	jti, _ := claims["jti"].(string)
+	expFloat, _ := claims["exp"].(float64)
+	if jti == "" || expFloat <= 0 {
+		return "", time.Time{}, errRefreshClaims
+	}
+	return jti, time.Unix(int64(expFloat), 0), nil
 }
 
 // Revoke godoc
@@ -377,6 +473,8 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 // propio usuario cierre sesión (p.ej. cuenta comprometida, cambio de rol).
 // Al apoyarse en el RevocationStore compartido (Redis en el cluster), la
 // revocación es visible de inmediato en todas las réplicas del backend.
+// Revoke permite a un administrador invalidar un token ajeno identificado en
+// el body. El router restringe este endpoint al rol ADMIN.
 func (h *AuthHandler) Revoke(c *gin.Context) {
 	var body struct {
 		Token string `json:"token" binding:"required"`
@@ -423,10 +521,24 @@ func parseJTIAndExp(tokenStr string) (jti string, exp time.Time, err error) {
 
 // Me godoc
 // GET /api/v1/auth/me — requiere middleware Authenticate
+// Me devuelve el perfil asociado al JWT de acceso, usando el ID que Authenticate
+// colocó en el contexto; no acepta un ID de usuario enviado por el cliente.
 func (h *AuthHandler) Me(c *gin.Context) {
-	userID, _ := c.Get(middleware.ContextUserID)
-	user, err := h.userRepo.FindByID(c.Request.Context(), userID.(string))
-	if err != nil || user == nil {
+	// Aserción verificada: si la ruta se registrara sin Authenticate, antes
+	// userID.(string) hacía panic (500); ahora responde 401.
+	userID, ok := c.Get(middleware.ContextUserID)
+	id, isString := userID.(string)
+	if !ok || !isString || id == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "No autenticado"})
+		return
+	}
+	user, err := h.userRepo.FindByID(c.Request.Context(), id)
+	if err != nil {
+		// Antes un error de BD se informaba como 404 "Usuario no encontrado".
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener el usuario"})
+		return
+	}
+	if user == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Usuario no encontrado"})
 		return
 	}

@@ -33,7 +33,9 @@ func Run() {
 		}
 		fmt.Printf("Login exitoso. JWT obtenido (primeros 30 chars): %s...\n\n", token[:min(30, len(token))])
 	} else {
-		fmt.Println("Modo publico: solo se testean endpoints sin autenticacion.\n")
+		// Println ya agrega un salto de línea; el "\n" extra hacía fallar go vet
+		// (y con él `go test ./...`).
+		fmt.Print("Modo publico: solo se testean endpoints sin autenticacion.\n\n")
 	}
 
 	// ── Targets ───────────────────────────────────────────────────────────

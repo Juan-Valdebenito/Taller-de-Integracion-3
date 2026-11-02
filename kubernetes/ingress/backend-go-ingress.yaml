@@ -18,11 +18,13 @@ metadata:
   annotations:
     external-dns.alpha.kubernetes.io/target: proxy.inf.uct.cl
 spec:
+  # Ingress enruta por host/path desde el controlador NGINX al Service interno.
   ingressClassName: nginx
   rules:
     - host: <API_HOST>
       http:
         paths:
+          # El backend sirve /health, /ws y /api/v1 bajo el mismo host.
           - path: /
             pathType: Prefix
             backend:

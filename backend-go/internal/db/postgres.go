@@ -1,5 +1,9 @@
 package db
 
+// Este paquete encapsula la conexión a PostgreSQL. NewPool se usa cuando la
+// base es obligatoria; NewPoolOptional permite arrancar capacidades que no la
+// necesitan (por ejemplo, WebSocket y simulación).
+
 import (
 	"context"
 

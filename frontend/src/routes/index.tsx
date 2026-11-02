@@ -22,6 +22,7 @@ import { CompanyDashboardPage } from '../presentation/pages/company/CompanyDashb
 import { CompanyBusesPage } from '../presentation/pages/company/CompanyBusesPage';
 import { CompanyRoutesPage } from '../presentation/pages/company/CompanyRoutesPage';
 import { CompanyComplaintsPage } from '../presentation/pages/company/CompanyComplaintsPage';
+import { CompanyDriverModePage } from '../presentation/pages/company/CompanyDriverModePage';
 
 // Admin pages
 import { AdminDashboardPage } from '../presentation/pages/admin/AdminDashboardPage';
@@ -86,6 +87,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/company/dashboard" replace /> },
       { path: 'dashboard', element: <CompanyDashboardPage /> },
+      { path: 'driver', element: <CompanyDriverModePage /> },
       { path: 'buses', element: <CompanyBusesPage /> },
       { path: 'routes', element: <CompanyRoutesPage /> },
       { path: 'complaints', element: <CompanyComplaintsPage /> },

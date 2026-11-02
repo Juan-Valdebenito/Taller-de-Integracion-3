@@ -1,5 +1,9 @@
 package router
 
+// Este paquete concentra la tabla de rutas HTTP y sus políticas de acceso.
+// Los handlers implementan operaciones; aquí se decide qué middleware se
+// ejecuta antes de cada operación (BD, JWT, rol, límites y enmascaramiento).
+
 import (
 	"context"
 	"net/http"
@@ -17,7 +21,7 @@ import (
 
 // Setup configura y retorna el router Gin con todas las rutas registradas.
 func Setup(
-	corsOrigin string,
+	corsOrigins []string,
 	jwtSecret string,
 	pool *pgxpool.Pool,
 	revStore token.RevocationStore,
@@ -31,12 +35,27 @@ func Setup(
 	occupancyH *handler.OccupancyHandler,
 	extras ...interface{},
 ) *gin.Engine {
+	// Los parámetros extra son dependencias opcionales agregadas con el tiempo
+	// (WebSocket, adjuntos, gRPC, aforo, etc.). Se identifican por tipo para
+	// conservar compatibilidad con los tests y llamadas antiguas a Setup.
 	var wsHandler *ws.WSHandler
 	var grpcH *handler.GRPCProxyHandler
 	var aforoH *handler.AforoHandler
 	var recaudoH *handler.RecaudoHandler
+	var authLimits *middleware.AuthRateLimiters
+	var attachmentH *handler.AttachmentHandler
+	var uploadLimiter *middleware.IPRateLimiter
+	var pushH *handler.PushTokenHandler
+	var telemetryH *handler.TelemetryHandler
 	for _, extra := range extras {
 		switch value := extra.(type) {
+		case *middleware.AuthRateLimiters:
+			authLimits = value
+		case *handler.AttachmentHandler:
+			attachmentH = value
+		case *middleware.IPRateLimiter:
+			// Limitador de subidas de imágenes (por IP).
+			uploadLimiter = value
 		case *ws.WSHandler:
 			wsHandler = value
 		case *handler.GRPCProxyHandler:
@@ -45,6 +64,10 @@ func Setup(
 			aforoH = value
 		case *handler.RecaudoHandler:
 			recaudoH = value
+		case *handler.PushTokenHandler:
+			pushH = value
+		case *handler.TelemetryHandler:
+			telemetryH = value
 		}
 	}
 	r := gin.New()
@@ -54,7 +77,7 @@ func Setup(
 
 	// ── CORS ──────────────────────────────────────────────────
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{corsOrigin},
+		AllowOrigins:     corsOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
@@ -98,11 +121,20 @@ func Setup(
 	auth := func() gin.HandlerFunc { return middleware.Authenticate(jwtSecret, revStore) }
 	optionalAuth := func() gin.HandlerFunc { return middleware.OptionalAuthenticate(jwtSecret, revStore) }
 
+	// Estas guardas se colocan antes de los handlers. En modo degradado (sin BD)
+	// main.go no crea los handlers que requieren repositorios y la guarda
+	// responde 503 antes de que una llamada pueda desreferenciar nil.
+	authDB := middleware.RequireDatabase(authH != nil)
+	usersDB := middleware.RequireDatabase(userH != nil)
+	busesDB := middleware.RequireDatabase(busH != nil)
+	routesDB := middleware.RequireDatabase(routeH != nil)
+	complaintsDB := middleware.RequireDatabase(complaintH != nil)
+
 	// Ocupación (público — sin auth para facilitar integración con dispositivos)
 	api.POST("/occupancy", occupancyH.Predict)
 
 	// Simulación de sensores/pagos (público — fallback REST del panel DevTools)
-	api.POST("/buses/simulate-event", busH.SimulateEvent)
+	api.POST("/buses/simulate-event", busesDB, busH.SimulateEvent)
 
 	// Control y cálculo estricto de aforo vehicular
 	if aforoH != nil {
@@ -137,33 +169,64 @@ func Setup(
 	}
 
 	// Auth (con validación estricta y sanitización de entrada)
-	authGroup := api.Group("/auth")
+	// Rate limiting por IP contra DoS y fuerza bruta: va primero para cortar el
+	// exceso antes de validar el body, verificar JWT o consultar la BD.
+	//   credentialsLimit → login y registro (límite estricto)
+	//   tokensLimit      → rotación de tokens: refresh, logout y revoke
+	credentialsLimit := authLimits.CredentialsMiddleware()
+	tokensLimit := authLimits.TokensMiddleware()
+	authGroup := api.Group("/auth", authDB)
 	{
-		authGroup.POST("/register", middleware.ValidateUserPayload(), authH.Register)
-		authGroup.POST("/login", authH.Login)
-		authGroup.POST("/refresh", authH.Refresh)
-		authGroup.POST("/logout", auth(), authH.Logout)
+		authGroup.POST("/register", credentialsLimit, middleware.ValidateUserPayload(), authH.Register)
+		authGroup.POST("/login", credentialsLimit, authH.Login)
+		authGroup.POST("/refresh", tokensLimit, authH.Refresh)
+		authGroup.POST("/logout", tokensLimit, auth(), authH.Logout)
 		authGroup.GET("/me", auth(), authH.Me)
-		authGroup.POST("/revoke", auth(), middleware.Authorize("ADMIN"), authH.Revoke)
+		authGroup.POST("/revoke", tokensLimit, auth(), middleware.Authorize("ADMIN"), authH.Revoke)
 	}
 
-	// Usuarios (con soporte de máscara ?mask=true para privacidad y validación en updates)
-	users := api.Group("/users", optionalAuth(), middleware.SensitiveDataMasker())
+	// Usuarios: solo administradores (con máscara ?mask=true para privacidad y
+	// validación en updates). Sin esto cualquiera podía listar cuentas,
+	// cambiar roles o desactivarlas.
+	users := api.Group("/users", usersDB, auth(), middleware.Authorize("ADMIN"), middleware.SensitiveDataMasker())
 	{
 		users.GET("", userH.GetAll)
 		users.GET("/", userH.GetAll)
+		users.POST("", middleware.ValidateUserPayload(), userH.Create)
+		users.POST("/", middleware.ValidateUserPayload(), userH.Create)
 		users.GET("/:id", userH.GetByID)
 		users.PUT("/:id", middleware.ValidateUserUpdatePayload(), userH.Update)
 		users.PATCH("/:id", middleware.ValidateUserUpdatePayload(), userH.Patch)
 		users.DELETE("/:id", userH.Delete)
 	}
 
+	// Teléfono de la cuenta con sesión para notificaciones push (cualquier rol).
+	// Sin base de datos, RequireDatabase responde 503 antes de llegar al handler.
+	me := api.Group("/me", middleware.RequireDatabase(pushH != nil), auth())
+	{
+		me.PUT("/push-token", pushH.Register)
+		me.DELETE("/push-token", pushH.Unregister)
+	}
+
+	// GPS del modo conductor por HTTP (la app en segundo plano): mapa en vivo y
+	// reenvío a micro_telemetry. Mismas reglas que publicar por el WebSocket.
+	telemetryGroup := api.Group("/telemetry", middleware.RequireDatabase(telemetryH != nil), auth(), middleware.Authorize("ADMIN", "COMPANY"))
+	{
+		telemetryGroup.POST("/gps", telemetryH.ReportGPS)
+	}
+
 	// Empresas (requiere autenticación; operaciones de admin requieren rol)
 	if companyH != nil {
-		companies := api.Group("/companies", auth())
+		// Empresas: todas las operaciones son solo para administradores.
+		companies := api.Group("/companies", auth(), middleware.Authorize("ADMIN"))
 		{
-			companies.GET("", middleware.Authorize("ADMIN"), companyH.GetAll)
-			companies.GET("/", middleware.Authorize("ADMIN"), companyH.GetAll)
+			companies.GET("", companyH.GetAll)
+			companies.GET("/", companyH.GetAll)
+			companies.GET("/:id", companyH.GetByID)
+			companies.POST("", companyH.Create)
+			companies.POST("/", companyH.Create)
+			companies.PUT("/:id", companyH.Update)
+			companies.PATCH("/:id/status", companyH.SetStatus)
 		}
 	}
 
@@ -196,7 +259,7 @@ func Setup(
 	}
 
 	// Buses (CRUD de micros con soporte para PATCH y roles ADMIN/COMPANY)
-	buses := api.Group("/buses", optionalAuth())
+	buses := api.Group("/buses", busesDB, optionalAuth())
 	{
 		buses.GET("", busH.GetAll)
 		buses.GET("/", busH.GetAll)
@@ -210,7 +273,7 @@ func Setup(
 	}
 
 	// Rutas de transporte
-	routes := api.Group("/routes", auth())
+	routes := api.Group("/routes", routesDB, auth())
 	{
 		routes.GET("", routeH.GetAll)
 		routes.GET("/", routeH.GetAll)
@@ -235,21 +298,27 @@ func Setup(
 	}
 
 	// Reclamos: creación accesible por pasajeros con validación y sanitización estricta XSS
-	api.POST("/complaints", optionalAuth(), middleware.ValidateComplaintPayload(), complaintH.Create)
-	api.POST("/complaints/", optionalAuth(), middleware.ValidateComplaintPayload(), complaintH.Create)
+	api.POST("/complaints", complaintsDB, optionalAuth(), middleware.ValidateComplaintPayload(), complaintH.Create)
+	api.POST("/complaints/", complaintsDB, optionalAuth(), middleware.ValidateComplaintPayload(), complaintH.Create)
 
 	// Gestión y consulta de reclamos con soporte de enmascaramiento (?mask=true)
-	complaints := api.Group("/complaints", optionalAuth(), middleware.SensitiveDataMasker())
+	complaints := api.Group("/complaints", complaintsDB, optionalAuth(), middleware.SensitiveDataMasker())
 	{
-		complaints.GET("/stats", complaintH.GetStats)
-		complaints.GET("", complaintH.GetAll)
-		complaints.GET("/", complaintH.GetAll)
+		// Lista y cifras: solo administración y empresas (cada empresa, las suyas).
+		complaints.GET("/stats", auth(), middleware.Authorize("ADMIN", "COMPANY"), complaintH.GetStats)
+		complaints.GET("", auth(), middleware.Authorize("ADMIN", "COMPANY"), complaintH.GetAll)
+		complaints.GET("/", auth(), middleware.Authorize("ADMIN", "COMPANY"), complaintH.GetAll)
 		complaints.GET("/my", middleware.Authorize("PASSENGER"), complaintH.GetMine)
 		complaints.GET("/my-complaints", middleware.Authorize("PASSENGER"), complaintH.FindByPassengerID)
-		complaints.GET("/:id", complaintH.GetByID)
-		complaints.PUT("/:id/status", middleware.Authorize("ADMIN", "COMPANY"), complaintH.UpdateStatus)
-		complaints.PATCH("/:id/status", middleware.Authorize("ADMIN", "COMPANY"), complaintH.UpdateStatus)
+		// Detalle: el dueño, su empresa o un administrador (ver complaint_access.go).
+		complaints.GET("/:id", auth(), complaintH.GetByID)
+		complaints.PUT("/:id/status", auth(), middleware.Authorize("ADMIN", "COMPANY"), complaintH.UpdateStatus)
+		complaints.PATCH("/:id/status", auth(), middleware.Authorize("ADMIN", "COMPANY"), complaintH.UpdateStatus)
 		complaints.DELETE("/:id", middleware.Authorize("ADMIN"), complaintH.Delete)
+
+		// Imágenes del reclamo: siempre con sesión (los permisos finos los
+		// aplica el servicio). Sin almacenamiento disponible responden 503.
+		registerAttachmentRoutes(complaints, attachmentH, uploadLimiter, auth)
 	}
 
 	return r

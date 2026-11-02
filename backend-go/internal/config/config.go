@@ -3,19 +3,48 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/rs/zerolog/log"
 )
 
-// Config contiene todas las variables de entorno de la aplicación.
+// Config contiene la configuración ya interpretada que consumen los paquetes.
+// El resto del backend recibe este objeto en vez de leer el entorno por su
+// cuenta, lo que centraliza valores por defecto y facilita pruebas.
 type Config struct {
 	Port        string
 	DatabaseURL string
 	JWTSecret   string
-	CORSOrigin  string
+	// CORSOrigins: orígenes permitidos (CORS_ORIGIN, separados por coma), ej.
+	// la web en :5173 y la vista previa web de la app móvil (Expo) en :8081.
+	CORSOrigins []string
 	Env         string
+
+	// AttachmentsDir es la carpeta donde se guardan las imágenes de los reclamos
+	// (ATTACHMENTS_DIR). En el cluster, un volumen persistente montado ahí.
+	AttachmentsDir string
+
+	// ── Notificaciones push (Expo Push) ───────────────────────────────────
+	// ExpoPushURL: servicio de envío (EXPO_PUSH_URL; por defecto el de Expo).
+	// En las pruebas en vivo apunta a un servidor falso.
+	ExpoPushURL string
+	// ExpoAccessToken: token opcional de EAS si el proyecto exige
+	// autenticación para enviar push (EXPO_ACCESS_TOKEN). Es un secreto.
+	ExpoAccessToken string
+
+	// ── Telemetría GPS (microservicio micro_telemetry) ─────────────────────
+	// MicroTelemetryURL: endpoint de ingesta de GPS (MICRO_TELEMETRY_URL, ej.
+	// http://micro-telemetry-svc:8080/api/v1/telemetry/gps). Vacío = no se
+	// reenvía (la posición igual se publica en el mapa en vivo).
+	MicroTelemetryURL string
+	// MicroTelemetryAPIKey: header X-API-Key de micro_telemetry. Es un secreto.
+	MicroTelemetryAPIKey string
+
+	// MigrationsEnabled: aplicar las migraciones de internal/migrations al
+	// iniciar (MIGRATIONS_ENABLED, por defecto true).
+	MigrationsEnabled bool
 
 	// ── Duración de los JWT ────────────────────────────────────────────────
 	// El access token se usa en cada llamada a la API (vida corta); el refresh
@@ -59,6 +88,24 @@ type Config struct {
 	RedisPassword string
 	RedisDB       int
 
+	// ── Rate limiting de autenticación (por IP) ────────────────────────────
+	// RateLimitEnabled activa el límite en /auth/*. Desactivar solo en pruebas de carga.
+	RateLimitEnabled bool
+	// Login y registro: solicitudes por minuto y ráfaga permitidas por IP.
+	AuthRateLimitPerMin int
+	AuthRateLimitBurst  int
+	// Rotación de tokens (refresh, logout, revoke): solicitudes por minuto y ráfaga por IP.
+	TokenRateLimitPerMin int
+	TokenRateLimitBurst  int
+	// Subida de imágenes a reclamos: solicitudes por minuto y ráfaga por IP
+	// (también se desactiva con RATE_LIMIT_ENABLED=false).
+	UploadRateLimitPerMin int
+	UploadRateLimitBurst  int
+	// TrustedProxies son las IPs o rangos CIDR de los proxies (ej. el Ingress)
+	// de los que se acepta X-Forwarded-For para saber la IP real del cliente.
+	// Vacío = comportamiento por defecto de Gin (confía en cualquier proxy).
+	TrustedProxies []string
+
 	// ── Proxies gRPC (microservicios clima / micro) ────────────────────────
 	ClimateGRPCTarget string
 	ClimateAPIKey     string
@@ -69,6 +116,9 @@ type Config struct {
 
 // Load carga las variables desde el archivo .env y el entorno del sistema.
 func Load() *Config {
+	// En local se leen valores de .env; en Kubernetes se inyectan como variables
+	// del contenedor. godotenv no reemplaza variables que ya existan en el
+	// proceso, así que el entorno de despliegue conserva precedencia.
 	// Intentar cargar .env (no falla si no existe en producción)
 	if err := godotenv.Load(); err != nil {
 		log.Debug().Str("event", "dotenv_missing").Msg("No .env file found; using system environment")
@@ -96,8 +146,16 @@ func Load() *Config {
 		Port:        getEnv("PORT", "3001"),
 		DatabaseURL: getEnv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/transporte_db"),
 		JWTSecret:   getEnv("JWT_SECRET", "dev_secret_cambiarlo_en_produccion_123"),
-		CORSOrigin:  getEnv("CORS_ORIGIN", "http://localhost:5173"),
+		CORSOrigins: corsOrigins(),
 		Env:         getEnv("NODE_ENV", "development"),
+
+		AttachmentsDir: attachmentsDir(),
+		ExpoPushURL:     getEnv("EXPO_PUSH_URL", DefaultExpoPushURL),
+		ExpoAccessToken: os.Getenv("EXPO_ACCESS_TOKEN"),
+		MicroTelemetryURL:    strings.TrimSpace(os.Getenv("MICRO_TELEMETRY_URL")),
+		MicroTelemetryAPIKey: os.Getenv("MICRO_TELEMETRY_API_KEY"),
+
+		MigrationsEnabled: getEnvBool("MIGRATIONS_ENABLED", true),
 
 		JWTAccessExpires:  accessDuration,
 		JWTRefreshExpires: refreshDuration,
@@ -118,6 +176,17 @@ func Load() *Config {
 		RedisPassword: getEnv("REDIS_PASSWORD", ""),
 		RedisDB:       getEnvInt("REDIS_DB", 0),
 
+		// Rate limiting de autenticación
+		RateLimitEnabled:     getEnvBool("RATE_LIMIT_ENABLED", true),
+		AuthRateLimitPerMin:  getEnvInt("RATE_LIMIT_AUTH_PER_MIN", 10),
+		AuthRateLimitBurst:   getEnvInt("RATE_LIMIT_AUTH_BURST", 5),
+		TokenRateLimitPerMin: getEnvInt("RATE_LIMIT_TOKEN_PER_MIN", 30),
+		TokenRateLimitBurst:  getEnvInt("RATE_LIMIT_TOKEN_BURST", 10),
+		TrustedProxies:       getEnvList("TRUSTED_PROXIES"),
+
+		UploadRateLimitPerMin: getEnvInt("RATE_LIMIT_UPLOAD_PER_MIN", 10),
+		UploadRateLimitBurst:  getEnvInt("RATE_LIMIT_UPLOAD_BURST", 3),
+
 		// Proxies gRPC
 		ClimateGRPCTarget: getEnv("CLIMATE_GRPC_TARGET", "localhost:9090"),
 		ClimateAPIKey:     getEnv("CLIMATE_API_KEY", "temuco_weather_secret_key"),
@@ -125,6 +194,31 @@ func Load() *Config {
 		MicroAPIKey:       getEnv("MICRO_API_KEY", ""),
 		GRPCTimeout:       grpcTimeout,
 	}
+}
+
+// DefaultExpoPushURL es el servicio de envío de Expo Push.
+const DefaultExpoPushURL = "https://exp.host/--/api/v2/push/send"
+
+// DefaultAttachmentsDir: carpeta de imágenes si no se define ATTACHMENTS_DIR
+// (relativa a donde se ejecuta el backend; está excluida de Git).
+const DefaultAttachmentsDir = "./data/attachments"
+
+// attachmentsDir lee ATTACHMENTS_DIR; vacío o solo espacios usa el valor por defecto.
+func attachmentsDir() string {
+	if dir := strings.TrimSpace(os.Getenv("ATTACHMENTS_DIR")); dir != "" {
+		return dir
+	}
+	return DefaultAttachmentsDir
+}
+
+// corsOrigins lee CORS_ORIGIN (uno o varios orígenes separados por coma).
+func corsOrigins() []string {
+	// CORS_ORIGIN puede contener varios orígenes separados por coma. Se recortan
+	// espacios para que los valores copiados de una lista no generen rechazos.
+	if origins := getEnvList("CORS_ORIGIN"); len(origins) > 0 {
+		return origins
+	}
+	return []string{"http://localhost:5173"}
 }
 
 func getEnv(key, fallback string) string {
@@ -150,6 +244,17 @@ func getEnvFloat(key string, fallback float64) float64 {
 		}
 	}
 	return fallback
+}
+
+// getEnvList lee una lista separada por comas, ignorando espacios y elementos vacíos.
+func getEnvList(key string) []string {
+	var items []string
+	for _, item := range strings.Split(os.Getenv(key), ",") {
+		if item = strings.TrimSpace(item); item != "" {
+			items = append(items, item)
+		}
+	}
+	return items
 }
 
 func getEnvBool(key string, fallback bool) bool {

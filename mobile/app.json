@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "TransitHub",
+    "slug": "transithub-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-router",
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "TransitHub usa tu ubicación para comprobar si estás cerca de un paradero antes de enviarte alertas de proximidad.",
+          "locationAlwaysAndWhenInUsePermission": "En el modo conductor, TransitHub sigue enviando la ubicación de la micro durante el recorrido aunque bloquees la pantalla, para que los pasajeros la vean en el mapa.",
+          "locationAlwaysPermission": false,
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#1d4ed8"
+        }
+      ],
+      "expo-asset",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "TransitHub usa tus fotos solo para adjuntarlas a los reclamos que envíes.",
+          "cameraPermission": "TransitHub usa la cámara solo para sacar fotos que adjuntes a tus reclamos.",
+          "microphonePermission": false
+        }
+      ]
+    ],
+    "scheme": "transithub"
+  }
+}

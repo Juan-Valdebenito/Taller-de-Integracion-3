@@ -7,30 +7,28 @@ y los aplica en orden.
 
 | Stack | Cuenta / namespace | Responsables | Qué despliega |
 |---|---|---|---|
-| `foundation` | `student-jvaldebenito` | Ignacio | NATS · Redis · backend-go · transporte-db |
-| `micros` | `student-tpenroz` | Tomás | BD (PostGIS con almacenamiento temporal) y servicio de micros |
-| `app` | `student-tpenroz` | Tomás + Juan | frontend · bridge e Ingress del backend |
-| `realtime` | `student-iglausser` | Ignacio | clima (BD, servicio, simulador) · telemetría · realtime · Ingress realtime |
+| `foundation` | `student-jvaldebenito` | Ignacio | NATS · micros · `transporte_db` · `backend-go` |
+| `app` | `student-tpenroz` | Tomás + Juan | `frontend` · bridge hacia backend-go · Ingress principal |
+| `realtime` | `student-iglausser` | Ignacio | clima · clima-db · telemetría · `realtime` · Ingress realtime |
 
 ```
                          Internet
                             │  https / wss
                     proxy.inf.uct.cl
                             │
-┌──────────────── student-tpenroz (app) ────────────────┐
-│ Ingress backend-go ──► bridge-to-backend (ExternalName)│
-│ micros-service · micros-db · frontend-ingress          │
-│ frontend-svc · API ingress · WebSocket → bridge         │
-└──────────────────────────┬────────────────────────────┘
-                           │ DNS interno de Kubernetes
-┌──────────────────────────▼ student-jvaldebenito ──────┐
-│ backend-go · transporte-db · NATS · Redis              │
-└──────────────────────────┬────────────────────────────┘
-                           │ DNS interno de Kubernetes
-┌──────────────────────────▼ student-iglausser ─────────┐
-│ clima-service · clima-db · simulador                   │
-│ telemetría · realtime · realtime-ingress                │
-└───────────────────────────────────────────────────────┘
+┌────────────── student-tpenroz (app) ────────────────┐
+│ Ingress principal                                   │
+│   /api → bridge → backend-go en foundation          │
+│   /    → frontend-svc                               │
+└──────────────────────┬─────────────────────────────┘
+              │ gRPC + PostgreSQL
+┌──────────────────────▼── student-jvaldebenito ──────┐
+│ micros · NATS · transporte-db · backend-go          │
+└──────────────────────┬─────────────────────────────┘
+              │ NATS + PostgreSQL
+┌──────────────────────▼── student-iglausser ─────────┐
+│ clima · clima-db · simulador · telemetría · realtime│
+└──────────────────────────────────────────────────────┘
 ```
 
 > 🔐 Los secretos se configuran en `kubernetes/cluster.env`, que está ignorado
@@ -55,15 +53,14 @@ cp kubernetes/cluster.env.example kubernetes/cluster.env
 nano kubernetes/cluster.env      # completar namespaces, DOCKERHUB_USER y secretos
 ```
 
-Si en la misma máquina están configuradas las cuentas (contextos de kubectl),
-poner sus nombres en `FOUNDATION_KUBE_CONTEXT`, `APP_KUBE_CONTEXT` y
-`REALTIME_KUBE_CONTEXT` (`kubectl config get-contexts`). El stack `micros` usa
-`APP_KUBE_CONTEXT`.
-Si cada persona usa su propia máquina, dejar los contextos vacíos.
+Si en la misma máquina están configuradas **las tres cuentas** (tres contextos de
+kubectl), poner sus nombres en `FOUNDATION_KUBE_CONTEXT`, `APP_KUBE_CONTEXT` y
+`REALTIME_KUBE_CONTEXT`
+(`kubectl config get-contexts`). Si cada persona usa su propia máquina, dejarlos vacíos.
 
 ## Secuencia de arranque
 
-### 1. Stack `foundation` — con la sesión de la cuenta **jvaldebenito**
+### 1. Stack `foundation` — con la sesión de **jvaldebenito**
 
 ```bash
 bash kubernetes/deploy.sh foundation check
@@ -71,51 +68,17 @@ bash kubernetes/deploy.sh foundation apply
 bash kubernetes/deploy.sh foundation status
 ```
 
-`foundation apply` requiere `REDIS_PASSWORD` y `CLIMATE_API_KEY` en `cluster.env`
-o en el entorno. `CLIMATE_API_KEY` debe coincidir con la clave configurada para
-el servicio de clima. Antes de aplicar, publica las imágenes propias:
+Las imágenes de los microservicios ya están publicadas en `ignaciogsm/*`: no hay que construirlas.
+
+### 2. Stack `app` — con la sesión de **tpenroz**
 
 ```bash
-bash kubernetes/deploy.sh foundation build
+bash kubernetes/deploy.sh app check
+bash kubernetes/deploy.sh app apply
+bash kubernetes/deploy.sh app status
 ```
 
-### 2. Stack `micros` — con la sesión de la cuenta **tpenroz**
-
-```bash
-bash kubernetes/deploy.sh micros check   # verifica acceso y permisos
-bash kubernetes/deploy.sh micros apply
-bash kubernetes/deploy.sh micros status
-```
-
-Este stack despliega la BD (PostGIS, Service y scripts de inicialización) y el
-servicio en `APP_NAMESPACE`. La BD usa `emptyDir`: no requiere PVC, pero sus datos
-se pierden cuando Kubernetes recrea el pod. La definición de PVC queda comentada
-en `services/micro_db/micros-db.yml` para reactivarla cuando haya cuota disponible.
-La BD nueva se inicializa con los seeds y **no copia los datos** del PVC anterior.
-Si necesitas conservarlos, migra la BD con `pg_dump`/`pg_restore` antes de retirar
-los recursos antiguos.
-Como ya se creó un PVC `Pending` durante el intento anterior, `apply` no lo elimina
-automáticamente al cambiar a `emptyDir`. Cuando el Deployment ya use `emptyDir`,
-puedes retirar ese reclamo sin volumen asignado con:
-
-```bash
-kubectl -n student-tpenroz delete pvc micros-db-pvc
-```
-
-Después de comprobar la nueva BD y el servicio, se pueden retirar el servicio y
-la configuración antiguos de foundation con:
-
-```bash
-kubectl -n student-jvaldebenito delete deployment micros-service service micros-service-svc configmap micros-configmap
-```
-
-Deja `micros-secrets` en foundation: `backend-go` lo usa para su `MICRO_API_KEY`.
-No borres la BD antigua hasta confirmar la migración de datos. Para liberar el
-espacio del namespace antiguo, elimina allí `micros-db`, `micros-db-svc`,
-`micros-db-pvc` y `micros-db-init-scripts` después de respaldar lo necesario;
-borrar el PVC elimina permanentemente su contenido.
-
-### 3. Stack `realtime` — con la sesión de la cuenta **iglausser**
+### 3. Stack `realtime` — con la sesión de **iglausser**
 
 ```bash
 bash kubernetes/deploy.sh realtime check
@@ -123,26 +86,14 @@ bash kubernetes/deploy.sh realtime apply
 bash kubernetes/deploy.sh realtime status
 ```
 
-Este stack contiene clima, sus recursos PostGIS, simulador, telemetría y realtime.
-La nueva BD de clima usa un PVC propio y no copia los datos del PVC que quedó en
-foundation; migra los datos antes de eliminar el PVC anterior. `apply` no borra
-los recursos que ya existan en `foundation`; retira el servicio antiguo solo
-después de validar el nuevo y conservar/migrar los datos necesarios.
-El Ingress de app enruta `/socket.io` al Service de realtime mediante
-`bridge-to-realtime`; `REALTIME_HOST` también publica un Ingress directo para
-realtime. Los HPA se agregan si sus manifiestos opcionales existen en el checkout.
+El orden de despliegue recomendado sigue la secuencia del equipo:
 
-### 4. Stack `app` — con la sesión de la cuenta **tpenroz**
-
-```bash
-bash kubernetes/deploy.sh app check      # sesión, permisos, cuota y si ve los microservicios
-bash kubernetes/deploy.sh app apply      # frontend, bridge e Ingress
-bash kubernetes/deploy.sh app status     # estado + prueba del Ingress y del WebSocket
-```
-
-El orden dentro de `app` sigue la secuencia del equipo:
-`backend-go` permanece en `foundation`; el bridge de `app` lo conecta mediante el
-DNS interno. El Ingress de API usa `API_HOST` y el frontend usa `APP_HOST`.
+1. **Foundation** publica los Services de micros, NATS y transporte-db.
+2. **Backend-go** usa micros localmente y clima mediante DNS cross-namespace; se ejecuta en foundation.
+3. **App** expone frontend y el bridge de backend-go mediante el Ingress principal.
+4. **Realtime** publica clima, clima-db y telemetría, y replica sus ConfigMaps/Secrets de transporte porque los Secrets no se comparten entre namespaces.
+5. **PostgreSQL `transporte_db`** usa `emptyDir` porque el PV/PVC dio
+   problemas: si el pod se reinicia, la BD se recrea vacía con los scripts de inicio.
 
 La app queda en `https://backend-tpenroz.dev.censei.cl` cuando external-dns crea el
 registro DNS (puede tardar unos minutos).
@@ -153,7 +104,7 @@ registro DNS (puede tardar unos minutos).
 |---|---|---|
 | `render` | Genera los manifiestos finales en `kubernetes/.rendered/<stack>/` para revisarlos | No |
 | `check` | Verifica kubectl, la sesión, los permisos y la cuota del namespace | Solo lectura |
-| `build` | (solo `foundation` o `realtime`) `docker build` + `push` de imágenes propias | No (Docker Hub) |
+| `build` | `docker build` + `push` de las 3 imágenes propias | No (Docker Hub) |
 | `apply` | `render` + `check` + `kubectl apply` en orden + espera a que los pods queden listos | Sí |
 | `status` | Pods, Services e Ingress; en `app`, además, `ingress/check-websocket.sh` | Solo lectura |
 | `delete` | Borra lo aplicado por el stack (pide escribir el namespace para confirmar) | Sí |
@@ -162,15 +113,56 @@ registro DNS (puede tardar unos minutos).
 
 | En el repo | Queda como |
 |---|---|
-| `namespace: student-*` | El namespace del stack (`FOUNDATION_NAMESPACE`, `APP_NAMESPACE` o `REALTIME_NAMESPACE`) |
-| `<svc>.student-*.svc.cluster.local` | backend-go, NATS y Redis → `FOUNDATION_NAMESPACE`; Micros y su BD → `APP_NAMESPACE`; clima, su BD y telemetría → `REALTIME_NAMESPACE` |
+| `namespace: student-*` | El namespace del stack |
+| `<FOUNDATION_NAMESPACE>`, `<APP_NAMESPACE>`, `<REALTIME_NAMESPACE>` | Los namespaces configurados en `cluster.env` |
 | `backend-jvaldebenito.dev.censei.cl` / `<HOST>` | `APP_HOST` |
 | `CORS_ORIGIN`, `SOCKET_CORS_ORIGIN` | `APP_SCHEME://APP_HOST` |
 | `<DOCKERHUB_USER>/…:v1` | `DOCKERHUB_USER/…:IMAGE_TAG` |
 
-La telemetría y el servicio de clima quedan en `REALTIME_NAMESPACE`; clima se
-conecta a NATS en `FOUNDATION_NAMESPACE`. La aplicación publica el WebSocket desde
-`APP_HOST` a través de `bridge-to-realtime`.
+Clima y la telemetría se aplican en `REALTIME_NAMESPACE`. Clima usa
+`clima-db-svc.REALTIME_NAMESPACE.svc.cluster.local:5432` y NATS desde
+`nats-svc.FOUNDATION_NAMESPACE.svc.cluster.local:4222`; `backend-go` usa el gRPC
+de clima mediante `clima-service-svc.REALTIME_NAMESPACE.svc.cluster.local:9090`.
+
+## Autoscaling
+
+`clima-service` y `micro-telemetry` tienen un HPA activo con entre 1 y 3 réplicas y un objetivo de
+70% de utilización promedio de CPU. El escalado hacia abajo se estabiliza durante
+5 minutos para evitar oscilaciones. El HPA usa los `requests` del Deployment;
+con el request actual de `50m`, el objetivo se alcanza alrededor de `35m` por
+pod, por lo que conviene observar `kubectl top` antes de ajustar el valor.
+
+El HPA requiere que el cluster tenga `metrics-server` funcionando. Verificarlo
+antes de aplicar:
+
+```bash
+kubectl get apiservice v1beta1.metrics.k8s.io
+kubectl top pods -n student-iglausser
+kubectl get hpa -n student-iglausser
+```
+
+`realtime` incluye un manifiesto HPA preparado, pero no se aplica desde
+`deploy.sh` y permanece limitado a una réplica. Su simulación y sus broadcasts
+viven en memoria; habilitar más de un pod sin estado compartido produciría
+mapas divergentes y eventos duplicados. Antes de aumentar `maxReplicas` hay que
+externalizar ese estado y configurar un adapter compartido para Socket.IO.
+
+Cada réplica adicional de `micro-telemetry` aumenta las conexiones y
+transacciones contra la base de telemetría y NATS. No subir el máximo de 3 sin
+medir primero esa capacidad y confirmar la cuota del namespace.
+
+Los Ingress del repo usan `ingressClassName: nginx`, que es la clase global del
+controlador `ingress-nginx` del clúster. No se crean `IngressClass` ni
+controladores a nivel de namespace; eso lo gestiona el administrador del cluster.
+
+## Recursos que pide cada cuenta
+
+| Stack | Recursos | RAM garantizada | CPU garantizada | Límite RAM / CPU |
+|---|---|---|---|---|
+| `micro` | 28 | ~1 GB | 0,5 | 2,8 GB / 2,25 |
+| `app` | 15 | ~450 MB | 0,2 | 1,1 GB / 0,9 |
+
+La cuota de `realtime` contempla clima, telemetría, realtime y el margen necesario para el HPA.
 
 **No se aplican:** `ingress/ingress-nginx-controller-configmap.yaml` (configuración global,
 requiere admin del cluster) y `services/micro_db/micros-db-storage.yml` (PVC de prueba sin uso).
@@ -182,8 +174,11 @@ tráfico al Service `bridge-to-backend`. El bridge resuelve `backend-go-svc` en
 `student-jvaldebenito`, donde permanecen el Deployment y Service del backend.
 El Ingress usa el formato del
 cluster de la UCT: `external-dns` → `proxy.inf.uct.cl`, clase `nginx`, sin `tls`
-(el HTTPS lo termina el proxy). Para el mapa en tiempo real agrega `proxy-http-version 1.1`,
-timeouts de 1 h, sin buffering y sesiones pegajosas por cookie.
+(el HTTPS lo termina el proxy). Como el cluster solo permite `path: /`, realtime
+usa el host dedicado definido por `REALTIME_HOST` y apunta directamente al
+`realtime-svc` local de `REALTIME_NAMESPACE`. El Ingress principal usa el
+`backend-go-ingress-svc` de `backend-go-bridge.yaml`, cuyos Endpoints deben
+contener la IP actual del pod backend-go.
 
 Si el profesor no permite anotaciones `nginx.ingress.kubernetes.io/*`, quitarlas:
 el mapa seguirá funcionando, pero la conexión en tiempo real se reconectará cada ~60 s.
@@ -194,7 +189,7 @@ el mapa seguirá funcionando, pero la conexión en tiempo real se reconectará c
 |---|---|
 | Pod en `CreateContainerConfigError` | Falta un Secret o ConfigMap en **ese** namespace |
 | `backend-go` no queda *Ready* | `/readyz` no llega a PostgreSQL: revisar `transporte-db` |
-| `/api/v1/integrations/...` responde error | `backend-go` no alcanza clima en `REALTIME_NAMESPACE` o Micros en `APP_NAMESPACE` (servicio caído o tráfico entre namespaces bloqueado) |
+| `/api/v1/integrations/...` responde error | `backend-go` no alcanza clima/micros en `FOUNDATION_NAMESPACE`, o el cluster bloquea tráfico entre namespaces |
 | Login o reclamos con 403 | `CORS_ORIGIN` no coincide con `APP_SCHEME://APP_HOST` |
 | Mapa en 🟠 (respaldo HTTP) | El proxy de la universidad o el Ingress no deja pasar el `Upgrade` a WebSocket |
 | Dominio no resuelve | external-dns aún no crea el registro: esperar unos minutos |

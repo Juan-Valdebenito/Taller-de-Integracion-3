@@ -1,5 +1,9 @@
 package main
 
+// Microservice de transporte público. Carga paraderos y recorridos desde
+// PostgreSQL, construye un grafo dirigido y ofrece consultas HTTP/gRPC para
+// listar datos o planificar un trayecto.
+
 import (
 	"container/heap"
 	"context"
@@ -35,6 +39,8 @@ type Stop struct {
 }
 
 type Edge struct {
+	// Arista del grafo: viajar desde una parada hasta ToStopID por una ruta y
+	// viaje concretos; el coste incluye duración base y distancia.
 	ToStopID    string
 	RouteID     string
 	TripID      string
@@ -43,6 +49,7 @@ type Edge struct {
 }
 
 type TransitGraph struct {
+	// Stops indexa nodos por ID; Edges guarda aristas salientes por parada origen.
 	Stops map[string]Stop
 	Edges map[string][]Edge
 }
@@ -60,6 +67,8 @@ func (g *TransitGraph) EdgeCount() int {
 }
 
 func (g *TransitGraph) LoadFromDB(ctx context.Context, pool *pgxpool.Pool) error {
+	// Se arma un grafo nuevo aparte y solo se publica al terminar la carga; una
+	// lectura parcial de la BD no deja el grafo activo en un estado incompleto.
 	next := NewTransitGraph()
 	stopRows, err := pool.Query(ctx, `SELECT stop_id, stop_name, ST_Y(location), ST_X(location) FROM stops ORDER BY stop_id`)
 	if err != nil {

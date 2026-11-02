@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: clima-db-init-scripts
-  namespace: student-jvaldebenito
+  namespace: student-iglausser
 data:
   01_schema.sql: |
     CREATE EXTENSION IF NOT EXISTS timescaledb;

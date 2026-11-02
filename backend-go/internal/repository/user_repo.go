@@ -1,5 +1,9 @@
 package repository
 
+// Los repositorios son la única capa que conoce SQL y el esquema PostgreSQL.
+// Devuelven modelos del dominio y traducen errores de restricciones a errores
+// que el handler puede convertir en respuestas HTTP comprensibles.
+
 import (
 	"context"
 	"errors"
@@ -7,10 +11,34 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain"
 )
+
+// Errores de escritura que el handler responde como 4xx en vez de 500.
+var (
+	ErrUserDuplicateEmail  = errors.New("el correo ya está registrado")
+	ErrUserCompanyNotFound = errors.New("la empresa indicada no existe")
+)
+
+// mapUserWriteError traduce las violaciones de restricciones de PostgreSQL:
+// correo repetido (23505) y empresa inexistente (23503, clave foránea).
+func mapUserWriteError(op string, err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch pgErr.Code {
+		case "23505":
+			if pgErr.ConstraintName == "users_email_key" {
+				return ErrUserDuplicateEmail
+			}
+		case "23503":
+			return ErrUserCompanyNotFound
+		}
+	}
+	return fmt.Errorf("UserRepository.%s: %w", op, err)
+}
 
 // UserRepository gestiona las operaciones de base de datos para usuarios.
 type UserRepository struct {
@@ -87,7 +115,7 @@ func (r *UserRepository) Create(ctx context.Context, name, email, passwordHash s
 		&u.ID, &u.Name, &u.Email, &u.PasswordHash, &u.Role, &u.IsActive, &u.CompanyID, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("UserRepository.Create: %w", err)
+		return nil, mapUserWriteError("Create", err)
 	}
 	return &u, nil
 }
@@ -108,6 +136,10 @@ func (r *UserRepository) Update(ctx context.Context, id, name string, role domai
 		args = append(args, *isActive)
 		argIdx++
 	}
+	// Solo las cuentas de empresa pertenecen a una empresa.
+	if role != domain.UserRoleCompany {
+		setClauses = append(setClauses, `"companyId" = NULL`)
+	}
 
 	query := fmt.Sprintf(`
 		UPDATE users
@@ -125,12 +157,13 @@ func (r *UserRepository) Update(ctx context.Context, id, name string, role domai
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("UserRepository.Update: %w", err)
+		return nil, mapUserWriteError("Update", err)
 	}
 	return &u, nil
 }
 
 // UpdatePartial actualiza selectivamente campos específicos de un usuario (para PATCH).
+// companyID vacío ("") quita la empresa (NULL).
 func (r *UserRepository) UpdatePartial(ctx context.Context, id string, name *string, email *string, role *domain.UserRole, isActive *bool, companyID *string) (*domain.User, error) {
 	setClauses := []string{`"updatedAt" = NOW()`}
 	var args []any
@@ -158,7 +191,11 @@ func (r *UserRepository) UpdatePartial(ctx context.Context, id string, name *str
 	}
 	if companyID != nil {
 		setClauses = append(setClauses, fmt.Sprintf("\"companyId\" = $%d", argIdx))
-		args = append(args, *companyID)
+		if *companyID == "" {
+			args = append(args, nil)
+		} else {
+			args = append(args, *companyID)
+		}
 		argIdx++
 	}
 
@@ -178,7 +215,7 @@ func (r *UserRepository) UpdatePartial(ctx context.Context, id string, name *str
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("UserRepository.UpdatePartial: %w", err)
+		return nil, mapUserWriteError("UpdatePartial", err)
 	}
 	return &u, nil
 }

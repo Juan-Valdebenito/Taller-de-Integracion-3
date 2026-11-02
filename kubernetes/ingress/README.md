@@ -1,12 +1,13 @@
 # Ingress con soporte WebSocket (wss://)
 
-Publica el frontend, la API y el mapa de buses en tiempo real. El frontend y
-Socket.io usan `APP_HOST`; la API usa `API_HOST`.
+Expone el servicio de buses en tiempo real mediante un host dedicado, porque
+el cluster solo permite `path: /` en los Ingress. El Ingress de realtime vive en
+el mismo namespace que `realtime-svc`: `student-iglausser`.
 
 ```
-Navegador ── https://<APP_HOST>/            ──► frontend-svc       :80   (nginx + React)
-          ── wss://<APP_HOST>/socket.io/... ──► bridge-to-realtime :3001 ──► realtime-svc
-          ── https://<API_HOST>/...         ──► bridge-to-backend  :3001 ──► backend-go-svc
+Navegador ── https://<APP_HOST>/          ──► frontend-svc     :80
+          ── https://<APP_HOST>/api/...   ──► bridge → backend-go
+          ── wss://<REALTIME_HOST>/      ──► realtime-svc     :3001
 ```
 
 El Ingress y `bridge-to-backend` se despliegan en `student-tpenroz`. El backend y
@@ -17,32 +18,31 @@ Service `ExternalName` que resuelve el DNS completo del Service remoto.
 
 | Archivo | Para qué |
 |---|---|
-| `frontend-ingress.yaml` | Sirve el frontend en `APP_HOST` y enruta `/socket.io` al bridge realtime. |
-| `backend-go-ingress.yaml` | Publica la API en `API_HOST` a través de `bridge-to-backend`. |
-| `backend-go-bridge.yaml` | ExternalName hacia el Service remoto de backend-go. |
-| `../services/realtime/realtime-bridge.yml` | ExternalName hacia el Service realtime del namespace `REALTIME_NAMESPACE`. |
-| `realtime-ingress.yaml` | Publica el Service realtime directamente en `REALTIME_HOST`. |
+| `backend-go-ingress.yaml` | Ingress principal para frontend y API, con `path: /` y `/api` |
+| `backend-go-bridge.yaml` | Service + Endpoints en `student-tpenroz` que apuntan al pod backend-go de `student-jvaldebenito` |
+| `realtime-ingress.yaml` | Ingress nginx en `student-iglausser`, con host `REALTIME_HOST`, path `/` y soporte WebSocket |
 | `ingress-nginx-controller-configmap.yaml` | **Opcional, requiere admin del cluster.** Los mismos valores como defecto global del controlador |
 | `../services/realtime/realtime-deployment.yaml` | Servidor Socket.io (`backend/` en Node), 1 réplica |
 | `../services/frontend/frontend-deployment.yaml` | Frontend estático en nginx |
 
 ## Despliegue
 
-`APP_HOST`, `API_HOST`, los namespaces, `CORS_ORIGIN`, `SOCKET_CORS_ORIGIN` y las imágenes los completa
-`kubernetes/deploy.sh` desde `kubernetes/cluster.env` (stack `app`, cuenta de Tomás).
+`<HOST>`, los namespaces, `REALTIME_HOST`, `BACKEND_GO_IP`, `CORS_ORIGIN` y las
+imágenes los completa `kubernetes/deploy.sh` desde `kubernetes/cluster.env`.
 El HTTPS lo termina el proxy de la universidad, así que no hace falta certificado propio.
 Ver **[../DEPLOY.md](../DEPLOY.md)**.
 
 ## Verificar el controlador del cluster
 
 ```bash
-kubectl get ingressclass          # debe aparecer "nginx"
+kubectl get ingressclass
 kubectl get pods -A | grep ingress
 ```
-Si la clase tiene otro nombre, cambiar `ingressClassName`. Si el controlador **no** es
-ingress-nginx (p. ej. Traefik), las anotaciones `nginx.ingress.kubernetes.io/*` no aplican:
-Traefik soporta WebSocket sin configuración extra, pero las sesiones pegajosas
-se configuran en el Service.
+En este cluster la clase disponible es la global `nginx` del controlador
+`ingress-nginx`. Los manifests del repo quedan con `ingressClassName: nginx`; no
+se crean clases por namespace ni se instalan controladores dentro de un
+namespace. Si el cluster usa otro controlador distinto, el valor `ingressClassName`
+se debe ajustar en coordinación con el administrador del clúster.
 
 ## Comprobar que el WebSocket funciona
 
@@ -54,9 +54,9 @@ bash kubernetes/ingress/check-websocket.sh http://localhost:5173   # en local, v
 El script solo hace peticiones HTTP (no cambia nada en el cluster) y comprueba en orden:
 
 1. `/` responde 200 → el Ingress llega al **frontend**.
-2. `/api/v1/auth/me` responde 401 → el Ingress llega a **backend-go** (pide token, como corresponde).
+2. `/api/v1/auth/me` responde 401 → el bridge llega a **backend-go**.
 3. Handshake de Socket.io por *polling* con `sid`, y la cookie de afinidad `transithub-rt`.
-4. Upgrade a WebSocket → **`101 Switching Protocols`**.
+4. Upgrade a WebSocket → **`101 Switching Protocols`** en `REALTIME_HOST`.
 
 Al final indica qué estado verá el mapa (🟢/🟠/🔴) y qué revisar si algo falla.
 Sale con código `0` si todo pasa y `1` si algo falla, así que también sirve en un pipeline de CI.

@@ -11,7 +11,7 @@ export function CompanyLayout() {
   };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
+    <div className="company-layout" style={{ display: 'flex', minHeight: '100vh' }}>
       {/* Sidebar */}
       <aside style={{
         width: '240px',
@@ -34,6 +34,7 @@ export function CompanyLayout() {
 
         {[
           { to: '/company/dashboard', icon: '📊', label: 'Dashboard' },
+          { to: '/company/driver', icon: '🎛️', label: 'Modo conductor' },
           { to: '/company/buses', icon: '🚍', label: 'Micros' },
           { to: '/company/routes', icon: '🗺️', label: 'Rutas' },
           { to: '/company/complaints', icon: '📋', label: 'Reclamos' },

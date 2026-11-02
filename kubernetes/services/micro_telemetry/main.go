@@ -1,5 +1,9 @@
 package main
 
+// Servicio de ingesta de telemetría. backend-go envía GPS y conteos de
+// pasajeros por HTTP con API key; este servicio valida, persiste el último
+// estado/histórico y publica snapshots en NATS para los consumidores realtime.
+
 import (
 	"context"
 	"encoding/json"
@@ -49,6 +53,8 @@ type PassengerReading struct {
 }
 
 type TelemetrySnapshot struct {
+	// Estado combinado más reciente. Los punteros permiten distinguir “campo no
+	// recibido en este evento” de un valor válido como cero pasajeros.
 	BusID              string     `json:"bus_id"`
 	RouteID            string     `json:"route_id,omitempty"`
 	Latitude           *float64   `json:"latitude,omitempty"`
@@ -65,6 +71,8 @@ type TelemetrySnapshot struct {
 }
 
 type TelemetryStore interface {
+	// Contrato para persistir y consultar disponibilidad; facilita usar PostgreSQL
+	// real en producción y un store de memoria en pruebas.
 	SaveGPS(context.Context, GPSReading) (TelemetrySnapshot, error)
 	SavePassengers(context.Context, PassengerReading) (TelemetrySnapshot, error)
 	Ping(context.Context) error
@@ -96,6 +104,8 @@ type Server struct {
 }
 
 func (s *Server) routes() http.Handler {
+	// Se registran alias antiguos y versionados para que clientes existentes
+	// puedan migrar sin cambiar de endpoint en el mismo despliegue.
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.health)
 	mux.HandleFunc("/ready", s.ready)

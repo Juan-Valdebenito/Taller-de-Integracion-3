@@ -1,15 +1,3 @@
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: transporte-db-pvc
-  namespace: student-jvaldebenito
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -18,6 +6,8 @@ metadata:
   labels:
     app: transporte-db
 spec:
+  # Una sola instancia escribe en el volumen ReadWriteOnce; Recreate evita que
+  # dos pods intenten montar y usar el mismo directorio a la vez.
   replicas: 1
   strategy:
     type: Recreate
@@ -37,6 +27,8 @@ spec:
             - name: postgres
               containerPort: 5432
           env:
+            # Estas variables las leen la imagen oficial de PostgreSQL al crear
+            # un directorio de datos vacío; cambiar Secrets no modifica una BD ya inicializada.
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
             - name: POSTGRES_DB
@@ -60,6 +52,7 @@ spec:
             - name: postgres-data
               mountPath: /var/lib/postgresql/data
           readinessProbe:
+            # pg_isready pregunta si PostgreSQL acepta conexiones al DB indicado.
             exec:
               command:
                 - sh
@@ -70,6 +63,7 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 6
           livenessProbe:
+            # Un proceso que no responde tras varios intentos se reinicia.
             exec:
               command:
                 - sh
@@ -96,6 +90,7 @@ spec:
 ---
 apiVersion: v1
 kind: Service
+# Nombre estable de red para que backend-go resuelva PostgreSQL sin usar IPs de pods.
 metadata:
   name: transporte-db-svc
   namespace: student-jvaldebenito

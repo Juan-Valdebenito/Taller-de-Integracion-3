@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Despliega TransitHub en el cluster, repartido en tres cuentas:
 #
-#   foundation → student-jvaldebenito: NATS, backend-go y transporte-db
-#   micros     → student-tpenroz:      BD y servicio de micros
+#   foundation → student-jvaldebenito: NATS, micros, backend-go y transporte-db
 #   app        → student-tpenroz:      frontend, bridge e Ingress principal
 #   realtime   → student-iglausser:    clima, telemetría, realtime e Ingress
 #
@@ -19,13 +18,22 @@
 
 set -euo pipefail
 
+# El script no envía los manifiestos originales sin procesar: renderiza copias
+# con nombres de host, namespaces, imagen y clase Ingress tomados de cluster.env.
+# `check` permite revisar esos YAML antes de `apply`.
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 K8S="$ROOT/kubernetes"
 ENV_FILE="${CLUSTER_ENV_FILE:-$K8S/cluster.env}"
 
 # ── Stack "foundation": student-jvaldebenito ──────────────────
 FOUNDATION_FILES=(
+  services/micro_service/micros-configmap.yaml
+  services/micro_service/micros-secret.yaml
+  services/micro_db/micros-db-init-scripts.yaml
+  services/micro_db/micros-db.yml
   services/nats-jetstream.yml
+  services/micro_service/micros-deployment.yaml
   transporte-db-configmap.yaml
   transporte-db-secret.yaml
   services/transporte_db/transporte-db-init-scripts.yaml
@@ -33,7 +41,6 @@ FOUNDATION_FILES=(
   services/redis_server/redis-auth-secret.yaml
   services/redis_server/redis-server-deployment.yml
   services/backend-go/clima-client-secret.yaml
-  services/micro_service/micros-secret.yaml
   services/backend-go/backend-go-deployment.yaml
   services/backend-go/backend-go-service.yaml
   ingress/backend-go-ingress.yaml
@@ -57,12 +64,11 @@ APP_FILES=(
 # ── Stack "realtime": student-iglausser ──────────────────────
 REALTIME_FILES=(
   services/clima_service/clima-configmap.yaml
+#  services/clima_service/clima-resource-limits.yaml
   services/clima_db/clima-db-init-scripts.yaml
   services/clima_db/clima-db.yml
   services/clima_service/clima-deployment.yaml
-  # services/clima_service/clima-resource-limits.yaml
   services/clima_service/clima-hpa.yaml
-  services/clima_simulator/clima-simulator-deployment.yaml
   transporte-db-configmap.yaml
   transporte-db-secret.yaml
   services/micro_telemetry/micro-telemetry-configmap.yaml
@@ -71,6 +77,7 @@ REALTIME_FILES=(
   services/micro_telemetry/micro-telemetry-db.yml
   services/micro_telemetry/micro-telemetry-deployment.yaml
   services/micro_telemetry/micro-telemetry-hpa.yaml
+  services/clima_simulator/clima-simulator-deployment.yaml
   services/realtime/realtime-deployment.yaml
   ingress/realtime-ingress.yaml
 )
@@ -105,6 +112,7 @@ load_env() {
   APP_HOST="${APP_HOST:-backend-tpenroz.dev.censei.cl}"
   API_HOST="${API_HOST:-api-backend-tpenroz.dev.censei.cl}"
   REALTIME_HOST="${REALTIME_HOST:-realtime-backend-tpenroz.dev.censei.cl}"
+  BACKEND_GO_IP="${BACKEND_GO_IP:-<BACKEND_GO_IP>}"
   # El cluster usa la clase global ingress-nginx; no se crean clases por namespace.
   APP_INGRESS_CLASS="${APP_INGRESS_CLASS:-nginx}"
   REALTIME_INGRESS_CLASS="${REALTIME_INGRESS_CLASS:-nginx}"
@@ -112,9 +120,14 @@ load_env() {
   CORS_ORIGINS="${CORS_ORIGINS:-$APP_SCHEME://$APP_HOST}"
   DOCKERHUB_USER="${DOCKERHUB_USER:-}"
   IMAGE_TAG="${IMAGE_TAG:-v1}"
-  REDIS_PASSWORD="${REDIS_PASSWORD:-}"
-  CLIMATE_API_KEY="${CLIMATE_API_KEY:-}"
+  BACKEND_GO_IMAGE_TAG="${BACKEND_GO_IMAGE_TAG:-$IMAGE_TAG}"
 
+  # export REDIS_PASSWORD="$(openssl rand -base64 32)" 
+  # u otro método para generar un password seguro. Se puede dejar vacío si no se usa Redis.
+  REDIS_PASSWORD="${REDIS_PASSWORD:-}"
+
+  # Cada stack se aplica con su propio namespace/contexto. Esto refleja que la
+  # aplicación está repartida entre cuentas distintas del cluster.
   case "$STACK" in
     foundation)
       NAMESPACE="$FOUNDATION_NAMESPACE"
@@ -178,23 +191,25 @@ cmd_render() {
       -e "s#<APP_NAMESPACE>#$APP_NAMESPACE#g" \
       -e "s#<REALTIME_NAMESPACE>#$REALTIME_NAMESPACE#g" \
       -e "s#<REALTIME_HOST>#$REALTIME_HOST#g" \
+      -e "s#<BACKEND_GO_IP>#$BACKEND_GO_IP#g" \
       -e "s#<APP_INGRESS_CLASS>#$APP_INGRESS_CLASS#g" \
       -e "s#<REALTIME_INGRESS_CLASS>#$REALTIME_INGRESS_CLASS#g" \
       -e "s#<REDIS_PASSWORD>#$REDIS_PASSWORD#g" \
-      -e "s#<CLIMATE_API_KEY>#$CLIMATE_API_KEY#g" \
       -e "s#CORS_ORIGIN: \"[^\"]*\"#CORS_ORIGIN: \"$CORS_ORIGINS\"#" \
       "$src" > "$dst"
 
     if [ -n "$DOCKERHUB_USER" ]; then
+      sed -E -i.bak "s#image: <DOCKERHUB_USER>/backend-go:[^ ]*#image: $DOCKERHUB_USER/backend-go:$BACKEND_GO_IMAGE_TAG#" "$dst"
+      rm -f "$dst.bak"
       sed -E -i.bak "s#image: <DOCKERHUB_USER>/([a-z-]+):[^ ]*#image: $DOCKERHUB_USER/\1:$IMAGE_TAG#" "$dst"
       rm -f "$dst.bak"
     fi
   done
 
   ok "$i archivos generados"
-  if grep -rl "<HOST>\|<API_HOST>\|<DOCKERHUB_USER>\|<REDIS_PASSWORD>\|<CLIMATE_API_KEY>" "$OUT" >/dev/null 2>&1; then
-    warn "Quedan valores sin completar; revisa cluster.env y estas plantillas:"
-    grep -rl "<HOST>\|<API_HOST>\|<DOCKERHUB_USER>\|<REDIS_PASSWORD>\|<CLIMATE_API_KEY>" "$OUT" | sed "s#^$OUT/#      #"
+  if grep -rl "<HOST>\|<DOCKERHUB_USER>\|<REDIS_PASSWORD>" "$OUT" >/dev/null 2>&1; then
+    warn "Quedan valores sin completar en los manifiestos renderizados:"
+    grep -rl "<HOST>\|<DOCKERHUB_USER>\|<REDIS_PASSWORD>" "$OUT" | sed "s#^$OUT/#      #"
   else
     ok "Namespace, direcciones internas, dominio e imágenes completados"
   fi
@@ -219,8 +234,8 @@ cmd_check() {
   done
 
   if [ "$STACK" = "foundation" ]; then
-    if "${KUBECTL[@]}" get svc nats-svc -n "$FOUNDATION_NAMESPACE" >/dev/null 2>&1; then
-      ok "NATS visible en $FOUNDATION_NAMESPACE"
+    if "${KUBECTL[@]}" get svc micros-service-svc nats-svc -n "$FOUNDATION_NAMESPACE" >/dev/null 2>&1; then
+      ok "Servicios foundation visibles en $FOUNDATION_NAMESPACE"
     else
       warn "No se pudo listar nats-svc en $FOUNDATION_NAMESPACE"
     fi
@@ -234,7 +249,7 @@ cmd_check() {
   elif [ "$STACK" = "realtime" ]; then
     if "${KUBECTL[@]}" get svc clima-service-svc clima-db-svc -n "$REALTIME_NAMESPACE" >/dev/null 2>&1 &&
        "${KUBECTL[@]}" get svc nats-svc -n "$FOUNDATION_NAMESPACE" >/dev/null 2>&1; then
-      ok "Clima en $REALTIME_NAMESPACE y NATS en $FOUNDATION_NAMESPACE visibles"
+      ok "Clima y NATS visibles desde realtime"
     else
       warn "No se pudieron listar clima en $REALTIME_NAMESPACE y/o nats-svc en $FOUNDATION_NAMESPACE"
     fi
@@ -251,14 +266,16 @@ cmd_build() {
   esac
   [ -n "$DOCKERHUB_USER" ] || die "Falta DOCKERHUB_USER en cluster.env."
   command -v docker >/dev/null 2>&1 || die "docker no está instalado."
-  info "Construyendo y publicando imágenes en $DOCKERHUB_USER (tag $IMAGE_TAG)"
+  info "Construyendo imágenes en $DOCKERHUB_USER (tag general $IMAGE_TAG, backend-go $BACKEND_GO_IMAGE_TAG)"
   cd "$ROOT"
-  docker build -f backend-go/Dockerfile -t "$DOCKERHUB_USER/backend-go:$IMAGE_TAG" .
+  docker build -f backend-go/Dockerfile -t "$DOCKERHUB_USER/backend-go:$BACKEND_GO_IMAGE_TAG" .
   docker build -t "$DOCKERHUB_USER/transithub-realtime:$IMAGE_TAG" backend/
-  docker build --build-arg VITE_API_BASE_URL="$APP_SCHEME://$API_HOST" -t "$DOCKERHUB_USER/transithub-frontend:$IMAGE_TAG" frontend/
-  docker push "$DOCKERHUB_USER/backend-go:$IMAGE_TAG"
+  docker build -t "$DOCKERHUB_USER/transithub-frontend:$IMAGE_TAG" frontend/
+  docker build -t "$DOCKERHUB_USER/clima-simulator:$IMAGE_TAG" kubernetes/services/clima_simulator/
+  docker push "$DOCKERHUB_USER/backend-go:$BACKEND_GO_IMAGE_TAG"
   docker push "$DOCKERHUB_USER/transithub-realtime:$IMAGE_TAG"
   docker push "$DOCKERHUB_USER/transithub-frontend:$IMAGE_TAG"
+  docker push "$DOCKERHUB_USER/clima-simulator:$IMAGE_TAG"
   ok "Imágenes publicadas"
 }
 
@@ -266,11 +283,11 @@ cmd_apply() {
   if [ "$STACK" != "micros" ] && [ -z "$DOCKERHUB_USER" ]; then
     die "Falta DOCKERHUB_USER en cluster.env (necesario para las imágenes del stack $STACK)."
   fi
-  if [ "$STACK" = "foundation" ] && [ -z "$REDIS_PASSWORD" ]; then
-    die "Falta REDIS_PASSWORD en cluster.env o en el entorno."
+  if [ "$STACK" = "app" ] && [ "$BACKEND_GO_IP" = "<BACKEND_GO_IP>" ]; then
+    die "Falta BACKEND_GO_IP en cluster.env para el bridge hacia backend-go."
   fi
-  if [ "$STACK" = "foundation" ] && [ -z "$CLIMATE_API_KEY" ]; then
-    die "Falta CLIMATE_API_KEY en cluster.env o en el entorno."
+  if [ "$STACK" = "foundation" ] && [ -z "$REDIS_PASSWORD" ]; then
+    die "Falta REDIS_PASSWORD en cluster.env o en el entorno para sincronizar Redis y backend-go."
   fi
   cmd_render
   cmd_check
