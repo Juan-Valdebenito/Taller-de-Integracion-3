@@ -28,12 +28,8 @@ ENV_FILE="${CLUSTER_ENV_FILE:-$K8S/cluster.env}"
 
 # ── Stack "foundation": student-jvaldebenito ──────────────────
 FOUNDATION_FILES=(
-  services/micro_service/micros-configmap.yaml
   services/micro_service/micros-secret.yaml
-  services/micro_db/micros-db-init-scripts.yaml
-  services/micro_db/micros-db.yml
   services/nats-jetstream.yml
-  services/micro_service/micros-deployment.yaml
   transporte-db-configmap.yaml
   transporte-db-secret.yaml
   services/transporte_db/transporte-db-init-scripts.yaml
@@ -49,7 +45,6 @@ FOUNDATION_FILES=(
 # ── Stack "micros": student-tpenroz ───────────────────────────
 MICROS_FILES=(
   services/micro_service/micros-configmap.yaml
-  services/micro_service/micros-secret.yaml
   services/micro_db/micros-db-init-scripts.yaml
   services/micro_db/micros-db.yml
   services/micro_service/micros-deployment.yaml
