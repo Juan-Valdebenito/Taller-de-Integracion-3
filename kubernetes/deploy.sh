@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Despliega TransitHub en el cluster, repartido en TRES cuentas (ver kubernetes/DEPLOY.md):
 #
-#   foundation → student-jvaldebenito: NATS, clima, BD micros, backend-go y transporte-db
-#   micros     → student-tpenroz:      servicio de micros
+#   foundation → student-jvaldebenito: NATS, clima, backend-go y transporte-db
+#   micros     → student-tpenroz:      BD y servicio de micros
 #   app        → student-tpenroz:      frontend, bridge e Ingress principal
 #   realtime   → student-iglausser:    telemetría, realtime e Ingress realtime
 #
@@ -28,9 +28,7 @@ FOUNDATION_FILES=(
   services/clima_service/clima-configmap.yaml
   services/micro_service/micros-secret.yaml
   services/clima_db/clima-db-init-scripts.yaml
-  services/micro_db/micros-db-init-scripts.yaml
   services/clima_db/clima-db.yml
-  services/micro_db/micros-db.yml
   services/nats-jetstream.yml
   services/clima_service/clima-deployment.yaml
   services/clima_simulator/clima-simulator-deployment.yaml
@@ -48,6 +46,8 @@ FOUNDATION_FILES=(
 MICROS_FILES=(
   services/micro_service/micros-configmap.yaml
   services/micro_service/micros-secret.yaml
+  services/micro_db/micros-db-init-scripts.yaml
+  services/micro_db/micros-db.yml
   services/micro_service/micros-deployment.yaml
 )
 
@@ -192,7 +192,7 @@ cmd_check() {
   ok "Sesión activa con acceso a $NAMESPACE (contexto: $("${KUBECTL[@]}" config current-context 2>/dev/null || echo '?'))"
 
   local r
-  for r in deployments services configmaps secrets ingresses; do
+  for r in deployments services configmaps secrets ingresses persistentvolumeclaims; do
     if [ "$("${KUBECTL[@]}" auth can-i create "$r" -n "$NAMESPACE" 2>/dev/null)" = "yes" ]; then
       ok "puede crear $r"
     else
@@ -213,12 +213,6 @@ cmd_check() {
       ok "NATS visible en $FOUNDATION_NAMESPACE"
     else
       warn "No se pudo listar nats-svc en $FOUNDATION_NAMESPACE"
-    fi
-  elif [ "$STACK" = "micros" ]; then
-    if "${KUBECTL[@]}" get svc micros-db-svc -n "$FOUNDATION_NAMESPACE" >/dev/null 2>&1; then
-      ok "Base de datos de micros visible en $FOUNDATION_NAMESPACE"
-    else
-      warn "No se pudo listar micros-db-svc en $FOUNDATION_NAMESPACE; el servicio no podrá conectarse a la BD"
     fi
   fi
 

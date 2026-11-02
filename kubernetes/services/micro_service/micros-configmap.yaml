@@ -4,7 +4,7 @@ metadata:
   name: micros-configmap
   namespace: student-tpenroz
 data:
-  DB_HOST: "micros-db-svc.<FOUNDATION_NAMESPACE>.svc.cluster.local"
+  DB_HOST: "micros-db-svc.<APP_NAMESPACE>.svc.cluster.local"
   DB_PORT: "5432"
   DB_NAME: "micros_db"
   DB_USER: "micros_user"  # Asegurarse de configurar usuario y contraseña

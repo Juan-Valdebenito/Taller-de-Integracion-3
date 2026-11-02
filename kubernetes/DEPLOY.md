@@ -7,8 +7,8 @@ y los aplica en orden.
 
 | Stack | Cuenta / namespace | Responsables | Qué despliega |
 |---|---|---|---|
-| `foundation` | `student-jvaldebenito` | Ignacio | NATS · clima (BD, servicio, simulador) · BD de micros · backend-go · transporte-db |
-| `micros` | `student-tpenroz` | Tomás | servicio de micros |
+| `foundation` | `student-jvaldebenito` | Ignacio | NATS · clima (BD, servicio, simulador) · backend-go · transporte-db |
+| `micros` | `student-tpenroz` | Tomás | BD (PVC, PostGIS) y servicio de micros |
 | `app` | `student-tpenroz` | Tomás + Juan | frontend · bridge al backend remoto · Ingress |
 
 ```
@@ -18,12 +18,13 @@ y los aplica en orden.
                             │
 ┌──────────────── student-tpenroz (app) ────────────────┐
 │ Ingress backend-go ──► bridge-to-backend (ExternalName)│
-│ micros-service · frontend-ingress ──► frontend-svc     │
+│ micros-service · micros-db · frontend-ingress          │
+│ frontend-svc                                            │
 └──────────────────────────┬────────────────────────────┘
                            │ DNS interno de Kubernetes
 ┌──────────────────────────▼ student-jvaldebenito ──────┐
 │ backend-go-svc ──► backend-go                         │
-│ backend-go · clima-service · BD micros · NATS · telemetría │
+│ backend-go · clima-service · NATS · telemetría          │
 └───────────────────────────────────────────────────────┘
 ```
 
@@ -65,25 +66,33 @@ bash kubernetes/deploy.sh foundation apply
 bash kubernetes/deploy.sh foundation status
 ```
 
-### 2. Servicio `micros` — con la sesión de la cuenta **tpenroz**
+### 2. Stack `micros` — con la sesión de la cuenta **tpenroz**
 
 ```bash
-bash kubernetes/deploy.sh micros check   # verifica acceso al namespace y visibilidad de la BD
+bash kubernetes/deploy.sh micros check   # verifica acceso y permisos, incluido PVC
 bash kubernetes/deploy.sh micros apply
 bash kubernetes/deploy.sh micros status
 ```
 
-Este stack despliega el servicio, su ConfigMap y Secret en `APP_NAMESPACE`. La BD
-permanece en `FOUNDATION_NAMESPACE`; el servicio la alcanza mediante DNS interno.
-La cuenta de tpenroz debe poder resolver y conectar con esa BD desde el cluster.
-Después de comprobar que el nuevo servicio responde y alcanza la BD, retirar la
-instancia antigua del namespace foundation con:
+Este stack despliega la BD (PVC, PostGIS, Service y scripts de inicialización) y
+el servicio en `APP_NAMESPACE`. La primera aplicación crea una BD nueva y ejecuta
+los seeds, pero **no copia los datos** del PVC anterior. Si necesitas conservar
+datos existentes, migra la BD con `pg_dump`/`pg_restore` y valida los datos antes
+de retirar recursos antiguos. El PVC antiguo queda en foundation hasta borrarlo
+explícitamente.
+
+Después de comprobar la nueva BD y el servicio, se pueden retirar el servicio y
+la configuración antiguos de foundation con:
 
 ```bash
 kubectl -n student-jvaldebenito delete deployment micros-service service micros-service-svc configmap micros-configmap
 ```
 
 Deja `micros-secrets` en foundation: `backend-go` lo usa para su `MICRO_API_KEY`.
+No borres el PVC ni la BD antiguos hasta confirmar la migración de datos.
+Para liberar el espacio del namespace antiguo una vez respaldados/migrados los
+datos, elimina allí `micros-db`, `micros-db-svc`, `micros-db-pvc` y
+`micros-db-init-scripts`; borrar el PVC elimina permanentemente su contenido.
 
 ### 3. Stack `app` — con la sesión de la cuenta **tpenroz**
 
@@ -121,7 +130,7 @@ registro DNS (puede tardar unos minutos).
 | En el repo | Queda como |
 |---|---|
 | `namespace: student-*` | El namespace del stack (`MICRO_NAMESPACE` o `APP_NAMESPACE`) |
-| `<svc>.student-*.svc.cluster.local` | `backend-go` → `FOUNDATION_NAMESPACE`; Micros → `APP_NAMESPACE`; BD Micros, clima, NATS y telemetría → `FOUNDATION_NAMESPACE` |
+| `<svc>.student-*.svc.cluster.local` | `backend-go`, clima, NATS y telemetría → `FOUNDATION_NAMESPACE`; Micros y su BD → `APP_NAMESPACE` |
 | `backend-jvaldebenito.dev.censei.cl` / `<HOST>` | `APP_HOST` |
 | `CORS_ORIGIN`, `SOCKET_CORS_ORIGIN` | `APP_SCHEME://APP_HOST` |
 | `<DOCKERHUB_USER>/…:v1` | `DOCKERHUB_USER/…:IMAGE_TAG` |
@@ -160,7 +169,7 @@ el mapa seguirá funcionando, pero la conexión en tiempo real se reconectará c
 |---|---|
 | Pod en `CreateContainerConfigError` | Falta un Secret o ConfigMap en **ese** namespace |
 | `backend-go` no queda *Ready* | `/readyz` no llega a PostgreSQL: revisar `transporte-db` |
-| `/api/v1/integrations/...` responde error | `backend-go` no alcanza clima/micros en la otra cuenta (stack `micro` caído, o el cluster bloquea tráfico entre namespaces) |
+| `/api/v1/integrations/...` responde error | `backend-go` no alcanza clima en foundation o Micros en `APP_NAMESPACE` (servicio caído o tráfico entre namespaces bloqueado) |
 | Login o reclamos con 403 | `CORS_ORIGIN` no coincide con `APP_SCHEME://APP_HOST` |
 | Mapa en 🟠 (respaldo HTTP) | El proxy de la universidad o el Ingress no deja pasar el `Upgrade` a WebSocket |
 | Dominio no resuelve | external-dns aún no crea el registro: esperar unos minutos |
