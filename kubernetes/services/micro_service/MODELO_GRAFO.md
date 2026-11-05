@@ -354,6 +354,43 @@ distancia parecida rondan los 4400 s, así que podría ser un error de digitaci�
 No se corrige sin confirmarlo. Tampoco afecta los viajes, porque esa caminata nunca
 se elige.
 
+## Validación
+
+`graph_data_test.go` revisa los datos oficiales con las reglas de este documento y
+con el planificador real. No necesita una base de datos.
+
+```bash
+cd kubernetes/services/micro_service
+go test ./...
+```
+
+| Prueba | Qué comprueba |
+|---|---|
+| Área de servicio | Todos los paraderos están dentro del área |
+| Recorridos continuos | `stop_sequence` no tiene saltos y los tramos se encadenan |
+| Tramos en micro | Tiempo y distancia positivos, velocidad y factor de calle aceptados |
+| Transbordos | Valores iguales en ambos sentidos, velocidad y factor de calle aceptados |
+| Conectividad | Solo con micros, cada paradero llega a los demás |
+| Planificador | Encuentra ruta para los 42 viajes entre paraderos |
+| Cálculo a mano | El planificador coincide con el ejemplo siguiente |
+
+`PAR-CJP-02` ↔ `PAR-DPORT-01` está registrado en la prueba como excepción conocida
+de velocidad. Si el equipo corrige el dato, se quita esa excepción. Cualquier otro
+valor fuera de rango hace fallar la prueba.
+
+## Ejemplo calculado a mano
+
+Viaje de `PAR-CSF-01` a `PAR-MRODRI-01`, con la preferencia `fastest`:
+
+| Opción | Cálculo | Tiempo | Distancia |
+|---|---|---|---|
+| Micro hasta `PAR-DPORT-01` y caminar | 300 s + 120 s | **420 s** | 1380 m |
+| Caminar todo el trayecto | 1140 s | 1140 s | 1300 m |
+| Solo micro, por `L7B` | 300 s + 1320 s + 1320 s | 2940 s | 13 500 m |
+
+Dijkstra elige la primera opción: **7 minutos**, con una micro y 180 m a pie. La
+prueba confirma que el planificador entrega ese tiempo y esa distancia.
+
 ## Problemas detectados
 
 | Problema | Se resuelve en |
