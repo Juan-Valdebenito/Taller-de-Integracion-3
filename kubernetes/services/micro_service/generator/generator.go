@@ -1,19 +1,55 @@
 package main
 
-// Este script lee un archivo GeoJSON local llamado "paraderos.geojson", consulta a Nominatim para obtener nombres de paraderos y genera un archivo SQL llamado "02_seed_stops.sql" con las instrucciones para insertar los datos en la base de datos.
+// Este script lee "paraderos.geojson", aplica las reglas de selección de
+// MODELO_GRAFO.md y genera el SQL del catálogo de paraderos. Los nombres salen
+// de OpenStreetMap cuando son útiles; si no, se consultan a Nominatim.
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
 )
+
+const (
+	minServiceLatitude  = -38.80
+	maxServiceLatitude  = -38.66
+	minServiceLongitude = -72.79
+	maxServiceLongitude = -72.47
+
+	maxStopNameLength = 150
+	// La política de Nominatim permite como máximo una petición por segundo.
+	nominatimRequestDelay = 1100 * time.Millisecond
+	baseUserAgent         = "TransitHub-UCT/1.0 (+https://github.com/Juan-Valdebenito/Taller-de-Integracion-3"
+)
+
+// loadedStopNodes son los nodos que ya están en 02_seed_stops.sql con ID propio.
+var loadedStopNodes = map[string]string{
+	"node/5849666578":  "PAR-CJP-01",
+	"node/13236477179": "PAR-CJP-02",
+	"node/13525059616": "PAR-BARROS-01",
+	"node/1225240352":  "PAR-MRODRI-01",
+	"node/1744986737":  "PAR-DPORT-01",
+	"node/1095184204":  "PAR-CSF-01",
+	"node/943207384":   "PAR-PORTAL-01",
+}
+
+// genericStopNames son nombres de OpenStreetMap que no identifican un paradero.
+var genericStopNames = map[string]bool{
+	"caseta amarilla":  true,
+	"colectivos":       true,
+	"parada":           true,
+	"paradero":         true,
+	"paradero autobús": true,
+}
 
 // Estructuras para leer el GeoJSON
 type GeoJSON struct {
@@ -22,154 +58,177 @@ type GeoJSON struct {
 
 type Feature struct {
 	Geometry struct {
-		Coordinates []float64 `json:"coordinates"` // [lng, lat]
+		Coordinates []float64 `json:"coordinates"` // [longitud, latitud]
 	} `json:"geometry"`
 	Properties map[string]interface{} `json:"properties"`
 }
 
+// NominatimAddress contiene las partes de la dirección que usa el nombre.
+type NominatimAddress struct {
+	Road          string `json:"road"`
+	Neighbourhood string `json:"neighbourhood"`
+	Suburb        string `json:"suburb"`
+	City          string `json:"city"`
+	Town          string `json:"town"`
+	Village       string `json:"village"`
+}
+
 // Estructura para leer la respuesta de Nominatim
 type NominatimResponse struct {
-	DisplayName string `json:"display_name"`
+	Address NominatimAddress `json:"address"`
 }
 
 func main() {
-	// 1. Leer el archivo GeoJSON local
-	geojsonData, err := os.ReadFile("paraderos.geojson")
+	inputPath := flag.String("input", "paraderos.geojson", "archivo GeoJSON de origen")
+	outputPath := flag.String("output", "03_seed_catalog.sql", "archivo SQL de salida")
+	flag.Parse()
+
+	geojsonData, err := os.ReadFile(*inputPath)
 	if err != nil {
 		log.Fatalf("Error al leer el archivo GeoJSON: %v", err)
 	}
-
 	var geojson GeoJSON
 	if err := json.Unmarshal(geojsonData, &geojson); err != nil {
-		log.Fatalf("Error al parsear GeoJSON: %v", err)
+		log.Fatalf("Error al parsear el GeoJSON: %v", err)
 	}
 
-	// 2. Crear o sobrescribir el archivo seed.sql
-	sqlFile, err := os.Create("02_seed_stops.sql")
-	if err != nil {
-		log.Fatalf("Error al crear el archivo SQL: %v", err)
-	}
-	defer sqlFile.Close()
-
-	// Escribir cabecera
-	sqlFile.WriteString("-- Archivo autogenerado para importar paraderos\n")
-	sqlFile.WriteString("INSERT INTO stops (stop_id, stop_name, location) VALUES\n")
-
+	// El archivo .env es opcional: solo agrega un correo de contacto al User-Agent.
+	_ = godotenv.Load("../.env")
+	userAgent := buildUserAgent(os.Getenv("NOMINATIM_EMAIL"))
 	client := &http.Client{Timeout: 10 * time.Second}
-	total := len(geojson.Features)
 
-	for i, feature := range geojson.Features {
-		lng := feature.Geometry.Coordinates[0]
-		lat := feature.Geometry.Coordinates[1]
-
-		// Verificar si existía la propiedad "name" en OSM
-		_, hasNameProp := feature.Properties["name"]
-
-		// Consultar a Nominatim
-		displayName, err := fetchNominatimName(client, lat, lng)
-		if err != nil {
-			log.Printf("[%d/%d] Error en coordenadas (%.4f, %.4f): %v", i+1, total, lat, lng, err)
-			displayName = "Paradero Sin Nombre"
+	var sqlRows []string
+	osmNames, nominatimNames, fallbackNames := 0, 0, 0
+	for _, feature := range geojson.Features {
+		osmID, _ := feature.Properties["@id"].(string)
+		longitude, latitude := feature.Geometry.Coordinates[0], feature.Geometry.Coordinates[1]
+		if _, alreadyLoaded := loadedStopNodes[osmID]; alreadyLoaded || !isInServiceArea(latitude, longitude) {
+			continue
 		}
 
-		// Procesar el display_name según las reglas
-		stopName := parseDisplayName(displayName, hasNameProp)
-
-		// Formatear el stop_id (ej: PAR-001, PAR-002...)
-		stopID := fmt.Sprintf("PAR-%03d", i+1)
-
-		// Formatear la instrucción SQL
-		comma := ","
-		if i == total-1 {
-			comma = ";" // El último elemento lleva punto y coma
+		osmName, _ := feature.Properties["name"].(string)
+		stopName := strings.TrimSpace(osmName)
+		if isUsefulStopName(stopName) {
+			osmNames++
+		} else {
+			stopName, err = fetchNominatimName(client, userAgent, latitude, longitude)
+			time.Sleep(nominatimRequestDelay)
+			if err != nil {
+				log.Printf("Sin nombre para %s: %v", osmID, err)
+			}
+			if stopName == "" {
+				stopName = fallbackStopName(osmID)
+				fallbackNames++
+			} else {
+				nominatimNames++
+			}
 		}
 
-		// Escapar comillas simples en los nombres para evitar errores en SQL (ej: D'Orbigny -> D''Orbigny)
-		cleanStopName := strings.ReplaceAll(stopName, "'", "''")
-
-		sqlLine := fmt.Sprintf("('%s', '%s', ST_SetSRID(ST_MakePoint(%.6f, %.6f), 4326))%s\n",
-			stopID, cleanStopName, lng, lat, comma)
-
-		sqlFile.WriteString(sqlLine)
-		fmt.Printf("[%d/%d] Procesado: %s -> %s\n", i+1, total, stopID, cleanStopName)
-
-		// RESPETAR REGLA DE NOMINATIM: Esperar 1.1 segundos entre peticiones
-		time.Sleep(1100 * time.Millisecond)
+		sqlRows = append(sqlRows, formatStopRow(stableStopID(osmID), stopName, latitude, longitude))
+		fmt.Printf("[%d] %s -> %s\n", len(sqlRows), osmID, stopName)
 	}
 
-	fmt.Println("\n Generación completada con éxito en '02_seed_stops.sql'")
+	if err := os.WriteFile(*outputPath, []byte(buildCatalogSQL(sqlRows)), 0o644); err != nil {
+		log.Fatalf("Error al escribir el archivo SQL: %v", err)
+	}
+	fmt.Printf("Paraderos: %d. Nombres de OSM: %d, de Nominatim: %d, genéricos: %d\n",
+		len(sqlRows), osmNames, nominatimNames, fallbackNames)
 }
 
-// fetchNominatimName realiza la consulta HTTP Reverse Geocoding
-func fetchNominatimName(client *http.Client, lat, lng float64) (string, error) {
-	url := fmt.Sprintf("https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=%.6f&lon=%.6f", lat, lng)
-
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return "", err
-	}
-
-	// Cargar .env
-	err = godotenv.Load("../.env")
-	if err != nil {
-		log.Println("Advertencia: No se pudo cargar el archivo .env. Asegúrese de que la variable NOMINATIM_EMAIL esté configurada en el entorno.")
-		return "", fmt.Errorf("no se pudo cargar el archivo .env: %v", err)
-	}
-
-	// Requisito obligatorio de Nominatim: User-Agent personalizado
-	email := os.Getenv("NOMINATIM_EMAIL")
-	if email == "" {
-		log.Println("Advertencia: No se ha configurado la variable de entorno NOMINATIM_EMAIL. Se recomienda establecerla para cumplir con las políticas de Nominatim.")
-		// Parar la ejecución si no se proporciona un email, ya que Nominatim puede bloquear solicitudes sin un User-Agent adecuado.
-		return "", fmt.Errorf("no se ha configurado la variable de entorno NOMINATIM_EMAIL")
-	} else {
-		req.Header.Set("User-Agent", fmt.Sprintf("TemucoStopsApp/1.0 (%s)", email))
-	}
-	req.Header.Set("User-Agent", "TemucoStopsApp/1.0 ()")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("código de respuesta HTTP: %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-
-	var nomResp NominatimResponse
-	if err := json.Unmarshal(body, &nomResp); err != nil {
-		return "", err
-	}
-
-	return nomResp.DisplayName, nil
+func isInServiceArea(latitude, longitude float64) bool {
+	return latitude >= minServiceLatitude && latitude <= maxServiceLatitude &&
+		longitude >= minServiceLongitude && longitude <= maxServiceLongitude
 }
 
-// parseDisplayName aplica la lógica de separación de comas
-func parseDisplayName(displayName string, hasNameProp bool) string {
-	parts := strings.Split(displayName, ",")
-	for i := range parts {
-		parts[i] = strings.TrimSpace(parts[i])
-	}
+func isUsefulStopName(stopName string) bool {
+	normalizedName := strings.ToLower(strings.TrimSpace(stopName))
+	return normalizedName != "" && !genericStopNames[normalizedName]
+}
 
-	if hasNameProp {
-		// Si tenía la propiedad "name", tomar elementos 2 y 3 (índices 1 y 2)
-		if len(parts) >= 3 {
-			return fmt.Sprintf("%s, %s", parts[1], parts[2])
-		} else if len(parts) == 2 {
-			return parts[1]
-		}
-	} else {
-		// Si NO tenía "name", tomar los primeros dos elementos (índices 0 y 1)
-		if len(parts) >= 2 {
-			return fmt.Sprintf("%s, %s", parts[0], parts[1])
+// stableStopID usa el nodo de OpenStreetMap: no depende del orden del archivo.
+func stableStopID(osmID string) string {
+	return "PAR-OSM-" + strings.TrimPrefix(osmID, "node/")
+}
+
+func fallbackStopName(osmID string) string {
+	return "Paradero " + strings.TrimPrefix(osmID, "node/")
+}
+
+func buildUserAgent(contactEmail string) string {
+	if contactEmail == "" {
+		return baseUserAgent + ")"
+	}
+	return fmt.Sprintf("%s; %s)", baseUserAgent, contactEmail)
+}
+
+// fetchNominatimName obtiene la calle y el sector de unas coordenadas.
+func fetchNominatimName(client *http.Client, userAgent string, latitude, longitude float64) (string, error) {
+	query := url.Values{}
+	query.Set("format", "jsonv2")
+	query.Set("lat", fmt.Sprintf("%.6f", latitude))
+	query.Set("lon", fmt.Sprintf("%.6f", longitude))
+	query.Set("zoom", "17") // Nivel de calle: evita números de casa en el nombre.
+
+	request, err := http.NewRequest(http.MethodGet, "https://nominatim.openstreetmap.org/reverse?"+query.Encode(), nil)
+	if err != nil {
+		return "", err
+	}
+	request.Header.Set("User-Agent", userAgent)
+
+	response, err := client.Do(request)
+	if err != nil {
+		return "", err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("código de respuesta HTTP: %d", response.StatusCode)
+	}
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return "", err
+	}
+	var nominatimResponse NominatimResponse
+	if err := json.Unmarshal(body, &nominatimResponse); err != nil {
+		return "", err
+	}
+	return buildStopName(nominatimResponse.Address), nil
+}
+
+// buildStopName arma "Calle, Sector". Si falta una parte, usa la disponible.
+func buildStopName(address NominatimAddress) string {
+	sector := firstNonEmpty(address.Neighbourhood, address.Suburb, address.City, address.Town, address.Village)
+	if address.Road == "" {
+		return sector
+	}
+	if sector == "" {
+		return address.Road
+	}
+	return address.Road + ", " + sector
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
 		}
 	}
+	return ""
+}
 
-	return displayName // Respaldo por si devuelve menos partes de las esperadas
+func formatStopRow(stopID, stopName string, latitude, longitude float64) string {
+	nameCharacters := []rune(stopName)
+	if len(nameCharacters) > maxStopNameLength {
+		stopName = string(nameCharacters[:maxStopNameLength])
+	}
+	// Escapa comillas simples para SQL (ej: D'Orbigny -> D''Orbigny).
+	escapedName := strings.ReplaceAll(stopName, "'", "''")
+	return fmt.Sprintf("('%s', '%s', ST_SetSRID(ST_MakePoint(%.6f, %.6f), 4326))", stopID, escapedName, longitude, latitude)
+}
+
+func buildCatalogSQL(sqlRows []string) string {
+	return "-- Catálogo de paraderos generado por generator/generator.go\n" +
+		"INSERT INTO stops (stop_id, stop_name, location) VALUES\n" +
+		strings.Join(sqlRows, ",\n") +
+		"\nON CONFLICT (stop_id) DO NOTHING;\n"
 }

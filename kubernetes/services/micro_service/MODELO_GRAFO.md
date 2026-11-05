@@ -67,15 +67,16 @@ para el planificador.
 
 | Elemento | Formato | Ejemplo |
 |---|---|---|
-| Paradero | `PAR-<ZONA>-<NN>` | `PAR-CSF-01` |
+| Paradero de la red inicial | `PAR-<ZONA>-<NN>` | `PAR-CSF-01` |
+| Paradero del catálogo | `PAR-OSM-<NODO>` | `PAR-OSM-1095184413` |
 | Línea | `L<CODIGO>` | `L7A` |
 | Recorrido de ida | `L<CODIGO>-IDA` | `L7A-IDA` |
 | Recorrido de vuelta | `L<CODIGO>-VTA` | `L7A-VTA` |
 
 `WALK` queda reservado y no se puede usar como línea.
 
-El formato `PAR-001` de `generator/generator.go` no es oficial: depende del orden
-del archivo y puede cambiar si este se regenera.
+`<NODO>` es el número del nodo de OpenStreetMap, así que el ID no cambia aunque se
+regenere el catálogo o cambie el orden del archivo.
 
 ### Equivalencia de líneas entre servicios
 
@@ -169,13 +170,24 @@ ID para no romper las aristas existentes.
 | `PAR-CSF-01` | `node/1095184204` |
 | `PAR-PORTAL-01` | `node/943207384` |
 
+### Generar el catálogo
+
+`generator/generator.go` aplica estas reglas. Usa el nombre de OpenStreetMap si es
+útil; si no, pide la calle y el sector a Nominatim, a una consulta por segundo.
+
+```bash
+cd kubernetes/services/micro_service/generator
+go run . -output 03_seed_catalog.sql
+```
+
+El resultado se copia en la clave `03_seed_catalog.sql` de
+`micros-db-init-scripts.yaml`. PostgreSQL ejecuta esa clave después de
+`02_seed_stops.sql`.
+
 ## Problemas detectados
 
 | Problema | Se resuelve en |
 |---|---|
-| Solo hay 7 paraderos cargados de los 397 válidos | Subtarea 2b |
-| Conviven dos formatos de ID de paradero | Subtarea 2b |
-| Solo 21 de los 400 paraderos podrían tener un nombre útil | Subtarea 2b |
 | Las fuentes no coinciden en el recorrido de las líneas | Subtarea 3 |
 | 7A y 7B tienen el mismo nombre largo | Subtarea 3 |
 | Los recorridos de ida y vuelta no cierran el circuito | Subtarea 3 |
