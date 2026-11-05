@@ -184,14 +184,48 @@ El resultado se copia en la clave `03_seed_catalog.sql` de
 `micros-db-init-scripts.yaml`. PostgreSQL ejecuta esa clave después de
 `02_seed_stops.sql`.
 
+## Líneas y recorridos
+
+La fuente oficial es `micros-db-init-scripts.yaml`, con los datos de `micros-db`.
+Si otro servicio describe una línea de forma distinta, prevalece esa fuente. La
+simulación de backend-go tiene su propio trazado y no define la red.
+
+| Línea | Nombre corto | Nombre largo | Color |
+|---|---|---|---|
+| `L7A` | Línea 7A | El Carmen - Av. Alemania - Cajón | `#FF5733` |
+| `L7B` | Línea 7B | El Carmen - Av. Alemania - Cajón | `#33FF57` |
+| `L1C` | Línea 1C | Labranza - Cajón | `#3357FF` |
+
+Cada línea tiene dos recorridos. Los paraderos aparecen en orden de viaje:
+
+| Recorrido | Paraderos | Tramos | Tiempo | Distancia |
+|---|---|---|---|---|
+| `L7A-IDA` | `PAR-CSF-01` → `PAR-DPORT-01` → `PAR-CJP-02` | 2 | 1800 s | 8000 m |
+| `L7A-VTA` | `PAR-CJP-02` → `PAR-MRODRI-01` | 1 | 1980 s | 6000 m |
+| `L7B-IDA` | `PAR-PORTAL-01` → `PAR-CSF-01` → `PAR-DPORT-01` → `PAR-CJP-01` | 3 | 1860 s | 8450 m |
+| `L7B-VTA` | `PAR-CJP-01` → `PAR-MRODRI-01` → `PAR-PORTAL-01` | 2 | 1740 s | 8300 m |
+| `L1C-IDA` | `PAR-PORTAL-01` → `PAR-CSF-01` → `PAR-DPORT-01` → `PAR-BARROS-01` | 3 | 2340 s | 7150 m |
+| `L1C-VTA` | `PAR-BARROS-01` → `PAR-MRODRI-01` → `PAR-PORTAL-01` | 2 | 2220 s | 7200 m |
+
+Los seis recorridos tienen `stop_sequence` continuo y sus tramos se encadenan.
+
+### Circuitos
+
+- `L7B` y `L1C` forman un circuito: la vuelta termina donde parte la ida.
+- `L7A` queda abierta: la vuelta termina en `PAR-MRODRI-01`, y la ida parte en
+  `PAR-CSF-01`. No se agrega un tramo porque los datos oficiales no lo incluyen.
+
+### Trazado
+
+`route_shape` es opcional y queda vacío. El planificador trabaja con aristas entre
+paraderos, así que no lo necesita para calcular viajes.
+
 ## Problemas detectados
 
 | Problema | Se resuelve en |
 |---|---|
-| Las fuentes no coinciden en el recorrido de las líneas | Subtarea 3 |
-| 7A y 7B tienen el mismo nombre largo | Subtarea 3 |
-| Los recorridos de ida y vuelta no cierran el circuito | Subtarea 3 |
-| `route_shape` está vacío y `main.go` no lo lee | Subtarea 3 |
+| 7A y 7B tienen el mismo nombre largo en los datos oficiales | Confirmar con el equipo |
+| `L7A` no cierra su circuito en los datos oficiales | Confirmar con el equipo |
 | Falta confirmar el origen de los tiempos y las distancias | Subtarea 5 |
 | Hay caminatas de hasta 7,1 km entre todos los paraderos | Subtarea 6 |
 | `PAR-CJP-02` ↔ `PAR-DPORT-01` tiene 7380 s para 5400 m, un tiempo atípico | Subtarea 6 |
