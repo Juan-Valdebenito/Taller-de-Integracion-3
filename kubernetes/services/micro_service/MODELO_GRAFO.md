@@ -220,10 +220,45 @@ Los seis recorridos tienen `stop_sequence` continuo y sus tramos se encadenan.
 `route_shape` es opcional y queda vacío. El planificador trabaja con aristas entre
 paraderos, así que no lo necesita para calcular viajes.
 
+## Conexiones en micro
+
+La red tiene **7 paraderos y 13 aristas en micro**. Esas aristas cubren 9 pares
+distintos de paraderos, porque varias líneas comparten tramos.
+
+| Desde | Hacia | Recorridos | Tiempo | Distancia |
+|---|---|---|---|---|
+| `PAR-CSF-01` | `PAR-DPORT-01` | `L7A-IDA`, `L7B-IDA`, `L1C-IDA` | 300 s | 1200 m |
+| `PAR-PORTAL-01` | `PAR-CSF-01` | `L7B-IDA`, `L1C-IDA` | 240 s | 950 m |
+| `PAR-MRODRI-01` | `PAR-PORTAL-01` | `L7B-VTA`, `L1C-VTA` | 420 s | 2300 m |
+| `PAR-DPORT-01` | `PAR-CJP-02` | `L7A-IDA` | 1500 s | 6800 m |
+| `PAR-DPORT-01` | `PAR-CJP-01` | `L7B-IDA` | 1320 s | 6300 m |
+| `PAR-DPORT-01` | `PAR-BARROS-01` | `L1C-IDA` | 1800 s | 5000 m |
+| `PAR-CJP-02` | `PAR-MRODRI-01` | `L7A-VTA` | 1980 s | 6000 m |
+| `PAR-CJP-01` | `PAR-MRODRI-01` | `L7B-VTA` | 1320 s | 6000 m |
+| `PAR-BARROS-01` | `PAR-MRODRI-01` | `L1C-VTA` | 1800 s | 4900 m |
+
+### Reglas
+
+- Un tramo compartido se guarda una vez por recorrido, no una vez por par de
+  paraderos. Así el planificador sabe en qué línea va el pasajero y puede contar
+  los cambios de línea.
+- Los recorridos que comparten un tramo tienen el mismo tiempo y distancia.
+- Cada arista tiene un solo sentido. Ninguno de los 9 pares tiene su inverso en
+  micro.
+
+### Conectividad
+
+Solo con micros, desde cualquiera de los 7 paraderos se puede llegar a los otros 6,
+aunque a veces cambiando de línea. Por eso el grafo es **fuertemente conexo**.
+
+- `PAR-DPORT-01` es el punto de **bifurcación**: de él salen 3 tramos.
+- `PAR-MRODRI-01` es el punto de **convergencia**: a él llegan 3 tramos.
+
 ## Problemas detectados
 
 | Problema | Se resuelve en |
 |---|---|
+| Faltan 390 paraderos por cargar en el catálogo: el generador está listo, pero no se ha ejecutado | Subtarea 2b, pausada |
 | 7A y 7B tienen el mismo nombre largo en los datos oficiales | Confirmar con el equipo |
 | `L7A` no cierra su circuito en los datos oficiales | Confirmar con el equipo |
 | Falta confirmar el origen de los tiempos y las distancias | Subtarea 5 |
