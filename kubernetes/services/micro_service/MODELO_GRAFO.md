@@ -118,12 +118,65 @@ paradero. Las preferencias disponibles son:
 - `fastest`: menor tiempo total.
 - `min_transfers`: menos cambios de línea y, en caso de empate, menor tiempo.
 
+## Selección de paraderos
+
+La fuente es `generator/paraderos.geojson`, exportado de OpenStreetMap. Tiene 400
+puntos, todos con un `@id` único y estable.
+
+### Catálogo y red
+
+Se separan dos conjuntos:
+
+- **Catálogo:** todos los paraderos válidos. Sirve para buscar paraderos cercanos.
+- **Red:** los paraderos del catálogo que tienen al menos una arista. Solo estos
+  participan en la planificación de viajes.
+
+Un paradero sin aristas es válido en el catálogo. La regla de no dejar paraderos
+aislados se aplica únicamente a los de la red.
+
+### Reglas de inclusión
+
+| Regla | Criterio | Resultado |
+|---|---|---|
+| Área de servicio | Latitud entre -38.80 y -38.66; longitud entre -72.79 y -72.47 | Entran 397 y quedan fuera 3 |
+| Duplicados | No se fusionan automáticamente | Se conservan los 397 |
+| Identidad | El `@id` de OpenStreetMap identifica el origen | Los ID no dependen del orden del archivo |
+
+No se fusionan porque dos paraderos cercanos pueden estar en lados opuestos de la
+calle y servir a direcciones distintas. El par más cercano está a 13,6 m, y hay
+20 pares a 25 m o menos.
+
+Quedan fuera del área:
+
+| Nodo de OpenStreetMap | Latitud | Longitud |
+|---|---|---|
+| `node/8007376783` | -38.6588 | -72.4817 |
+| `node/13376897460` | -38.5666 | -72.7388 |
+| `node/13678567352` | -38.6541 | -72.4775 |
+
+### Paraderos ya cargados
+
+Los 7 paraderos actuales coinciden exactamente con nodos del archivo. Conservan su
+ID para no romper las aristas existentes.
+
+| `stop_id` | Nodo de OpenStreetMap |
+|---|---|
+| `PAR-CJP-01` | `node/5849666578` |
+| `PAR-CJP-02` | `node/13236477179` |
+| `PAR-BARROS-01` | `node/13525059616` |
+| `PAR-MRODRI-01` | `node/1225240352` |
+| `PAR-DPORT-01` | `node/1744986737` |
+| `PAR-CSF-01` | `node/1095184204` |
+| `PAR-PORTAL-01` | `node/943207384` |
+
 ## Problemas detectados
 
 | Problema | Se resuelve en |
 |---|---|
-| Solo hay 7 paraderos cargados de los 400 disponibles | Subtarea 2 |
-| Conviven dos formatos de ID de paradero | Subtarea 2 |
+| Solo hay 7 paraderos cargados de los 397 válidos | Subtarea 2b |
+| Conviven dos formatos de ID de paradero | Subtarea 2b |
+| Solo 21 de los 400 paraderos podrían tener un nombre útil | Subtarea 2b |
+| Las fuentes no coinciden en el recorrido de las líneas | Subtarea 3 |
 | 7A y 7B tienen el mismo nombre largo | Subtarea 3 |
 | Los recorridos de ida y vuelta no cierran el circuito | Subtarea 3 |
 | `route_shape` está vacío y `main.go` no lo lee | Subtarea 3 |
