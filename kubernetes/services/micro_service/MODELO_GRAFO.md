@@ -254,6 +254,62 @@ aunque a veces cambiando de línea. Por eso el grafo es **fuertemente conexo**.
 - `PAR-DPORT-01` es el punto de **bifurcación**: de él salen 3 tramos.
 - `PAR-MRODRI-01` es el punto de **convergencia**: a él llegan 3 tramos.
 
+## Tiempos y distancias
+
+Los valores de `route_stops` provienen de `micros-db`. Según el historial del
+repositorio, se agregaron como datos reales en el commit `886bc0c`. Se usan tal
+como están.
+
+| Dato | Campo | Significado |
+|---|---|---|
+| Tiempo base | `base_travel_time_seconds` | Viaje en micro entre dos paraderos |
+| Distancia | `distance_meters` | Metros recorridos por la calle |
+
+### Revisión de los datos
+
+La velocidad es `distancia / tiempo`. El factor de calle compara la distancia
+registrada con la línea recta entre los dos paraderos.
+
+| Tramo | Tiempo | Distancia | Velocidad | Línea recta | Factor de calle |
+|---|---|---|---|---|---|
+| `PAR-BARROS-01` → `PAR-MRODRI-01` | 1800 s | 4900 m | 9,8 km/h | 4489 m | 1,09 |
+| `PAR-DPORT-01` → `PAR-BARROS-01` | 1800 s | 5000 m | 10,0 km/h | 4643 m | 1,08 |
+| `PAR-CJP-02` → `PAR-MRODRI-01` | 1980 s | 6000 m | 10,9 km/h | 5055 m | 1,19 |
+| `PAR-PORTAL-01` → `PAR-CSF-01` | 240 s | 950 m | 14,2 km/h | 951 m | 1,00 |
+| `PAR-CSF-01` → `PAR-DPORT-01` | 300 s | 1200 m | 14,4 km/h | 1045 m | 1,15 |
+| `PAR-DPORT-01` → `PAR-CJP-02` | 1500 s | 6800 m | 16,3 km/h | 5209 m | 1,31 |
+| `PAR-CJP-01` → `PAR-MRODRI-01` | 1320 s | 6000 m | 16,4 km/h | 4869 m | 1,23 |
+| `PAR-DPORT-01` → `PAR-CJP-01` | 1320 s | 6300 m | 17,2 km/h | 5023 m | 1,25 |
+| `PAR-MRODRI-01` → `PAR-PORTAL-01` | 420 s | 2300 m | 19,7 km/h | 2079 m | 1,11 |
+
+La velocidad promedio de los 9 tramos es **13,3 km/h**. Todos los valores son
+coherentes con un recorrido urbano. `PAR-PORTAL-01` → `PAR-CSF-01` registra 1 m
+menos que la línea recta, una diferencia atribuible al redondeo.
+
+### Reglas para tramos nuevos
+
+| Regla | Criterio |
+|---|---|
+| Distancia | Se mide por la calle y no puede ser menor que la línea recta, con 5 m de tolerancia |
+| Tiempo medido | Si hay un dato real, se usa ese valor |
+| Tiempo estimado | Sin dato real, `distancia / 13,3 km/h`, convertido a segundos y redondeado |
+| Velocidad aceptada | Entre 8 y 25 km/h |
+| Factor de calle aceptado | Entre 1,00 y 1,40 |
+
+Los rangos parten de los datos actuales, con un margen. Un valor fuera de rango se
+revisa antes de cargarlo.
+
+### Qué no incluye el tiempo
+
+`fastestPath` suma solo los tiempos de las aristas. Por eso el resultado no incluye:
+
+- La espera de la micro.
+- El tiempo detenido en cada paradero.
+- Una penalización por cambiar de línea.
+
+El tiempo que entrega el planificador es un **mínimo de viaje**, no una hora exacta
+de llegada.
+
 ## Problemas detectados
 
 | Problema | Se resuelve en |
@@ -261,7 +317,7 @@ aunque a veces cambiando de línea. Por eso el grafo es **fuertemente conexo**.
 | Faltan 390 paraderos por cargar en el catálogo: el generador está listo, pero no se ha ejecutado | Subtarea 2b, pausada |
 | 7A y 7B tienen el mismo nombre largo en los datos oficiales | Confirmar con el equipo |
 | `L7A` no cierra su circuito en los datos oficiales | Confirmar con el equipo |
-| Falta confirmar el origen de los tiempos y las distancias | Subtarea 5 |
+| El planificador no considera espera ni penalización por cambiar de línea | Mejora futura |
 | Hay caminatas de hasta 7,1 km entre todos los paraderos | Subtarea 6 |
 | `PAR-CJP-02` ↔ `PAR-DPORT-01` tiene 7380 s para 5400 m, un tiempo atípico | Subtarea 6 |
 | `main.go` no lee la distancia de los transbordos, así que suma 0 m | Subtarea 6 |
