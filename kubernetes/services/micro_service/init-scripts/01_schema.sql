@@ -50,5 +50,6 @@ CREATE TABLE IF NOT EXISTS transfers (
     from_stop_id VARCHAR(50) NOT NULL REFERENCES stops(stop_id) ON DELETE CASCADE,
     to_stop_id VARCHAR(50) NOT NULL REFERENCES stops(stop_id) ON DELETE CASCADE,
     walk_time_seconds INT NOT NULL,
+    distance_meters INT NOT NULL,
     PRIMARY KEY (from_stop_id, to_stop_id)
 );
