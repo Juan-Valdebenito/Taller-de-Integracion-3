@@ -310,6 +310,50 @@ revisa antes de cargarlo.
 El tiempo que entrega el planificador es un **mínimo de viaje**, no una hora exacta
 de llegada.
 
+## Transbordos a pie
+
+Los datos oficiales tienen 42 filas: 21 pares de paraderos, una fila por sentido.
+Conectan todos los paraderos entre sí, y cada par tiene el mismo tiempo y distancia
+en ambos sentidos.
+
+La velocidad típica es de **1,2 m/s**, unos 4,4 km/h, normal para una persona.
+
+### Regla de distancia
+
+Un transbordo razonable mide **1000 m o menos**. Cumplen esta regla 5 pares:
+
+| Paraderos | Tiempo | Distancia |
+|---|---|---|
+| `PAR-DPORT-01` ↔ `PAR-MRODRI-01` | 120 s | 180 m |
+| `PAR-CJP-01` ↔ `PAR-CJP-02` | 240 s | 200 m |
+| `PAR-BARROS-01` ↔ `PAR-CJP-01` | 480 s | 600 m |
+| `PAR-BARROS-01` ↔ `PAR-CJP-02` | 780 s | 900 m |
+| `PAR-CSF-01` ↔ `PAR-PORTAL-01` | 780 s | 950 m |
+
+Las otras 32 filas no se borran, porque son datos oficiales, y tampoco afectan los
+viajes. Al ejecutar el planificador con los 42 viajes posibles, con y sin ese
+límite, el tiempo total de los viajes fue el mismo y ninguna ruta caminó más de 950 m.
+
+### Reglas para transbordos nuevos
+
+| Regla | Criterio |
+|---|---|
+| Distancia máxima | 1000 m |
+| Sentido | Una fila por cada sentido, con los mismos valores |
+| Tiempo estimado | Sin dato real, `distancia / 1,2 m/s`, redondeado |
+| Velocidad aceptada | Entre 0,8 y 1,5 m/s |
+| Factor de calle aceptado | Entre 1,00 y 1,40 |
+
+Estas reglas importan al cargar el catálogo: si se generaran todos los pares entre
+397 paraderos, habría más de 157 000 filas.
+
+### Valor atípico
+
+`PAR-CJP-02` ↔ `PAR-DPORT-01` tiene 7380 s para 5400 m, o 0,73 m/s. Los pares de
+distancia parecida rondan los 4400 s, así que podría ser un error de digitación.
+No se corrige sin confirmarlo. Tampoco afecta los viajes, porque esa caminata nunca
+se elige.
+
 ## Problemas detectados
 
 | Problema | Se resuelve en |
@@ -318,6 +362,4 @@ de llegada.
 | 7A y 7B tienen el mismo nombre largo en los datos oficiales | Confirmar con el equipo |
 | `L7A` no cierra su circuito en los datos oficiales | Confirmar con el equipo |
 | El planificador no considera espera ni penalización por cambiar de línea | Mejora futura |
-| Hay caminatas de hasta 7,1 km entre todos los paraderos | Subtarea 6 |
-| `PAR-CJP-02` ↔ `PAR-DPORT-01` tiene 7380 s para 5400 m, un tiempo atípico | Subtarea 6 |
-| `main.go` no lee la distancia de los transbordos, así que suma 0 m | Subtarea 6 |
+| `PAR-CJP-02` ↔ `PAR-DPORT-01` tiene un tiempo atípico de 7380 s | Confirmar con el equipo |

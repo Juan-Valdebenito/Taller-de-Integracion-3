@@ -103,7 +103,7 @@ func (g *TransitGraph) LoadFromDB(ctx context.Context, pool *pgxpool.Pool) error
 		return fmt.Errorf("read route edges: %w", err)
 	}
 
-	transferRows, err := pool.Query(ctx, `SELECT from_stop_id, to_stop_id, walk_time_seconds FROM transfers ORDER BY from_stop_id, to_stop_id`)
+	transferRows, err := pool.Query(ctx, `SELECT from_stop_id, to_stop_id, walk_time_seconds, distance_meters FROM transfers ORDER BY from_stop_id, to_stop_id`)
 	if err != nil {
 		return fmt.Errorf("query transfers: %w", err)
 	}
@@ -111,7 +111,7 @@ func (g *TransitGraph) LoadFromDB(ctx context.Context, pool *pgxpool.Pool) error
 	for transferRows.Next() {
 		var fromID string
 		edge := Edge{RouteID: walkRouteID}
-		if err := transferRows.Scan(&fromID, &edge.ToStopID, &edge.BaseTimeSec); err != nil {
+		if err := transferRows.Scan(&fromID, &edge.ToStopID, &edge.BaseTimeSec, &edge.DistanceM); err != nil {
 			return fmt.Errorf("scan transfer: %w", err)
 		}
 		if err := validateEdge(next, fromID, edge); err != nil {
