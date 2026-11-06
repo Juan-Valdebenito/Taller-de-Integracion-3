@@ -7,14 +7,6 @@ import (
 	"testing"
 )
 
-func totalPathSeconds(path []pathStep) int {
-	totalSeconds := 0
-	for _, step := range path {
-		totalSeconds += step.Edge.BaseTimeSec
-	}
-	return totalSeconds
-}
-
 // assertAStarMatchesDijkstra compara el tiempo: dos rutas distintas pueden empatar.
 func assertAStarMatchesDijkstra(t *testing.T, graph *TransitGraph) {
 	t.Helper()
@@ -28,9 +20,9 @@ func assertAStarMatchesDijkstra(t *testing.T, graph *TransitGraph) {
 			if dijkstraFound != aStarFound {
 				t.Fatalf("%s -> %s: Dijkstra encontró ruta %v y A* %v", originStopID, destinationStopID, dijkstraFound, aStarFound)
 			}
-			if totalPathSeconds(dijkstraRoute) != totalPathSeconds(aStarRoute) {
+			if pathSeconds(dijkstraRoute) != pathSeconds(aStarRoute) {
 				t.Errorf("%s -> %s: Dijkstra tarda %d s y A* %d s", originStopID, destinationStopID,
-					totalPathSeconds(dijkstraRoute), totalPathSeconds(aStarRoute))
+					pathSeconds(dijkstraRoute), pathSeconds(aStarRoute))
 			}
 		}
 	}
@@ -68,8 +60,8 @@ func TestAStarMatchesDijkstraOnRandomGraphs(t *testing.T) {
 func TestAStarFindsHandCalculatedTrip(t *testing.T) {
 	graph := loadSeedNetwork(t).buildGraph()
 	path, found := aStarPath(graph, "PAR-CSF-01", "PAR-MRODRI-01")
-	if !found || totalPathSeconds(path) != 420 {
-		t.Fatalf("se esperaban 420 s y se obtuvieron %d s", totalPathSeconds(path))
+	if !found || pathSeconds(path) != 420 {
+		t.Fatalf("se esperaban 420 s y se obtuvieron %d s", pathSeconds(path))
 	}
 }
 
@@ -95,8 +87,8 @@ func TestRemainingEstimateNeverExceedsRealTime(t *testing.T) {
 				t.Fatalf("sin ruta de %s a %s", originStopID, destinationStopID)
 			}
 			estimate := remainingTimeEstimate(graph, originStopID, destinationStopID, maxSpeedMps)
-			if estimate > totalPathSeconds(path) {
-				t.Errorf("%s -> %s: estima %d s y tarda %d s", originStopID, destinationStopID, estimate, totalPathSeconds(path))
+			if estimate > pathSeconds(path) {
+				t.Errorf("%s -> %s: estima %d s y tarda %d s", originStopID, destinationStopID, estimate, pathSeconds(path))
 			}
 		}
 	}
@@ -123,7 +115,7 @@ func compareExploredStops(t *testing.T, graph *TransitGraph, stopPairs [][2]stri
 		originStopID, destinationStopID := stopPair[0], stopPair[1]
 		dijkstraResult := searchFastestPath(graph, originStopID, destinationStopID, noRemainingEstimate)
 		aStarResult := searchFastestPath(graph, originStopID, destinationStopID, aStarEstimate(graph, destinationStopID))
-		if totalPathSeconds(dijkstraResult.Path) != totalPathSeconds(aStarResult.Path) {
+		if pathSeconds(dijkstraResult.Path) != pathSeconds(aStarResult.Path) {
 			t.Fatalf("%s -> %s: los algoritmos no coinciden en el tiempo", originStopID, destinationStopID)
 		}
 		dijkstraExplored += dijkstraResult.ExploredStops
