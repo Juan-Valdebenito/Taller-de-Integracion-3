@@ -407,11 +407,77 @@ tiempo en todos los viajes medidos.
 La cuadrícula es una red generada para las pruebas, no datos reales de Temuco.
 Muestra que A* aporta poco en la red actual, y que su ventaja aparece al crecer.
 
+## Rutas alternativas
+
+`alternatives.go` entrega hasta K rutas distintas, de la más rápida a la más lenta.
+Todavía no están disponibles en la API. Se exponen en la tarea de API completa.
+
+### Algoritmo de Yen
+
+`yenPaths` usa A* en cada búsqueda:
+
+1. Calcula la ruta más rápida.
+2. Recorre sus paraderos. En cada uno, conserva el inicio de la ruta, bloquea el
+   tramo que ya se usó y bloquea los paraderos ya recorridos.
+3. Busca otro camino al destino desde ese paradero.
+4. Guarda cada desviación como candidata.
+5. La candidata más rápida pasa a ser la siguiente ruta.
+
+Se repite hasta completar K rutas o quedarse sin candidatas. Bloquear los paraderos
+recorridos impide que una ruta pase dos veces por el mismo lugar. Los bloqueos se
+aplican sobre una copia, porque el grafo se comparte entre peticiones.
+
+### Rutas distintas para el pasajero
+
+Por sí solo, Yen trata como rutas distintas las que solo cambian de línea en un
+tramo compartido. Por eso `alternativePaths` agrega dos pasos:
+
+| Paso | Función | Qué hace |
+|---|---|---|
+| Antes de Yen | `distinctConnectionGraph` | Deja una arista por conexión y quita las caminatas de más de 1000 m |
+| Después de Yen | `assignFewestTransfers` | Elige las líneas con menos cambios, sin alterar paraderos ni tiempo |
+
+Una **conexión** es el mismo destino con el mismo modo de transporte. Caminar y
+tomar la micro entre dos paraderos son conexiones distintas.
+
+`assignFewestTransfers` avanza tramo a tramo y guarda la mejor opción para cada
+línea en la que el pasajero podría ir. Así evita revisar todas las combinaciones.
+
+### Ejemplo
+
+Viaje de `PAR-PORTAL-01` a `PAR-CJP-01`, con un límite de 3 rutas:
+
+| Tiempo | Cambios de línea | Ruta |
+|---|---|---|
+| 1860 s | 0 | Línea 7B hasta el destino |
+| 2280 s | 1 | Línea 1C hasta `PAR-DPORT-01`, línea 7A hasta `PAR-CJP-02` y caminar |
+| 2400 s | 0 | Caminar hasta `PAR-CSF-01` y seguir en la línea 7B |
+
+### Resultado en la red oficial
+
+De los 42 viajes, con un límite de 3 rutas:
+
+| Rutas entregadas | Viajes |
+|---|---|
+| 3 | 37 |
+| 2 | 3 |
+| 1 | 2 |
+
+Todos los viajes tienen al menos una ruta. Algunos tienen menos alternativas porque
+la red es pequeña y no se ofrecen caminatas largas.
+
+### Limitación
+
+Solo se comparan líneas con el mismo tiempo en un tramo. Una línea algo más lenta
+que evitara un cambio no se elegiría. Con los datos actuales no ocurre, porque los
+tramos compartidos tienen tiempos iguales.
+
 ## Validación
 
 `graph_data_test.go` revisa los datos oficiales con las reglas de este documento y
-con el planificador real. `planner_test.go` compara Dijkstra y A*. Ninguno necesita
-una base de datos.
+con el planificador real. `planner_test.go` compara Dijkstra y A*, y
+`alternatives_test.go` revisa las rutas alternativas. Ninguno necesita una base de
+datos.
 
 ```bash
 cd kubernetes/services/micro_service
@@ -430,6 +496,8 @@ go test ./...
 | A* y Dijkstra | Dan el mismo tiempo en la red oficial y en 40 grafos aleatorios |
 | Heurística | La estimación nunca supera el tiempo real |
 | Paraderos explorados | A* no explora más que Dijkstra en la red oficial, y explora menos en la cuadrícula |
+| Yen | Coincide con una búsqueda de fuerza bruta en 30 grafos aleatorios |
+| Alternativas | Son válidas, no se repiten, no caminan más de 1000 m y evitan cambios innecesarios |
 
 `PAR-CJP-02` ↔ `PAR-DPORT-01` está registrado en la prueba como excepción conocida
 de velocidad. Si el equipo corrige el dato, se quita esa excepción. Cualquier otro
