@@ -3,7 +3,10 @@ package main
 // Algoritmos que planifican un viaje sobre TransitGraph. Este archivo no depende
 // de HTTP ni de gRPC: recibe el grafo y devuelve los tramos del recorrido.
 
-import "container/heap"
+import (
+	"container/heap"
+	"math"
+)
 
 // pathStep es un tramo del recorrido: el paradero de origen y la arista usada.
 type pathStep struct {
@@ -15,10 +18,12 @@ type pathStep struct {
 type dijkstraItem struct {
 	stop, route                      string
 	time, transfers, sequence, index int
+	// remainingEstimate es el tiempo que A* estima hasta el destino.
+	remainingEstimate int
 }
 
 // priorityQueue entrega primero el paradero con menos cambios de línea y, si
-// empatan, el de menor tiempo. sequence mantiene un orden estable.
+// empatan, el de menor tiempo total estimado. sequence mantiene un orden estable.
 type priorityQueue []*dijkstraItem
 
 func (queue priorityQueue) Len() int { return len(queue) }
@@ -27,8 +32,10 @@ func (queue priorityQueue) Less(firstIndex, secondIndex int) bool {
 	if first.transfers != second.transfers {
 		return first.transfers < second.transfers
 	}
-	if first.time != second.time {
-		return first.time < second.time
+	firstTotal := first.time + first.remainingEstimate
+	secondTotal := second.time + second.remainingEstimate
+	if firstTotal != secondTotal {
+		return firstTotal < secondTotal
 	}
 	return first.sequence < second.sequence
 }
@@ -51,10 +58,29 @@ func (queue *priorityQueue) Pop() any {
 }
 
 // fastestPath usa Dijkstra para encontrar la ruta de menor tiempo total.
+// Dijkstra es A* con una estimación igual a cero: explora sin orientarse al destino.
 func fastestPath(graph *TransitGraph, from, to string) ([]pathStep, bool) {
+	noEstimate := func(string) int { return 0 }
+	return searchFastestPath(graph, from, to, noEstimate)
+}
+
+// aStarPath encuentra la misma ruta de menor tiempo que Dijkstra, pero explora
+// primero los paraderos que se acercan al destino.
+func aStarPath(graph *TransitGraph, from, to string) ([]pathStep, bool) {
+	maxSpeedMps := maxStraightSpeedMps(graph)
+	estimateRemaining := func(stopID string) int {
+		return remainingTimeEstimate(graph, stopID, to, maxSpeedMps)
+	}
+	return searchFastestPath(graph, from, to, estimateRemaining)
+}
+
+// searchFastestPath ordena la exploración por tiempo recorrido más tiempo
+// estimado. La estimación nunca debe superar el tiempo real restante; si lo
+// hiciera, la búsqueda podría entregar una ruta que no es la más rápida.
+func searchFastestPath(graph *TransitGraph, from, to string, estimateRemaining func(stopID string) int) ([]pathStep, bool) {
 	bestTimes := map[string]int{from: 0}
 	previous := make(map[string]pathStep)
-	queue := &priorityQueue{&dijkstraItem{stop: from}}
+	queue := &priorityQueue{&dijkstraItem{stop: from, remainingEstimate: estimateRemaining(from)}}
 	heap.Init(queue)
 	for queue.Len() > 0 {
 		item := heap.Pop(queue).(*dijkstraItem)
@@ -71,11 +97,45 @@ func fastestPath(graph *TransitGraph, from, to string) ([]pathStep, bool) {
 			if !seen || candidateTime < bestTime {
 				bestTimes[edge.ToStopID] = candidateTime
 				previous[edge.ToStopID] = pathStep{From: item.stop, Edge: edge}
-				heap.Push(queue, &dijkstraItem{stop: edge.ToStopID, time: candidateTime})
+				heap.Push(queue, &dijkstraItem{stop: edge.ToStopID, time: candidateTime, remainingEstimate: estimateRemaining(edge.ToStopID)})
 			}
 		}
 	}
 	return nil, false
+}
+
+// maxStraightSpeedMps es la mayor velocidad en línea recta de todas las aristas.
+// Ningún tramo avanza más rápido hacia el destino, y por eso la estimación nunca
+// supera el tiempo real. Devuelve 0 si una arista avanza sin consumir tiempo.
+func maxStraightSpeedMps(graph *TransitGraph) float64 {
+	maxSpeedMps := 0.0
+	for fromStopID, edges := range graph.Edges {
+		for _, edge := range edges {
+			meters := straightMeters(graph, fromStopID, edge.ToStopID)
+			if edge.BaseTimeSec <= 0 {
+				if meters > 0 {
+					return 0
+				}
+				continue
+			}
+			maxSpeedMps = math.Max(maxSpeedMps, meters/float64(edge.BaseTimeSec))
+		}
+	}
+	return maxSpeedMps
+}
+
+func straightMeters(graph *TransitGraph, fromStopID, toStopID string) float64 {
+	fromStop, toStop := graph.Stops[fromStopID], graph.Stops[toStopID]
+	return haversineMeters(fromStop.Latitude, fromStop.Longitude, toStop.Latitude, toStop.Longitude)
+}
+
+// remainingTimeEstimate es la heurística de A*: los segundos que tardaría ir en
+// línea recta a la máxima velocidad. Se redondea hacia abajo para no sobrestimar.
+func remainingTimeEstimate(graph *TransitGraph, stopID, destinationStopID string, maxSpeedMps float64) int {
+	if maxSpeedMps <= 0 {
+		return 0
+	}
+	return int(math.Floor(straightMeters(graph, stopID, destinationStopID) / maxSpeedMps))
 }
 
 // minimumTransferPath busca la ruta con menos cambios de línea y, si empatan, la
