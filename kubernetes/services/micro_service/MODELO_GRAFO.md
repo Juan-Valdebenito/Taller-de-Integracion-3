@@ -354,10 +354,64 @@ distancia parecida rondan los 4400 s, así que podría ser un error de digitaci�
 No se corrige sin confirmarlo. Tampoco afecta los viajes, porque esa caminata nunca
 se elige.
 
+## Algoritmos de búsqueda
+
+Los algoritmos están en `planner.go`, que no depende de HTTP ni de gRPC.
+
+| Función | Algoritmo | Qué optimiza |
+|---|---|---|
+| `fastestPath` | Dijkstra | Menor tiempo |
+| `aStarPath` | A* | Menor tiempo, explorando menos paraderos |
+| `minimumTransferPath` | Dijkstra con la línea actual en el estado | Menos cambios de línea y, si empatan, menor tiempo |
+
+`aStarPath` todavía no está disponible en la API. Se expone en la tarea de API
+completa.
+
+### Relación entre Dijkstra y A*
+
+Ambos usan `searchFastestPath`, que explora primero el paradero con menor valor en:
+
+```text
+tiempo recorrido + tiempo estimado hasta el destino
+```
+
+Dijkstra usa una estimación igual a 0. **Dijkstra es A* sin estimación**: explora
+en todas las direcciones. A* se orienta hacia el destino.
+
+### Heurística de A*
+
+`remainingTimeEstimate` calcula los segundos que tardaría ir en línea recta a la
+mayor velocidad de la red:
+
+```text
+estimación = distancia en línea recta / velocidad máxima en línea recta
+```
+
+La velocidad máxima sale de todas las aristas, incluidas las caminatas. Ninguna
+arista avanza más rápido hacia el destino, así que la estimación **nunca supera el
+tiempo real**. Esa propiedad garantiza que A* entregue una ruta óptima.
+
+El resultado se redondea hacia abajo. Si una arista avanza sin consumir tiempo, no
+existe una velocidad máxima útil y la estimación vale 0, igual que en Dijkstra.
+
+### Comparación
+
+Se contó cuántos paraderos explora cada algoritmo. Los dos llegaron con el mismo
+tiempo en todos los viajes medidos.
+
+| Red | Viajes | Dijkstra | A* | Reducción |
+|---|---|---|---|---|
+| Red oficial, 7 paraderos | 42 | 189 | 171 | 9,5 % |
+| Cuadrícula de prueba, 1600 paraderos | 200 | 161 261 | 77 068 | 52,2 % |
+
+La cuadrícula es una red generada para las pruebas, no datos reales de Temuco.
+Muestra que A* aporta poco en la red actual, y que su ventaja aparece al crecer.
+
 ## Validación
 
 `graph_data_test.go` revisa los datos oficiales con las reglas de este documento y
-con el planificador real. No necesita una base de datos.
+con el planificador real. `planner_test.go` compara Dijkstra y A*. Ninguno necesita
+una base de datos.
 
 ```bash
 cd kubernetes/services/micro_service
@@ -373,6 +427,9 @@ go test ./...
 | Conectividad | Solo con micros, cada paradero llega a los demás |
 | Planificador | Encuentra ruta para los 42 viajes entre paraderos |
 | Cálculo a mano | El planificador coincide con el ejemplo siguiente |
+| A* y Dijkstra | Dan el mismo tiempo en la red oficial y en 40 grafos aleatorios |
+| Heurística | La estimación nunca supera el tiempo real |
+| Paraderos explorados | A* no explora más que Dijkstra en la red oficial, y explora menos en la cuadrícula |
 
 `PAR-CJP-02` ↔ `PAR-DPORT-01` está registrado en la prueba como excepción conocida
 de velocidad. Si el equipo corrige el dato, se quita esa excepción. Cualquier otro
