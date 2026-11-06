@@ -60,36 +60,53 @@ func (queue *priorityQueue) Pop() any {
 // fastestPath usa Dijkstra para encontrar la ruta de menor tiempo total.
 // Dijkstra es A* con una estimación igual a cero: explora sin orientarse al destino.
 func fastestPath(graph *TransitGraph, from, to string) ([]pathStep, bool) {
-	noEstimate := func(string) int { return 0 }
-	return searchFastestPath(graph, from, to, noEstimate)
+	result := searchFastestPath(graph, from, to, noRemainingEstimate)
+	return result.Path, result.Found
 }
+
+func noRemainingEstimate(string) int { return 0 }
 
 // aStarPath encuentra la misma ruta de menor tiempo que Dijkstra, pero explora
 // primero los paraderos que se acercan al destino.
 func aStarPath(graph *TransitGraph, from, to string) ([]pathStep, bool) {
+	result := searchFastestPath(graph, from, to, aStarEstimate(graph, to))
+	return result.Path, result.Found
+}
+
+// aStarEstimate prepara la heurística de A* para un destino.
+func aStarEstimate(graph *TransitGraph, to string) func(stopID string) int {
 	maxSpeedMps := maxStraightSpeedMps(graph)
-	estimateRemaining := func(stopID string) int {
+	return func(stopID string) int {
 		return remainingTimeEstimate(graph, stopID, to, maxSpeedMps)
 	}
-	return searchFastestPath(graph, from, to, estimateRemaining)
+}
+
+// searchResult es la ruta encontrada y cuántos paraderos se exploraron para
+// hallarla. Ese número permite comparar el trabajo de Dijkstra y A*.
+type searchResult struct {
+	Path          []pathStep
+	Found         bool
+	ExploredStops int
 }
 
 // searchFastestPath ordena la exploración por tiempo recorrido más tiempo
 // estimado. La estimación nunca debe superar el tiempo real restante; si lo
 // hiciera, la búsqueda podría entregar una ruta que no es la más rápida.
-func searchFastestPath(graph *TransitGraph, from, to string, estimateRemaining func(stopID string) int) ([]pathStep, bool) {
+func searchFastestPath(graph *TransitGraph, from, to string, estimateRemaining func(stopID string) int) searchResult {
 	bestTimes := map[string]int{from: 0}
 	previous := make(map[string]pathStep)
 	queue := &priorityQueue{&dijkstraItem{stop: from, remainingEstimate: estimateRemaining(from)}}
 	heap.Init(queue)
+	exploredStops := 0
 	for queue.Len() > 0 {
 		item := heap.Pop(queue).(*dijkstraItem)
 		// Una entrada antigua de la cola ya fue mejorada por otro camino.
 		if item.time != bestTimes[item.stop] {
 			continue
 		}
+		exploredStops++
 		if item.stop == to {
-			return reconstructPath(previous, from, to), true
+			return searchResult{Path: reconstructPath(previous, from, to), Found: true, ExploredStops: exploredStops}
 		}
 		for _, edge := range graph.Edges[item.stop] {
 			candidateTime := item.time + edge.BaseTimeSec
@@ -101,7 +118,7 @@ func searchFastestPath(graph *TransitGraph, from, to string, estimateRemaining f
 			}
 		}
 	}
-	return nil, false
+	return searchResult{ExploredStops: exploredStops}
 }
 
 // maxStraightSpeedMps es la mayor velocidad en línea recta de todas las aristas.

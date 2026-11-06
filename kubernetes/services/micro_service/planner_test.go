@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 	"testing"
 )
@@ -111,5 +112,100 @@ func TestZeroTimeEdgeDisablesEstimate(t *testing.T) {
 	}
 	if estimate := remainingTimeEstimate(graph, "ORIGIN", "DESTINATION", 0); estimate != 0 {
 		t.Errorf("sin velocidad la estimación debe ser 0, y fue %d", estimate)
+	}
+}
+
+// compareExploredStops suma los paraderos que explora cada algoritmo en todos los
+// viajes indicados, y comprueba que ambos lleguen en el mismo tiempo.
+func compareExploredStops(t *testing.T, graph *TransitGraph, stopPairs [][2]string) (dijkstraExplored, aStarExplored int) {
+	t.Helper()
+	for _, stopPair := range stopPairs {
+		originStopID, destinationStopID := stopPair[0], stopPair[1]
+		dijkstraResult := searchFastestPath(graph, originStopID, destinationStopID, noRemainingEstimate)
+		aStarResult := searchFastestPath(graph, originStopID, destinationStopID, aStarEstimate(graph, destinationStopID))
+		if totalPathSeconds(dijkstraResult.Path) != totalPathSeconds(aStarResult.Path) {
+			t.Fatalf("%s -> %s: los algoritmos no coinciden en el tiempo", originStopID, destinationStopID)
+		}
+		dijkstraExplored += dijkstraResult.ExploredStops
+		aStarExplored += aStarResult.ExploredStops
+	}
+	return dijkstraExplored, aStarExplored
+}
+
+func allStopPairs(graph *TransitGraph) [][2]string {
+	stopPairs := make([][2]string, 0)
+	for originStopID := range graph.Stops {
+		for destinationStopID := range graph.Stops {
+			if originStopID != destinationStopID {
+				stopPairs = append(stopPairs, [2]string{originStopID, destinationStopID})
+			}
+		}
+	}
+	return stopPairs
+}
+
+// buildGridGraph crea una red de prueba mucho mayor que la real, con calles en
+// ambos sentidos y tiempos variados, para medir la diferencia entre algoritmos.
+func buildGridGraph(gridSize int) *TransitGraph {
+	const degreesBetweenStops, baseSpeedMps = 0.002, 5.0
+	generator := rand.New(rand.NewSource(1))
+	graph := NewTransitGraph()
+	stopIDAt := func(row, column int) string { return fmt.Sprintf("GRID-%d-%d", row, column) }
+	for row := 0; row < gridSize; row++ {
+		for column := 0; column < gridSize; column++ {
+			stopID := stopIDAt(row, column)
+			graph.Stops[stopID] = Stop{
+				ID:        stopID,
+				Latitude:  -38.80 + float64(row)*degreesBetweenStops,
+				Longitude: -72.79 + float64(column)*degreesBetweenStops,
+			}
+		}
+	}
+	connect := func(fromStopID, toStopID string) {
+		meters := straightMeters(graph, fromStopID, toStopID)
+		congestion := 1 + generator.Float64()
+		seconds := int(math.Ceil(meters / baseSpeedMps * congestion))
+		graph.Edges[fromStopID] = append(graph.Edges[fromStopID], Edge{ToStopID: toStopID, RouteID: "GRID", BaseTimeSec: seconds})
+		graph.Edges[toStopID] = append(graph.Edges[toStopID], Edge{ToStopID: fromStopID, RouteID: "GRID", BaseTimeSec: seconds})
+	}
+	for row := 0; row < gridSize; row++ {
+		for column := 0; column < gridSize; column++ {
+			if column+1 < gridSize {
+				connect(stopIDAt(row, column), stopIDAt(row, column+1))
+			}
+			if row+1 < gridSize {
+				connect(stopIDAt(row, column), stopIDAt(row+1, column))
+			}
+		}
+	}
+	return graph
+}
+
+func TestAStarExploresNoMoreStopsOnOfficialNetwork(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	dijkstraExplored, aStarExplored := compareExploredStops(t, graph, allStopPairs(graph))
+	t.Logf("red oficial: Dijkstra explora %d paraderos y A* %d", dijkstraExplored, aStarExplored)
+	if aStarExplored > dijkstraExplored {
+		t.Errorf("A* exploró %d paraderos y Dijkstra %d", aStarExplored, dijkstraExplored)
+	}
+}
+
+func TestAStarExploresFewerStopsOnLargeGrid(t *testing.T) {
+	const gridSize, sampledTrips = 40, 200
+	graph := buildGridGraph(gridSize)
+	generator := rand.New(rand.NewSource(2))
+	stopPairs := make([][2]string, 0, sampledTrips)
+	for len(stopPairs) < sampledTrips {
+		originStopID := fmt.Sprintf("GRID-%d-%d", generator.Intn(gridSize), generator.Intn(gridSize))
+		destinationStopID := fmt.Sprintf("GRID-%d-%d", generator.Intn(gridSize), generator.Intn(gridSize))
+		if originStopID != destinationStopID {
+			stopPairs = append(stopPairs, [2]string{originStopID, destinationStopID})
+		}
+	}
+	dijkstraExplored, aStarExplored := compareExploredStops(t, graph, stopPairs)
+	t.Logf("cuadrícula de %d paraderos: Dijkstra explora %d y A* %d en %d viajes",
+		len(graph.Stops), dijkstraExplored, aStarExplored, sampledTrips)
+	if aStarExplored >= dijkstraExplored {
+		t.Errorf("A* debe explorar menos: exploró %d y Dijkstra %d", aStarExplored, dijkstraExplored)
 	}
 }
