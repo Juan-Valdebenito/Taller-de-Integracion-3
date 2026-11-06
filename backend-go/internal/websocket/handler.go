@@ -73,6 +73,9 @@ func NewWSHandler(hub *Hub, jwtSecret string, allowedOrigins []string) *WSHandle
 // ServeHTTP implementa http.Handler para el upgrade WebSocket.
 // Se registra como handler de Gin vía gin.WrapH o directamente.
 func (h *WSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Convierte la petición HTTP inicial en una conexión WebSocket persistente.
+	// El navegador/app envía Origin durante el handshake, por lo que se valida
+	// contra los orígenes configurados antes de aceptar el upgrade.
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Warn().Err(err).Str("event", "websocket_upgrade_failed").Msg("WebSocket upgrade failed")

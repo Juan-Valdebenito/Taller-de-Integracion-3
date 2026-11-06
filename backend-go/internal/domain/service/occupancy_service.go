@@ -1,5 +1,9 @@
 package service
 
+// Este servicio estima ocupación. Mantiene un predictor heurístico disponible
+// siempre y permite sustituirlo por un predictor remoto (HTTP/gRPC) cuando se
+// configura. La API y el WebSocket llaman al mismo contrato.
+
 import (
 	"context"
 	"fmt"
@@ -126,6 +130,8 @@ const (
 
 // Predict calcula el nivel de ocupación proyectado para el próximo tramo.
 func (p *HeuristicPredictor) Predict(input OccupancyInput) (OccupancyResult, error) {
+	// La heurística proyecta la ocupación actual según hora punta y día de la
+	// semana, añade una variación pequeña y limita el resultado a 0–100 %.
 	now := time.Now()
 
 	hour := now.Hour()
@@ -218,6 +224,8 @@ func (p *MLRemotePredictor) Name() string {
 // lo propaga sin aplicar fallback — el llamador (OccupancyService) puede
 // decidir usar el HeuristicPredictor como fallback si lo desea.
 func (p *MLRemotePredictor) Predict(input OccupancyInput) (OccupancyResult, error) {
+	// La llamada remota tiene un deadline propio para que una caída del servicio
+	// ML no deje esperando indefinidamente la respuesta del API.
 	if p.client == nil {
 		return OccupancyResult{}, fmt.Errorf("ml-remote: cliente de transporte no inicializado")
 	}

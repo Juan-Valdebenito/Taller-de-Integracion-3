@@ -8,6 +8,7 @@ metadata:
   labels:
     app: realtime
 spec:
+  # Socket.IO guarda conexiones y buses en memoria; por eso se usa una réplica.
   # La simulación de buses vive en memoria del proceso: con 2+ réplicas cada
   # pod tendría buses distintos y los clientes verían mapas diferentes.
   # Escalar requiere un adapter compartido (ej. @socket.io/redis-adapter).
@@ -31,6 +32,7 @@ spec:
             - name: http
               containerPort: 3001
           env:
+            # El dominio permitido debe ser el origen público que abre el socket.
             - name: PORT
               value: "3001"
             - name: NODE_ENV
@@ -87,11 +89,11 @@ spec:
             periodSeconds: 20
           resources:
             requests:
-              memory: "96Mi"
-              cpu: "50m"
+              memory: "48Mi"
+              cpu: "25m"
             limits:
-              memory: "256Mi"
-              cpu: "200m"
+              memory: "128Mi"
+              cpu: "100m"
 ---
 apiVersion: v1
 kind: Service

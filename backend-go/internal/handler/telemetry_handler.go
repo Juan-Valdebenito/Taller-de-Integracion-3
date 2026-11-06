@@ -104,6 +104,9 @@ func validateGPS(req *gpsRequest, now time.Time) string {
 // Responde 202: la posición se publica en el mapa (si es reciente) y se
 // reenvía a micro_telemetry en segundo plano.
 func (h *TelemetryHandler) ReportGPS(c *gin.Context) {
+	// Flujo del reporte: validar JSON/tiempo/coordenadas, comprobar propiedad de
+	// micro y ruta, publicar al mapa si el dato es reciente y reenviar el histórico
+	// sin bloquear la respuesta del conductor.
 	var req gpsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Formato JSON inválido"})

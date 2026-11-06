@@ -1,22 +1,22 @@
-# 1. SOLICITUD DE ALMACENAMIENTO PERSISTENTE (PVC)
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: micros-db-pvc
-  namespace: student-jvaldebenito
-spec:
-  accessModes:
-    - ReadWriteOnce # El disco se monta en un solo Pod a la vez
-  resources:
-    requests:
-      storage: 1Gi # 1 Gigabytes de espacio para datos de tránsito
----
+# PVC opcional para volver a almacenamiento persistente cuando haya cuota disponible:
+# apiVersion: v1
+# kind: PersistentVolumeClaim
+# metadata:
+#   name: micros-db-pvc
+#   namespace: student-tpenroz
+# spec:
+#   accessModes:
+#     - ReadWriteOnce
+#   resources:
+#     requests:
+#       storage: 1Gi
+# ---
 # 2. DESPLIEGUE DE POSTGIS (DEPLOYMENT)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: micros-db
-  namespace: student-jvaldebenito
+  namespace: student-tpenroz
   labels:
     app: micros-db
 spec:
@@ -90,18 +90,17 @@ spec:
               mountPath: /docker-entrypoint-initdb.d
       volumes:
         - name: micros-db-data
-          persistentVolumeClaim:
-            claimName: micros-db-pvc
+          emptyDir: {}
         - name: init-scripts-volume
           configMap:
             name: micros-db-init-scripts
 ---
-# 3. SERVICIO INTERNO (SERVICE)
+# 2. SERVICIO INTERNO (SERVICE)
 apiVersion: v1
 kind: Service
 metadata:
   name: micros-db-svc
-  namespace: student-jvaldebenito
+  namespace: student-tpenroz
 spec:
   type: ClusterIP # Solo accesible dentro del clúster
   selector:

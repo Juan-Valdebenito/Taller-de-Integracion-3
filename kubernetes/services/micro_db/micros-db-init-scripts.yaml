@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: micros-db-init-scripts
-  namespace: student-jvaldebenito
+  namespace: student-tpenroz
 data:
   01_schema.sql: |
     -- Activar la extensión geoespacial PostGIS
@@ -165,4 +165,4 @@ data:
     ('PAR-PORTAL-01', 'PAR-CSF-01', 780, 950)
     ON CONFLICT (from_stop_id, to_stop_id) DO NOTHING;
 
-    
+

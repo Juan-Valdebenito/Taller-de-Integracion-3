@@ -7,9 +7,9 @@ y los aplica en orden.
 
 | Stack | Cuenta / namespace | Responsables | Qué despliega |
 |---|---|---|---|
-| `foundation` | `student-jvaldebenito` | Ignacio | NATS · clima · micros · `transporte_db` · `backend-go` |
+| `foundation` | `student-jvaldebenito` | Ignacio | NATS · micros · `transporte_db` · `backend-go` |
 | `app` | `student-tpenroz` | Tomás + Juan | `frontend` · bridge hacia backend-go · Ingress principal |
-| `realtime` | `student-iglausser` | Ignacio | telemetría · `realtime` · Ingress realtime |
+| `realtime` | `student-iglausser` | Ignacio | clima · clima-db · telemetría · `realtime` · Ingress realtime |
 
 ```
                          Internet
@@ -23,17 +23,16 @@ y los aplica en orden.
 └──────────────────────┬─────────────────────────────┘
               │ gRPC + PostgreSQL
 ┌──────────────────────▼── student-jvaldebenito ──────┐
-│ clima · micros · NATS · transporte-db · backend-go  │
+│ micros · NATS · transporte-db · backend-go          │
 └──────────────────────┬─────────────────────────────┘
               │ NATS + PostgreSQL
 ┌──────────────────────▼── student-iglausser ─────────┐
-│ telemetría · realtime · Ingress realtime             │
+│ clima · clima-db · simulador · telemetría · realtime│
 └──────────────────────────────────────────────────────┘
 ```
 
-> 🔐 **Ninguna contraseña va en el repo.** El inicio de sesión en el cluster se
-> hace a mano, antes de ejecutar el script. `kubernetes/cluster.env` solo tiene
-> namespaces, dominio y usuario de Docker Hub, y está en `.gitignore`.
+> 🔐 Los secretos se configuran en `kubernetes/cluster.env`, que está ignorado
+> por git, o mediante variables de entorno. No subas ese archivo al repositorio.
 
 ## Requisitos (Ubuntu)
 
@@ -51,7 +50,7 @@ git clone https://github.com/Juan-Valdebenito/Taller-de-Integracion-3.git
 cd Taller-de-Integracion-3
 git checkout juan
 cp kubernetes/cluster.env.example kubernetes/cluster.env
-nano kubernetes/cluster.env      # completar DOCKERHUB_USER y revisar namespaces
+nano kubernetes/cluster.env      # completar namespaces, DOCKERHUB_USER y secretos
 ```
 
 Si en la misma máquina están configuradas **las tres cuentas** (tres contextos de
@@ -87,13 +86,12 @@ bash kubernetes/deploy.sh realtime apply
 bash kubernetes/deploy.sh realtime status
 ```
 
-El orden dentro de `app` sigue la secuencia del equipo:
+El orden de despliegue recomendado sigue la secuencia del equipo:
 
-1. **Foundation** publica los Services de clima, micros, NATS y transporte-db.
-2. **Backend-go** usa esos Services mediante DNS cross-namespace y se ejecuta en foundation.
+1. **Foundation** publica los Services de micros, NATS y transporte-db.
+2. **Backend-go** usa micros localmente y clima mediante DNS cross-namespace; se ejecuta en foundation.
 3. **App** expone frontend y el bridge de backend-go mediante el Ingress principal.
-4. **Realtime** replica sus ConfigMaps/Secrets de transporte porque los Secrets no se comparten entre
-namespaces y usa `transporte-db-svc.student-jvaldebenito.svc.cluster.local`.
+4. **Realtime** publica clima, clima-db y telemetría, y replica sus ConfigMaps/Secrets de transporte porque los Secrets no se comparten entre namespaces.
 5. **PostgreSQL `transporte_db`** usa `emptyDir` porque el PV/PVC dio
    problemas: si el pod se reinicia, la BD se recrea vacía con los scripts de inicio.
 
@@ -121,12 +119,14 @@ registro DNS (puede tardar unos minutos).
 | `CORS_ORIGIN`, `SOCKET_CORS_ORIGIN` | `APP_SCHEME://APP_HOST` |
 | `<DOCKERHUB_USER>/…:v1` | `DOCKERHUB_USER/…:IMAGE_TAG` |
 
-La telemetría se aplica en `REALTIME_NAMESPACE` y consume NATS desde
-`nats-svc.FOUNDATION_NAMESPACE.svc.cluster.local`.
+Clima y la telemetría se aplican en `REALTIME_NAMESPACE`. Clima usa
+`clima-db-svc.REALTIME_NAMESPACE.svc.cluster.local:5432` y NATS desde
+`nats-svc.FOUNDATION_NAMESPACE.svc.cluster.local:4222`; `backend-go` usa el gRPC
+de clima mediante `clima-service-svc.REALTIME_NAMESPACE.svc.cluster.local:9090`.
 
 ## Autoscaling
 
-`micro-telemetry` tiene un HPA activo con entre 1 y 3 réplicas y un objetivo de
+`clima-service` y `micro-telemetry` tienen un HPA activo con entre 1 y 3 réplicas y un objetivo de
 70% de utilización promedio de CPU. El escalado hacia abajo se estabiliza durante
 5 minutos para evitar oscilaciones. El HPA usa los `requests` del Deployment;
 con el request actual de `50m`, el objetivo se alcanza alrededor de `35m` por
@@ -162,14 +162,17 @@ controladores a nivel de namespace; eso lo gestiona el administrador del cluster
 | `micro` | 28 | ~1 GB | 0,5 | 2,8 GB / 2,25 |
 | `app` | 15 | ~450 MB | 0,2 | 1,1 GB / 0,9 |
 
-Si la cuota de `foundation` no alcanza, quitar `clima-simulator` de `FOUNDATION_FILES` en `deploy.sh`.
+La cuota de `realtime` contempla clima, telemetría, realtime y el margen necesario para el HPA.
 
 **No se aplican:** `ingress/ingress-nginx-controller-configmap.yaml` (configuración global,
 requiere admin del cluster) y `services/micro_db/micros-db-storage.yml` (PVC de prueba sin uso).
 
 ## Ingress con WebSocket
 
-`ingress/backend-go-ingress.yaml` (base: el Ingress de Tomás) usa el formato del
+`ingress/backend-go-ingress.yaml` se despliega en `student-tpenroz` y envía el
+tráfico al Service `bridge-to-backend`. El bridge resuelve `backend-go-svc` en
+`student-jvaldebenito`, donde permanecen el Deployment y Service del backend.
+El Ingress usa el formato del
 cluster de la UCT: `external-dns` → `proxy.inf.uct.cl`, clase `nginx`, sin `tls`
 (el HTTPS lo termina el proxy). Como el cluster solo permite `path: /`, realtime
 usa el host dedicado definido por `REALTIME_HOST` y apunta directamente al

@@ -49,6 +49,8 @@ const cleanupTimeout = 10 * time.Second
 // permisos, procesamiento (paquete attachment), archivos (filestore) y
 // metadatos (repositorio). Los endpoints solo lo llaman.
 type AttachmentService struct {
+	// Estas dependencias se inyectan para separar reglas de negocio de SQL,
+	// filesystem y transporte HTTP; los tests pueden sustituirlas por dobles.
 	complaints ComplaintFinder
 	repo       AttachmentRepository
 	store      filestore.Store

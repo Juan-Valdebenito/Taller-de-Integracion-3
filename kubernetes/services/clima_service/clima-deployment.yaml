@@ -1,8 +1,10 @@
 apiVersion: apps/v1
 kind: Deployment
+# Servicio de clima: un proceso expone HTTP para consultas y gRPC para que
+# backend-go lo consuma dentro de la red del cluster.
 metadata:
   name: clima-service
-  namespace: student-jvaldebenito
+  namespace: student-iglausser
   labels:
     app: clima-service
 spec:
@@ -20,6 +22,7 @@ spec:
           image: ignaciogsm/clima_service:v1.2
           imagePullPolicy: Always
           ports:
+            # Los nombres permiten que probes y Services apunten al puerto lógico.
             - name: http
               containerPort: 8080
             - name: grpc
@@ -43,17 +46,17 @@ spec:
             periodSeconds: 20
           resources:
             requests:
-              memory: "64Mi"
-              cpu: "50m"
+              memory: "32Mi"
+              cpu: "25m"
             limits:
-              memory: "256Mi"
-              cpu: "200m"
+              memory: "128Mi"
+              cpu: "100m"
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: clima-service-svc
-  namespace: student-jvaldebenito
+  namespace: student-iglausser
 spec:
   type: ClusterIP
   selector:

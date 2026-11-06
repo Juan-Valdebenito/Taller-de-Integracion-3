@@ -1,5 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
+# Ingesta histórica de GPS. backend-go envía eventos HTTP con X-API-Key; este
+# servicio los persiste en su base/Timescale y publica actualizaciones en NATS.
 metadata:
   name: micro-telemetry
   namespace: student-iglausser
@@ -23,6 +25,7 @@ spec:
             - name: http
               containerPort: 8080
           envFrom:
+            # Separar configuración de secretos evita guardar claves en el YAML.
             - configMapRef:
                 name: micro-telemetry-configmap
             - secretRef:
@@ -41,11 +44,11 @@ spec:
             periodSeconds: 20
           resources:
             requests:
-              memory: "64Mi"
-              cpu: "50m"
+              memory: "32Mi"
+              cpu: "25m"
             limits:
-              memory: "256Mi"
-              cpu: "200m"
+              memory: "128Mi"
+              cpu: "100m"
 ---
 apiVersion: v1
 kind: Service
