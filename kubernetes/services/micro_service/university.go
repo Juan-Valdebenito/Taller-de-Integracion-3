@@ -54,6 +54,41 @@ type UniversityRoute struct {
 	Path              []pathStep
 }
 
+// routesToUniversity entrega hasta limit rutas hacia la universidad, de la más
+// rápida a la más lenta. Con campusID vacío considera todos los campus.
+func routesToUniversity(graph *TransitGraph, originStopID, campusID string, limit int) ([]UniversityRoute, error) {
+	campuses, err := selectCampuses(campusID)
+	if err != nil {
+		return nil, err
+	}
+	routesByCampus := make([][]UniversityRoute, 0, len(campuses))
+	for _, campus := range campuses {
+		if routes := routesToCampus(graph, originStopID, campus, limit); len(routes) > 0 {
+			routesByCampus = append(routesByCampus, routes)
+		}
+	}
+	return mergeCampusRoutes(routesByCampus, limit), nil
+}
+
+// mergeCampusRoutes incluye primero la mejor ruta de cada campus, para que un
+// campus cercano no deje fuera al otro, y completa con las demás alternativas.
+func mergeCampusRoutes(routesByCampus [][]UniversityRoute, limit int) []UniversityRoute {
+	bestRoutes := make([]UniversityRoute, 0, len(routesByCampus))
+	otherRoutes := make([]UniversityRoute, 0)
+	for _, campusRoutes := range routesByCampus {
+		bestRoutes = append(bestRoutes, campusRoutes[0])
+		otherRoutes = append(otherRoutes, campusRoutes[1:]...)
+	}
+	sortUniversityRoutes(bestRoutes)
+	sortUniversityRoutes(otherRoutes)
+	selectedRoutes := append(bestRoutes, otherRoutes...)
+	if len(selectedRoutes) > limit {
+		selectedRoutes = selectedRoutes[:limit]
+	}
+	sortUniversityRoutes(selectedRoutes)
+	return selectedRoutes
+}
+
 // routesToCampus entrega hasta limit rutas hacia cualquiera de los paraderos del
 // campus, de la más rápida a la más lenta. Si el origen ya es un paradero del
 // campus, el pasajero ya llegó y no hay ruta que entregar.

@@ -149,3 +149,84 @@ func TestIsReachedBeforeEndAllowsArrivalAtLastStep(t *testing.T) {
 		t.Error("la ruta ya había llegado al campus")
 	}
 }
+
+func campusesInRoutes(routes []UniversityRoute) map[string]bool {
+	campusIDs := make(map[string]bool)
+	for _, route := range routes {
+		campusIDs[route.CampusID] = true
+	}
+	return campusIDs
+}
+
+func TestRoutesToUniversityIncludeEveryCampus(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	routes, err := routesToUniversity(graph, "PAR-PORTAL-01", "", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(routes) != 3 {
+		t.Fatalf("se esperaban 3 rutas y se obtuvieron %d", len(routes))
+	}
+	if campusIDs := campusesInRoutes(routes); !campusIDs["san-francisco"] || !campusIDs["san-juan-pablo-ii"] {
+		t.Errorf("deben aparecer ambos campus: %v", campusIDs)
+	}
+	for routeIndex := 1; routeIndex < len(routes); routeIndex++ {
+		if pathSeconds(routes[routeIndex-1].Path) > pathSeconds(routes[routeIndex].Path) {
+			t.Error("las rutas deben estar ordenadas por tiempo")
+		}
+	}
+}
+
+func TestRoutesToUniversityFilterByCampus(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	routes, err := routesToUniversity(graph, "PAR-PORTAL-01", "san-juan-pablo-ii", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if campusIDs := campusesInRoutes(routes); len(routes) == 0 || len(campusIDs) != 1 || !campusIDs["san-juan-pablo-ii"] {
+		t.Errorf("solo debe aparecer San Juan Pablo II: %v", campusIDs)
+	}
+}
+
+func TestRoutesToUniversityFromCampusGoToOtherCampus(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	routes, err := routesToUniversity(graph, "PAR-CSF-01", "", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if campusIDs := campusesInRoutes(routes); len(routes) == 0 || campusIDs["san-francisco"] {
+		t.Errorf("desde San Francisco solo debe ofrecer el otro campus: %v", campusIDs)
+	}
+}
+
+func TestRoutesToUniversityRespectLimit(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	routes, err := routesToUniversity(graph, "PAR-PORTAL-01", "", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(routes) != 1 || pathSeconds(routes[0].Path) != 240 {
+		t.Errorf("con límite 1 debe quedar la ruta más rápida: %+v", routes)
+	}
+	routes, err = routesToUniversity(graph, "PAR-PORTAL-01", "", 0)
+	if err != nil || len(routes) != 0 {
+		t.Errorf("con límite 0 no debe haber rutas: %+v, %v", routes, err)
+	}
+}
+
+func TestRoutesToUniversityRejectUnknownCampus(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	if _, err := routesToUniversity(graph, "PAR-PORTAL-01", "campus-inexistente", 3); !errors.Is(err, errUnknownCampus) {
+		t.Errorf("se esperaba errUnknownCampus y se obtuvo %v", err)
+	}
+}
+
+func TestMergeCampusRoutesKeepsBestOfEachCampus(t *testing.T) {
+	routeWithTime := func(campusID string, seconds int) UniversityRoute {
+		return UniversityRoute{CampusID: campusID, Path: []pathStep{{Edge: Edge{BaseTimeSec: seconds}}}}
+	}
+	nearCampusRoutes := []UniversityRoute{routeWithTime("near", 100), routeWithTime("near", 200), routeWithTime("near", 300)}
+	farCampusRoutes := []UniversityRoute{routeWithTime("far", 900)}
+	routes := mergeCampusRoutes([][]UniversityRoute{nearCampusRoutes, farCampusRoutes}, 3)
+	assertTimes(t, []int{pathSeconds(routes[0].Path), pathSeconds(routes[1].Path), pathSeconds(routes[2].Path)}, []int{100, 200, 900})
+}
