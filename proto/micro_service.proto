@@ -10,6 +10,8 @@ service MicroService {
 	rpc GetStop(GetStopRequest) returns (Stop);
 	rpc ListRoutes(ListRoutesRequest) returns (ListRoutesResponse);
 	rpc PlanRoute(PlanRouteRequest) returns (RoutePlan);
+	rpc ListCampuses(ListCampusesRequest) returns (ListCampusesResponse);
+	rpc PlanUniversityRoutes(PlanUniversityRoutesRequest) returns (PlanUniversityRoutesResponse);
 }
 
 message HealthRequest {}
@@ -81,4 +83,41 @@ message Movement {
 	string trip_id = 5;
 	int32 time_seconds = 6;
 	int32 distance_meters = 7;
+}
+
+message ListCampusesRequest {}
+
+message ListCampusesResponse {
+	repeated Campus campuses = 1;
+}
+
+message Campus {
+	string id = 1;
+	string name = 2;
+	repeated string stop_ids = 3;
+}
+
+// El origen es origin_stop_id, o latitude y longitude, pero nunca ambos.
+// Un campus_id vacío considera todos los campus.
+message PlanUniversityRoutesRequest {
+	string origin_stop_id = 1;
+	optional double latitude = 2;
+	optional double longitude = 3;
+	string campus_id = 4;
+	int32 limit = 5;
+}
+
+message PlanUniversityRoutesResponse {
+	repeated UniversityRoute routes = 1;
+	int32 total = 2;
+}
+
+message UniversityRoute {
+	string campus_id = 1;
+	string campus_name = 2;
+	string destination_stop_id = 3;
+	int32 total_time_seconds = 4;
+	int32 total_distance_meters = 5;
+	int32 transfers = 6;
+	repeated Movement movements = 7;
 }
