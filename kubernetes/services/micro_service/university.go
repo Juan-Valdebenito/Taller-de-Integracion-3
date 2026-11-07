@@ -73,6 +73,9 @@ func routesToUniversity(graph *TransitGraph, originStopID, campusID string, limi
 // mergeCampusRoutes incluye primero la mejor ruta de cada campus, para que un
 // campus cercano no deje fuera al otro, y completa con las demás alternativas.
 func mergeCampusRoutes(routesByCampus [][]UniversityRoute, limit int) []UniversityRoute {
+	if limit <= 0 {
+		return nil
+	}
 	bestRoutes := make([]UniversityRoute, 0, len(routesByCampus))
 	otherRoutes := make([]UniversityRoute, 0)
 	for _, campusRoutes := range routesByCampus {

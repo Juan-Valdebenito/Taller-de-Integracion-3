@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"math"
 	"testing"
 )
@@ -89,5 +90,87 @@ func TestNearbyStopsFarFromNetwork(t *testing.T) {
 	const distantLatitude, distantLongitude = -38.0, -72.0
 	if nearbyStops := nearbyNetworkStops(nearbyTestGraph(), distantLatitude, distantLongitude, 3); len(nearbyStops) != 0 {
 		t.Errorf("no debe haber paraderos cercanos: %+v", nearbyStops)
+	}
+}
+
+// locationNearStop devuelve un punto a unos 100 m al norte de un paradero.
+func locationNearStop(graph *TransitGraph, stopID string) (latitude, longitude float64) {
+	stop := graph.Stops[stopID]
+	return stop.Latitude + degreesPerHundredMeters, stop.Longitude
+}
+
+func TestRoutesFromLocationIncludeInitialWalk(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	latitude, longitude := locationNearStop(graph, "PAR-PORTAL-01")
+	routes, err := routesFromLocation(graph, latitude, longitude, "", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(routes) != 3 {
+		t.Fatalf("se esperaban 3 rutas y se obtuvieron %d", len(routes))
+	}
+	for routeIndex, route := range routes {
+		assertPathIsValid(t, route.Path, userLocationID, route.DestinationStopID)
+		if route.Path[0].Edge.RouteID != walkRouteID {
+			t.Errorf("la ruta debe partir caminando: %+v", route.Path[0])
+		}
+		if routeIndex > 0 && pathSeconds(routes[routeIndex-1].Path) > pathSeconds(route.Path) {
+			t.Error("las rutas deben estar ordenadas por tiempo total")
+		}
+	}
+	walkSeconds := routes[0].Path[0].Edge.BaseTimeSec
+	if walkSeconds <= 0 || pathSeconds(routes[0].Path) != walkSeconds+240 {
+		t.Errorf("se esperaban %d s de caminata más 240 s: %d s", walkSeconds, pathSeconds(routes[0].Path))
+	}
+}
+
+func TestRoutesFromLocationIncludeEveryCampus(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	latitude, longitude := locationNearStop(graph, "PAR-PORTAL-01")
+	routes, err := routesFromLocation(graph, latitude, longitude, "", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if campusIDs := campusesInRoutes(routes); !campusIDs["san-francisco"] || !campusIDs["san-juan-pablo-ii"] {
+		t.Errorf("deben aparecer ambos campus: %v", campusIDs)
+	}
+}
+
+func TestRoutesFromLocationNextToCampusOnlyWalk(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	latitude, longitude := locationNearStop(graph, "PAR-CSF-01")
+	routes, err := routesFromLocation(graph, latitude, longitude, "san-francisco", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(routes) == 0 || len(routes[0].Path) != 1 || routes[0].DestinationStopID != "PAR-CSF-01" {
+		t.Fatalf("la mejor opción es caminar hasta el campus: %+v", routes)
+	}
+}
+
+func TestRoutesFromLocationReportInvalidRequests(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	latitude, longitude := locationNearStop(graph, "PAR-PORTAL-01")
+	if _, err := routesFromLocation(graph, latitude, longitude, "campus-inexistente", 3); !errors.Is(err, errUnknownCampus) {
+		t.Errorf("se esperaba errUnknownCampus y se obtuvo %v", err)
+	}
+	const distantLatitude, distantLongitude = -38.0, -72.0
+	if _, err := routesFromLocation(graph, distantLatitude, distantLongitude, "", 3); !errors.Is(err, errNoNearbyStops) {
+		t.Errorf("se esperaba errNoNearbyStops y se obtuvo %v", err)
+	}
+}
+
+func TestRoutesRejectNonPositiveLimits(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	latitude, longitude := locationNearStop(graph, "PAR-PORTAL-01")
+	for _, limit := range []int{0, -1} {
+		routes, err := routesFromLocation(graph, latitude, longitude, "", limit)
+		if err != nil || len(routes) != 0 {
+			t.Errorf("con límite %d no debe haber rutas: %+v, %v", limit, routes, err)
+		}
+		routes, err = routesToUniversity(graph, "PAR-PORTAL-01", "", limit)
+		if err != nil || len(routes) != 0 {
+			t.Errorf("con límite %d no debe haber rutas: %+v, %v", limit, routes, err)
+		}
 	}
 }
