@@ -171,6 +171,8 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET /stops/", s.stopByID)
 	mux.HandleFunc("GET /routes", s.routesList)
 	mux.HandleFunc("GET /routes/plan", s.routePlan)
+	mux.HandleFunc("GET /routes/university", s.universityRoutes)
+	mux.HandleFunc("GET /campuses", s.campuses)
 	mux.HandleFunc("POST /admin/reload-graph", s.reloadGraph)
 	return loggingMiddleware(mux)
 }
@@ -346,18 +348,23 @@ func (s *Server) routePlan(w http.ResponseWriter, r *http.Request) {
 	for _, step := range path {
 		response.TotalTimeSec += step.Edge.BaseTimeSec
 		response.TotalDistanceM += step.Edge.DistanceM
-		movement := Movement{FromStopID: step.From, ToStopID: step.Edge.ToStopID, TimeSec: step.Edge.BaseTimeSec, DistanceM: step.Edge.DistanceM}
-		if step.Edge.RouteID == walkRouteID {
-			movement.Mode = "walk"
-		} else {
-			movement.Mode = "bus"
-			movement.RouteID = step.Edge.RouteID
-			movement.TripID = step.Edge.TripID
-		}
-		response.Movements = append(response.Movements, movement)
+		response.Movements = append(response.Movements, movementFromStep(step))
 	}
 	response.Transfers = countTransfers(path)
 	writeJSON(w, http.StatusOK, response)
+}
+
+// movementFromStep convierte un tramo interno al formato que entrega la API.
+func movementFromStep(step pathStep) Movement {
+	movement := Movement{FromStopID: step.From, ToStopID: step.Edge.ToStopID, TimeSec: step.Edge.BaseTimeSec, DistanceM: step.Edge.DistanceM}
+	if step.Edge.RouteID == walkRouteID {
+		movement.Mode = "walk"
+	} else {
+		movement.Mode = "bus"
+		movement.RouteID = step.Edge.RouteID
+		movement.TripID = step.Edge.TripID
+	}
+	return movement
 }
 
 func (s *Server) reloadGraph(w http.ResponseWriter, r *http.Request) {
