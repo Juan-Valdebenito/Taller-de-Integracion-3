@@ -472,11 +472,71 @@ Solo se comparan líneas con el mismo tiempo en un tramo. Una línea algo más l
 que evitara un cambio no se elegiría. Con los datos actuales no ocurre, porque los
 tramos compartidos tienen tiempos iguales.
 
+## Rutas a la universidad
+
+`university.go` y `location.go` usan las rutas alternativas para llegar a un campus.
+Todavía no están disponibles en la API. Se exponen en la tarea de API completa.
+
+### Campus
+
+Un campus es un **grupo de paraderos**, porque puede tener más de uno. El destino es
+cualquiera de ellos.
+
+| Campus | ID | Paraderos |
+|---|---|---|
+| Campus San Francisco | `san-francisco` | `PAR-CSF-01` |
+| Campus San Juan Pablo II | `san-juan-pablo-ii` | `PAR-CJP-01`, `PAR-CJP-02` |
+
+Para agregar un campus, se suma a la lista `universityCampuses`.
+
+### Reglas
+
+| Regla | Comportamiento |
+|---|---|
+| Campus indicado | Solo entrega rutas a ese campus |
+| Sin campus | Considera todos e incluye primero la mejor ruta de cada uno |
+| Origen dentro del campus | No hay ruta: el pasajero ya llegó |
+| Ruta que pasa por el campus y sigue | Se descarta, porque el pasajero ya había llegado |
+| Campus inexistente | Error `errUnknownCampus` |
+
+Incluir primero la mejor ruta de cada campus evita que el más cercano llene todas
+las opciones. Por eso una ruta más lenta hacia otro campus puede desplazar a una
+alternativa más rápida.
+
+### Salida desde la ubicación
+
+`routesFromLocation` parte desde la posición del pasajero:
+
+1. Busca hasta 3 paraderos con conexiones de salida, a 1000 m o menos.
+2. Calcula las rutas al campus desde cada uno.
+3. Agrega la caminata inicial como primer tramo.
+4. Ordena por tiempo total, con la caminata incluida.
+
+No siempre conviene el paradero más cercano: caminar un poco más puede ahorrar
+tiempo de viaje. Si un paradero cercano ya es parte del campus, la ruta solo camina
+hasta él. Si no hay paraderos cercanos, responde `errNoNearbyStops`.
+
+La caminata inicial se mide en línea recta a 1,2 m/s, porque el modelo no tiene las
+calles. Es un **mínimo**, igual que el tiempo de viaje. Con solo 7 paraderos en la
+red, muchas ubicaciones de Temuco quedarán a más de 1000 m de un paradero.
+
+### Ejemplo
+
+Desde unos 100 m al norte de `PAR-PORTAL-01`, sin indicar campus y con un límite de
+3 rutas:
+
+| Tiempo total | Campus | Ruta |
+|---|---|---|
+| 324 s | San Francisco | Caminar 84 s y tomar la línea 1C, 240 s |
+| 821 s | San Francisco | Caminar todo el trayecto |
+| 1944 s | San Juan Pablo II | Caminar 84 s y tomar la línea 7B, 1860 s |
+
 ## Validación
 
 `graph_data_test.go` revisa los datos oficiales con las reglas de este documento y
 con el planificador real. `planner_test.go` compara Dijkstra y A*, y
-`alternatives_test.go` revisa las rutas alternativas. Ninguno necesita una base de
+`alternatives_test.go` revisa las rutas alternativas. `university_test.go` y
+`location_test.go` revisan las rutas a la universidad. Ninguno necesita una base de
 datos.
 
 ```bash
@@ -498,6 +558,9 @@ go test ./...
 | Paraderos explorados | A* no explora más que Dijkstra en la red oficial, y explora menos en la cuadrícula |
 | Yen | Coincide con una búsqueda de fuerza bruta en 30 grafos aleatorios |
 | Alternativas | Son válidas, no se repiten, no caminan más de 1000 m y evitan cambios innecesarios |
+| Campus | Sus paraderos existen en la red, y los ID no se repiten |
+| Rutas a la universidad | Son válidas desde todos los paraderos y aparecen ambos campus |
+| Salida desde la ubicación | Incluye la caminata, omite paraderos sin conexiones e informa si no hay cercanos |
 
 `PAR-CJP-02` ↔ `PAR-DPORT-01` está registrado en la prueba como excepción conocida
 de velocidad. Si el equipo corrige el dato, se quita esa excepción. Cualquier otro
