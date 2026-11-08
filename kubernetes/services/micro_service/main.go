@@ -313,8 +313,8 @@ type routePlanResponse struct {
 func (s *Server) routePlan(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	from, to, preference := query.Get("from_stop"), query.Get("to_stop"), query.Get("preference")
-	if from == "" || to == "" || (preference != "fastest" && preference != "min_transfers") {
-		writeError(w, http.StatusBadRequest, "from_stop, to_stop and preference=fastest|min_transfers are required")
+	if from == "" || to == "" || (preference != "fastest" && preference != "min_transfers" && preference != "shortest") {
+		writeError(w, http.StatusBadRequest, "from_stop, to_stop and preference=fastest|min_transfers|shortest are required")
 		return
 	}
 	graph := s.store.Get()
@@ -333,10 +333,13 @@ func (s *Server) routePlan(w http.ResponseWriter, r *http.Request) {
 	var path []pathStep
 	if from != to {
 		var found bool
-		if preference == "fastest" {
+		switch preference {
+		case "fastest":
 			path, found = fastestPath(graph, from, to)
-		} else {
+		case "min_transfers":
 			path, found = minimumTransferPath(graph, from, to)
+		case "shortest":
+			path, found = shortestPath(graph, from, to)
 		}
 		if !found {
 			writeError(w, http.StatusNotFound, "no route found between stops")
@@ -425,6 +428,34 @@ func fastestPath(graph *TransitGraph, from, to string) ([]pathStep, bool) {
 		}
 		for _, edge := range graph.Edges[item.stop] {
 			candidate := item.time + edge.BaseTimeSec
+			best, seen := dist[edge.ToStopID]
+			if !seen || candidate < best {
+				dist[edge.ToStopID] = candidate
+				previous[edge.ToStopID] = pathStep{From: item.stop, Edge: edge}
+				heap.Push(queue, &dijkstraItem{stop: edge.ToStopID, time: candidate})
+			}
+		}
+	}
+	return nil, false
+}
+
+// shortestPath prioriza la menor distancia total; su resultado se compara con
+// fastest y min_transfers en el cliente, que finalmente los ordena por tiempo.
+func shortestPath(graph *TransitGraph, from, to string) ([]pathStep, bool) {
+	dist := map[string]int{from: 0}
+	previous := make(map[string]pathStep)
+	queue := &priorityQueue{&dijkstraItem{stop: from}}
+	heap.Init(queue)
+	for queue.Len() > 0 {
+		item := heap.Pop(queue).(*dijkstraItem)
+		if item.time != dist[item.stop] {
+			continue
+		}
+		if item.stop == to {
+			return reconstructPath(previous, from, to), true
+		}
+		for _, edge := range graph.Edges[item.stop] {
+			candidate := item.time + edge.DistanceM
 			best, seen := dist[edge.ToStopID]
 			if !seen || candidate < best {
 				dist[edge.ToStopID] = candidate

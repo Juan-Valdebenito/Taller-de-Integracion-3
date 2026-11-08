@@ -111,8 +111,8 @@ func (s *microGRPCServer) ListRoutes(ctx context.Context, _ *microv1.ListRoutesR
 
 func (s *microGRPCServer) PlanRoute(_ context.Context, request *microv1.PlanRouteRequest) (*microv1.RoutePlan, error) {
 	from, to, mode := request.GetOriginStopId(), request.GetDestinationStopId(), request.GetMode()
-	if from == "" || to == "" || (mode != "fastest" && mode != "min_transfers") {
-		return nil, status.Error(codes.InvalidArgument, "origin_stop_id, destination_stop_id and mode=fastest|min_transfers are required")
+	if from == "" || to == "" || (mode != "fastest" && mode != "min_transfers" && mode != "shortest") {
+		return nil, status.Error(codes.InvalidArgument, "origin_stop_id, destination_stop_id and mode=fastest|min_transfers|shortest are required")
 	}
 	graph := s.service.store.Get()
 	if graph == nil {
@@ -127,10 +127,13 @@ func (s *microGRPCServer) PlanRoute(_ context.Context, request *microv1.PlanRout
 	var path []pathStep
 	var found bool
 	if from != to {
-		if mode == "fastest" {
+		switch mode {
+		case "fastest":
 			path, found = fastestPath(graph, from, to)
-		} else {
+		case "min_transfers":
 			path, found = minimumTransferPath(graph, from, to)
+		case "shortest":
+			path, found = shortestPath(graph, from, to)
 		}
 		if !found {
 			return nil, status.Error(codes.NotFound, "no route found between stops")

@@ -11,6 +11,7 @@ import { BusMarkersLayer } from '../components/map/BusMarkersLayer';
 import { ConnectionOverlay } from '../components/map/ConnectionOverlay';
 import { MapPanel } from '../components/map/MapPanel';
 import { MapStatusBar } from '../components/map/MapStatusBar';
+import { TripPlanner } from '../components/map/TripPlanner';
 import { filterBusesByRoute, RouteFilter } from '../components/map/RouteFilter';
 import { RouteNodesLayer } from '../components/map/RouteNodesLayer';
 import type { RouteFilterValue } from '../components/map/routeNodes';
@@ -29,7 +30,7 @@ import { makeStyles, spacing } from '../theme';
  * 640 px) con las paradas, las micros (en tiempo real o simuladas, como el
  * web) y tu ubicación, con la barra de estado de la conexión y el filtro por
  * línea (micros y paradas de la línea elegida) arriba, y el
- * aviso de conexión perdida sobre el mapa. Abajo van dos paneles plegables
+ * aviso de conexión perdida sobre el mapa. Abajo van paneles plegables
  * (al abrir uno se pliega el otro): "Micros activas", la lista lateral del
  * web, y la ubicación con el paradero más cercano y las alertas. Al tocar una
  * micro, su ficha ocupa ese lugar hasta cerrarla.
@@ -49,7 +50,7 @@ export function MapScreen() {
   // Como el web: la lista muestra filas de carga mientras se conecta por primera vez.
   const loadingBuses = realtime.status === 'connecting' && realtime.totalMessages === 0;
   // Paneles de abajo como acordeón: abrir uno pliega el otro.
-  const [openPanel, setOpenPanel] = useState<'buses' | 'location' | null>(null);
+  const [openPanel, setOpenPanel] = useState<'buses' | 'location' | 'planner' | null>(null);
   const nearby = useNearestStop(location.position);
   const { settings } = useSettings();
   // Las alertas usan las micros del tiempo real; sin conexión consultan al
@@ -88,6 +89,14 @@ export function MapScreen() {
               flush
             >
               <BusList buses={visibleBuses} selectedId={selectedBusId} onSelect={selectBus} live={live} loading={loadingBuses} />
+            </MapPanel>
+            <MapPanel
+              title="🧭 Planificar viaje"
+              summary="Compara recorridos por tiempo total"
+              open={openPanel === 'planner'}
+              onOpenChange={(open) => setOpenPanel(open ? 'planner' : null)}
+            >
+              <TripPlanner />
             </MapPanel>
             <MapPanel
               title="📍 Tu ubicación y alertas"
