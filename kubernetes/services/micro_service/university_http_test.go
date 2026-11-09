@@ -72,6 +72,52 @@ func TestUniversityRoutesReportWeightsWhenEmpty(t *testing.T) {
 	}
 }
 
+// Valores calculados a mano con los datos oficiales y los pesos por defecto.
+func TestUniversityRoutesRealCostsFromPortal(t *testing.T) {
+	statusCode, body := getUniversityRoutes(t, universityTestHandler(t), "from_stop=PAR-PORTAL-01&limit=3")
+	if statusCode != http.StatusOK || body.Total != 3 {
+		t.Fatalf("se esperaban 3 rutas: %d %+v", statusCode, body)
+	}
+	expectedRoutes := []struct {
+		campusID    string
+		timeSeconds int
+		cost        costBreakdownResponse
+	}{
+		// Micro a San Francisco: 240 s de viaje y 300 s de espera con peso 2.
+		{"san-francisco", 240, costBreakdownResponse{Ride: 240, Wait: 600, Total: 840}},
+		// Caminar 780 s con peso 2, sin esperar.
+		{"san-francisco", 780, costBreakdownResponse{Walk: 1560, Total: 1560}},
+		// La 7B completa: 1860 s de viaje, una sola espera y sin cambios.
+		{"san-juan-pablo-ii", 1860, costBreakdownResponse{Ride: 1860, Wait: 600, Total: 2460}},
+	}
+	for routeIndex, expected := range expectedRoutes {
+		route := body.Routes[routeIndex]
+		if route.CampusID != expected.campusID || route.TotalTimeSec != expected.timeSeconds || route.Cost != expected.cost {
+			t.Errorf("ruta %d: se esperaba %s en %d s con %+v, y se obtuvo %s en %d s con %+v", routeIndex+1,
+				expected.campusID, expected.timeSeconds, expected.cost, route.CampusID, route.TotalTimeSec, route.Cost)
+		}
+	}
+}
+
+func TestUniversityRoutesRealCostFromLocation(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	latitude, longitude := locationNearStop(graph, "PAR-PORTAL-01")
+	query := fmt.Sprintf("lat=%f&long=%f&campus=san-francisco&limit=1", latitude, longitude)
+	statusCode, body := getUniversityRoutes(t, universityTestHandler(t), query)
+	if statusCode != http.StatusOK || body.Total != 1 {
+		t.Fatalf("se esperaba una ruta: %d %+v", statusCode, body)
+	}
+	route := body.Routes[0]
+	initialWalkSeconds := route.Movements[0].TimeSec
+	// La misma micro de 840 más la caminata inicial con peso 2.
+	expectedCost := costBreakdownResponse{
+		Ride: 240, Walk: float64(initialWalkSeconds * 2), Wait: 600, Total: float64(840 + initialWalkSeconds*2),
+	}
+	if route.Movements[0].Mode != "walk" || route.Cost != expectedCost {
+		t.Errorf("se esperaba %+v y se obtuvo %+v", expectedCost, route.Cost)
+	}
+}
+
 func TestUniversityRoutesCostMatchesOrder(t *testing.T) {
 	statusCode, body := getUniversityRoutes(t, universityTestHandler(t), "from_stop=PAR-PORTAL-01&limit=5")
 	if statusCode != http.StatusOK || body.Total == 0 {
