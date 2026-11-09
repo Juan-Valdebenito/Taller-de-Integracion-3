@@ -9,9 +9,10 @@ import (
 )
 
 type universityRoutesBody struct {
-	Routes []universityRouteResponse `json:"routes"`
-	Total  int                       `json:"total"`
-	Error  string                    `json:"error"`
+	Routes      []universityRouteResponse `json:"routes"`
+	Total       int                       `json:"total"`
+	CostWeights *costWeightsResponse      `json:"cost_weights"`
+	Error       string                    `json:"error"`
 }
 
 func universityTestHandler(t *testing.T) http.Handler {
@@ -48,6 +49,26 @@ func TestUniversityRoutesFromStop(t *testing.T) {
 	expectedCost := costBreakdownResponse{Ride: 240, Walk: 0, Wait: 600, Transfer: 0, Total: 840}
 	if firstRoute.Cost != expectedCost {
 		t.Errorf("se esperaba el costo %+v y se obtuvo %+v", expectedCost, firstRoute.Cost)
+	}
+}
+
+func TestUniversityRoutesReportCostWeights(t *testing.T) {
+	statusCode, body := getUniversityRoutes(t, universityTestHandler(t), "from_stop=PAR-PORTAL-01")
+	if statusCode != http.StatusOK || body.CostWeights == nil {
+		t.Fatalf("se esperaban los pesos en la respuesta: %d %+v", statusCode, body)
+	}
+	expected := costWeightsResponse{
+		RideWeight: 1, WalkWeight: 2, WaitWeight: 2, TransferPenaltySeconds: 300, AssumedHeadwaySeconds: defaultHeadwaySeconds,
+	}
+	if *body.CostWeights != expected {
+		t.Errorf("se esperaba %+v y se obtuvo %+v", expected, *body.CostWeights)
+	}
+}
+
+func TestUniversityRoutesReportWeightsWhenEmpty(t *testing.T) {
+	statusCode, body := getUniversityRoutes(t, universityTestHandler(t), "from_stop=PAR-CSF-01&campus=san-francisco")
+	if statusCode != http.StatusOK || body.Total != 0 || body.CostWeights == nil {
+		t.Errorf("una lista vacía también debe informar los pesos: %d %+v", statusCode, body)
 	}
 }
 

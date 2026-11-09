@@ -106,11 +106,16 @@ func (server *Server) universityRoutes(writer http.ResponseWriter, request *http
 		writeError(writer, universityRouteErrorStatus(err), err.Error())
 		return
 	}
+	weights := universityRouteWeights()
 	response := make([]universityRouteResponse, 0, len(routes))
 	for _, route := range routes {
-		response = append(response, newUniversityRouteResponse(route, universityRouteWeights()))
+		response = append(response, newUniversityRouteResponse(route, weights))
 	}
-	writeJSON(writer, http.StatusOK, map[string]any{"routes": response, "total": len(response)})
+	writeJSON(writer, http.StatusOK, map[string]any{
+		"routes":       response,
+		"total":        len(response),
+		"cost_weights": newCostWeightsResponse(weights),
+	})
 }
 
 func parseUniversityRouteRequest(request *http.Request) (universityRouteRequest, error) {
