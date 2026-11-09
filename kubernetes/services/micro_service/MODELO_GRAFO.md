@@ -610,6 +610,69 @@ Cuando la ruta parte desde una posición, el primer tramo es una caminata desde
 El rechazo de la clave interna responde 502, y no 401, porque la app interpreta
 un 401 como sesión vencida y la cerraría.
 
+## Despliegue
+
+Las rutas a la universidad necesitan imágenes nuevas de dos servicios:
+
+| Servicio | Namespace | Stack | Imagen actual |
+|---|---|---|---|
+| `micro_service` | `student-tpenroz` | `micros` | `ignaciogsm/micro_service:v1.1` |
+| backend-go | `student-jvaldebenito` | `foundation` | `<DOCKERHUB_USER>/backend-go:v1` |
+
+`micro_service` lo mantiene Ignacio, así que su imagen nueva se coordina con él.
+`deploy.sh build` no construye esa imagen.
+
+### Orden
+
+1. **Primero `micro_service`.** Si backend-go se actualiza antes, sus rutas nuevas
+   llaman a funciones gRPC que la imagen antigua no tiene, y responden 500.
+2. **Después backend-go.**
+
+### Comandos
+
+Las dos imágenes se construyen desde la raíz del repositorio, porque copian la
+carpeta `proto/`:
+
+```bash
+docker build -f kubernetes/services/micro_service/Dockerfile -t <usuario>/micro_service:<tag> .
+docker push <usuario>/micro_service:<tag>
+
+docker build -f backend-go/Dockerfile -t <usuario>/backend-go:<tag> .
+docker push <usuario>/backend-go:<tag>
+```
+
+Luego se actualiza la imagen en `micros-deployment.yaml` y se aplica cada stack con
+su cuenta:
+
+```bash
+bash kubernetes/deploy.sh micros apply
+bash kubernetes/deploy.sh foundation apply
+```
+
+`foundation` toma la etiqueta de backend-go de `BACKEND_GO_IMAGE_TAG` en
+`cluster.env`.
+
+### Configuración
+
+No hay variables nuevas. backend-go ya usa:
+
+| Variable | Valor |
+|---|---|
+| `MICRO_GRPC_TARGET` | `micros-service-svc.<APP_NAMESPACE>.svc.cluster.local:9091` |
+| `MICRO_API_KEY` | Clave `ADMIN_KEY` del Secret `micros-secrets` |
+
+Esa clave debe ser la misma que espera `micro_service`. Si no coincide, las rutas
+nuevas responden 502.
+
+### Comprobación
+
+Con una sesión iniciada, esta consulta debe responder 200 y dos campus:
+
+```bash
+curl -H "Authorization: Bearer <access token>" \
+  https://<API_HOST>/api/v1/integrations/micro/campuses
+```
+
 ## Validación
 
 `graph_data_test.go` revisa los datos oficiales con las reglas de este documento y
@@ -667,3 +730,6 @@ prueba confirma que el planificador entrega ese tiempo y esa distancia.
 | `L7A` no cierra su circuito en los datos oficiales | Confirmar con el equipo |
 | El planificador no considera espera ni penalización por cambiar de línea | Mejora futura |
 | `PAR-CJP-02` ↔ `PAR-DPORT-01` tiene un tiempo atípico de 7380 s | Confirmar con el equipo |
+| Las rutas a la universidad no están desplegadas: faltan las imágenes nuevas de `micro_service` y backend-go | Coordinar con Ignacio |
+| Los endpoints antiguos de `/integrations` responden 401 si `micro_service` rechaza la clave de backend-go, y la app cerraría la sesión del usuario | Tarea aparte: cambiar `writeRPCError` |
+| Muchas ubicaciones de Temuco quedan a más de 1000 m de un paradero de la red, porque esta tiene 7 paraderos | Subtarea 2b y más recorridos |
