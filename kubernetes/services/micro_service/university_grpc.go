@@ -74,7 +74,7 @@ func universityRouteErrorCode(err error) codes.Code {
 }
 
 func microUniversityRoute(route UniversityRoute) *microv1.UniversityRoute {
-	routeResponse := newUniversityRouteResponse(route)
+	routeResponse := newUniversityRouteResponse(route, universityRouteWeights())
 	message := &microv1.UniversityRoute{
 		CampusId:            routeResponse.CampusID,
 		CampusName:          routeResponse.CampusName,

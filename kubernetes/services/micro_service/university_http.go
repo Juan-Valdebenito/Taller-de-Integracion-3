@@ -43,12 +43,19 @@ func planUniversityRoutes(graph *TransitGraph, routeRequest universityRouteReque
 		if !isValidLocation(routeRequest.Latitude, routeRequest.Longitude) {
 			return nil, errInvalidLocation
 		}
-		return routesFromLocation(graph, routeRequest.Latitude, routeRequest.Longitude, routeRequest.CampusID, routeRequest.Limit, defaultCostWeights())
+		return routesFromLocation(graph, routeRequest.Latitude, routeRequest.Longitude, routeRequest.CampusID, routeRequest.Limit, universityRouteWeights())
 	}
 	if _, exists := graph.Stops[routeRequest.OriginStopID]; !exists {
 		return nil, errUnknownOriginStop
 	}
-	return routesToUniversity(graph, routeRequest.OriginStopID, routeRequest.CampusID, routeRequest.Limit, defaultCostWeights())
+	return routesToUniversity(graph, routeRequest.OriginStopID, routeRequest.CampusID, routeRequest.Limit, universityRouteWeights())
+}
+
+// universityRouteWeights son los pesos con que se ordenan las rutas a la
+// universidad. Las respuestas usan los mismos para que el costo informado
+// coincida con el orden.
+func universityRouteWeights() CostWeights {
+	return defaultCostWeights()
 }
 
 // isValidLocation está escrita en positivo para rechazar también NaN, que no es
@@ -71,6 +78,8 @@ type universityRouteResponse struct {
 	TotalDistanceM    int        `json:"total_distance_meters"`
 	Transfers         int        `json:"transfers"`
 	Movements         []Movement `json:"movements"`
+	// Cost es el costo con que se ordenó la ruta, en segundos equivalentes.
+	Cost costBreakdownResponse `json:"cost"`
 }
 
 func (server *Server) campuses(writer http.ResponseWriter, _ *http.Request) {
@@ -99,7 +108,7 @@ func (server *Server) universityRoutes(writer http.ResponseWriter, request *http
 	}
 	response := make([]universityRouteResponse, 0, len(routes))
 	for _, route := range routes {
-		response = append(response, newUniversityRouteResponse(route))
+		response = append(response, newUniversityRouteResponse(route, universityRouteWeights()))
 	}
 	writeJSON(writer, http.StatusOK, map[string]any{"routes": response, "total": len(response)})
 }
@@ -140,13 +149,14 @@ func universityRouteErrorStatus(err error) int {
 	}
 }
 
-func newUniversityRouteResponse(route UniversityRoute) universityRouteResponse {
+func newUniversityRouteResponse(route UniversityRoute, weights CostWeights) universityRouteResponse {
 	response := universityRouteResponse{
 		CampusID:          route.CampusID,
 		CampusName:        route.CampusName,
 		DestinationStopID: route.DestinationStopID,
 		Transfers:         countTransfers(route.Path),
 		Movements:         make([]Movement, 0, len(route.Path)),
+		Cost:              newCostBreakdownResponse(pathCostBreakdown(route.Path, weights)),
 	}
 	for _, step := range route.Path {
 		response.TotalTimeSec += step.Edge.BaseTimeSec

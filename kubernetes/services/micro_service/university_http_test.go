@@ -44,6 +44,35 @@ func TestUniversityRoutesFromStop(t *testing.T) {
 	if len(firstRoute.Movements) != 1 || firstRoute.Movements[0].Mode != "bus" {
 		t.Errorf("tramos inesperados: %+v", firstRoute.Movements)
 	}
+	// 240 s en la 1C y 300 s de espera con peso 2.
+	expectedCost := costBreakdownResponse{Ride: 240, Walk: 0, Wait: 600, Transfer: 0, Total: 840}
+	if firstRoute.Cost != expectedCost {
+		t.Errorf("se esperaba el costo %+v y se obtuvo %+v", expectedCost, firstRoute.Cost)
+	}
+}
+
+func TestUniversityRoutesCostMatchesOrder(t *testing.T) {
+	statusCode, body := getUniversityRoutes(t, universityTestHandler(t), "from_stop=PAR-PORTAL-01&limit=5")
+	if statusCode != http.StatusOK || body.Total == 0 {
+		t.Fatalf("respuesta inesperada: %d %+v", statusCode, body)
+	}
+	for routeIndex, route := range body.Routes {
+		componentsSum := route.Cost.Ride + route.Cost.Walk + route.Cost.Wait + route.Cost.Transfer
+		if roundToTenth(componentsSum) != route.Cost.Total {
+			t.Errorf("el total %v no coincide con la suma %v", route.Cost.Total, componentsSum)
+		}
+		if route.Cost.Total < float64(route.TotalTimeSec) {
+			t.Errorf("el costo %v no puede ser menor que el tiempo %d", route.Cost.Total, route.TotalTimeSec)
+		}
+		// Sin campus, la mejor ruta de cada campus va primero; dentro del mismo campus
+		// las rutas siguen el orden por costo.
+		for previousIndex := 0; previousIndex < routeIndex; previousIndex++ {
+			previous := body.Routes[previousIndex]
+			if previous.CampusID == route.CampusID && previous.Cost.Total > route.Cost.Total {
+				t.Errorf("%s no está ordenado por costo: %v antes de %v", route.CampusID, previous.Cost.Total, route.Cost.Total)
+			}
+		}
+	}
 }
 
 func TestUniversityRoutesFromLocationStartWalking(t *testing.T) {
