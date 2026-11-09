@@ -223,6 +223,55 @@ func TestAStarCheapestExploresFewerStates(t *testing.T) {
 	}
 }
 
+func cheapestFromState(t *testing.T, ride rideState) ([]pathStep, float64) {
+	t.Helper()
+	graph := loadSeedNetwork(t).buildGraph()
+	weights := defaultCostWeights()
+	start := costSearchState{StopID: "PAR-DPORT-01", Ride: ride}
+	result := searchCheapestPathFrom(graph, start, "PAR-CJP-01", weights, noCostEstimate)
+	if !result.Found {
+		t.Fatal("se esperaba una ruta")
+	}
+	return result.Path, pathCostBreakdownFrom(result.Path, weights, ride).Total
+}
+
+func TestCheapestPathFromStateOnBoardSkipsWait(t *testing.T) {
+	path, cost := cheapestFromState(t, rideState{LastRouteID: "L7B", OnBoard: true})
+	// Sigue en la 7B: solo cuesta el trayecto, sin esperar.
+	if len(path) != 1 || path[0].Edge.RouteID != "L7B" || cost != 1320 {
+		t.Errorf("se esperaba seguir en la 7B por 1320: %+v, costo %v", path, cost)
+	}
+}
+
+func TestCheapestPathFromStateWaitingPaysWait(t *testing.T) {
+	_, cost := cheapestFromState(t, rideState{})
+	// Esperar la 7B (300 s con peso 2) y viajar 1320 s.
+	if cost != 600+1320 {
+		t.Errorf("se esperaba 1920 y se obtuvo %v", cost)
+	}
+}
+
+func TestCheapestPathFromStateOnOtherLine(t *testing.T) {
+	path, cost := cheapestFromState(t, rideState{LastRouteID: "L7A", OnBoard: true})
+	// Seguir en la 7A hasta PAR-CJP-02 y caminar (1500 + 240 × 2 = 1980) es más
+	// barato que cambiar a la 7B (600 de espera + 300 de transbordo + 1320 = 2220).
+	if len(path) != 2 || path[0].Edge.RouteID != "L7A" || path[1].Edge.RouteID != walkRouteID || cost != 1980 {
+		t.Errorf("se esperaba seguir en la 7A y caminar por 1980: %+v, costo %v", path, cost)
+	}
+}
+
+func TestCheapestPathFromEmptyStateMatchesCheapestPath(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	weights := defaultCostWeights()
+	for _, stopPair := range allStopPairs(graph) {
+		fromStart := searchCheapestPathFrom(graph, costSearchState{StopID: stopPair[0]}, stopPair[1], weights, noCostEstimate)
+		path, _ := cheapestPath(graph, stopPair[0], stopPair[1], weights)
+		if pathCost(fromStart.Path, weights) != pathCost(path, weights) {
+			t.Errorf("%s -> %s: los costos no coinciden", stopPair[0], stopPair[1])
+		}
+	}
+}
+
 func TestCheapestPathReportsMissingRoute(t *testing.T) {
 	graph := NewTransitGraph()
 	graph.Stops["ORIGIN"] = Stop{ID: "ORIGIN"}

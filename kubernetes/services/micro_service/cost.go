@@ -132,8 +132,14 @@ type CostBreakdown struct {
 // pathCostBreakdown recorre la ruta tramo a tramo. Antes de cada tramo en micro
 // suma lo que cuesta abordarla, según la situación en que venía el pasajero.
 func pathCostBreakdown(path []pathStep, weights CostWeights) CostBreakdown {
+	return pathCostBreakdownFrom(path, weights, rideState{})
+}
+
+// pathCostBreakdownFrom calcula el costo de una ruta que parte en una situación
+// dada, por ejemplo arriba de una micro.
+func pathCostBreakdownFrom(path []pathStep, weights CostWeights, initialState rideState) CostBreakdown {
 	var breakdown CostBreakdown
-	var state rideState
+	state := initialState
 	for _, step := range path {
 		if step.Edge.RouteID == walkRouteID {
 			breakdown.Walk += edgeCost(step.Edge, weights)

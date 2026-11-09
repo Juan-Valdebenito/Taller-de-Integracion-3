@@ -83,14 +83,20 @@ func aStarCostEstimate(graph *TransitGraph, to string, weights CostWeights) func
 // searchCheapestPath recorre los estados de menor a mayor costo. El primer estado
 // del destino que sale de la cola es el más barato, porque ningún tramo resta costo.
 func searchCheapestPath(graph *TransitGraph, from, to string, weights CostWeights, estimateRemaining func(stopID string) float64) searchResult {
+	return searchCheapestPathFrom(graph, costSearchState{StopID: from}, to, weights, estimateRemaining)
+}
+
+// searchCheapestPathFrom busca desde una situación dada del pasajero, por ejemplo
+// "va arriba de la 7B en PAR-DPORT-01". Así seguir en esa micro no cuesta espera.
+// Las rutas alternativas lo necesitan para desviarse a mitad de un viaje.
+func searchCheapestPathFrom(graph *TransitGraph, start costSearchState, to string, weights CostWeights, estimateRemaining func(stopID string) float64) searchResult {
 	type previousStep struct {
 		fromState costSearchState
 		edge      Edge
 	}
-	start := costSearchState{StopID: from}
 	bestCosts := map[costSearchState]float64{start: 0}
 	previous := make(map[costSearchState]previousStep)
-	queue := &costQueue{&costQueueItem{state: start, estimate: estimateRemaining(from)}}
+	queue := &costQueue{&costQueueItem{state: start, estimate: estimateRemaining(start.StopID)}}
 	heap.Init(queue)
 	sequence, exploredStates := 0, 0
 
