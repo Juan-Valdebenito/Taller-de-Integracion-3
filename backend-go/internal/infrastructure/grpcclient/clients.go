@@ -90,3 +90,17 @@ func (c *MicroClient) PlanRoute(ctx context.Context, request *microv1.PlanRouteR
 	defer cancel()
 	return c.client.PlanRoute(ctx, request)
 }
+
+// ListCampuses lista los campus universitarios y sus paraderos.
+func (microClient *MicroClient) ListCampuses(requestContext context.Context) (*microv1.ListCampusesResponse, error) {
+	requestContext, cancel := microClient.withContext(requestContext)
+	defer cancel()
+	return microClient.client.ListCampuses(requestContext, &microv1.ListCampusesRequest{})
+}
+
+// PlanUniversityRoutes pide rutas hacia la universidad desde un paradero o una posición.
+func (microClient *MicroClient) PlanUniversityRoutes(requestContext context.Context, request *microv1.PlanUniversityRoutesRequest) (*microv1.PlanUniversityRoutesResponse, error) {
+	requestContext, cancel := microClient.withContext(requestContext)
+	defer cancel()
+	return microClient.client.PlanUniversityRoutes(requestContext, request)
+}
