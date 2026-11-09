@@ -34,6 +34,41 @@ func TestExpectedWaitUsesKnownHeadway(t *testing.T) {
 	}
 }
 
+func TestBoardingCostByRideState(t *testing.T) {
+	weights := CostWeights{RideWeight: 1, WalkWeight: 2, WaitWeight: 2, TransferPenaltySeconds: 300}
+	waitOnly := waitCost("L7B", weights)
+	rideOnL7B := Edge{ToStopID: "B", RouteID: "L7B", BaseTimeSec: 60}
+	testCases := []struct {
+		name         string
+		state        rideState
+		edge         Edge
+		expectedCost float64
+	}{
+		{"primera micro del viaje", rideState{}, rideOnL7B, waitOnly},
+		{"sigue en la misma micro", rideState{LastRouteID: "L7B", OnBoard: true}, rideOnL7B, 0},
+		{"cambia de línea", rideState{LastRouteID: "L7A", OnBoard: true}, rideOnL7B, waitOnly + 300},
+		{"camina y cambia de línea", rideState{LastRouteID: "L7A", OnBoard: false}, rideOnL7B, waitOnly + 300},
+		{"camina y vuelve a la misma línea", rideState{LastRouteID: "L7B", OnBoard: false}, rideOnL7B, waitOnly},
+		{"caminar no cuesta abordaje", rideState{LastRouteID: "L7B", OnBoard: true}, Edge{ToStopID: "B", RouteID: walkRouteID}, 0},
+	}
+	for _, testCase := range testCases {
+		if cost := boardingCost(testCase.state, testCase.edge, weights); cost != testCase.expectedCost {
+			t.Errorf("%s: se esperaba %v y se obtuvo %v", testCase.name, testCase.expectedCost, cost)
+		}
+	}
+}
+
+func TestRideStateAfterEachEdge(t *testing.T) {
+	onL7A := rideState{}.after(Edge{RouteID: "L7A"})
+	if onL7A != (rideState{LastRouteID: "L7A", OnBoard: true}) {
+		t.Errorf("después de la micro debe ir en L7A: %+v", onL7A)
+	}
+	afterWalking := onL7A.after(Edge{RouteID: walkRouteID})
+	if afterWalking != (rideState{LastRouteID: "L7A", OnBoard: false}) {
+		t.Errorf("caminar debe recordar la línea, pero bajarse de la micro: %+v", afterWalking)
+	}
+}
+
 func TestWaitCostAppliesWeight(t *testing.T) {
 	weights := CostWeights{RideWeight: 1, WalkWeight: 2, WaitWeight: 2.5}
 	expectedCost := float64(defaultHeadwaySeconds/2) * 2.5
@@ -48,6 +83,7 @@ func TestCostWeightsRejectValuesBelowOne(t *testing.T) {
 		{RideWeight: 1, WalkWeight: 0, WaitWeight: 2},
 		{RideWeight: 1, WalkWeight: 2, WaitWeight: 0.9},
 		{RideWeight: -1, WalkWeight: -1, WaitWeight: -1},
+		{RideWeight: 1, WalkWeight: 2, WaitWeight: 2, TransferPenaltySeconds: -1},
 	}
 	for _, weights := range invalidWeights {
 		if err := weights.validate(); !errors.Is(err, errInvalidCostWeights) {
