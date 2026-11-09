@@ -10,16 +10,44 @@ func TestDefaultCostWeightsAreValid(t *testing.T) {
 	if err := weights.validate(); err != nil {
 		t.Fatal(err)
 	}
-	if weights.WalkWeight <= weights.RideWeight {
-		t.Error("caminar debe pesar más que viajar en micro")
+	if weights.WalkWeight <= weights.RideWeight || weights.WaitWeight <= weights.RideWeight {
+		t.Error("caminar y esperar deben pesar más que viajar en micro")
+	}
+}
+
+func TestExpectedWaitIsHalfTheDefaultHeadway(t *testing.T) {
+	if wait := expectedWaitSeconds("L7A"); wait != defaultHeadwaySeconds/2 {
+		t.Errorf("se esperaban %d s y se obtuvieron %d", defaultHeadwaySeconds/2, wait)
+	}
+}
+
+func TestExpectedWaitUsesKnownHeadway(t *testing.T) {
+	previousHeadways := lineHeadwaySeconds
+	t.Cleanup(func() { lineHeadwaySeconds = previousHeadways })
+	lineHeadwaySeconds = map[string]int{"L7B": 240}
+
+	if wait := expectedWaitSeconds("L7B"); wait != 120 {
+		t.Errorf("con una micro cada 240 s se esperaban 120 s y se obtuvieron %d", wait)
+	}
+	if wait := expectedWaitSeconds("L1C"); wait != defaultHeadwaySeconds/2 {
+		t.Errorf("una línea sin datos debe usar el valor por defecto: %d", wait)
+	}
+}
+
+func TestWaitCostAppliesWeight(t *testing.T) {
+	weights := CostWeights{RideWeight: 1, WalkWeight: 2, WaitWeight: 2.5}
+	expectedCost := float64(defaultHeadwaySeconds/2) * 2.5
+	if cost := waitCost("L7A", weights); cost != expectedCost {
+		t.Errorf("se esperaban %v y se obtuvo %v", expectedCost, cost)
 	}
 }
 
 func TestCostWeightsRejectValuesBelowOne(t *testing.T) {
 	invalidWeights := []CostWeights{
-		{RideWeight: 0.5, WalkWeight: 2},
-		{RideWeight: 1, WalkWeight: 0},
-		{RideWeight: -1, WalkWeight: -1},
+		{RideWeight: 0.5, WalkWeight: 2, WaitWeight: 2},
+		{RideWeight: 1, WalkWeight: 0, WaitWeight: 2},
+		{RideWeight: 1, WalkWeight: 2, WaitWeight: 0.9},
+		{RideWeight: -1, WalkWeight: -1, WaitWeight: -1},
 	}
 	for _, weights := range invalidWeights {
 		if err := weights.validate(); !errors.Is(err, errInvalidCostWeights) {
