@@ -160,6 +160,72 @@ func TestRoutesFromLocationReportInvalidRequests(t *testing.T) {
 	}
 }
 
+// twoStopsTestGraph pone un paradero cercano con una micro lenta y uno lejano con
+// una micro rápida, ambos hacia el mismo campus.
+func twoStopsTestGraph() (*TransitGraph, Campus) {
+	graph := NewTransitGraph()
+	addStop := func(stopID string, hundredsOfMeters float64) {
+		graph.Stops[stopID] = Stop{
+			ID:        stopID,
+			Latitude:  testOriginLatitude + hundredsOfMeters*degreesPerHundredMeters,
+			Longitude: testOriginLongitude,
+		}
+	}
+	addStop("NEAR", 1)
+	addStop("FAR", -9)
+	addStop("CAMPUS-STOP", 40)
+	graph.Edges["NEAR"] = []Edge{{ToStopID: "CAMPUS-STOP", RouteID: "SLOW", BaseTimeSec: 1000}}
+	graph.Edges["FAR"] = []Edge{{ToStopID: "CAMPUS-STOP", RouteID: "FAST", BaseTimeSec: 200}}
+	return graph, Campus{ID: "test", Name: "Campus de prueba", StopIDs: []string{"CAMPUS-STOP"}}
+}
+
+func routesFromTestOrigin(t *testing.T, weights CostWeights) []UniversityRoute {
+	t.Helper()
+	graph, campus := twoStopsTestGraph()
+	previousCampuses := universityCampuses
+	t.Cleanup(func() { universityCampuses = previousCampuses })
+	universityCampuses = []Campus{campus}
+
+	routes, err := routesFromLocation(graph, testOriginLatitude, testOriginLongitude, "", 2, weights)
+	if err != nil || len(routes) != 2 {
+		t.Fatalf("se esperaban 2 rutas: %+v, %v", routes, err)
+	}
+	return routes
+}
+
+// Caminar cerca de 750 s hasta FAR y viajar 200 s es más rápido que caminar unos
+// 84 s hasta NEAR y viajar 1000 s. Pero caminar pesa el doble, y la ruta por NEAR
+// resulta más barata.
+func TestRoutesFromLocationWeighInitialWalk(t *testing.T) {
+	timeOnlyWeights := CostWeights{RideWeight: 1, WalkWeight: 1}
+	fastestFirst := routesFromTestOrigin(t, timeOnlyWeights)
+	if fastestFirst[0].Path[0].Edge.ToStopID != "FAR" {
+		t.Errorf("solo por tiempo debe convenir el paradero lejano: %+v", fastestFirst[0].Path[0])
+	}
+
+	cheapestFirst := routesFromTestOrigin(t, defaultCostWeights())
+	if cheapestFirst[0].Path[0].Edge.ToStopID != "NEAR" {
+		t.Errorf("con el peso de caminar debe convenir el paradero cercano: %+v", cheapestFirst[0].Path[0])
+	}
+	if pathSeconds(cheapestFirst[0].Path) <= pathSeconds(cheapestFirst[1].Path) {
+		t.Error("la ruta más barata debe ser aquí la más lenta")
+	}
+}
+
+func TestRoutesFromLocationCountInitialWalkInCost(t *testing.T) {
+	routes := routesFromTestOrigin(t, defaultCostWeights())
+	for _, route := range routes {
+		initialWalk := route.Path[0].Edge
+		breakdown := pathCostBreakdown(route.Path, defaultCostWeights())
+		if breakdown.Walk != float64(initialWalk.BaseTimeSec)*defaultCostWeights().WalkWeight {
+			t.Errorf("la caminata inicial debe costar el doble de su tiempo: %+v", breakdown)
+		}
+		if breakdown.Wait != waitCost(route.Path[1].Edge.RouteID, defaultCostWeights()) || breakdown.Transfer != 0 {
+			t.Errorf("debe esperar una micro y no cambiar de línea: %+v", breakdown)
+		}
+	}
+}
+
 func TestRoutesRejectNonPositiveLimits(t *testing.T) {
 	graph := loadSeedNetwork(t).buildGraph()
 	latitude, longitude := locationNearStop(graph, "PAR-PORTAL-01")

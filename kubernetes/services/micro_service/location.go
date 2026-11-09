@@ -64,8 +64,9 @@ func nearbyNetworkStops(graph *TransitGraph, latitude, longitude float64, limit 
 }
 
 // routesFromLocation entrega rutas hacia la universidad desde la posición del
-// pasajero. Cada ruta parte con la caminata al paradero, así que su tiempo total
-// ya la incluye. Con campusID vacío considera todos los campus.
+// pasajero. Cada ruta parte con la caminata al paradero, así que su costo ya la
+// incluye con el peso de caminar. Por eso un paradero lejano con una micro rápida
+// puede perder frente a uno cercano. Con campusID vacío considera todos los campus.
 func routesFromLocation(graph *TransitGraph, latitude, longitude float64, campusID string, limit int, weights CostWeights) ([]UniversityRoute, error) {
 	campuses, err := selectCampuses(campusID)
 	if err != nil {
