@@ -60,17 +60,28 @@ func (state rideState) after(edge Edge) rideState {
 // Bajarse, caminar y volver a la misma línea exige esperar, pero no es un
 // cambio de línea, igual que en countTransfers.
 func boardingCost(state rideState, edge Edge, weights CostWeights) float64 {
-	if edge.RouteID == walkRouteID {
-		return 0
-	}
-	if state.OnBoard && state.LastRouteID == edge.RouteID {
+	if !needsBoarding(state, edge) {
 		return 0
 	}
 	cost := waitCost(edge.RouteID, weights)
-	if state.LastRouteID != "" && state.LastRouteID != edge.RouteID {
+	if changesLine(state, edge) {
 		cost += weights.TransferPenaltySeconds
 	}
 	return cost
+}
+
+// needsBoarding indica si el tramo exige subirse a una micro: es en micro y el
+// pasajero no venía ya arriba de esa misma línea.
+func needsBoarding(state rideState, edge Edge) bool {
+	if edge.RouteID == walkRouteID {
+		return false
+	}
+	return !state.OnBoard || state.LastRouteID != edge.RouteID
+}
+
+// changesLine indica si subirse a la micro del tramo es un cambio de línea.
+func changesLine(state rideState, edge Edge) bool {
+	return needsBoarding(state, edge) && state.LastRouteID != "" && state.LastRouteID != edge.RouteID
 }
 
 // defaultHeadwaySeconds es el intervalo supuesto entre dos micros de una misma
@@ -108,11 +119,40 @@ func edgeCost(edge Edge, weights CostWeights) float64 {
 	return travelSeconds * weights.RideWeight
 }
 
-// pathCost suma el costo de todos los tramos de una ruta.
-func pathCost(path []pathStep, weights CostWeights) float64 {
-	totalCost := 0.0
+// CostBreakdown separa el costo de una ruta por componente, en segundos
+// equivalentes. Permite explicar por qué una ruta cuesta lo que cuesta.
+type CostBreakdown struct {
+	Ride     float64
+	Walk     float64
+	Wait     float64
+	Transfer float64
+	Total    float64
+}
+
+// pathCostBreakdown recorre la ruta tramo a tramo. Antes de cada tramo en micro
+// suma lo que cuesta abordarla, según la situación en que venía el pasajero.
+func pathCostBreakdown(path []pathStep, weights CostWeights) CostBreakdown {
+	var breakdown CostBreakdown
+	var state rideState
 	for _, step := range path {
-		totalCost += edgeCost(step.Edge, weights)
+		if step.Edge.RouteID == walkRouteID {
+			breakdown.Walk += edgeCost(step.Edge, weights)
+		} else {
+			if needsBoarding(state, step.Edge) {
+				breakdown.Wait += waitCost(step.Edge.RouteID, weights)
+			}
+			if changesLine(state, step.Edge) {
+				breakdown.Transfer += weights.TransferPenaltySeconds
+			}
+			breakdown.Ride += edgeCost(step.Edge, weights)
+		}
+		state = state.after(step.Edge)
 	}
-	return totalCost
+	breakdown.Total = breakdown.Ride + breakdown.Walk + breakdown.Wait + breakdown.Transfer
+	return breakdown
+}
+
+// pathCost es el costo total de una ruta.
+func pathCost(path []pathStep, weights CostWeights) float64 {
+	return pathCostBreakdown(path, weights).Total
 }

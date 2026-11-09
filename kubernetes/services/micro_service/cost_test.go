@@ -110,17 +110,64 @@ func TestPathCostOfHandCalculatedTrip(t *testing.T) {
 	if !found {
 		t.Fatal("se esperaba una ruta")
 	}
-	// 300 s en micro con peso 1 y 120 s caminando con peso 2.
-	if cost := pathCost(path, defaultCostWeights()); cost != 300+120*2 {
-		t.Errorf("se esperaban 540 y se obtuvo %v", cost)
+	// 300 s esperando con peso 2, 300 s en micro con peso 1 y 120 s caminando con
+	// peso 2. No hay cambio de línea.
+	breakdown := pathCostBreakdown(path, defaultCostWeights())
+	expected := CostBreakdown{Ride: 300, Walk: 240, Wait: 600, Transfer: 0, Total: 1140}
+	if breakdown != expected {
+		t.Errorf("se esperaba %+v y se obtuvo %+v", expected, breakdown)
 	}
 }
 
-// Con pesos de 1, el costo es exactamente el tiempo: el planificador actual es un
-// caso particular de la función de costo.
+func TestPathCostWithLineChange(t *testing.T) {
+	path := []pathStep{
+		{From: "A", Edge: Edge{ToStopID: "B", RouteID: "L1C", BaseTimeSec: 540}},
+		{From: "B", Edge: Edge{ToStopID: "C", RouteID: "L7A", BaseTimeSec: 1500}},
+		{From: "C", Edge: Edge{ToStopID: "D", RouteID: walkRouteID, BaseTimeSec: 240}},
+	}
+	// Dos micros: dos esperas de 300 s con peso 2 y un cambio de línea.
+	breakdown := pathCostBreakdown(path, defaultCostWeights())
+	expected := CostBreakdown{Ride: 2040, Walk: 480, Wait: 1200, Transfer: 300, Total: 4020}
+	if breakdown != expected {
+		t.Errorf("se esperaba %+v y se obtuvo %+v", expected, breakdown)
+	}
+}
+
+func TestPathCostSameLineAgainAfterWalking(t *testing.T) {
+	path := []pathStep{
+		{From: "A", Edge: Edge{ToStopID: "B", RouteID: "L7B", BaseTimeSec: 100}},
+		{From: "B", Edge: Edge{ToStopID: "C", RouteID: walkRouteID, BaseTimeSec: 60}},
+		{From: "C", Edge: Edge{ToStopID: "D", RouteID: "L7B", BaseTimeSec: 100}},
+	}
+	breakdown := pathCostBreakdown(path, defaultCostWeights())
+	if breakdown.Wait != 1200 || breakdown.Transfer != 0 {
+		t.Errorf("debe esperar dos veces sin cambiar de línea: %+v", breakdown)
+	}
+}
+
+func TestBreakdownTotalMatchesBoardingCost(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	weights := defaultCostWeights()
+	for _, stopPair := range allStopPairs(graph) {
+		for _, path := range alternativePaths(graph, stopPair[0], stopPair[1], 3) {
+			expectedTotal := 0.0
+			var state rideState
+			for _, step := range path {
+				expectedTotal += boardingCost(state, step.Edge, weights) + edgeCost(step.Edge, weights)
+				state = state.after(step.Edge)
+			}
+			if total := pathCost(path, weights); total != expectedTotal {
+				t.Errorf("%s -> %s: el desglose suma %v y los tramos %v", stopPair[0], stopPair[1], total, expectedTotal)
+			}
+		}
+	}
+}
+
+// Sin espera ni transbordo y con pesos de 1, el costo es exactamente el tiempo:
+// el planificador actual es un caso particular de la función de costo.
 func TestUnitWeightsMatchTravelTime(t *testing.T) {
 	graph := loadSeedNetwork(t).buildGraph()
-	unitWeights := CostWeights{RideWeight: 1, WalkWeight: 1}
+	unitWeights := CostWeights{RideWeight: 1, WalkWeight: 1, WaitWeight: 0, TransferPenaltySeconds: 0}
 	for _, stopPair := range allStopPairs(graph) {
 		path, found := fastestPath(graph, stopPair[0], stopPair[1])
 		if !found {
