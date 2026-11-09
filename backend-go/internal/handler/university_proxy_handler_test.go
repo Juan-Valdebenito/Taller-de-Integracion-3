@@ -1,0 +1,142 @@
+package handler
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	microv1 "github.com/Juan-Valdebenito/Taller-de-Integracion-3/proto/gen/go/micro/v1"
+	"github.com/gin-gonic/gin"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+)
+
+// fakeUniversityMicro reemplaza a micro_service. Incluye MicroRPC sin
+// implementar: si el handler llamara a otra función, la prueba fallaría.
+type fakeUniversityMicro struct {
+	MicroRPC
+	routesResponse  *microv1.PlanUniversityRoutesResponse
+	responseError   error
+	receivedRequest *microv1.PlanUniversityRoutesRequest
+	calls           int
+}
+
+func (fakeMicro *fakeUniversityMicro) ListCampuses(context.Context) (*microv1.ListCampusesResponse, error) {
+	fakeMicro.calls++
+	return &microv1.ListCampusesResponse{Campuses: []*microv1.Campus{
+		{Id: "san-francisco", Name: "Campus San Francisco", StopIds: []string{"PAR-CSF-01"}},
+	}}, fakeMicro.responseError
+}
+
+func (fakeMicro *fakeUniversityMicro) PlanUniversityRoutes(_ context.Context, request *microv1.PlanUniversityRoutesRequest) (*microv1.PlanUniversityRoutesResponse, error) {
+	fakeMicro.calls++
+	fakeMicro.receivedRequest = request
+	if fakeMicro.responseError != nil {
+		return nil, fakeMicro.responseError
+	}
+	return fakeMicro.routesResponse, nil
+}
+
+func serveUniversityRequest(fakeMicro *fakeUniversityMicro, path string) *httptest.ResponseRecorder {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	proxyHandler := NewGRPCProxyHandler(nil, fakeMicro)
+	engine.GET("/campuses", proxyHandler.ListCampuses)
+	engine.GET("/routes/university", proxyHandler.PlanUniversityRoutes)
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
+	return recorder
+}
+
+func TestListCampusesReturnsJSON(t *testing.T) {
+	recorder := serveUniversityRequest(&fakeUniversityMicro{}, "/campuses")
+	var body struct {
+		Campuses []campusJSON `json:"campuses"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if recorder.Code != http.StatusOK || len(body.Campuses) != 1 || body.Campuses[0].StopIDs[0] != "PAR-CSF-01" {
+		t.Errorf("respuesta inesperada: %d %s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestPlanUniversityRoutesForwardsQuery(t *testing.T) {
+	fakeMicro := &fakeUniversityMicro{routesResponse: &microv1.PlanUniversityRoutesResponse{}}
+	recorder := serveUniversityRequest(fakeMicro, "/routes/university?lat=-38.7&long=-72.6&campus=san-francisco&limit=2")
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("se esperaba 200: %d %s", recorder.Code, recorder.Body.String())
+	}
+	request := fakeMicro.receivedRequest
+	if request.GetLatitude() != -38.7 || request.GetLongitude() != -72.6 || request.GetCampusId() != "san-francisco" ||
+		request.GetLimit() != 2 || request.GetOriginStopId() != "" {
+		t.Errorf("petición inesperada: %+v", request)
+	}
+}
+
+func TestPlanUniversityRoutesKeepsZeroValues(t *testing.T) {
+	fakeMicro := &fakeUniversityMicro{routesResponse: &microv1.PlanUniversityRoutesResponse{
+		Routes: []*microv1.UniversityRoute{{
+			CampusId: "san-francisco", TotalTimeSeconds: 240,
+			Movements: []*microv1.Movement{{FromStopId: "PAR-PORTAL-01", ToStopId: "PAR-CSF-01", Mode: "bus", RouteId: "L1C", TimeSeconds: 240}},
+		}},
+		Total: 1,
+	}}
+	recorder := serveUniversityRequest(fakeMicro, "/routes/university?from_stop=PAR-PORTAL-01")
+	var body map[string]any
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	firstRoute := body["routes"].([]any)[0].(map[string]any)
+	if transfers, present := firstRoute["transfers"]; !present || transfers != float64(0) {
+		t.Errorf("transfers debe venir aunque sea 0: %s", recorder.Body.String())
+	}
+	if body["total"] != float64(1) || fakeMicro.receivedRequest.Latitude != nil {
+		t.Errorf("respuesta o petición inesperada: %s", recorder.Body.String())
+	}
+}
+
+func TestPlanUniversityRoutesReturnsEmptyList(t *testing.T) {
+	fakeMicro := &fakeUniversityMicro{routesResponse: &microv1.PlanUniversityRoutesResponse{}}
+	recorder := serveUniversityRequest(fakeMicro, "/routes/university?from_stop=PAR-CSF-01&campus=san-francisco")
+	if recorder.Code != http.StatusOK || recorder.Body.String() != `{"routes":[],"total":0}` {
+		t.Errorf("se esperaba una lista vacía explícita: %d %s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestPlanUniversityRoutesRejectsMalformedQuery(t *testing.T) {
+	for _, query := range []string{"limit=tres", "lat=-38.7", "long=-72.6", "lat=norte&long=-72.6"} {
+		fakeMicro := &fakeUniversityMicro{}
+		recorder := serveUniversityRequest(fakeMicro, "/routes/university?"+query)
+		if recorder.Code != http.StatusBadRequest || fakeMicro.calls != 0 {
+			t.Errorf("%s: se esperaba 400 sin consultar a micro_service: %d, %d llamadas", query, recorder.Code, fakeMicro.calls)
+		}
+	}
+}
+
+func TestPlanUniversityRoutesTranslatesErrors(t *testing.T) {
+	testCases := []struct {
+		grpcCode       codes.Code
+		expectedStatus int
+	}{
+		{codes.InvalidArgument, http.StatusBadRequest},
+		{codes.NotFound, http.StatusNotFound},
+		{codes.Unavailable, http.StatusServiceUnavailable},
+		{codes.DeadlineExceeded, http.StatusServiceUnavailable},
+		// Una clave rechazada entre servicios no es un problema de la sesión del usuario.
+		{codes.Unauthenticated, http.StatusBadGateway},
+	}
+	for _, testCase := range testCases {
+		fakeMicro := &fakeUniversityMicro{responseError: status.Error(testCase.grpcCode, "error de prueba")}
+		recorder := serveUniversityRequest(fakeMicro, "/routes/university?from_stop=PAR-PORTAL-01")
+		if recorder.Code != testCase.expectedStatus {
+			t.Errorf("%s: se esperaba %d y se obtuvo %d", testCase.grpcCode, testCase.expectedStatus, recorder.Code)
+		}
+	}
+	recorder := serveUniversityRequest(&fakeUniversityMicro{responseError: status.Error(codes.Unauthenticated, "clave")}, "/campuses")
+	if recorder.Code != http.StatusBadGateway {
+		t.Errorf("campus con clave rechazada: se esperaba 502 y se obtuvo %d", recorder.Code)
+	}
+}
