@@ -5,7 +5,10 @@ package main
 // misma línea no espera. Por eso cada estado es un paradero más la situación del
 // pasajero, y un mismo paradero puede aparecer en varios estados.
 
-import "container/heap"
+import (
+	"container/heap"
+	"math"
+)
 
 type costSearchState struct {
 	StopID string
@@ -58,6 +61,24 @@ func cheapestPath(graph *TransitGraph, from, to string, weights CostWeights) ([]
 }
 
 func noCostEstimate(string) float64 { return 0 }
+
+// aStarCheapestPath encuentra la misma ruta de menor costo que cheapestPath, pero
+// explora primero los paraderos que se acercan al destino.
+func aStarCheapestPath(graph *TransitGraph, from, to string, weights CostWeights) ([]pathStep, bool) {
+	result := searchCheapestPath(graph, from, to, weights, aStarCostEstimate(graph, to, weights))
+	return result.Path, result.Found
+}
+
+// aStarCostEstimate convierte la estimación de tiempo de A* en costo. Cada segundo
+// de viaje cuesta al menos el menor de los pesos de micro y caminata, y la espera
+// y los transbordos nunca restan. Por eso la estimación no supera el costo real.
+func aStarCostEstimate(graph *TransitGraph, to string, weights CostWeights) func(stopID string) float64 {
+	estimateRemainingTime := aStarEstimate(graph, to)
+	minimumWeight := math.Max(0, math.Min(weights.RideWeight, weights.WalkWeight))
+	return func(stopID string) float64 {
+		return float64(estimateRemainingTime(stopID)) * minimumWeight
+	}
+}
 
 // searchCheapestPath recorre los estados de menor a mayor costo. El primer estado
 // del destino que sale de la cola es el más barato, porque ningún tramo resta costo.
