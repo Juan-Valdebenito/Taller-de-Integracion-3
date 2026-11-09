@@ -364,8 +364,8 @@ Los algoritmos están en `planner.go`, que no depende de HTTP ni de gRPC.
 | `aStarPath` | A* | Menor tiempo, explorando menos paraderos |
 | `minimumTransferPath` | Dijkstra con la línea actual en el estado | Menos cambios de línea y, si empatan, menor tiempo |
 
-`aStarPath` todavía no está disponible en la API. Se expone en la tarea de API
-completa.
+La API no ofrece `aStarPath` como preferencia propia. Lo usan las rutas
+alternativas y las rutas a la universidad en cada búsqueda.
 
 ### Relación entre Dijkstra y A*
 
@@ -410,7 +410,7 @@ Muestra que A* aporta poco en la red actual, y que su ventaja aparece al crecer.
 ## Rutas alternativas
 
 `alternatives.go` entrega hasta K rutas distintas, de la más rápida a la más lenta.
-Todavía no están disponibles en la API. Se exponen en la tarea de API completa.
+La API las entrega a través de las rutas a la universidad.
 
 ### Algoritmo de Yen
 
@@ -475,7 +475,7 @@ tramos compartidos tienen tiempos iguales.
 ## Rutas a la universidad
 
 `university.go` y `location.go` usan las rutas alternativas para llegar a un campus.
-Todavía no están disponibles en la API. Se exponen en la tarea de API completa.
+La sección API explica cómo pedirlas.
 
 ### Campus
 
@@ -530,6 +530,85 @@ Desde unos 100 m al norte de `PAR-PORTAL-01`, sin indicar campus y con un límit
 | 324 s | San Francisco | Caminar 84 s y tomar la línea 1C, 240 s |
 | 821 s | San Francisco | Caminar todo el trayecto |
 | 1944 s | San Juan Pablo II | Caminar 84 s y tomar la línea 7B, 1860 s |
+
+## API
+
+Las rutas a la universidad se pueden pedir de tres formas. La app y el web deben
+usar **backend-go**: exige sesión y nunca expone la clave interna de
+`micro_service`.
+
+| Capa | Campus | Rutas |
+|---|---|---|
+| backend-go, con JWT | `GET /api/v1/integrations/micro/campuses` | `GET /api/v1/integrations/micro/routes/university` |
+| `micro_service`, REST | `GET /campuses` | `GET /routes/university` |
+| `micro_service`, gRPC con `x-admin-key` | `ListCampuses` | `PlanUniversityRoutes` |
+
+backend-go traduce la petición REST a gRPC. Las reglas las valida solo
+`planUniversityRoutes`, así que REST y gRPC responden igual.
+
+### Parámetros
+
+| Parámetro | Obligatorio | Descripción |
+|---|---|---|
+| `from_stop` | Uno de los dos orígenes | Paradero de partida |
+| `lat` y `long` | Uno de los dos orígenes | Posición del pasajero, en grados decimales |
+| `campus` | No | `san-francisco` o `san-juan-pablo-ii`; sin él, considera ambos |
+| `limit` | No | Entre 1 y 5; por defecto, 3 |
+
+En gRPC, `latitude` y `longitude` son `optional`, para distinguir una coordenada
+en 0 de una que no se envió. Un `limit` en 0 usa el valor por defecto.
+
+### Ejemplo
+
+```text
+GET /api/v1/integrations/micro/routes/university?from_stop=PAR-PORTAL-01&limit=1
+Authorization: Bearer <access token>
+```
+
+```json
+{
+  "routes": [
+    {
+      "campus_id": "san-francisco",
+      "campus_name": "Campus San Francisco",
+      "destination_stop_id": "PAR-CSF-01",
+      "total_time_seconds": 240,
+      "total_distance_meters": 950,
+      "transfers": 0,
+      "movements": [
+        {
+          "from_stop_id": "PAR-PORTAL-01",
+          "to_stop_id": "PAR-CSF-01",
+          "mode": "bus",
+          "route_id": "L1C",
+          "trip_id": "L1C-IDA",
+          "time_seconds": 240,
+          "distance_meters": 950
+        }
+      ]
+    }
+  ],
+  "total": 1
+}
+```
+
+Cuando la ruta parte desde una posición, el primer tramo es una caminata desde
+`USER_LOCATION`. Los tramos a pie tienen `"mode": "walk"` y no traen `route_id` ni
+`trip_id`. Si el pasajero ya está en el campus pedido, la respuesta es
+`{"routes": [], "total": 0}`.
+
+### Errores
+
+| Caso | gRPC | HTTP |
+|---|---|---|
+| Falta el origen, vienen dos, o el límite o las coordenadas no son válidos | `InvalidArgument` | 400 |
+| Sin sesión en backend-go | — | 401 |
+| Paradero o campus inexistente, o sin paraderos a 1000 m | `NotFound` | 404 |
+| `micro_service` rechaza la clave de backend-go | `Unauthenticated` | 502 en backend-go |
+| Grafo sin cargar o servicio sin respuesta | `Unavailable` | 503 |
+
+El rechazo de la clave interna responde 502, y no 401, porque la app interpreta
+un 401 como sesión vencida y la cerraría.
 
 ## Validación
 
