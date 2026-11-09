@@ -80,7 +80,7 @@ func campusByID(t *testing.T, campusID string) Campus {
 
 func TestRoutesToCampusStartWithFastestRoute(t *testing.T) {
 	graph := loadSeedNetwork(t).buildGraph()
-	routes := routesToCampus(graph, "PAR-PORTAL-01", campusByID(t, "san-francisco"), 3)
+	routes := routesToCampus(graph, "PAR-PORTAL-01", campusByID(t, "san-francisco"), 3, defaultCostWeights())
 	if len(routes) == 0 {
 		t.Fatal("se esperaba al menos una ruta")
 	}
@@ -94,7 +94,7 @@ func TestRoutesToCampusStartWithFastestRoute(t *testing.T) {
 
 func TestRoutesToCampusUseItsFastestStop(t *testing.T) {
 	graph := loadSeedNetwork(t).buildGraph()
-	routes := routesToCampus(graph, "PAR-DPORT-01", campusByID(t, "san-juan-pablo-ii"), 3)
+	routes := routesToCampus(graph, "PAR-DPORT-01", campusByID(t, "san-juan-pablo-ii"), 3, defaultCostWeights())
 	if len(routes) == 0 {
 		t.Fatal("se esperaba al menos una ruta")
 	}
@@ -109,7 +109,7 @@ func TestRoutesToCampusFromEveryStopAreValid(t *testing.T) {
 	const routeLimit = 3
 	for _, campus := range universityCampuses {
 		for originStopID := range graph.Edges {
-			routes := routesToCampus(graph, originStopID, campus, routeLimit)
+			routes := routesToCampus(graph, originStopID, campus, routeLimit, defaultCostWeights())
 			if campus.hasStop(originStopID) {
 				if routes != nil {
 					t.Errorf("%s ya está en %s y no debe tener rutas", originStopID, campus.ID)
@@ -124,8 +124,8 @@ func TestRoutesToCampusFromEveryStopAreValid(t *testing.T) {
 				if campus.isReachedBeforeEnd(route.Path) {
 					t.Errorf("%s -> %s pasa por el campus antes de terminar", originStopID, campus.ID)
 				}
-				if routeIndex > 0 && pathSeconds(routes[routeIndex-1].Path) > pathSeconds(route.Path) {
-					t.Errorf("%s -> %s no está ordenado por tiempo", originStopID, campus.ID)
+				if routeIndex > 0 && pathCost(routes[routeIndex-1].Path, defaultCostWeights()) > pathCost(route.Path, defaultCostWeights()) {
+					t.Errorf("%s -> %s no está ordenado por costo", originStopID, campus.ID)
 				}
 			}
 		}
@@ -160,7 +160,7 @@ func campusesInRoutes(routes []UniversityRoute) map[string]bool {
 
 func TestRoutesToUniversityIncludeEveryCampus(t *testing.T) {
 	graph := loadSeedNetwork(t).buildGraph()
-	routes, err := routesToUniversity(graph, "PAR-PORTAL-01", "", 3)
+	routes, err := routesToUniversity(graph, "PAR-PORTAL-01", "", 3, defaultCostWeights())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,15 +171,15 @@ func TestRoutesToUniversityIncludeEveryCampus(t *testing.T) {
 		t.Errorf("deben aparecer ambos campus: %v", campusIDs)
 	}
 	for routeIndex := 1; routeIndex < len(routes); routeIndex++ {
-		if pathSeconds(routes[routeIndex-1].Path) > pathSeconds(routes[routeIndex].Path) {
-			t.Error("las rutas deben estar ordenadas por tiempo")
+		if pathCost(routes[routeIndex-1].Path, defaultCostWeights()) > pathCost(routes[routeIndex].Path, defaultCostWeights()) {
+			t.Error("las rutas deben estar ordenadas por costo")
 		}
 	}
 }
 
 func TestRoutesToUniversityFilterByCampus(t *testing.T) {
 	graph := loadSeedNetwork(t).buildGraph()
-	routes, err := routesToUniversity(graph, "PAR-PORTAL-01", "san-juan-pablo-ii", 3)
+	routes, err := routesToUniversity(graph, "PAR-PORTAL-01", "san-juan-pablo-ii", 3, defaultCostWeights())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,7 +190,7 @@ func TestRoutesToUniversityFilterByCampus(t *testing.T) {
 
 func TestRoutesToUniversityFromCampusGoToOtherCampus(t *testing.T) {
 	graph := loadSeedNetwork(t).buildGraph()
-	routes, err := routesToUniversity(graph, "PAR-CSF-01", "", 3)
+	routes, err := routesToUniversity(graph, "PAR-CSF-01", "", 3, defaultCostWeights())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,14 +201,14 @@ func TestRoutesToUniversityFromCampusGoToOtherCampus(t *testing.T) {
 
 func TestRoutesToUniversityRespectLimit(t *testing.T) {
 	graph := loadSeedNetwork(t).buildGraph()
-	routes, err := routesToUniversity(graph, "PAR-PORTAL-01", "", 1)
+	routes, err := routesToUniversity(graph, "PAR-PORTAL-01", "", 1, defaultCostWeights())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(routes) != 1 || pathSeconds(routes[0].Path) != 240 {
 		t.Errorf("con límite 1 debe quedar la ruta más rápida: %+v", routes)
 	}
-	routes, err = routesToUniversity(graph, "PAR-PORTAL-01", "", 0)
+	routes, err = routesToUniversity(graph, "PAR-PORTAL-01", "", 0, defaultCostWeights())
 	if err != nil || len(routes) != 0 {
 		t.Errorf("con límite 0 no debe haber rutas: %+v, %v", routes, err)
 	}
@@ -216,8 +216,27 @@ func TestRoutesToUniversityRespectLimit(t *testing.T) {
 
 func TestRoutesToUniversityRejectUnknownCampus(t *testing.T) {
 	graph := loadSeedNetwork(t).buildGraph()
-	if _, err := routesToUniversity(graph, "PAR-PORTAL-01", "campus-inexistente", 3); !errors.Is(err, errUnknownCampus) {
+	if _, err := routesToUniversity(graph, "PAR-PORTAL-01", "campus-inexistente", 3, defaultCostWeights()); !errors.Is(err, errUnknownCampus) {
 		t.Errorf("se esperaba errUnknownCampus y se obtuvo %v", err)
+	}
+}
+
+// La más rápida no siempre es la más barata: cambiar de línea cuesta espera y
+// transbordo, y caminar pesa el doble.
+func TestRoutesToCampusPreferCheapestOverFastest(t *testing.T) {
+	graph := NewTransitGraph()
+	for stopIndex, stopID := range []string{"ORIGIN", "MIDDLE", "CAMPUS-STOP"} {
+		graph.Stops[stopID] = Stop{ID: stopID, Latitude: -38.70 - float64(stopIndex)*0.001, Longitude: -72.60}
+	}
+	graph.Edges["ORIGIN"] = []Edge{{ToStopID: "MIDDLE", RouteID: "L1", BaseTimeSec: 600}}
+	graph.Edges["MIDDLE"] = []Edge{
+		{ToStopID: "CAMPUS-STOP", RouteID: "L2", BaseTimeSec: 500},
+		{ToStopID: "CAMPUS-STOP", RouteID: "L1", BaseTimeSec: 600},
+	}
+	campus := Campus{ID: "test", Name: "Campus de prueba", StopIDs: []string{"CAMPUS-STOP"}}
+	routes := routesToCampus(graph, "ORIGIN", campus, 1, defaultCostWeights())
+	if len(routes) != 1 || countTransfers(routes[0].Path) != 0 || pathSeconds(routes[0].Path) != 1200 {
+		t.Errorf("se esperaba seguir en L1 sin cambios, aunque tarde 100 s más: %+v", routes)
 	}
 }
 
@@ -227,6 +246,6 @@ func TestMergeCampusRoutesKeepsBestOfEachCampus(t *testing.T) {
 	}
 	nearCampusRoutes := []UniversityRoute{routeWithTime("near", 100), routeWithTime("near", 200), routeWithTime("near", 300)}
 	farCampusRoutes := []UniversityRoute{routeWithTime("far", 900)}
-	routes := mergeCampusRoutes([][]UniversityRoute{nearCampusRoutes, farCampusRoutes}, 3)
+	routes := mergeCampusRoutes([][]UniversityRoute{nearCampusRoutes, farCampusRoutes}, 3, defaultCostWeights())
 	assertTimes(t, []int{pathSeconds(routes[0].Path), pathSeconds(routes[1].Path), pathSeconds(routes[2].Path)}, []int{100, 200, 900})
 }

@@ -43,12 +43,12 @@ func planUniversityRoutes(graph *TransitGraph, routeRequest universityRouteReque
 		if !isValidLocation(routeRequest.Latitude, routeRequest.Longitude) {
 			return nil, errInvalidLocation
 		}
-		return routesFromLocation(graph, routeRequest.Latitude, routeRequest.Longitude, routeRequest.CampusID, routeRequest.Limit)
+		return routesFromLocation(graph, routeRequest.Latitude, routeRequest.Longitude, routeRequest.CampusID, routeRequest.Limit, defaultCostWeights())
 	}
 	if _, exists := graph.Stops[routeRequest.OriginStopID]; !exists {
 		return nil, errUnknownOriginStop
 	}
-	return routesToUniversity(graph, routeRequest.OriginStopID, routeRequest.CampusID, routeRequest.Limit)
+	return routesToUniversity(graph, routeRequest.OriginStopID, routeRequest.CampusID, routeRequest.Limit, defaultCostWeights())
 }
 
 // isValidLocation está escrita en positivo para rechazar también NaN, que no es

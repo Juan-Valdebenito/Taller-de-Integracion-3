@@ -55,24 +55,25 @@ type UniversityRoute struct {
 }
 
 // routesToUniversity entrega hasta limit rutas hacia la universidad, de la más
-// rápida a la más lenta. Con campusID vacío considera todos los campus.
-func routesToUniversity(graph *TransitGraph, originStopID, campusID string, limit int) ([]UniversityRoute, error) {
+// barata a la más cara según los pesos. Con campusID vacío considera todos los
+// campus.
+func routesToUniversity(graph *TransitGraph, originStopID, campusID string, limit int, weights CostWeights) ([]UniversityRoute, error) {
 	campuses, err := selectCampuses(campusID)
 	if err != nil {
 		return nil, err
 	}
 	routesByCampus := make([][]UniversityRoute, 0, len(campuses))
 	for _, campus := range campuses {
-		if routes := routesToCampus(graph, originStopID, campus, limit); len(routes) > 0 {
+		if routes := routesToCampus(graph, originStopID, campus, limit, weights); len(routes) > 0 {
 			routesByCampus = append(routesByCampus, routes)
 		}
 	}
-	return mergeCampusRoutes(routesByCampus, limit), nil
+	return mergeCampusRoutes(routesByCampus, limit, weights), nil
 }
 
 // mergeCampusRoutes incluye primero la mejor ruta de cada campus, para que un
 // campus cercano no deje fuera al otro, y completa con las demás alternativas.
-func mergeCampusRoutes(routesByCampus [][]UniversityRoute, limit int) []UniversityRoute {
+func mergeCampusRoutes(routesByCampus [][]UniversityRoute, limit int, weights CostWeights) []UniversityRoute {
 	if limit <= 0 {
 		return nil
 	}
@@ -82,26 +83,26 @@ func mergeCampusRoutes(routesByCampus [][]UniversityRoute, limit int) []Universi
 		bestRoutes = append(bestRoutes, campusRoutes[0])
 		otherRoutes = append(otherRoutes, campusRoutes[1:]...)
 	}
-	sortUniversityRoutes(bestRoutes)
-	sortUniversityRoutes(otherRoutes)
+	sortUniversityRoutes(bestRoutes, weights)
+	sortUniversityRoutes(otherRoutes, weights)
 	selectedRoutes := append(bestRoutes, otherRoutes...)
 	if len(selectedRoutes) > limit {
 		selectedRoutes = selectedRoutes[:limit]
 	}
-	sortUniversityRoutes(selectedRoutes)
+	sortUniversityRoutes(selectedRoutes, weights)
 	return selectedRoutes
 }
 
 // routesToCampus entrega hasta limit rutas hacia cualquiera de los paraderos del
-// campus, de la más rápida a la más lenta. Si el origen ya es un paradero del
+// campus, de la más barata a la más cara. Si el origen ya es un paradero del
 // campus, el pasajero ya llegó y no hay ruta que entregar.
-func routesToCampus(graph *TransitGraph, originStopID string, campus Campus, limit int) []UniversityRoute {
+func routesToCampus(graph *TransitGraph, originStopID string, campus Campus, limit int, weights CostWeights) []UniversityRoute {
 	if limit <= 0 || campus.hasStop(originStopID) {
 		return nil
 	}
 	routes := make([]UniversityRoute, 0, limit)
 	for _, destinationStopID := range campus.StopIDs {
-		for _, path := range alternativePaths(graph, originStopID, destinationStopID, limit) {
+		for _, path := range cheapestAlternativePaths(graph, originStopID, destinationStopID, limit, weights) {
 			if campus.isReachedBeforeEnd(path) {
 				continue
 			}
@@ -110,7 +111,7 @@ func routesToCampus(graph *TransitGraph, originStopID string, campus Campus, lim
 			})
 		}
 	}
-	sortUniversityRoutes(routes)
+	sortUniversityRoutes(routes, weights)
 	if len(routes) > limit {
 		routes = routes[:limit]
 	}
@@ -128,13 +129,13 @@ func (campus Campus) isReachedBeforeEnd(path []pathStep) bool {
 	return false
 }
 
-// sortUniversityRoutes ordena por tiempo. Los empates se resuelven por la clave de
+// sortUniversityRoutes ordena por costo. Los empates se resuelven por la clave de
 // la ruta para que el resultado sea siempre el mismo.
-func sortUniversityRoutes(routes []UniversityRoute) {
+func sortUniversityRoutes(routes []UniversityRoute, weights CostWeights) {
 	sort.Slice(routes, func(firstIndex, secondIndex int) bool {
-		firstSeconds, secondSeconds := pathSeconds(routes[firstIndex].Path), pathSeconds(routes[secondIndex].Path)
-		if firstSeconds != secondSeconds {
-			return firstSeconds < secondSeconds
+		firstCost, secondCost := pathCost(routes[firstIndex].Path, weights), pathCost(routes[secondIndex].Path, weights)
+		if firstCost != secondCost {
+			return firstCost < secondCost
 		}
 		return pathKey(routes[firstIndex].Path) < pathKey(routes[secondIndex].Path)
 	})

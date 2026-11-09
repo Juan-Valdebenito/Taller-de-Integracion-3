@@ -91,7 +91,7 @@ func TestUniversityRouteErrorCodes(t *testing.T) {
 
 func TestMicroUniversityRouteKeepsTotals(t *testing.T) {
 	graph := loadSeedNetwork(t).buildGraph()
-	routes, err := routesToUniversity(graph, "PAR-PORTAL-01", "san-juan-pablo-ii", 1)
+	routes, err := routesToUniversity(graph, "PAR-PORTAL-01", "san-juan-pablo-ii", 1, defaultCostWeights())
 	if err != nil || len(routes) != 1 {
 		t.Fatalf("se esperaba una ruta: %+v, %v", routes, err)
 	}

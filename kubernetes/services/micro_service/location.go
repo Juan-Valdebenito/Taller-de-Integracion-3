@@ -66,7 +66,7 @@ func nearbyNetworkStops(graph *TransitGraph, latitude, longitude float64, limit 
 // routesFromLocation entrega rutas hacia la universidad desde la posición del
 // pasajero. Cada ruta parte con la caminata al paradero, así que su tiempo total
 // ya la incluye. Con campusID vacío considera todos los campus.
-func routesFromLocation(graph *TransitGraph, latitude, longitude float64, campusID string, limit int) ([]UniversityRoute, error) {
+func routesFromLocation(graph *TransitGraph, latitude, longitude float64, campusID string, limit int, weights CostWeights) ([]UniversityRoute, error) {
 	campuses, err := selectCampuses(campusID)
 	if err != nil {
 		return nil, err
@@ -77,18 +77,18 @@ func routesFromLocation(graph *TransitGraph, latitude, longitude float64, campus
 	}
 	routesByCampus := make([][]UniversityRoute, 0, len(campuses))
 	for _, campus := range campuses {
-		routes := routesFromNearbyStops(graph, nearbyStops, campus, limit)
-		sortUniversityRoutes(routes)
+		routes := routesFromNearbyStops(graph, nearbyStops, campus, limit, weights)
+		sortUniversityRoutes(routes, weights)
 		if len(routes) > 0 {
 			routesByCampus = append(routesByCampus, routes)
 		}
 	}
-	return mergeCampusRoutes(routesByCampus, limit), nil
+	return mergeCampusRoutes(routesByCampus, limit, weights), nil
 }
 
 // routesFromNearbyStops prueba partir desde cada paradero cercano. Si el paradero
 // es parte del campus, basta con caminar hasta él.
-func routesFromNearbyStops(graph *TransitGraph, nearbyStops []NearbyStop, campus Campus, limit int) []UniversityRoute {
+func routesFromNearbyStops(graph *TransitGraph, nearbyStops []NearbyStop, campus Campus, limit int, weights CostWeights) []UniversityRoute {
 	routes := make([]UniversityRoute, 0)
 	for _, nearbyStop := range nearbyStops {
 		walkStep := initialWalkStep(nearbyStop)
@@ -98,7 +98,7 @@ func routesFromNearbyStops(graph *TransitGraph, nearbyStops []NearbyStop, campus
 			})
 			continue
 		}
-		for _, route := range routesToCampus(graph, nearbyStop.StopID, campus, limit) {
+		for _, route := range routesToCampus(graph, nearbyStop.StopID, campus, limit, weights) {
 			route.Path = append([]pathStep{walkStep}, route.Path...)
 			routes = append(routes, route)
 		}
