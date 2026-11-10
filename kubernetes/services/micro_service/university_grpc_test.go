@@ -89,6 +89,19 @@ func TestUniversityRouteErrorCodes(t *testing.T) {
 	}
 }
 
+func TestMicroUniversityRouteIncludesCost(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	routes, err := routesToUniversity(graph, "PAR-PORTAL-01", "san-francisco", 1, universityRouteWeights())
+	if err != nil || len(routes) != 1 {
+		t.Fatalf("se esperaba una ruta: %+v, %v", routes, err)
+	}
+	cost := microUniversityRoute(routes[0]).GetCost()
+	// 240 s en micro y 300 s de espera con peso 2, igual que en REST.
+	if cost.GetRide() != 240 || cost.GetWalk() != 0 || cost.GetWait() != 600 || cost.GetTransfer() != 0 || cost.GetTotal() != 840 {
+		t.Errorf("costo inesperado: %+v", cost)
+	}
+}
+
 func TestMicroUniversityRouteKeepsTotals(t *testing.T) {
 	graph := loadSeedNetwork(t).buildGraph()
 	routes, err := routesToUniversity(graph, "PAR-PORTAL-01", "san-juan-pablo-ii", 1, defaultCostWeights())

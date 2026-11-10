@@ -83,6 +83,14 @@ func microUniversityRoute(route UniversityRoute) *microv1.UniversityRoute {
 		TotalDistanceMeters: int32(routeResponse.TotalDistanceM),
 		Transfers:           int32(routeResponse.Transfers),
 		Movements:           make([]*microv1.Movement, 0, len(routeResponse.Movements)),
+		// Usa el mismo costo redondeado que REST, para que ambas API coincidan.
+		Cost: &microv1.CostBreakdown{
+			Ride:     routeResponse.Cost.Ride,
+			Walk:     routeResponse.Cost.Walk,
+			Wait:     routeResponse.Cost.Wait,
+			Transfer: routeResponse.Cost.Transfer,
+			Total:    routeResponse.Cost.Total,
+		},
 	}
 	for _, movement := range routeResponse.Movements {
 		message.Movements = append(message.Movements, &microv1.Movement{
