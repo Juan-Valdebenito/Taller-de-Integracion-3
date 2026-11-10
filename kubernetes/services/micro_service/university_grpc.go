@@ -105,3 +105,16 @@ func microUniversityRoute(route UniversityRoute) *microv1.UniversityRoute {
 	}
 	return message
 }
+
+// microCostWeights convierte los pesos al mensaje gRPC. Parte del mismo formato
+// que REST, para que ambas API informen exactamente lo mismo.
+func microCostWeights(weights CostWeights) *microv1.CostWeights {
+	weightsResponse := newCostWeightsResponse(weights)
+	return &microv1.CostWeights{
+		RideWeight:             weightsResponse.RideWeight,
+		WalkWeight:             weightsResponse.WalkWeight,
+		WaitWeight:             weightsResponse.WaitWeight,
+		TransferPenaltySeconds: weightsResponse.TransferPenaltySeconds,
+		AssumedHeadwaySeconds:  int32(weightsResponse.AssumedHeadwaySeconds),
+	}
+}

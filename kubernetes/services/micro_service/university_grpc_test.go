@@ -102,6 +102,20 @@ func TestMicroUniversityRouteIncludesCost(t *testing.T) {
 	}
 }
 
+func TestMicroCostWeightsMatchesREST(t *testing.T) {
+	weights := CostWeights{RideWeight: 1.5, WalkWeight: 3, WaitWeight: 2.5, TransferPenaltySeconds: 450}
+	message := microCostWeights(weights)
+	restWeights := newCostWeightsResponse(weights)
+	if message.GetRideWeight() != restWeights.RideWeight || message.GetWalkWeight() != restWeights.WalkWeight ||
+		message.GetWaitWeight() != restWeights.WaitWeight || message.GetTransferPenaltySeconds() != restWeights.TransferPenaltySeconds ||
+		int(message.GetAssumedHeadwaySeconds()) != restWeights.AssumedHeadwaySeconds {
+		t.Errorf("gRPC %+v y REST %+v deben coincidir", message, restWeights)
+	}
+	if message.GetAssumedHeadwaySeconds() != defaultHeadwaySeconds {
+		t.Errorf("se esperaba el intervalo supuesto de %d s: %d", defaultHeadwaySeconds, message.GetAssumedHeadwaySeconds())
+	}
+}
+
 func TestMicroUniversityRouteKeepsTotals(t *testing.T) {
 	graph := loadSeedNetwork(t).buildGraph()
 	routes, err := routesToUniversity(graph, "PAR-PORTAL-01", "san-juan-pablo-ii", 1, defaultCostWeights())
