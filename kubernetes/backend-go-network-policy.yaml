@@ -1,0 +1,79 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend-go-minima
+  namespace: student-jvaldebenito
+spec:
+  podSelector:
+    matchLabels:
+      app: backend-go
+  policyTypes:
+    - Ingress
+    - Egress
+
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: <NAMESPACE_INGRESS>
+          podSelector:
+            matchLabels:
+              <ETIQUETA_INGRESS>: <VALOR_INGRESS>
+      ports:
+        - protocol: TCP
+          port: 3001
+
+  egress:
+    # DNS del clúster
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+    # PostgreSQL y Redis, en el mismo namespace
+    - to:
+        - podSelector:
+            matchLabels:
+              app: transporte-db
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis-server
+      ports:
+        - protocol: TCP
+          port: 6379
+
+    # Clima gRPC: namespace student-iglausser
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: student-iglausser
+          podSelector:
+            matchLabels:
+              app: clima-service
+      ports:
+        - protocol: TCP
+          port: 9090
+
+    # Micros gRPC: namespace student-tpenroz
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: student-tpenroz
+          podSelector:
+            matchLabels:
+              app: micros-service
+      ports:
+        - protocol: TCP
+          port: 9091
