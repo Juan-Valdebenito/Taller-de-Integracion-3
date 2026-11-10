@@ -98,6 +98,45 @@ func TestPlanUniversityRoutesKeepsZeroValues(t *testing.T) {
 	}
 }
 
+// Recorre la respuesta HTTP completa: el costo que entrega micro_service debe
+// llegar a la app con todos sus componentes, incluidos los que valen 0.
+func TestPlanUniversityRoutesResponseIncludesCost(t *testing.T) {
+	fakeMicro := &fakeUniversityMicro{routesResponse: &microv1.PlanUniversityRoutesResponse{
+		Routes: []*microv1.UniversityRoute{
+			{CampusId: "san-francisco", TotalTimeSeconds: 240, Cost: &microv1.CostBreakdown{Ride: 240, Wait: 600, Total: 840}},
+			{CampusId: "san-francisco", TotalTimeSeconds: 780, Cost: &microv1.CostBreakdown{Walk: 1560, Total: 1560}},
+		},
+		Total: 2,
+	}}
+	recorder := serveUniversityRequest(fakeMicro, "/routes/university?from_stop=PAR-PORTAL-01")
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("se esperaba 200: %d %s", recorder.Code, recorder.Body.String())
+	}
+	var body struct {
+		Routes []struct {
+			Cost map[string]float64 `json:"cost"`
+		} `json:"routes"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	expectedCosts := []map[string]float64{
+		{"ride": 240, "walk": 0, "wait": 600, "transfer": 0, "total": 840},
+		{"ride": 0, "walk": 1560, "wait": 0, "transfer": 0, "total": 1560},
+	}
+	for routeIndex, expectedCost := range expectedCosts {
+		actualCost := body.Routes[routeIndex].Cost
+		if len(actualCost) != len(expectedCost) {
+			t.Errorf("ruta %d: deben venir los 5 componentes: %v", routeIndex+1, actualCost)
+		}
+		for component, expectedValue := range expectedCost {
+			if value, present := actualCost[component]; !present || value != expectedValue {
+				t.Errorf("ruta %d: se esperaba %s = %v y se obtuvo %v", routeIndex+1, component, expectedValue, actualCost)
+			}
+		}
+	}
+}
+
 func TestPlanUniversityRoutesReturnsEmptyList(t *testing.T) {
 	fakeMicro := &fakeUniversityMicro{routesResponse: &microv1.PlanUniversityRoutesResponse{}}
 	recorder := serveUniversityRequest(fakeMicro, "/routes/university?from_stop=PAR-CSF-01&campus=san-francisco")
