@@ -154,6 +154,48 @@ func TestPlanUniversityRoutesResponseIncludesCostWeights(t *testing.T) {
 	}
 }
 
+func decodeCostWeights(t *testing.T, responseBody []byte) (weights *costWeightsJSON, present bool) {
+	t.Helper()
+	var body map[string]json.RawMessage
+	if err := json.Unmarshal(responseBody, &body); err != nil {
+		t.Fatal(err)
+	}
+	rawWeights, present := body["cost_weights"]
+	if present && string(rawWeights) != "null" {
+		weights = &costWeightsJSON{}
+		if err := json.Unmarshal(rawWeights, weights); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return weights, present
+}
+
+// Con una versión antigua de micro_service llegan rutas, pero no pesos: el campo
+// debe estar presente y valer null, para que la app sepa que no hay información.
+func TestPlanUniversityRoutesWithoutWeightsReportsNull(t *testing.T) {
+	fakeMicro := &fakeUniversityMicro{routesResponse: &microv1.PlanUniversityRoutesResponse{
+		Routes: []*microv1.UniversityRoute{{CampusId: "san-francisco", TotalTimeSeconds: 240}},
+		Total:  1,
+	}}
+	recorder := serveUniversityRequest(fakeMicro, "/routes/university?from_stop=PAR-PORTAL-01")
+	weights, present := decodeCostWeights(t, recorder.Body.Bytes())
+	if recorder.Code != http.StatusOK || !present || weights != nil {
+		t.Errorf("se esperaba cost_weights en null: %d %s", recorder.Code, recorder.Body.String())
+	}
+}
+
+// Si el pasajero ya está en el campus no hay rutas, pero los pesos igual llegan.
+func TestPlanUniversityRoutesEmptyListKeepsWeights(t *testing.T) {
+	fakeMicro := &fakeUniversityMicro{routesResponse: &microv1.PlanUniversityRoutesResponse{
+		CostWeights: &microv1.CostWeights{RideWeight: 1, WalkWeight: 2, WaitWeight: 2, TransferPenaltySeconds: 300, AssumedHeadwaySeconds: 600},
+	}}
+	recorder := serveUniversityRequest(fakeMicro, "/routes/university?from_stop=PAR-CSF-01&campus=san-francisco")
+	weights, _ := decodeCostWeights(t, recorder.Body.Bytes())
+	if recorder.Code != http.StatusOK || weights == nil || weights.WalkWeight != 2 || weights.AssumedHeadwaySeconds != 600 {
+		t.Errorf("una lista vacía también debe traer los pesos: %d %s", recorder.Code, recorder.Body.String())
+	}
+}
+
 func TestPlanUniversityRoutesReturnsEmptyList(t *testing.T) {
 	fakeMicro := &fakeUniversityMicro{routesResponse: &microv1.PlanUniversityRoutesResponse{}}
 	recorder := serveUniversityRequest(fakeMicro, "/routes/university?from_stop=PAR-CSF-01&campus=san-francisco")
