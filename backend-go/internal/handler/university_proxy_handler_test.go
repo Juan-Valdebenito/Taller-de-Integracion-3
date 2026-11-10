@@ -177,6 +177,23 @@ func TestCostWeightsJSONWithoutWeightsIsNull(t *testing.T) {
 	}
 }
 
+func TestUniversityRouteJSONIncludesCost(t *testing.T) {
+	routeJSON := newUniversityRouteJSON(&microv1.UniversityRoute{
+		CampusId: "san-francisco", TotalTimeSeconds: 240,
+		Cost: &microv1.CostBreakdown{Ride: 240, Wait: 600, Total: 840},
+	})
+	if routeJSON.Cost != (costBreakdownJSON{Ride: 240, Wait: 600, Total: 840}) {
+		t.Errorf("costo inesperado: %+v", routeJSON.Cost)
+	}
+}
+
+func TestUniversityRouteJSONWithoutCost(t *testing.T) {
+	routeJSON := newUniversityRouteJSON(&microv1.UniversityRoute{CampusId: "san-francisco", TotalTimeSeconds: 240})
+	if routeJSON.Cost != (costBreakdownJSON{}) || routeJSON.TotalTimeSeconds != 240 {
+		t.Errorf("sin costo, la ruta debe seguir completa y el costo en 0: %+v", routeJSON)
+	}
+}
+
 func TestCostBreakdownJSONWithoutCost(t *testing.T) {
 	if costJSON := newCostBreakdownJSON(nil); costJSON != (costBreakdownJSON{}) {
 		t.Errorf("sin costo, todos los componentes deben ser 0: %+v", costJSON)

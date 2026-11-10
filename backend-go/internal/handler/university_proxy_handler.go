@@ -29,6 +29,8 @@ type universityRouteJSON struct {
 	TotalDistanceMeters int32          `json:"total_distance_meters"`
 	Transfers           int32          `json:"transfers"`
 	Movements           []movementJSON `json:"movements"`
+	// Cost es el costo con que micro_service ordenó la ruta.
+	Cost costBreakdownJSON `json:"cost"`
 }
 
 // costBreakdownJSON es el costo de una ruta en segundos equivalentes. Sin
@@ -169,6 +171,7 @@ func newUniversityRouteJSON(route *microv1.UniversityRoute) universityRouteJSON 
 		TotalDistanceMeters: route.GetTotalDistanceMeters(),
 		Transfers:           route.GetTransfers(),
 		Movements:           make([]movementJSON, 0, len(route.GetMovements())),
+		Cost:                newCostBreakdownJSON(route.GetCost()),
 	}
 	for _, movement := range route.GetMovements() {
 		routeJSON.Movements = append(routeJSON.Movements, movementJSON{
