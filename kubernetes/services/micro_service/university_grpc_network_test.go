@@ -186,3 +186,56 @@ func TestGRPCUniversityRoutesRequireLoadedGraph(t *testing.T) {
 	_, err := client.PlanUniversityRoutes(authorizedContext(t), &microv1.PlanUniversityRoutesRequest{OriginStopId: "PAR-PORTAL-01"})
 	assertGRPCCode(t, err, codes.Unavailable)
 }
+
+// El costo viaja como double por la red: esta prueba confirma que llega sin
+// cambios después de la serialización.
+func TestGRPCUniversityRoutesIncludeCost(t *testing.T) {
+	client := startUniversityGRPCClient(t, loadSeedNetwork(t).buildGraph())
+	response, err := client.PlanUniversityRoutes(authorizedContext(t), &microv1.PlanUniversityRoutesRequest{
+		OriginStopId: "PAR-PORTAL-01",
+		CampusId:     "san-francisco",
+		Limit:        1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cost := response.GetRoutes()[0].GetCost()
+	if cost.GetRide() != 240 || cost.GetWait() != 600 || cost.GetTotal() != 840 {
+		t.Errorf("costo inesperado: %+v", cost)
+	}
+	weights := response.GetCostWeights()
+	if weights.GetWalkWeight() != 2 || weights.GetAssumedHeadwaySeconds() != defaultHeadwaySeconds {
+		t.Errorf("pesos inesperados: %+v", weights)
+	}
+}
+
+// REST y gRPC deben entregar las mismas rutas, en el mismo orden y con el mismo
+// costo, porque comparten planUniversityRoutes.
+func TestGRPCAndRESTReportSameCosts(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	grpcResponse, err := client.PlanUniversityRoutes(authorizedContext(t), &microv1.PlanUniversityRoutesRequest{
+		OriginStopId: "PAR-PORTAL-01",
+		Limit:        5,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	statusCode, restBody := getUniversityRoutes(t, universityTestHandler(t), "from_stop=PAR-PORTAL-01&limit=5")
+	if statusCode != 200 || len(restBody.Routes) != len(grpcResponse.GetRoutes()) {
+		t.Fatalf("REST entregó %d rutas y gRPC %d", len(restBody.Routes), len(grpcResponse.GetRoutes()))
+	}
+	for routeIndex, restRoute := range restBody.Routes {
+		grpcRoute := grpcResponse.GetRoutes()[routeIndex]
+		grpcCost := costBreakdownResponse{
+			Ride:     grpcRoute.GetCost().GetRide(),
+			Walk:     grpcRoute.GetCost().GetWalk(),
+			Wait:     grpcRoute.GetCost().GetWait(),
+			Transfer: grpcRoute.GetCost().GetTransfer(),
+			Total:    grpcRoute.GetCost().GetTotal(),
+		}
+		if grpcRoute.GetCampusId() != restRoute.CampusID || grpcCost != restRoute.Cost {
+			t.Errorf("ruta %d: REST %s %+v y gRPC %s %+v", routeIndex+1, restRoute.CampusID, restRoute.Cost, grpcRoute.GetCampusId(), grpcCost)
+		}
+	}
+}
