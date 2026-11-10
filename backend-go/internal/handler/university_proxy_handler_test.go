@@ -153,6 +153,30 @@ func TestCostBreakdownJSONKeepsEveryComponent(t *testing.T) {
 	}
 }
 
+func TestCostWeightsJSONKeepsEveryWeight(t *testing.T) {
+	weightsJSON := newCostWeightsJSON(&microv1.CostWeights{
+		RideWeight: 1, WalkWeight: 2, WaitWeight: 2.5, TransferPenaltySeconds: 300, AssumedHeadwaySeconds: 600,
+	})
+	encoded, err := json.Marshal(weightsJSON)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := `{"ride_weight":1,"walk_weight":2,"wait_weight":2.5,"transfer_penalty_seconds":300,"assumed_headway_seconds":600}`
+	if string(encoded) != expected {
+		t.Errorf("se esperaba %s y se obtuvo %s", expected, encoded)
+	}
+}
+
+func TestCostWeightsJSONWithoutWeightsIsNull(t *testing.T) {
+	encoded, err := json.Marshal(gin.H{"cost_weights": newCostWeightsJSON(nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(encoded) != `{"cost_weights":null}` {
+		t.Errorf("sin pesos se esperaba null y se obtuvo %s", encoded)
+	}
+}
+
 func TestCostBreakdownJSONWithoutCost(t *testing.T) {
 	if costJSON := newCostBreakdownJSON(nil); costJSON != (costBreakdownJSON{}) {
 		t.Errorf("sin costo, todos los componentes deben ser 0: %+v", costJSON)

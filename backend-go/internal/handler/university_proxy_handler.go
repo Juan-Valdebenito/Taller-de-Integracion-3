@@ -53,6 +53,31 @@ func newCostBreakdownJSON(cost *microv1.CostBreakdown) costBreakdownJSON {
 	}
 }
 
+// costWeightsJSON son los pesos con que micro_service calculó los costos.
+type costWeightsJSON struct {
+	RideWeight             float64 `json:"ride_weight"`
+	WalkWeight             float64 `json:"walk_weight"`
+	WaitWeight             float64 `json:"wait_weight"`
+	TransferPenaltySeconds float64 `json:"transfer_penalty_seconds"`
+	AssumedHeadwaySeconds  int32   `json:"assumed_headway_seconds"`
+}
+
+// newCostWeightsJSON devuelve nil si micro_service no informó los pesos. En el
+// JSON queda null, que es más honesto que pesos en 0: un peso 0 tendría otro
+// significado.
+func newCostWeightsJSON(weights *microv1.CostWeights) *costWeightsJSON {
+	if weights == nil {
+		return nil
+	}
+	return &costWeightsJSON{
+		RideWeight:             weights.GetRideWeight(),
+		WalkWeight:             weights.GetWalkWeight(),
+		WaitWeight:             weights.GetWaitWeight(),
+		TransferPenaltySeconds: weights.GetTransferPenaltySeconds(),
+		AssumedHeadwaySeconds:  weights.GetAssumedHeadwaySeconds(),
+	}
+}
+
 type movementJSON struct {
 	FromStopID     string `json:"from_stop_id"`
 	ToStopID       string `json:"to_stop_id"`
