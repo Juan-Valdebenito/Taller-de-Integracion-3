@@ -31,6 +31,28 @@ type universityRouteJSON struct {
 	Movements           []movementJSON `json:"movements"`
 }
 
+// costBreakdownJSON es el costo de una ruta en segundos equivalentes. Sin
+// omitempty: un componente en 0, como "transfer": 0, es un dato válido.
+type costBreakdownJSON struct {
+	Ride     float64 `json:"ride"`
+	Walk     float64 `json:"walk"`
+	Wait     float64 `json:"wait"`
+	Transfer float64 `json:"transfer"`
+	Total    float64 `json:"total"`
+}
+
+// newCostBreakdownJSON copia el costo que calculó micro_service. Si no viene,
+// por ejemplo con una versión antigua del servicio, los Get devuelven 0.
+func newCostBreakdownJSON(cost *microv1.CostBreakdown) costBreakdownJSON {
+	return costBreakdownJSON{
+		Ride:     cost.GetRide(),
+		Walk:     cost.GetWalk(),
+		Wait:     cost.GetWait(),
+		Transfer: cost.GetTransfer(),
+		Total:    cost.GetTotal(),
+	}
+}
+
 type movementJSON struct {
 	FromStopID     string `json:"from_stop_id"`
 	ToStopID       string `json:"to_stop_id"`

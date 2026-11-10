@@ -140,3 +140,21 @@ func TestPlanUniversityRoutesTranslatesErrors(t *testing.T) {
 		t.Errorf("campus con clave rechazada: se esperaba 502 y se obtuvo %d", recorder.Code)
 	}
 }
+
+func TestCostBreakdownJSONKeepsEveryComponent(t *testing.T) {
+	costJSON := newCostBreakdownJSON(&microv1.CostBreakdown{Ride: 240, Walk: 0, Wait: 600, Transfer: 0, Total: 840})
+	encoded, err := json.Marshal(costJSON)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := `{"ride":240,"walk":0,"wait":600,"transfer":0,"total":840}`
+	if string(encoded) != expected {
+		t.Errorf("se esperaba %s y se obtuvo %s", expected, encoded)
+	}
+}
+
+func TestCostBreakdownJSONWithoutCost(t *testing.T) {
+	if costJSON := newCostBreakdownJSON(nil); costJSON != (costBreakdownJSON{}) {
+		t.Errorf("sin costo, todos los componentes deben ser 0: %+v", costJSON)
+	}
+}
