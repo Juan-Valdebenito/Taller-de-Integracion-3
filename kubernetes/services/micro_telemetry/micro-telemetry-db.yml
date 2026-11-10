@@ -1,3 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: micro-telemetry-pvc
+  namespace: student-iglausser
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi 
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -58,7 +70,8 @@ spec:
               cpu: "250m"
       volumes:
         - name: micro-telemetry-data
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: micro-telemetry-pvc
         - name: init-scripts
           configMap:
             name: micro-telemetry-db-init-scripts

@@ -16,6 +16,18 @@ type: Opaque
 stringData:
   POSTGRES_PASSWORD: climate_pass
 ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: clima-db-pvc
+  namespace: student-iglausser
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -71,7 +83,8 @@ spec:
               mountPath: /docker-entrypoint-initdb.d
       volumes:
         - name: clima-db-data
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: clima-db-pvc
         - name: init-scripts
           configMap:
             name: clima-db-init-scripts

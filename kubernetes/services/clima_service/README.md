@@ -49,4 +49,4 @@ La respuesta contiene `data`, `limit` y `next_cursor`. Cada fila incluye timesta
 
 ## Almacenamiento
 
-`clima-db.yml` usa `emptyDir` porque el entorno actual no permite asumir un PVC. Cualquier recreación del Pod de TimescaleDB elimina los datos. Antes de usar históricos reales, reemplazar ese volumen por un `PersistentVolumeClaim` si es que se puede y cambiar el despliegue de base a una estrategia apropiada para almacenamiento persistente.
+`clima-db.yml` declara el PVC `clima-db-pvc` de 1 GiB con acceso `ReadWriteOnce` y lo monta en `/home/postgres/pgdata`. Al no fijar `storageClassName`, Kubernetes usa la StorageClass por defecto del clúster. La base corre con una réplica y estrategia `Recreate`; comprueba que el PVC quede `Bound` después de aplicar el stack `realtime`.
