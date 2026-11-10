@@ -544,7 +544,12 @@ usar **backend-go**: exige sesión y nunca expone la clave interna de
 | `micro_service`, gRPC con `x-admin-key` | `ListCampuses` | `PlanUniversityRoutes` |
 
 backend-go traduce la petición REST a gRPC. Las reglas las valida solo
-`planUniversityRoutes`, así que REST y gRPC responden igual.
+`planUniversityRoutes`, así que todas las capas entregan las mismas rutas, en el
+mismo orden: **de menor a mayor costo**.
+
+Por ahora, solo la API REST de `micro_service` incluye el costo de cada ruta. El
+contrato gRPC y backend-go lo agregarán en las tareas de desglose en gRPC y en
+backend-go.
 
 ### Parámetros
 
@@ -560,9 +565,10 @@ en 0 de una que no se envió. Un `limit` en 0 usa el valor por defecto.
 
 ### Ejemplo
 
+Petición a la API REST de `micro_service`:
+
 ```text
-GET /api/v1/integrations/micro/routes/university?from_stop=PAR-PORTAL-01&limit=1
-Authorization: Bearer <access token>
+GET /routes/university?from_stop=PAR-PORTAL-01&limit=1
 ```
 
 ```json
@@ -580,22 +586,48 @@ Authorization: Bearer <access token>
           "from_stop_id": "PAR-PORTAL-01",
           "to_stop_id": "PAR-CSF-01",
           "mode": "bus",
-          "route_id": "L1C",
-          "trip_id": "L1C-IDA",
+          "route_id": "L7B",
+          "trip_id": "L7B-IDA",
           "time_seconds": 240,
           "distance_meters": 950
         }
-      ]
+      ],
+      "cost": { "ride": 240, "walk": 0, "wait": 600, "transfer": 0, "total": 840 }
     }
   ],
-  "total": 1
+  "total": 1,
+  "cost_weights": {
+    "ride_weight": 1,
+    "walk_weight": 2,
+    "wait_weight": 2,
+    "transfer_penalty_seconds": 300,
+    "assumed_headway_seconds": 600
+  }
 }
 ```
 
+Las líneas 7B y 1C hacen este tramo en el mismo tiempo y con el mismo costo. El
+empate se resuelve siempre igual, así que la respuesta no cambia entre consultas.
+
+### Campos del costo
+
+| Campo | Significado |
+|---|---|
+| `cost.ride` | Tiempo en micro por su peso |
+| `cost.walk` | Tiempo caminando por su peso, incluida la caminata inicial |
+| `cost.wait` | Espera estimada en cada subida a una micro, por su peso |
+| `cost.transfer` | Penalización por cada cambio de línea |
+| `cost.total` | Suma de los cuatro; es el valor con que se ordenan las rutas |
+| `cost_weights` | Pesos usados en el cálculo |
+| `cost_weights.assumed_headway_seconds` | Intervalo supuesto entre micros: la espera es una estimación |
+
+Los costos están en segundos equivalentes y se redondean a un decimal. Este
+ejemplo **tarda 240 s, pero cuesta 840**, por los 5 minutos de espera supuestos.
+
 Cuando la ruta parte desde una posición, el primer tramo es una caminata desde
 `USER_LOCATION`. Los tramos a pie tienen `"mode": "walk"` y no traen `route_id` ni
-`trip_id`. Si el pasajero ya está en el campus pedido, la respuesta es
-`{"routes": [], "total": 0}`.
+`trip_id`. Si el pasajero ya está en el campus pedido, la respuesta trae
+`"routes": []` y `"total": 0`, y también los pesos.
 
 ### Errores
 
