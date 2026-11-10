@@ -137,10 +137,28 @@ func TestPlanUniversityRoutesResponseIncludesCost(t *testing.T) {
 	}
 }
 
+func TestPlanUniversityRoutesResponseIncludesCostWeights(t *testing.T) {
+	fakeMicro := &fakeUniversityMicro{routesResponse: &microv1.PlanUniversityRoutesResponse{
+		CostWeights: &microv1.CostWeights{RideWeight: 1, WalkWeight: 2, WaitWeight: 2, TransferPenaltySeconds: 300, AssumedHeadwaySeconds: 600},
+	}}
+	recorder := serveUniversityRequest(fakeMicro, "/routes/university?from_stop=PAR-PORTAL-01")
+	var body struct {
+		CostWeights *costWeightsJSON `json:"cost_weights"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	expected := costWeightsJSON{RideWeight: 1, WalkWeight: 2, WaitWeight: 2, TransferPenaltySeconds: 300, AssumedHeadwaySeconds: 600}
+	if body.CostWeights == nil || *body.CostWeights != expected {
+		t.Errorf("se esperaban los pesos %+v: %s", expected, recorder.Body.String())
+	}
+}
+
 func TestPlanUniversityRoutesReturnsEmptyList(t *testing.T) {
 	fakeMicro := &fakeUniversityMicro{routesResponse: &microv1.PlanUniversityRoutesResponse{}}
 	recorder := serveUniversityRequest(fakeMicro, "/routes/university?from_stop=PAR-CSF-01&campus=san-francisco")
-	if recorder.Code != http.StatusOK || recorder.Body.String() != `{"routes":[],"total":0}` {
+	// micro_service no informó pesos en esta respuesta de prueba: van como null.
+	if recorder.Code != http.StatusOK || recorder.Body.String() != `{"cost_weights":null,"routes":[],"total":0}` {
 		t.Errorf("se esperaba una lista vacía explícita: %d %s", recorder.Code, recorder.Body.String())
 	}
 }

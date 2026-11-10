@@ -118,7 +118,11 @@ func (proxyHandler *GRPCProxyHandler) PlanUniversityRoutes(ginContext *gin.Conte
 	for _, route := range response.GetRoutes() {
 		routes = append(routes, newUniversityRouteJSON(route))
 	}
-	ginContext.JSON(http.StatusOK, gin.H{"routes": routes, "total": len(routes)})
+	ginContext.JSON(http.StatusOK, gin.H{
+		"routes":       routes,
+		"total":        len(routes),
+		"cost_weights": newCostWeightsJSON(response.GetCostWeights()),
+	})
 }
 
 // universityRouteRequest revisa el formato. Las reglas, como el límite máximo o
