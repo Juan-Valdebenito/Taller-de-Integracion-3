@@ -2,7 +2,7 @@ import type { Stop } from '../location/geo';
 import { apiRequest } from './client';
 import { fetchAllStops } from './stopsApi';
 
-export type TripPreference = 'fastest' | 'min_transfers' | 'shortest';
+export type TripPreference = 'fastest' | 'min_transfers' | 'shortest' | 'least_walk';
 
 export interface PlannedMovement {
   from_stop_id: string;
@@ -27,7 +27,7 @@ interface TransitRoutesResponse {
   routes?: Array<{ id?: string; short_name?: string; long_name?: string }>;
 }
 
-const PREFERENCES: TripPreference[] = ['fastest', 'min_transfers', 'shortest'];
+const PREFERENCES: TripPreference[] = ['fastest', 'min_transfers', 'shortest', 'least_walk'];
 
 export { fetchAllStops };
 
@@ -45,7 +45,7 @@ function pathKey(plan: RoutePlan): string {
 }
 
 /**
- * Solicita las tres preferencias disponibles, elimina recorridos duplicados y
+ * Solicita rutas candidatas de los cuatro criterios disponibles, elimina duplicados y
  * ordena las opciones por duración total para que la primera sea la sugerida.
  */
 export async function fetchRouteAlternatives(origin: Stop, destination: Stop): Promise<RoutePlan[]> {

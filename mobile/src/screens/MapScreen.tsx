@@ -96,7 +96,7 @@ export function MapScreen() {
               open={openPanel === 'planner'}
               onOpenChange={(open) => setOpenPanel(open ? 'planner' : null)}
             >
-              <TripPlanner />
+              <TripPlanner buses={live ? buses : []} />
             </MapPanel>
             <MapPanel
               title="📍 Tu ubicación y alertas"

@@ -79,7 +79,9 @@ Igual que `PassengerMapPage` del web, adaptado a la pantalla del teléfono:
 - **Planificar viaje**: el pasajero elige paraderos de origen y destino; la app
   compara el recorrido más rápido, el de menos transbordos y el de menor
   distancia, elimina duplicados y muestra hasta tres opciones ordenadas por
-  tiempo total. La primera se marca como recomendación principal.
+  tiempo total. Puede priorizar llegar antes, caminar menos o una ocupación más
+  baja según datos recientes de micros activas. Evitar lluvia aparece como
+  "Próximamente" hasta integrar pronóstico meteorológico.
 
 ## Vistas de empresa y conductor
 
