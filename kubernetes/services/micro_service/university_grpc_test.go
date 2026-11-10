@@ -116,6 +116,36 @@ func TestMicroCostWeightsMatchesREST(t *testing.T) {
 	}
 }
 
+func planUniversityRoutesForTest(t *testing.T, request *microv1.PlanUniversityRoutesRequest) *microv1.PlanUniversityRoutesResponse {
+	t.Helper()
+	store := &GraphStore{}
+	store.Replace(loadSeedNetwork(t).buildGraph())
+	response, err := (&microGRPCServer{service: &Server{store: store}}).PlanUniversityRoutes(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return response
+}
+
+func TestPlanUniversityRoutesReportsCostWeights(t *testing.T) {
+	response := planUniversityRoutesForTest(t, &microv1.PlanUniversityRoutesRequest{OriginStopId: "PAR-PORTAL-01"})
+	weights := response.GetCostWeights()
+	if weights == nil || weights.GetWalkWeight() != 2 || weights.GetTransferPenaltySeconds() != 300 ||
+		weights.GetAssumedHeadwaySeconds() != defaultHeadwaySeconds {
+		t.Errorf("pesos inesperados: %+v", weights)
+	}
+	if response.GetTotal() == 0 || response.GetRoutes()[0].GetCost() == nil {
+		t.Errorf("cada ruta debe traer su costo: %+v", response.GetRoutes())
+	}
+}
+
+func TestPlanUniversityRoutesReportsWeightsWhenEmpty(t *testing.T) {
+	response := planUniversityRoutesForTest(t, &microv1.PlanUniversityRoutesRequest{OriginStopId: "PAR-CSF-01", CampusId: "san-francisco"})
+	if response.GetTotal() != 0 || response.GetCostWeights() == nil {
+		t.Errorf("una lista vacía también debe informar los pesos: %+v", response)
+	}
+}
+
 func TestMicroUniversityRouteKeepsTotals(t *testing.T) {
 	graph := loadSeedNetwork(t).buildGraph()
 	routes, err := routesToUniversity(graph, "PAR-PORTAL-01", "san-juan-pablo-ii", 1, defaultCostWeights())

@@ -34,8 +34,9 @@ func (server *microGRPCServer) PlanUniversityRoutes(_ context.Context, request *
 		return nil, status.Error(universityRouteErrorCode(err), err.Error())
 	}
 	response := &microv1.PlanUniversityRoutesResponse{
-		Routes: make([]*microv1.UniversityRoute, 0, len(routes)),
-		Total:  int32(len(routes)),
+		Routes:      make([]*microv1.UniversityRoute, 0, len(routes)),
+		Total:       int32(len(routes)),
+		CostWeights: microCostWeights(universityRouteWeights()),
 	}
 	for _, route := range routes {
 		response.Routes = append(response.Routes, microUniversityRoute(route))
