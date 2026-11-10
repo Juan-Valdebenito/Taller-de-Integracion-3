@@ -110,6 +110,8 @@ message PlanUniversityRoutesRequest {
 message PlanUniversityRoutesResponse {
 	repeated UniversityRoute routes = 1;
 	int32 total = 2;
+	// Pesos con que se calcularon los costos de las rutas.
+	CostWeights cost_weights = 3;
 }
 
 message UniversityRoute {
@@ -120,4 +122,26 @@ message UniversityRoute {
 	int32 total_distance_meters = 5;
 	int32 transfers = 6;
 	repeated Movement movements = 7;
+	// Costo con que se ordenó la ruta, en segundos equivalentes.
+	CostBreakdown cost = 8;
+}
+
+// Costo de una ruta por componente, en segundos equivalentes. total es la suma
+// de los otros cuatro.
+message CostBreakdown {
+	double ride = 1;
+	double walk = 2;
+	double wait = 3;
+	double transfer = 4;
+	double total = 5;
+}
+
+// Pesos de la función de costo. assumed_headway_seconds es el intervalo supuesto
+// entre micros: la espera de las líneas sin frecuencia conocida es una estimación.
+message CostWeights {
+	double ride_weight = 1;
+	double walk_weight = 2;
+	double wait_weight = 3;
+	double transfer_penalty_seconds = 4;
+	int32 assumed_headway_seconds = 5;
 }
