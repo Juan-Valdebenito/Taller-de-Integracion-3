@@ -547,9 +547,8 @@ backend-go traduce la petición REST a gRPC. Las reglas las valida solo
 `planUniversityRoutes`, así que todas las capas entregan las mismas rutas, en el
 mismo orden: **de menor a mayor costo**.
 
-Por ahora, solo la API REST de `micro_service` incluye el costo de cada ruta. El
-contrato gRPC y backend-go lo agregarán en las tareas de desglose en gRPC y en
-backend-go.
+Las tres capas entregan el costo de cada ruta y los pesos usados, con los mismos
+nombres de campo. En gRPC son los mensajes `CostBreakdown` y `CostWeights`.
 
 ### Parámetros
 
@@ -565,11 +564,14 @@ en 0 de una que no se envió. Un `limit` en 0 usa el valor por defecto.
 
 ### Ejemplo
 
-Petición a la API REST de `micro_service`:
+Petición de la app a backend-go:
 
 ```text
-GET /routes/university?from_stop=PAR-PORTAL-01&limit=1
+GET /api/v1/integrations/micro/routes/university?from_stop=PAR-PORTAL-01&limit=1
+Authorization: Bearer <access token>
 ```
+
+La API REST de `micro_service`, en `GET /routes/university`, responde lo mismo.
 
 ```json
 {
@@ -628,6 +630,19 @@ Cuando la ruta parte desde una posición, el primer tramo es una caminata desde
 `USER_LOCATION`. Los tramos a pie tienen `"mode": "walk"` y no traen `route_id` ni
 `trip_id`. Si el pasajero ya está en el campus pedido, la respuesta trae
 `"routes": []` y `"total": 0`, y también los pesos.
+
+### Versiones distintas de los servicios
+
+Si backend-go está actualizado, pero el cluster mantiene la imagen anterior de
+`micro_service`, las rutas llegan sin costo:
+
+| Campo | Valor que entrega backend-go | Motivo |
+|---|---|---|
+| `cost` | Todos los componentes en 0 | La ruta sigue siendo válida |
+| `cost_weights` | `null` | Un peso en 0 tendría otro significado |
+
+La app debe revisar si `cost_weights` es `null` antes de mostrar el costo. El orden
+de las rutas no depende de esto: siempre lo decide `micro_service`.
 
 ### Errores
 
