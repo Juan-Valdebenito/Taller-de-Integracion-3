@@ -40,9 +40,12 @@ func (fakeMicro *fakeUniversityMicro) PlanUniversityRoutes(_ context.Context, re
 }
 
 func serveUniversityRequest(fakeMicro *fakeUniversityMicro, path string) *httptest.ResponseRecorder {
+	return serveUniversityRequestWith(NewGRPCProxyHandler(nil, fakeMicro), path)
+}
+
+func serveUniversityRequestWith(proxyHandler *GRPCProxyHandler, path string) *httptest.ResponseRecorder {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
-	proxyHandler := NewGRPCProxyHandler(nil, fakeMicro)
 	engine.GET("/campuses", proxyHandler.ListCampuses)
 	engine.GET("/routes/university", proxyHandler.PlanUniversityRoutes)
 	recorder := httptest.NewRecorder()
