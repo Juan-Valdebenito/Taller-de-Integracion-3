@@ -35,7 +35,7 @@ const isMicroStop = (value: unknown): value is MicroStop => {
 
 export const microStopsApi = {
   async getAll(query?: MicroStopsQuery): Promise<MicroStopsResponse> {
-    const response = await apiClient.get<Partial<MicroStopsResponse>>('/integrations/micro/stops', {
+    const response = await apiClient.get<Partial<MicroStopsResponse>>('/mapinfo/micro/stops', {
       params: query,
     });
 

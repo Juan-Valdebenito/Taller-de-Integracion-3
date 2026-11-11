@@ -213,6 +213,23 @@
   overflow: hidden;
 }
 
+.map-stops-notice {
+  position: absolute;
+  z-index: 1000;
+  top: 12px;
+  left: 50%;
+  max-width: calc(100% - 24px);
+  padding: 8px 12px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(15, 20, 30, 0.9);
+  color: #e2e8f0;
+  font-size: 12px;
+  text-align: center;
+  pointer-events: none;
+}
+
 /* ── Panel lateral ────────────────────────────────────────────── */
 .map-side-panel {
   width: 260px;

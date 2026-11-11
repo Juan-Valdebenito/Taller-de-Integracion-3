@@ -34,5 +34,6 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+    cors: true,
   },
 });
