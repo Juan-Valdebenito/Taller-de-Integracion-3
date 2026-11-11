@@ -105,6 +105,9 @@ message PlanUniversityRoutesRequest {
 	optional double longitude = 3;
 	string campus_id = 4;
 	int32 limit = 5;
+	// Ocupación de cada línea, de 0 a 1, por el route_id de micro_service (por
+	// ejemplo "L7A"). Las líneas que no aparecen no se penalizan.
+	map<string, double> line_occupancy = 6;
 }
 
 message PlanUniversityRoutesResponse {
@@ -127,13 +130,15 @@ message UniversityRoute {
 }
 
 // Costo de una ruta por componente, en segundos equivalentes. total es la suma
-// de los otros cuatro.
+// de los demás componentes.
 message CostBreakdown {
 	double ride = 1;
 	double walk = 2;
 	double wait = 3;
 	double transfer = 4;
 	double total = 5;
+	// Recargo por viajar en micros llenas.
+	double crowding = 6;
 }
 
 // Pesos de la función de costo. assumed_headway_seconds es el intervalo supuesto
