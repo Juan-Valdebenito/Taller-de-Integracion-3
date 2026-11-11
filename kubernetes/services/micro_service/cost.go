@@ -20,6 +20,9 @@ type CostWeights struct {
 	// TransferPenaltySeconds se suma cada vez que el pasajero cambia de línea:
 	// representa la molestia de bajarse y subirse a otra micro.
 	TransferPenaltySeconds float64
+	// Occupancy es la ocupación de cada línea en esta consulta. Sin datos, ninguna
+	// línea se penaliza.
+	Occupancy LineOccupancy
 }
 
 // defaultCostWeights usa valores típicos de planificación de transporte: caminar
@@ -110,13 +113,24 @@ func waitCost(routeID string, weights CostWeights) float64 {
 	return float64(expectedWaitSeconds(routeID)) * weights.WaitWeight
 }
 
-// edgeCost es el costo de recorrer una arista, según si es a pie o en micro.
+// edgeCost es el costo de recorrer una arista, según si es a pie o en micro. En
+// micro incluye el recargo por ocupación.
 func edgeCost(edge Edge, weights CostWeights) float64 {
-	travelSeconds := float64(edge.BaseTimeSec)
 	if edge.RouteID == walkRouteID {
-		return travelSeconds * weights.WalkWeight
+		return float64(edge.BaseTimeSec) * weights.WalkWeight
 	}
-	return travelSeconds * weights.RideWeight
+	return baseRideCost(edge, weights) + crowdingCost(edge, weights)
+}
+
+// baseRideCost es el viaje en micro sin considerar la ocupación.
+func baseRideCost(edge Edge, weights CostWeights) float64 {
+	return float64(edge.BaseTimeSec) * weights.RideWeight
+}
+
+// crowdingCost es el recargo por viajar en una micro llena: la parte del viaje
+// que se agrega al multiplicar por el factor de ocupación.
+func crowdingCost(edge Edge, weights CostWeights) float64 {
+	return baseRideCost(edge, weights) * (weights.Occupancy.factorFor(edge.RouteID) - 1)
 }
 
 // CostBreakdown separa el costo de una ruta por componente, en segundos
@@ -126,6 +140,8 @@ type CostBreakdown struct {
 	Walk     float64
 	Wait     float64
 	Transfer float64
+	// Crowding es el recargo por viajar en micros llenas.
+	Crowding float64
 	Total    float64
 }
 
@@ -150,11 +166,12 @@ func pathCostBreakdownFrom(path []pathStep, weights CostWeights, initialState ri
 			if changesLine(state, step.Edge) {
 				breakdown.Transfer += weights.TransferPenaltySeconds
 			}
-			breakdown.Ride += edgeCost(step.Edge, weights)
+			breakdown.Ride += baseRideCost(step.Edge, weights)
+			breakdown.Crowding += crowdingCost(step.Edge, weights)
 		}
 		state = state.after(step.Edge)
 	}
-	breakdown.Total = breakdown.Ride + breakdown.Walk + breakdown.Wait + breakdown.Transfer
+	breakdown.Total = breakdown.Ride + breakdown.Walk + breakdown.Wait + breakdown.Transfer + breakdown.Crowding
 	return breakdown
 }
 
