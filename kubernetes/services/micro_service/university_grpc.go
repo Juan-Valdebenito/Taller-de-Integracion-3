@@ -36,10 +36,10 @@ func (server *microGRPCServer) PlanUniversityRoutes(_ context.Context, request *
 	response := &microv1.PlanUniversityRoutesResponse{
 		Routes:      make([]*microv1.UniversityRoute, 0, len(routes)),
 		Total:       int32(len(routes)),
-		CostWeights: microCostWeights(universityRouteWeights()),
+		CostWeights: microCostWeights(routeRequest.costWeights()),
 	}
 	for _, route := range routes {
-		response.Routes = append(response.Routes, microUniversityRoute(route))
+		response.Routes = append(response.Routes, microUniversityRoute(route, routeRequest.costWeights()))
 	}
 	return response, nil
 }
@@ -74,8 +74,8 @@ func universityRouteErrorCode(err error) codes.Code {
 	}
 }
 
-func microUniversityRoute(route UniversityRoute) *microv1.UniversityRoute {
-	routeResponse := newUniversityRouteResponse(route, universityRouteWeights())
+func microUniversityRoute(route UniversityRoute, weights CostWeights) *microv1.UniversityRoute {
+	routeResponse := newUniversityRouteResponse(route, weights)
 	message := &microv1.UniversityRoute{
 		CampusId:            routeResponse.CampusID,
 		CampusName:          routeResponse.CampusName,

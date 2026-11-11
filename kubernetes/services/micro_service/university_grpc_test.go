@@ -91,11 +91,11 @@ func TestUniversityRouteErrorCodes(t *testing.T) {
 
 func TestMicroUniversityRouteIncludesCost(t *testing.T) {
 	graph := loadSeedNetwork(t).buildGraph()
-	routes, err := routesToUniversity(graph, "PAR-PORTAL-01", "san-francisco", 1, universityRouteWeights())
+	routes, err := routesToUniversity(graph, "PAR-PORTAL-01", "san-francisco", 1, defaultCostWeights())
 	if err != nil || len(routes) != 1 {
 		t.Fatalf("se esperaba una ruta: %+v, %v", routes, err)
 	}
-	cost := microUniversityRoute(routes[0]).GetCost()
+	cost := microUniversityRoute(routes[0], defaultCostWeights()).GetCost()
 	// 240 s en micro y 300 s de espera con peso 2, igual que en REST.
 	if cost.GetRide() != 240 || cost.GetWalk() != 0 || cost.GetWait() != 600 || cost.GetTransfer() != 0 || cost.GetTotal() != 840 {
 		t.Errorf("costo inesperado: %+v", cost)
@@ -152,7 +152,7 @@ func TestMicroUniversityRouteKeepsTotals(t *testing.T) {
 	if err != nil || len(routes) != 1 {
 		t.Fatalf("se esperaba una ruta: %+v, %v", routes, err)
 	}
-	message := microUniversityRoute(routes[0])
+	message := microUniversityRoute(routes[0], defaultCostWeights())
 	if message.GetCampusId() != "san-juan-pablo-ii" || int(message.GetTotalTimeSeconds()) != pathSeconds(routes[0].Path) {
 		t.Errorf("mensaje inesperado: %+v", message)
 	}

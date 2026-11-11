@@ -19,7 +19,16 @@ var (
 	errInvalidOrigin     = errors.New("provide from_stop, or lat and long")
 	errInvalidLocation   = errors.New("invalid coordinates")
 	errUnknownOriginStop = errors.New("origin stop not found")
+	errInvalidOccupancy  = errors.New("occupancy must map line ids to values between 0 and 2")
 )
+
+// maxOccupancyLines limita cuántas líneas puede traer una petición, para que una
+// petición enorme no consuma memoria.
+const maxOccupancyLines = 50
+
+// maxOccupancyRatio acepta micros sobre su capacidad, pero rechaza valores
+// absurdos, como una micro al 500 %.
+const maxOccupancyRatio = 2.0
 
 // universityRouteRequest indica desde dónde parte el pasajero: un paradero o una
 // posición, nunca ambos. Un CampusID vacío significa cualquier campus.
@@ -30,6 +39,31 @@ type universityRouteRequest struct {
 	Longitude    float64
 	CampusID     string
 	Limit        int
+	// LineOccupancy es la ocupación de cada línea; puede venir vacía.
+	LineOccupancy LineOccupancy
+}
+
+// costWeights son los pesos de esta petición: los de siempre más su ocupación.
+// Se usan para ordenar las rutas y también para informar su costo, así el costo
+// de la respuesta siempre explica el orden.
+func (routeRequest universityRouteRequest) costWeights() CostWeights {
+	weights := defaultCostWeights()
+	weights.Occupancy = routeRequest.LineOccupancy
+	return weights
+}
+
+// validateOccupancy rechaza IDs vacíos y valores fuera de rango. math.IsNaN no se
+// necesita: NaN no cumple la comparación escrita en positivo.
+func validateOccupancy(occupancy LineOccupancy) error {
+	if len(occupancy) > maxOccupancyLines {
+		return errInvalidOccupancy
+	}
+	for routeID, occupancyRatio := range occupancy {
+		if routeID == "" || !(occupancyRatio >= 0 && occupancyRatio <= maxOccupancyRatio) {
+			return errInvalidOccupancy
+		}
+	}
+	return nil
 }
 
 func planUniversityRoutes(graph *TransitGraph, routeRequest universityRouteRequest) ([]UniversityRoute, error) {
@@ -39,23 +73,19 @@ func planUniversityRoutes(graph *TransitGraph, routeRequest universityRouteReque
 	if (routeRequest.OriginStopID == "") == !routeRequest.HasLocation {
 		return nil, errInvalidOrigin
 	}
+	if err := validateOccupancy(routeRequest.LineOccupancy); err != nil {
+		return nil, err
+	}
 	if routeRequest.HasLocation {
 		if !isValidLocation(routeRequest.Latitude, routeRequest.Longitude) {
 			return nil, errInvalidLocation
 		}
-		return routesFromLocation(graph, routeRequest.Latitude, routeRequest.Longitude, routeRequest.CampusID, routeRequest.Limit, universityRouteWeights())
+		return routesFromLocation(graph, routeRequest.Latitude, routeRequest.Longitude, routeRequest.CampusID, routeRequest.Limit, routeRequest.costWeights())
 	}
 	if _, exists := graph.Stops[routeRequest.OriginStopID]; !exists {
 		return nil, errUnknownOriginStop
 	}
-	return routesToUniversity(graph, routeRequest.OriginStopID, routeRequest.CampusID, routeRequest.Limit, universityRouteWeights())
-}
-
-// universityRouteWeights son los pesos con que se ordenan las rutas a la
-// universidad. Las respuestas usan los mismos para que el costo informado
-// coincida con el orden.
-func universityRouteWeights() CostWeights {
-	return defaultCostWeights()
+	return routesToUniversity(graph, routeRequest.OriginStopID, routeRequest.CampusID, routeRequest.Limit, routeRequest.costWeights())
 }
 
 // isValidLocation está escrita en positivo para rechazar también NaN, que no es
@@ -106,7 +136,7 @@ func (server *Server) universityRoutes(writer http.ResponseWriter, request *http
 		writeError(writer, universityRouteErrorStatus(err), err.Error())
 		return
 	}
-	weights := universityRouteWeights()
+	weights := routeRequest.costWeights()
 	response := make([]universityRouteResponse, 0, len(routes))
 	for _, route := range routes {
 		response = append(response, newUniversityRouteResponse(route, weights))
