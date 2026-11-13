@@ -61,11 +61,23 @@ func (tracker *Tracker) Record(busID, routeID string, currentPassengers, capacit
 // una micro grande pesa más que una chica. La clave es el ID de línea de
 // backend-go, por ejemplo "route-7A".
 func (tracker *Tracker) LineOccupancy() map[string]float64 {
+	sameRouteID := func(routeID string) (string, bool) { return routeID, true }
+	return tracker.LineOccupancyBy(sameRouteID)
+}
+
+// LineOccupancyBy agrupa las micros con lineKey antes de calcular. Así dos IDs de
+// la misma línea, como "route-7A" y "route-7a", se combinan ponderados por su
+// capacidad. Las micros cuya línea lineKey no reconoce se omiten.
+func (tracker *Tracker) LineOccupancyBy(lineKey func(routeID string) (string, bool)) map[string]float64 {
 	passengersByLine := make(map[string]int)
 	capacityByLine := make(map[string]int)
 	for _, reading := range tracker.FreshReadings() {
-		passengersByLine[reading.RouteID] += reading.CurrentPassengers
-		capacityByLine[reading.RouteID] += reading.Capacity
+		lineID, recognized := lineKey(reading.RouteID)
+		if !recognized {
+			continue
+		}
+		passengersByLine[lineID] += reading.CurrentPassengers
+		capacityByLine[lineID] += reading.Capacity
 	}
 	occupancyByLine := make(map[string]float64, len(capacityByLine))
 	for routeID, totalCapacity := range capacityByLine {
