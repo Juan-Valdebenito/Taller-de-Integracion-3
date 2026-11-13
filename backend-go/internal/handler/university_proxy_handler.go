@@ -40,6 +40,8 @@ type costBreakdownJSON struct {
 	Walk     float64 `json:"walk"`
 	Wait     float64 `json:"wait"`
 	Transfer float64 `json:"transfer"`
+	// Crowding es el recargo por viajar en micros llenas.
+	Crowding float64 `json:"crowding"`
 	Total    float64 `json:"total"`
 }
 
@@ -51,6 +53,7 @@ func newCostBreakdownJSON(cost *microv1.CostBreakdown) costBreakdownJSON {
 		Walk:     cost.GetWalk(),
 		Wait:     cost.GetWait(),
 		Transfer: cost.GetTransfer(),
+		Crowding: cost.GetCrowding(),
 		Total:    cost.GetTotal(),
 	}
 }

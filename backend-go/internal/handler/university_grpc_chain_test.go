@@ -24,7 +24,7 @@ func (costMicroServer) PlanUniversityRoutes(context.Context, *microv1.PlanUniver
 	return &microv1.PlanUniversityRoutesResponse{
 		Routes: []*microv1.UniversityRoute{{
 			CampusId: "san-juan-pablo-ii", TotalTimeSeconds: 2280, Transfers: 1,
-			Cost: &microv1.CostBreakdown{Ride: 3060, Walk: 562.5, Wait: 1500, Transfer: 300, Total: 5422.5},
+			Cost: &microv1.CostBreakdown{Ride: 3060, Walk: 562.5, Wait: 1500, Transfer: 300, Crowding: 612, Total: 6034.5},
 		}},
 		Total:       1,
 		CostWeights: &microv1.CostWeights{RideWeight: 1.5, WalkWeight: 2.5, WaitWeight: 2.5, TransferPenaltySeconds: 300, AssumedHeadwaySeconds: 600},
@@ -67,7 +67,7 @@ func TestUniversityCostSurvivesGRPCToJSON(t *testing.T) {
 	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
-	expectedCost := costBreakdownJSON{Ride: 3060, Walk: 562.5, Wait: 1500, Transfer: 300, Total: 5422.5}
+	expectedCost := costBreakdownJSON{Ride: 3060, Walk: 562.5, Wait: 1500, Transfer: 300, Crowding: 612, Total: 6034.5}
 	if len(body.Routes) != 1 || body.Routes[0].Cost != expectedCost || body.Routes[0].Transfers != 1 {
 		t.Errorf("se esperaba el costo %+v: %s", expectedCost, recorder.Body.String())
 	}

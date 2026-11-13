@@ -124,13 +124,13 @@ func TestPlanUniversityRoutesResponseIncludesCost(t *testing.T) {
 		t.Fatal(err)
 	}
 	expectedCosts := []map[string]float64{
-		{"ride": 240, "walk": 0, "wait": 600, "transfer": 0, "total": 840},
-		{"ride": 0, "walk": 1560, "wait": 0, "transfer": 0, "total": 1560},
+		{"ride": 240, "walk": 0, "wait": 600, "transfer": 0, "crowding": 0, "total": 840},
+		{"ride": 0, "walk": 1560, "wait": 0, "transfer": 0, "crowding": 0, "total": 1560},
 	}
 	for routeIndex, expectedCost := range expectedCosts {
 		actualCost := body.Routes[routeIndex].Cost
 		if len(actualCost) != len(expectedCost) {
-			t.Errorf("ruta %d: deben venir los 5 componentes: %v", routeIndex+1, actualCost)
+			t.Errorf("ruta %d: deben venir los 6 componentes: %v", routeIndex+1, actualCost)
 		}
 		for component, expectedValue := range expectedCost {
 			if value, present := actualCost[component]; !present || value != expectedValue {
@@ -249,7 +249,7 @@ func TestCostBreakdownJSONKeepsEveryComponent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected := `{"ride":240,"walk":0,"wait":600,"transfer":0,"total":840}`
+	expected := `{"ride":240,"walk":0,"wait":600,"transfer":0,"crowding":0,"total":840}`
 	if string(encoded) != expected {
 		t.Errorf("se esperaba %s y se obtuvo %s", expected, encoded)
 	}
