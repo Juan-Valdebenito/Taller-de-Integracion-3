@@ -531,6 +531,74 @@ Desde unos 100 m al norte de `PAR-PORTAL-01`, sin indicar campus y con un límit
 | 821 s | San Francisco | Caminar todo el trayecto |
 | 1944 s | San Juan Pablo II | Caminar 84 s y tomar la línea 7B, 1860 s |
 
+## Ocupación
+
+Un minuto de pie en una micro llena se percibe más largo que uno sentado. Por eso
+el costo del viaje en micro se multiplica por un factor según qué tan llena va la
+línea. La ocupación es un número de 0 a 1, y puede superar 1 si la micro va sobre
+su capacidad.
+
+### Factores
+
+| Ocupación | Nivel | Factor |
+|---|---|---|
+| Menos de 40 % | `LOW` | 1,0 |
+| 40 % a 70 % | `MEDIUM` | 1,1 |
+| 70 % a 90 % | `HIGH` | 1,3 |
+| 90 % o más | `FULL` | 1,6 |
+
+Los límites son los mismos de `OccupancyService` en backend-go. Los factores son
+un **supuesto ajustable**, como los demás pesos. Todos son al menos 1, así el costo
+nunca baja del tiempo real y A* sigue siendo válido.
+
+El recargo se informa aparte, en `cost.crowding`:
+
+```text
+recargo = viaje en micro × peso del viaje × (factor − 1)
+```
+
+Por ejemplo, 240 s en una micro llena agregan 240 × 0,6 = 144. Caminar no tiene
+ocupación y nunca recibe recargo.
+
+### De dónde sale
+
+1. Cada micro publica su posición, pasajeros y capacidad en el Hub de backend-go,
+   tanto las de la simulación como las de los conductores.
+2. El Hub entrega esa lectura a `liveoccupancy.Tracker`, que guarda la última de
+   cada micro.
+3. Al pedir rutas, backend-go calcula la ocupación de cada línea con las micros de
+   los **últimos 2 minutos**. Una micro sin datos más recientes ya no cuenta.
+4. La envía a `micro_service` en `line_occupancy`, y `micro_service` la usa para
+   ordenar las rutas.
+
+La ocupación de una línea suma los pasajeros y la capacidad de todas sus micros:
+
+```text
+ocupación = pasajeros de todas sus micros / capacidad de todas ellas
+```
+
+Así una micro grande pesa más que una chica. Con 30 de 40 y 6 de 20, la línea va
+al 60 %, no al 52,5 % de un promedio simple.
+
+### Traducción de IDs
+
+backend-go nombra la misma línea de dos formas: `route-7A` en la simulación y
+`route-7a` en la base de datos. `microLineID` las traduce a `L7A` **antes** de
+sumar, para combinarlas como una sola línea. Los IDs sin el formato
+`route-<código>` no se envían.
+
+### Casos sin datos
+
+| Situación | Resultado |
+|---|---|
+| Línea sin micros en vivo | No se penaliza |
+| Ocupación imposible, como un valor negativo | `micro_service` responde 400 o `InvalidArgument` |
+| backend-go sin micros recientes | No envía ocupación, y las rutas se calculan como sin ella |
+| `micro_service` con la imagen anterior | Ignora la ocupación |
+
+La ocupación se usa **en el momento de la consulta**. No predice cómo irá la micro
+cuando el pasajero llegue al paradero.
+
 ## API
 
 Las rutas a la universidad se pueden pedir de tres formas. La app y el web deben
