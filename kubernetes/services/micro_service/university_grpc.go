@@ -91,6 +91,7 @@ func microUniversityRoute(route UniversityRoute, weights CostWeights) *microv1.U
 			Walk:     routeResponse.Cost.Walk,
 			Wait:     routeResponse.Cost.Wait,
 			Transfer: routeResponse.Cost.Transfer,
+			Crowding: routeResponse.Cost.Crowding,
 			Total:    routeResponse.Cost.Total,
 		},
 	}

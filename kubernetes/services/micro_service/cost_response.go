@@ -5,12 +5,14 @@ package main
 import "math"
 
 // costBreakdownResponse es el costo de una ruta en segundos equivalentes, por
-// componente. Total es la suma de los otros cuatro.
+// componente. Total es la suma de los demás.
 type costBreakdownResponse struct {
 	Ride     float64 `json:"ride"`
 	Walk     float64 `json:"walk"`
 	Wait     float64 `json:"wait"`
 	Transfer float64 `json:"transfer"`
+	// Crowding es el recargo por viajar en micros llenas.
+	Crowding float64 `json:"crowding"`
 	Total    float64 `json:"total"`
 }
 
@@ -20,6 +22,7 @@ func newCostBreakdownResponse(breakdown CostBreakdown) costBreakdownResponse {
 		Walk:     roundToTenth(breakdown.Walk),
 		Wait:     roundToTenth(breakdown.Wait),
 		Transfer: roundToTenth(breakdown.Transfer),
+		Crowding: roundToTenth(breakdown.Crowding),
 		Total:    roundToTenth(breakdown.Total),
 	}
 }

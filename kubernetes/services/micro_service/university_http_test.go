@@ -124,7 +124,7 @@ func TestUniversityRoutesCostMatchesOrder(t *testing.T) {
 		t.Fatalf("respuesta inesperada: %d %+v", statusCode, body)
 	}
 	for routeIndex, route := range body.Routes {
-		componentsSum := route.Cost.Ride + route.Cost.Walk + route.Cost.Wait + route.Cost.Transfer
+		componentsSum := route.Cost.Ride + route.Cost.Walk + route.Cost.Wait + route.Cost.Transfer + route.Cost.Crowding
 		if roundToTenth(componentsSum) != route.Cost.Total {
 			t.Errorf("el total %v no coincide con la suma %v", route.Cost.Total, componentsSum)
 		}

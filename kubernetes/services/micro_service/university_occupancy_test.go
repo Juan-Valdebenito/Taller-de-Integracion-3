@@ -106,6 +106,32 @@ func TestGRPCUniversityRoutesUseOccupancy(t *testing.T) {
 	assertGRPCCode(t, err, codes.InvalidArgument)
 }
 
+// Con la 7B y la 1C llenas no hay cómo evitarlo: la ruta sigue en micro y paga el
+// recargo. 240 s de viaje con factor 1,6 agregan 144.
+func TestUniversityRoutesReportCrowding(t *testing.T) {
+	query := "from_stop=PAR-PORTAL-01&campus=san-francisco&limit=1&occupancy=L7B:0.95,L1C:0.95"
+	statusCode, body := getUniversityRoutes(t, universityTestHandler(t), query)
+	if statusCode != http.StatusOK || body.Total != 1 {
+		t.Fatalf("se esperaba una ruta: %d %+v", statusCode, body)
+	}
+	expectedCost := costBreakdownResponse{Ride: 240, Wait: 600, Crowding: 144, Total: 984}
+	if body.Routes[0].Cost != expectedCost {
+		t.Errorf("se esperaba %+v y se obtuvo %+v", expectedCost, body.Routes[0].Cost)
+	}
+
+	client := startUniversityGRPCClient(t, loadSeedNetwork(t).buildGraph())
+	response, err := client.PlanUniversityRoutes(authorizedContext(t), &microv1.PlanUniversityRoutesRequest{
+		OriginStopId: "PAR-PORTAL-01", CampusId: "san-francisco", Limit: 1,
+		LineOccupancy: map[string]float64{"L7B": 0.95, "L1C": 0.95},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cost := response.GetRoutes()[0].GetCost(); cost.GetCrowding() != 144 || cost.GetTotal() != 984 {
+		t.Errorf("gRPC debe informar el mismo recargo: %+v", cost)
+	}
+}
+
 func TestRouteRequestCostWeightsIncludeOccupancy(t *testing.T) {
 	routeRequest := universityRouteRequest{LineOccupancy: LineOccupancy{"L7B": 0.95}}
 	weights := routeRequest.costWeights()
