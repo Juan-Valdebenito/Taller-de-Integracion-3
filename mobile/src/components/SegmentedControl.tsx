@@ -56,7 +56,7 @@ const useStyles = makeStyles((colors, font) => ({
   },
   option: {
     flex: 1,
-    minHeight: 40,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.md - 3,

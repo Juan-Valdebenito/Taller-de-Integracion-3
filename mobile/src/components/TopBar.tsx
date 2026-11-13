@@ -85,6 +85,9 @@ const useStyles = makeStyles((colors, font) => ({
   companyTag: { fontSize: font(12), color: colors.placeholder, marginTop: 2 },
   adminTag: { fontSize: font(12), fontWeight: '600', letterSpacing: 0.96, marginTop: 2 },
   logoutPill: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: spacing.sm,
     paddingHorizontal: 20,
     borderRadius: radius.full,
@@ -92,6 +95,9 @@ const useStyles = makeStyles((colors, font) => ({
     borderColor: colors.border,
   },
   logoutPanel: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
     borderRadius: radius.md,
@@ -100,7 +106,7 @@ const useStyles = makeStyles((colors, font) => ({
     backgroundColor: colors.field,
   },
   logoutPressed: { borderColor: colors.danger },
-  logoutBusy: { opacity: 0.6 },
+  logoutBusy: { opacity: 0.72 },
   logoutText: { fontSize: font(14), fontWeight: '600', color: colors.muted },
   logoutTextPressed: { color: colors.danger },
 }));

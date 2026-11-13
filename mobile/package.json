@@ -50,7 +50,8 @@
     "test": "jest",
     "test:live": "jest -c jest.live.config.js",
     "test:live:backend": "node scripts/live-backend.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "expo lint"
   },
   "private": true,
   "jest": {

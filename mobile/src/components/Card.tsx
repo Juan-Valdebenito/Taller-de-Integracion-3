@@ -31,10 +31,11 @@ const useStyles = makeStyles((colors) => ({
     borderColor: colors.border,
     borderRadius: radius.lg,
     padding: spacing.lg,
+    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
   },
   elevated: {
     borderRadius: radius.xl,
     padding: spacing.xl,
-    boxShadow: '0 10px 25px rgba(0, 0, 0, 0.3)',
+    boxShadow: '0 12px 28px rgba(0, 0, 0, 0.16)',
   },
 }));

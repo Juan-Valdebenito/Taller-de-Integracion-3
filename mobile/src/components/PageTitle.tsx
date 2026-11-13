@@ -23,7 +23,7 @@ export function PageTitle({ emoji, title, subtitle }: PageTitleProps) {
 }
 
 const useStyles = makeStyles((colors, font) => ({
-  container: { marginBottom: spacing.lg },
-  title: { fontSize: font(24), fontWeight: '700', color: colors.text },
-  subtitle: { fontSize: font(16), color: colors.muted, marginTop: spacing.xs },
+  container: { marginBottom: spacing.lg, gap: spacing.xs },
+  title: { fontSize: font(24), lineHeight: font(31), fontWeight: '800', color: colors.text },
+  subtitle: { fontSize: font(14), lineHeight: font(21), color: colors.muted },
 }));
