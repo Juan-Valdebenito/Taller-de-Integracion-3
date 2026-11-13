@@ -3,6 +3,8 @@ package handler
 import (
 	"testing"
 
+	microv1 "github.com/Juan-Valdebenito/Taller-de-Integracion-3/proto/gen/go/micro/v1"
+
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/liveoccupancy"
 )
 
@@ -26,6 +28,17 @@ func TestMicroLineIDRejectsUnknownFormats(t *testing.T) {
 		if lineID, recognized := microLineID(backendRouteID); recognized {
 			t.Errorf("%q no debe reconocerse, y se obtuvo %s", backendRouteID, lineID)
 		}
+	}
+}
+
+func TestPlanUniversityRoutesSendsLineOccupancy(t *testing.T) {
+	tracker := liveoccupancy.NewTracker()
+	tracker.Record("bus-7b-01", "route-7B", 38, 40)
+	fakeMicro := &fakeUniversityMicro{routesResponse: &microv1.PlanUniversityRoutesResponse{}}
+	proxyHandler := NewGRPCProxyHandler(nil, fakeMicro).WithLineOccupancy(tracker)
+	serveUniversityRequestWith(proxyHandler, "/routes/university?from_stop=PAR-PORTAL-01")
+	if occupancy := fakeMicro.receivedRequest.GetLineOccupancy(); len(occupancy) != 1 || occupancy["L7B"] != 0.95 {
+		t.Errorf("se esperaba enviar L7B al 95 %%: %v", occupancy)
 	}
 }
 

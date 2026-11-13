@@ -29,6 +29,8 @@ type MicroRPC interface {
 type GRPCProxyHandler struct {
 	climate ClimateRPC
 	micro   MicroRPC
+	// lineOccupancy es opcional: sin ella, las rutas no consideran la ocupación.
+	lineOccupancy LineOccupancySource
 }
 
 func NewGRPCProxyHandler(climate ClimateRPC, micro MicroRPC) *GRPCProxyHandler {

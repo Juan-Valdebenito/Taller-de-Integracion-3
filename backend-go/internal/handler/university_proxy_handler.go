@@ -109,6 +109,7 @@ func (proxyHandler *GRPCProxyHandler) PlanUniversityRoutes(ginContext *gin.Conte
 		ginContext.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	request.LineOccupancy = proxyHandler.currentLineOccupancy()
 	response, err := proxyHandler.micro.PlanUniversityRoutes(ginContext.Request.Context(), request)
 	if err != nil {
 		writeUniversityRPCError(ginContext, err)
@@ -123,6 +124,32 @@ func (proxyHandler *GRPCProxyHandler) PlanUniversityRoutes(ginContext *gin.Conte
 		"total":        len(routes),
 		"cost_weights": newCostWeightsJSON(response.GetCostWeights()),
 	})
+}
+
+// LineOccupancySource lo implementa liveoccupancy.Tracker: entrega la ocupación de
+// cada línea, agrupada con la función de traducción indicada.
+type LineOccupancySource interface {
+	LineOccupancyBy(lineKey func(routeID string) (string, bool)) map[string]float64
+}
+
+// WithLineOccupancy conecta la ocupación en vivo. Se llama al armar el servidor,
+// antes de atender peticiones.
+func (proxyHandler *GRPCProxyHandler) WithLineOccupancy(source LineOccupancySource) *GRPCProxyHandler {
+	proxyHandler.lineOccupancy = source
+	return proxyHandler
+}
+
+// currentLineOccupancy entrega la ocupación con los IDs de micro_service. Sin
+// fuente o sin micros en vivo devuelve nil, y la petición no la incluye.
+func (proxyHandler *GRPCProxyHandler) currentLineOccupancy() map[string]float64 {
+	if proxyHandler.lineOccupancy == nil {
+		return nil
+	}
+	occupancy := proxyHandler.lineOccupancy.LineOccupancyBy(microLineID)
+	if len(occupancy) == 0 {
+		return nil
+	}
+	return occupancy
 }
 
 // universityRouteRequest revisa el formato. Las reglas, como el límite máximo o
