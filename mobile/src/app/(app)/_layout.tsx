@@ -14,6 +14,7 @@ export default function AppLayout() {
   return (
     <Tabs screenOptions={{ ...screenOptions, header: () => <TopBar variant="passenger" /> }}>
       <Tabs.Screen name="index" options={{ title: 'Mapa', headerTitle: 'Mapa', tabBarIcon: tabEmoji('🗺️') }} />
+      <Tabs.Screen name="universities" options={{ title: 'Universidad', headerTitle: 'Cómo llegar', tabBarIcon: tabEmoji('🎓') }} />
       <Tabs.Screen name="complaints" options={{ title: 'Reclamos', headerTitle: 'Mis Reclamos', tabBarIcon: tabEmoji('📋') }} />
       <Tabs.Screen name="profile" options={{ title: 'Perfil', headerTitle: 'Mi perfil', tabBarIcon: tabEmoji('👤') }} />
       <Tabs.Screen name="settings" options={{ title: 'Configuración', headerTitle: 'Configuración', tabBarIcon: tabEmoji('⚙️') }} />
