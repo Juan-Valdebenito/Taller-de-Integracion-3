@@ -48,9 +48,10 @@ func (server *microGRPCServer) PlanUniversityRoutes(_ context.Context, request *
 // en proto3, un entero no enviado se lee como 0.
 func universityRouteRequestFromProto(request *microv1.PlanUniversityRoutesRequest) (universityRouteRequest, error) {
 	routeRequest := universityRouteRequest{
-		OriginStopID: request.GetOriginStopId(),
-		CampusID:     request.GetCampusId(),
-		Limit:        int(request.GetLimit()),
+		OriginStopID:  request.GetOriginStopId(),
+		CampusID:      request.GetCampusId(),
+		Limit:         int(request.GetLimit()),
+		LineOccupancy: LineOccupancy(request.GetLineOccupancy()),
 	}
 	if routeRequest.Limit == 0 {
 		routeRequest.Limit = defaultUniversityRoutes

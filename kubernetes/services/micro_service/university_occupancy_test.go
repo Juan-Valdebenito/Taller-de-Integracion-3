@@ -4,7 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
 	"testing"
+
+	microv1 "github.com/Juan-Valdebenito/Taller-de-Integracion-3/proto/gen/go/micro/v1"
+	"google.golang.org/grpc/codes"
 )
 
 func TestValidateOccupancyAcceptsValidValues(t *testing.T) {
@@ -39,6 +43,67 @@ func TestValidateOccupancyRejectsInvalidValues(t *testing.T) {
 			t.Errorf("%s: se esperaba errInvalidOccupancy y se obtuvo %v", caseName, err)
 		}
 	}
+}
+
+func TestParseOccupancyReadsEveryLine(t *testing.T) {
+	occupancy, err := parseOccupancy("L7A:0.95,L7B:0.3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(occupancy) != 2 || occupancy["L7A"] != 0.95 || occupancy["L7B"] != 0.3 {
+		t.Errorf("ocupación inesperada: %v", occupancy)
+	}
+	if occupancy, err := parseOccupancy(""); err != nil || occupancy != nil {
+		t.Errorf("sin parámetro no debe haber ocupación: %v, %v", occupancy, err)
+	}
+}
+
+func TestParseOccupancyRejectsMalformedValues(t *testing.T) {
+	for _, rawOccupancy := range []string{"L7A", "L7A:llena", "L7A:0.9,", "L7A:0.9,L7A:0.2", ",L7A:0.9"} {
+		if _, err := parseOccupancy(rawOccupancy); !errors.Is(err, errInvalidOccupancy) {
+			t.Errorf("%q: se esperaba errInvalidOccupancy y se obtuvo %v", rawOccupancy, err)
+		}
+	}
+}
+
+func TestRESTUniversityRoutesUseOccupancy(t *testing.T) {
+	handler := universityTestHandler(t)
+	statusCode, body := getUniversityRoutes(t, handler, "from_stop=PAR-PORTAL-01&campus=san-francisco&limit=1&occupancy=L7B:0.95")
+	if statusCode != http.StatusOK || body.Total != 1 || body.Routes[0].Movements[0].RouteID != "L1C" {
+		t.Errorf("con la 7B llena se esperaba la 1C: %d %+v", statusCode, body)
+	}
+	statusCode, body = getUniversityRoutes(t, handler, "from_stop=PAR-PORTAL-01&occupancy=L7B:mucha")
+	if statusCode != http.StatusBadRequest || body.Error == "" {
+		t.Errorf("una ocupación mal escrita debe responder 400: %d %+v", statusCode, body)
+	}
+}
+
+func TestProtoRequestKeepsOccupancy(t *testing.T) {
+	routeRequest, err := universityRouteRequestFromProto(&microv1.PlanUniversityRoutesRequest{
+		OriginStopId:  "PAR-PORTAL-01",
+		LineOccupancy: map[string]float64{"L7B": 0.95},
+	})
+	if err != nil || routeRequest.LineOccupancy["L7B"] != 0.95 {
+		t.Errorf("la ocupación debe pasar a la petición: %+v, %v", routeRequest, err)
+	}
+}
+
+func TestGRPCUniversityRoutesUseOccupancy(t *testing.T) {
+	client := startUniversityGRPCClient(t, loadSeedNetwork(t).buildGraph())
+	response, err := client.PlanUniversityRoutes(authorizedContext(t), &microv1.PlanUniversityRoutesRequest{
+		OriginStopId: "PAR-PORTAL-01", CampusId: "san-francisco", Limit: 1,
+		LineOccupancy: map[string]float64{"L7B": 0.95},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if line := response.GetRoutes()[0].GetMovements()[0].GetRouteId(); line != "L1C" {
+		t.Errorf("con la 7B llena se esperaba la 1C, y se obtuvo %s", line)
+	}
+	_, err = client.PlanUniversityRoutes(authorizedContext(t), &microv1.PlanUniversityRoutesRequest{
+		OriginStopId: "PAR-PORTAL-01", LineOccupancy: map[string]float64{"L7B": -1},
+	})
+	assertGRPCCode(t, err, codes.InvalidArgument)
 }
 
 func TestRouteRequestCostWeightsIncludeOccupancy(t *testing.T) {

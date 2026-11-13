@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -162,6 +163,11 @@ func parseUniversityRouteRequest(request *http.Request) (universityRouteRequest,
 		}
 		routeRequest.Limit = limit
 	}
+	occupancy, err := parseOccupancy(query.Get("occupancy"))
+	if err != nil {
+		return routeRequest, err
+	}
+	routeRequest.LineOccupancy = occupancy
 	rawLatitude, rawLongitude := query.Get("lat"), query.Get("long")
 	if rawLatitude == "" && rawLongitude == "" {
 		return routeRequest, nil
@@ -173,6 +179,28 @@ func parseUniversityRouteRequest(request *http.Request) (universityRouteRequest,
 	}
 	routeRequest.HasLocation, routeRequest.Latitude, routeRequest.Longitude = true, latitude, longitude
 	return routeRequest, nil
+}
+
+// parseOccupancy lee el parámetro occupancy, con el formato
+// "L7A:0.95,L7B:0.3". Los valores los revisa validateOccupancy; aquí solo se
+// rechaza un formato mal escrito o una línea repetida.
+func parseOccupancy(rawOccupancy string) (LineOccupancy, error) {
+	if rawOccupancy == "" {
+		return nil, nil
+	}
+	occupancy := make(LineOccupancy)
+	for _, lineEntry := range strings.Split(rawOccupancy, ",") {
+		routeID, rawRatio, hasSeparator := strings.Cut(lineEntry, ":")
+		occupancyRatio, err := strconv.ParseFloat(rawRatio, 64)
+		if !hasSeparator || err != nil {
+			return nil, errInvalidOccupancy
+		}
+		if _, repeated := occupancy[routeID]; repeated {
+			return nil, errInvalidOccupancy
+		}
+		occupancy[routeID] = occupancyRatio
+	}
+	return occupancy, nil
 }
 
 func universityRouteErrorStatus(err error) int {
