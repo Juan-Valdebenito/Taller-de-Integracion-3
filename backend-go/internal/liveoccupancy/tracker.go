@@ -56,6 +56,24 @@ func (tracker *Tracker) Record(busID, routeID string, currentPassengers, capacit
 	}
 }
 
+// LineOccupancy calcula la ocupación de cada línea con las lecturas recientes:
+// pasajeros de todas sus micros divididos por la capacidad de todas ellas. Así
+// una micro grande pesa más que una chica. La clave es el ID de línea de
+// backend-go, por ejemplo "route-7A".
+func (tracker *Tracker) LineOccupancy() map[string]float64 {
+	passengersByLine := make(map[string]int)
+	capacityByLine := make(map[string]int)
+	for _, reading := range tracker.FreshReadings() {
+		passengersByLine[reading.RouteID] += reading.CurrentPassengers
+		capacityByLine[reading.RouteID] += reading.Capacity
+	}
+	occupancyByLine := make(map[string]float64, len(capacityByLine))
+	for routeID, totalCapacity := range capacityByLine {
+		occupancyByLine[routeID] = float64(passengersByLine[routeID]) / float64(totalCapacity)
+	}
+	return occupancyByLine
+}
+
 // FreshReadings entrega las lecturas recientes. De paso olvida las vencidas, así
 // el registro no crece con micros que ya no circulan.
 func (tracker *Tracker) FreshReadings() []BusReading {

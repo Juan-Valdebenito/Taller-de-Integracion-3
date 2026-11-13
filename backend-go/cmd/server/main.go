@@ -13,6 +13,7 @@ import (
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/filestore"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/handler"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/infrastructure/grpcclient"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/liveoccupancy"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/logger"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/middleware"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/push"
@@ -177,6 +178,10 @@ func main() {
 	// Hub centraliza las conexiones WebSocket: la simulación y las rutas HTTP
 	// publican aquí, y el Hub distribuye los eventos a los clientes suscritos.
 	hub := ws.NewHub(occupancySvc)
+	// Guarda los pasajeros de cada micro publicada, para conocer la ocupación de
+	// cada línea al planificar rutas. Se conecta antes de iniciar el Hub.
+	liveOccupancy := liveoccupancy.NewTracker()
+	hub.SetOccupancyRecorder(liveOccupancy)
 	go hub.Run()
 
 	wsHandler := ws.NewWSHandler(hub, cfg.JWTSecret, cfg.CORSOrigins).WithRevocation(revStore)

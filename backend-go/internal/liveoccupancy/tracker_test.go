@@ -52,6 +52,27 @@ func TestFreshReadingsForgetStaleBuses(t *testing.T) {
 	}
 }
 
+func TestLineOccupancyWeighsBusesByCapacity(t *testing.T) {
+	tracker, _ := trackerWithClock()
+	tracker.Record("bus-7a-01", "route-7A", 30, 40)
+	tracker.Record("bus-7a-02", "route-7A", 6, 20)
+	tracker.Record("bus-7b-01", "route-7B", 10, 40)
+	occupancy := tracker.LineOccupancy()
+	// 7A: (30 + 6) / (40 + 20) = 0,6. Un promedio simple daría (0,75 + 0,3) / 2.
+	if len(occupancy) != 2 || occupancy["route-7A"] != 0.6 || occupancy["route-7B"] != 0.25 {
+		t.Errorf("ocupación inesperada: %v", occupancy)
+	}
+}
+
+func TestLineOccupancyIgnoresStaleBuses(t *testing.T) {
+	tracker, currentTime := trackerWithClock()
+	tracker.Record("bus-7a-01", "route-7A", 40, 40)
+	*currentTime = currentTime.Add(3 * time.Minute)
+	if occupancy := tracker.LineOccupancy(); len(occupancy) != 0 {
+		t.Errorf("sin lecturas recientes no debe haber ocupación: %v", occupancy)
+	}
+}
+
 // El Hub escribe y los handlers leen al mismo tiempo. Con go test -race, esta
 // prueba detecta accesos sin protección.
 func TestTrackerSupportsConcurrentAccess(t *testing.T) {
