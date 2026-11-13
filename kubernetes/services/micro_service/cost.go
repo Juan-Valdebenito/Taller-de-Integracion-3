@@ -23,6 +23,8 @@ type CostWeights struct {
 	// Occupancy es la ocupación de cada línea en esta consulta. Sin datos, ninguna
 	// línea se penaliza.
 	Occupancy LineOccupancy
+	// Weather es el clima de esta consulta. Sin datos (nil), caminar no se penaliza.
+	Weather *WeatherConditions
 }
 
 // defaultCostWeights usa valores típicos de planificación de transporte: caminar
@@ -117,9 +119,20 @@ func waitCost(routeID string, weights CostWeights) float64 {
 // micro incluye el recargo por ocupación.
 func edgeCost(edge Edge, weights CostWeights) float64 {
 	if edge.RouteID == walkRouteID {
-		return float64(edge.BaseTimeSec) * weights.WalkWeight
+		return baseWalkCost(edge, weights) + weatherCost(edge, weights)
 	}
 	return baseRideCost(edge, weights) + crowdingCost(edge, weights)
+}
+
+// baseWalkCost es la caminata sin considerar el clima.
+func baseWalkCost(edge Edge, weights CostWeights) float64 {
+	return float64(edge.BaseTimeSec) * weights.WalkWeight
+}
+
+// weatherCost es el recargo por caminar con mal clima: la parte de la caminata
+// que se agrega al multiplicar por el factor del clima.
+func weatherCost(edge Edge, weights CostWeights) float64 {
+	return baseWalkCost(edge, weights) * (walkWeatherFactor(weights.Weather) - 1)
 }
 
 // baseRideCost es el viaje en micro sin considerar la ocupación.
@@ -142,7 +155,9 @@ type CostBreakdown struct {
 	Transfer float64
 	// Crowding es el recargo por viajar en micros llenas.
 	Crowding float64
-	Total    float64
+	// Weather es el recargo por caminar con mal clima.
+	Weather float64
+	Total   float64
 }
 
 // pathCostBreakdown recorre la ruta tramo a tramo. Antes de cada tramo en micro
@@ -158,7 +173,8 @@ func pathCostBreakdownFrom(path []pathStep, weights CostWeights, initialState ri
 	state := initialState
 	for _, step := range path {
 		if step.Edge.RouteID == walkRouteID {
-			breakdown.Walk += edgeCost(step.Edge, weights)
+			breakdown.Walk += baseWalkCost(step.Edge, weights)
+			breakdown.Weather += weatherCost(step.Edge, weights)
 		} else {
 			if needsBoarding(state, step.Edge) {
 				breakdown.Wait += waitCost(step.Edge.RouteID, weights)
@@ -171,7 +187,7 @@ func pathCostBreakdownFrom(path []pathStep, weights CostWeights, initialState ri
 		}
 		state = state.after(step.Edge)
 	}
-	breakdown.Total = breakdown.Ride + breakdown.Walk + breakdown.Wait + breakdown.Transfer + breakdown.Crowding
+	breakdown.Total = breakdown.Ride + breakdown.Walk + breakdown.Wait + breakdown.Transfer + breakdown.Crowding + breakdown.Weather
 	return breakdown
 }
 

@@ -49,6 +49,70 @@ func TestWalkWeatherFactorIgnoresImpossibleValues(t *testing.T) {
 	assertFactor(t, "valores NaN", &WeatherConditions{TemperatureC: math.NaN(), WindSpeedKmh: math.NaN(), PM25: math.NaN()}, 1)
 }
 
+func weightsWithWeather(conditions *WeatherConditions) CostWeights {
+	weights := defaultCostWeights()
+	weights.Weather = conditions
+	return weights
+}
+
+func TestPathCostAddsWeatherToWalking(t *testing.T) {
+	path := []pathStep{
+		{From: "A", Edge: Edge{ToStopID: "B", RouteID: "L7A", BaseTimeSec: 300}},
+		{From: "B", Edge: Edge{ToStopID: "C", RouteID: walkRouteID, BaseTimeSec: 120}},
+	}
+	breakdown := pathCostBreakdown(path, weightsWithWeather(&WeatherConditions{TemperatureC: 3, PM25: 60}))
+	// Caminar 120 s con peso 2 cuesta 240; con factor 1,4 se agregan 96. La micro no
+	// cambia: el clima solo afecta a caminar.
+	if breakdown.Walk != 240 || math.Abs(breakdown.Weather-96) > 1e-9 || breakdown.Ride != 300 {
+		t.Errorf("desglose inesperado: %+v", breakdown)
+	}
+	if math.Abs(breakdown.Total-(300+600+240+96)) > 1e-9 {
+		t.Errorf("el total debe incluir el recargo por clima: %+v", breakdown)
+	}
+}
+
+// Caminar 420 s cuesta 840, y la micro de 300 s cuesta 900 con la espera. Con buen
+// clima conviene caminar; con frío y mal aire, caminar cuesta 1176 y conviene la micro.
+func TestCheapestPathAvoidsWalkingInBadWeather(t *testing.T) {
+	graph := NewTransitGraph()
+	graph.Stops["ORIGIN"] = Stop{ID: "ORIGIN", Latitude: -38.70, Longitude: -72.60}
+	graph.Stops["DESTINATION"] = Stop{ID: "DESTINATION", Latitude: -38.703, Longitude: -72.60}
+	graph.Edges["ORIGIN"] = []Edge{
+		{ToStopID: "DESTINATION", RouteID: walkRouteID, BaseTimeSec: 420},
+		{ToStopID: "DESTINATION", RouteID: "L1", BaseTimeSec: 300},
+	}
+	goodWeather, _ := cheapestPath(graph, "ORIGIN", "DESTINATION", weightsWithWeather(&WeatherConditions{TemperatureC: 15}))
+	if goodWeather[0].Edge.RouteID != walkRouteID {
+		t.Errorf("con buen clima debe convenir caminar: %+v", goodWeather)
+	}
+	badWeatherWeights := weightsWithWeather(&WeatherConditions{TemperatureC: 3, PM25: 60})
+	badWeather, _ := cheapestPath(graph, "ORIGIN", "DESTINATION", badWeatherWeights)
+	if badWeather[0].Edge.RouteID != "L1" {
+		t.Errorf("con frío y mal aire debe convenir la micro: %+v", badWeather)
+	}
+	aStarRoute, _ := aStarCheapestPath(graph, "ORIGIN", "DESTINATION", badWeatherWeights)
+	if aStarRoute[0].Edge.RouteID != "L1" {
+		t.Errorf("A* debe elegir lo mismo que Dijkstra: %+v", aStarRoute)
+	}
+}
+
+func TestAStarMatchesDijkstraWithWeather(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	weights := weightsWithWeather(&WeatherConditions{TemperatureC: -2, WindSpeedKmh: 40, PM25: 90})
+	weights.Occupancy = LineOccupancy{"L7A": 0.95}
+	assertAStarMatchesCheapest(t, graph, weights)
+}
+
+func TestInitialWalkPaysWeather(t *testing.T) {
+	routes := routesFromTestOrigin(t, weightsWithWeather(&WeatherConditions{TemperatureC: 3}))
+	for _, route := range routes {
+		breakdown := pathCostBreakdown(route.Path, weightsWithWeather(&WeatherConditions{TemperatureC: 3}))
+		if breakdown.Weather <= 0 {
+			t.Errorf("la caminata inicial también debe pagar el clima: %+v", breakdown)
+		}
+	}
+}
+
 func TestWalkWeatherFactorNeverBelowOne(t *testing.T) {
 	for temperatureC := -20.0; temperatureC <= 45; temperatureC += 2.5 {
 		for windSpeedKmh := 0.0; windSpeedKmh <= 90; windSpeedKmh += 10 {
