@@ -626,9 +626,16 @@ nombres de campo. En gRPC son los mensajes `CostBreakdown` y `CostWeights`.
 | `lat` y `long` | Uno de los dos orígenes | Posición del pasajero, en grados decimales |
 | `campus` | No | `san-francisco` o `san-juan-pablo-ii`; sin él, considera ambos |
 | `limit` | No | Entre 1 y 5; por defecto, 3 |
+| `occupancy` | No, y solo en `micro_service` | Ocupación por línea, como `L7A:0.95,L7B:0.3` |
 
 En gRPC, `latitude` y `longitude` son `optional`, para distinguir una coordenada
-en 0 de una que no se envió. Un `limit` en 0 usa el valor por defecto.
+en 0 de una que no se envió. Un `limit` en 0 usa el valor por defecto. La
+ocupación va en el campo `line_occupancy`.
+
+La app no envía la ocupación: backend-go la agrega sola, con las micros en vivo
+(ver la sección Ocupación). El parámetro `occupancy` sirve para probar
+`micro_service` directamente. Se rechaza con 400 si tiene una línea repetida, un
+valor que no es número o un formato mal escrito.
 
 ### Ejemplo
 
@@ -662,7 +669,7 @@ La API REST de `micro_service`, en `GET /routes/university`, responde lo mismo.
           "distance_meters": 950
         }
       ],
-      "cost": { "ride": 240, "walk": 0, "wait": 600, "transfer": 0, "total": 840 }
+      "cost": { "ride": 240, "walk": 0, "wait": 600, "transfer": 0, "crowding": 0, "total": 840 }
     }
   ],
   "total": 1,
@@ -687,7 +694,8 @@ empate se resuelve siempre igual, así que la respuesta no cambia entre consulta
 | `cost.walk` | Tiempo caminando por su peso, incluida la caminata inicial |
 | `cost.wait` | Espera estimada en cada subida a una micro, por su peso |
 | `cost.transfer` | Penalización por cada cambio de línea |
-| `cost.total` | Suma de los cuatro; es el valor con que se ordenan las rutas |
+| `cost.crowding` | Recargo por viajar en micros llenas |
+| `cost.total` | Suma de los demás; es el valor con que se ordenan las rutas |
 | `cost_weights` | Pesos usados en el cálculo |
 | `cost_weights.assumed_headway_seconds` | Intervalo supuesto entre micros: la espera es una estimación |
 
@@ -843,7 +851,8 @@ prueba confirma que el planificador entrega ese tiempo y esa distancia.
 | Faltan 390 paraderos por cargar en el catálogo: el generador está listo, pero no se ha ejecutado | Subtarea 2b, pausada |
 | 7A y 7B tienen el mismo nombre largo en los datos oficiales | Confirmar con el equipo |
 | `L7A` no cierra su circuito en los datos oficiales | Confirmar con el equipo |
-| El planificador no considera espera ni penalización por cambiar de línea | Mejora futura |
+| La espera es una estimación: no hay frecuencias reales de las líneas | Conseguir frecuencias y cargarlas en `lineHeadwaySeconds` |
+| La ocupación es la del momento de la consulta, no la de la llegada al paradero | Mejora futura |
 | `PAR-CJP-02` ↔ `PAR-DPORT-01` tiene un tiempo atípico de 7380 s | Confirmar con el equipo |
 | Las rutas a la universidad no están desplegadas: faltan las imágenes nuevas de `micro_service` y backend-go | Coordinar con Ignacio |
 | Los endpoints antiguos de `/integrations` responden 401 si `micro_service` rechaza la clave de backend-go, y la app cerraría la sesión del usuario | Tarea aparte: cambiar `writeRPCError` |
