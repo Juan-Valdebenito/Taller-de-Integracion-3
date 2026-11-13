@@ -300,7 +300,8 @@ func main() {
 		log.Fatal().Err(err).Str("event", "micro_client_failed").Msg("Could not connect to micro service")
 	}
 	defer microClient.Close()
-	grpcProxyH := handler.NewGRPCProxyHandler(climateClient, microClient)
+	// Las rutas a la universidad usan la ocupación de las micros en vivo.
+	grpcProxyH := handler.NewGRPCProxyHandler(climateClient, microClient).WithLineOccupancy(liveOccupancy)
 
 	// ── Rate limiting de autenticación (por IP) ───────────────
 	// Protege login/registro y la rotación de tokens contra DoS y fuerza bruta.
