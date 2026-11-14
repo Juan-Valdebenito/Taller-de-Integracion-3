@@ -2,7 +2,11 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 	"testing"
+
+	microv1 "github.com/Juan-Valdebenito/Taller-de-Integracion-3/proto/gen/go/micro/v1"
 
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/currentweather"
 )
@@ -44,6 +48,34 @@ func TestPlanUniversityRoutesWithUnknownWeather(t *testing.T) {
 	serveUniversityRequestWith(proxyHandler, "/routes/university?from_stop=PAR-PORTAL-01")
 	if fakeMicro.receivedRequest.GetWeather() != nil {
 		t.Errorf("con el clima desconocido no debe enviarse el mensaje: %+v", fakeMicro.receivedRequest.GetWeather())
+	}
+}
+
+// Recorre la respuesta HTTP completa: el recargo por clima que calcula
+// micro_service debe llegar a la app con su valor exacto.
+func TestPlanUniversityRoutesResponseIncludesWeather(t *testing.T) {
+	fakeMicro := &fakeUniversityMicro{routesResponse: &microv1.PlanUniversityRoutesResponse{
+		Routes: []*microv1.UniversityRoute{{
+			CampusId: "san-francisco", TotalTimeSeconds: 324,
+			Cost: &microv1.CostBreakdown{Ride: 240, Walk: 168, Wait: 600, Weather: 33.6, Total: 1041.6},
+		}},
+		Total: 1,
+	}}
+	recorder := serveUniversityRequest(fakeMicro, "/routes/university?lat=-38.73&long=-72.61&campus=san-francisco")
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("se esperaba 200: %d %s", recorder.Code, recorder.Body.String())
+	}
+	var body struct {
+		Routes []struct {
+			Cost map[string]float64 `json:"cost"`
+		} `json:"routes"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	weather, present := body.Routes[0].Cost["weather"]
+	if !present || weather != 33.6 || body.Routes[0].Cost["total"] != 1041.6 {
+		t.Errorf("se esperaba weather = 33.6 y total = 1041.6: %s", recorder.Body.String())
 	}
 }
 
