@@ -4,6 +4,7 @@ package handler
 // consulta, y micro_service calcula las rutas por gRPC.
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 
@@ -11,6 +12,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/currentweather"
 )
 
 type campusJSON struct {
@@ -113,6 +116,7 @@ func (proxyHandler *GRPCProxyHandler) PlanUniversityRoutes(ginContext *gin.Conte
 		return
 	}
 	request.LineOccupancy = proxyHandler.currentLineOccupancy()
+	request.Weather = proxyHandler.currentWeatherMessage(ginContext.Request.Context())
 	response, err := proxyHandler.micro.PlanUniversityRoutes(ginContext.Request.Context(), request)
 	if err != nil {
 		writeUniversityRPCError(ginContext, err)
@@ -153,6 +157,36 @@ func (proxyHandler *GRPCProxyHandler) currentLineOccupancy() map[string]float64 
 		return nil
 	}
 	return occupancy
+}
+
+// CurrentWeatherSource lo implementa currentweather.Cache: entrega el clima
+// actual, o nil si no se conoce.
+type CurrentWeatherSource interface {
+	Current(requestContext context.Context) *currentweather.Conditions
+}
+
+// WithCurrentWeather conecta el clima actual. Se llama al armar el servidor,
+// antes de atender peticiones.
+func (proxyHandler *GRPCProxyHandler) WithCurrentWeather(source CurrentWeatherSource) *GRPCProxyHandler {
+	proxyHandler.currentWeather = source
+	return proxyHandler
+}
+
+// currentWeatherMessage convierte el clima al mensaje gRPC. Sin fuente o sin clima
+// conocido devuelve nil, y micro_service calcula sin clima: nunca como 0 °C.
+func (proxyHandler *GRPCProxyHandler) currentWeatherMessage(requestContext context.Context) *microv1.WeatherConditions {
+	if proxyHandler.currentWeather == nil {
+		return nil
+	}
+	conditions := proxyHandler.currentWeather.Current(requestContext)
+	if conditions == nil {
+		return nil
+	}
+	return &microv1.WeatherConditions{
+		TemperatureC: conditions.TemperatureC,
+		WindSpeedKmh: conditions.WindSpeedKmh,
+		Pm25:         conditions.PM25,
+	}
 }
 
 // universityRouteRequest revisa el formato. Las reglas, como el límite máximo o
