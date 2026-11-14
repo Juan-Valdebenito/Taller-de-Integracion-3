@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: transporte-db-solo-backend
+  namespace: student-jvaldebenito
+spec:
+  podSelector:
+    matchLabels:
+      app: transporte-db
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: backend-go
+      ports:
+        - protocol: TCP
+          port: 5432
