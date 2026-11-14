@@ -21,6 +21,16 @@ var (
 	errInvalidLocation   = errors.New("invalid coordinates")
 	errUnknownOriginStop = errors.New("origin stop not found")
 	errInvalidOccupancy  = errors.New("occupancy must map line ids to values between 0 and 2")
+	errInvalidWeather    = errors.New("weather values are out of range")
+)
+
+// Rangos aceptados del clima. Son amplios: descartan valores imposibles, no datos
+// raros pero posibles.
+const (
+	minTemperatureC = -50.0
+	maxTemperatureC = 60.0
+	maxWindSpeedKmh = 300.0
+	maxPM25         = 1000.0
 )
 
 // maxOccupancyLines limita cuántas líneas puede traer una petición, para que una
@@ -42,6 +52,8 @@ type universityRouteRequest struct {
 	Limit        int
 	// LineOccupancy es la ocupación de cada línea; puede venir vacía.
 	LineOccupancy LineOccupancy
+	// Weather es el clima de la consulta; nil significa sin clima.
+	Weather *WeatherConditions
 }
 
 // costWeights son los pesos de esta petición: los de siempre más su ocupación.
@@ -50,7 +62,23 @@ type universityRouteRequest struct {
 func (routeRequest universityRouteRequest) costWeights() CostWeights {
 	weights := defaultCostWeights()
 	weights.Occupancy = routeRequest.LineOccupancy
+	weights.Weather = routeRequest.Weather
 	return weights
+}
+
+// validateWeather rechaza valores imposibles. Las comparaciones están escritas en
+// positivo para que NaN, que no cumple ninguna, también se rechace.
+func validateWeather(conditions *WeatherConditions) error {
+	if conditions == nil {
+		return nil
+	}
+	validTemperature := conditions.TemperatureC >= minTemperatureC && conditions.TemperatureC <= maxTemperatureC
+	validWind := conditions.WindSpeedKmh >= 0 && conditions.WindSpeedKmh <= maxWindSpeedKmh
+	validAir := conditions.PM25 >= 0 && conditions.PM25 <= maxPM25
+	if !validTemperature || !validWind || !validAir {
+		return errInvalidWeather
+	}
+	return nil
 }
 
 // validateOccupancy rechaza IDs vacíos y valores fuera de rango. math.IsNaN no se
@@ -75,6 +103,9 @@ func planUniversityRoutes(graph *TransitGraph, routeRequest universityRouteReque
 		return nil, errInvalidOrigin
 	}
 	if err := validateOccupancy(routeRequest.LineOccupancy); err != nil {
+		return nil, err
+	}
+	if err := validateWeather(routeRequest.Weather); err != nil {
 		return nil, err
 	}
 	if routeRequest.HasLocation {
