@@ -11,6 +11,7 @@ import (
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/db"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain/service"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/filestore"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/currentweather"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/handler"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/infrastructure/grpcclient"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/liveoccupancy"
@@ -300,8 +301,13 @@ func main() {
 		log.Fatal().Err(err).Str("event", "micro_client_failed").Msg("Could not connect to micro service")
 	}
 	defer microClient.Close()
-	// Las rutas a la universidad usan la ocupación de las micros en vivo.
-	grpcProxyH := handler.NewGRPCProxyHandler(climateClient, microClient).WithLineOccupancy(liveOccupancy)
+	// Las rutas a la universidad usan la ocupación de las micros en vivo y el clima
+	// actual. El clima se guarda unos minutos, para no consultar clima_service en
+	// cada petición; si falla, las rutas se calculan sin clima.
+	currentWeather := currentweather.NewCache(currentweather.NewProvider(climateClient))
+	grpcProxyH := handler.NewGRPCProxyHandler(climateClient, microClient).
+		WithLineOccupancy(liveOccupancy).
+		WithCurrentWeather(currentWeather)
 
 	// ── Rate limiting de autenticación (por IP) ───────────────
 	// Protege login/registro y la rotación de tokens contra DoS y fuerza bruta.
