@@ -108,6 +108,16 @@ message PlanUniversityRoutesRequest {
 	// Ocupación de cada línea, de 0 a 1, por el route_id de micro_service (por
 	// ejemplo "L7A"). Las líneas que no aparecen no se penalizan.
 	map<string, double> line_occupancy = 6;
+	// Clima de la consulta. Si no viene, caminar no se penaliza. Es un mensaje para
+	// distinguir "sin clima" de un clima a 0 °C.
+	WeatherConditions weather = 7;
+}
+
+// Clima del momento de la consulta. clima_service no informa lluvia.
+message WeatherConditions {
+	double temperature_c = 1;
+	double wind_speed_kmh = 2;
+	double pm25 = 3;
 }
 
 message PlanUniversityRoutesResponse {
@@ -139,6 +149,8 @@ message CostBreakdown {
 	double total = 5;
 	// Recargo por viajar en micros llenas.
 	double crowding = 6;
+	// Recargo por caminar con mal clima.
+	double weather = 7;
 }
 
 // Pesos de la función de costo. assumed_headway_seconds es el intervalo supuesto
