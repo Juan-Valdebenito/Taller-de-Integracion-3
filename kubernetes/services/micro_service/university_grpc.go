@@ -63,6 +63,14 @@ func universityRouteRequestFromProto(request *microv1.PlanUniversityRoutesReques
 		routeRequest.HasLocation = true
 		routeRequest.Latitude, routeRequest.Longitude = request.GetLatitude(), request.GetLongitude()
 	}
+	// Si el mensaje no viene, el clima queda en nil: sin clima, no 0 °C.
+	if weather := request.GetWeather(); weather != nil {
+		routeRequest.Weather = &WeatherConditions{
+			TemperatureC: weather.GetTemperatureC(),
+			WindSpeedKmh: weather.GetWindSpeedKmh(),
+			PM25:         weather.GetPm25(),
+		}
+	}
 	return routeRequest, nil
 }
 

@@ -4,6 +4,9 @@ import (
 	"errors"
 	"math"
 	"testing"
+
+	microv1 "github.com/Juan-Valdebenito/Taller-de-Integracion-3/proto/gen/go/micro/v1"
+	"google.golang.org/grpc/codes"
 )
 
 func TestValidateWeatherAcceptsValidValues(t *testing.T) {
@@ -36,6 +39,43 @@ func TestValidateWeatherRejectsImpossibleValues(t *testing.T) {
 		if err := validateWeather(conditions); !errors.Is(err, errInvalidWeather) {
 			t.Errorf("%s: se esperaba errInvalidWeather y se obtuvo %v", caseName, err)
 		}
+	}
+}
+
+func TestProtoRequestKeepsWeather(t *testing.T) {
+	routeRequest, err := universityRouteRequestFromProto(&microv1.PlanUniversityRoutesRequest{
+		OriginStopId: "PAR-PORTAL-01",
+		Weather:      &microv1.WeatherConditions{TemperatureC: 3, WindSpeedKmh: 35, Pm25: 60},
+	})
+	expected := WeatherConditions{TemperatureC: 3, WindSpeedKmh: 35, PM25: 60}
+	if err != nil || routeRequest.Weather == nil || *routeRequest.Weather != expected {
+		t.Errorf("el clima debe pasar a la petición: %+v, %v", routeRequest.Weather, err)
+	}
+}
+
+// Sin el mensaje, el clima debe quedar en nil y no como 0 °C, que penalizaría
+// todas las caminatas por frío intenso.
+func TestProtoRequestWithoutWeatherIsNil(t *testing.T) {
+	routeRequest, err := universityRouteRequestFromProto(&microv1.PlanUniversityRoutesRequest{OriginStopId: "PAR-PORTAL-01"})
+	if err != nil || routeRequest.Weather != nil {
+		t.Errorf("sin clima se esperaba nil: %+v, %v", routeRequest.Weather, err)
+	}
+}
+
+func TestGRPCUniversityRoutesUseWeather(t *testing.T) {
+	client := startUniversityGRPCClient(t, loadSeedNetwork(t).buildGraph())
+	_, err := client.PlanUniversityRoutes(authorizedContext(t), &microv1.PlanUniversityRoutesRequest{
+		OriginStopId: "PAR-PORTAL-01", Limit: 1,
+		Weather: &microv1.WeatherConditions{TemperatureC: 15, WindSpeedKmh: -5},
+	})
+	assertGRPCCode(t, err, codes.InvalidArgument)
+
+	response, err := client.PlanUniversityRoutes(authorizedContext(t), &microv1.PlanUniversityRoutesRequest{
+		OriginStopId: "PAR-PORTAL-01", Limit: 1,
+		Weather: &microv1.WeatherConditions{TemperatureC: 3, Pm25: 60},
+	})
+	if err != nil || response.GetTotal() != 1 {
+		t.Errorf("con un clima válido se esperaba una ruta: %+v, %v", response, err)
 	}
 }
 
