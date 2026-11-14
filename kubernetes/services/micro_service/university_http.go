@@ -199,6 +199,11 @@ func parseUniversityRouteRequest(request *http.Request) (universityRouteRequest,
 		return routeRequest, err
 	}
 	routeRequest.LineOccupancy = occupancy
+	weather, err := parseWeather(query.Get("temperature_c"), query.Get("wind_speed_kmh"), query.Get("pm25"))
+	if err != nil {
+		return routeRequest, err
+	}
+	routeRequest.Weather = weather
 	rawLatitude, rawLongitude := query.Get("lat"), query.Get("long")
 	if rawLatitude == "" && rawLongitude == "" {
 		return routeRequest, nil
@@ -215,6 +220,22 @@ func parseUniversityRouteRequest(request *http.Request) (universityRouteRequest,
 // parseOccupancy lee el parámetro occupancy, con el formato
 // "L7A:0.95,L7B:0.3". Los valores los revisa validateOccupancy; aquí solo se
 // rechaza un formato mal escrito o una línea repetida.
+// parseWeather lee el clima. Los tres valores deben venir juntos o ninguno: con
+// uno solo no se puede saber si el resto falta o vale 0. Los rangos los revisa
+// validateWeather.
+func parseWeather(rawTemperature, rawWindSpeed, rawPM25 string) (*WeatherConditions, error) {
+	if rawTemperature == "" && rawWindSpeed == "" && rawPM25 == "" {
+		return nil, nil
+	}
+	temperatureC, temperatureErr := strconv.ParseFloat(rawTemperature, 64)
+	windSpeedKmh, windErr := strconv.ParseFloat(rawWindSpeed, 64)
+	pm25, airErr := strconv.ParseFloat(rawPM25, 64)
+	if temperatureErr != nil || windErr != nil || airErr != nil {
+		return nil, errInvalidWeather
+	}
+	return &WeatherConditions{TemperatureC: temperatureC, WindSpeedKmh: windSpeedKmh, PM25: pm25}, nil
+}
+
 func parseOccupancy(rawOccupancy string) (LineOccupancy, error) {
 	if rawOccupancy == "" {
 		return nil, nil

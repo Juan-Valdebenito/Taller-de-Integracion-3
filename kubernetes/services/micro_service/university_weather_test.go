@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"math"
+	"net/http"
 	"testing"
 
 	microv1 "github.com/Juan-Valdebenito/Taller-de-Integracion-3/proto/gen/go/micro/v1"
@@ -76,6 +77,49 @@ func TestGRPCUniversityRoutesUseWeather(t *testing.T) {
 	})
 	if err != nil || response.GetTotal() != 1 {
 		t.Errorf("con un clima válido se esperaba una ruta: %+v, %v", response, err)
+	}
+}
+
+func TestParseWeatherReadsAllValues(t *testing.T) {
+	weather, err := parseWeather("3.5", "35", "60")
+	expected := WeatherConditions{TemperatureC: 3.5, WindSpeedKmh: 35, PM25: 60}
+	if err != nil || weather == nil || *weather != expected {
+		t.Errorf("se esperaba %+v y se obtuvo %+v, %v", expected, weather, err)
+	}
+	if weather, err := parseWeather("", "", ""); err != nil || weather != nil {
+		t.Errorf("sin parámetros no debe haber clima: %+v, %v", weather, err)
+	}
+}
+
+func TestParseWeatherRequiresAllValues(t *testing.T) {
+	incompleteOrInvalid := [][3]string{
+		{"3", "", ""},
+		{"", "35", "60"},
+		{"3", "35", ""},
+		{"frío", "35", "60"},
+		{"3", "35", "mucho"},
+	}
+	for _, rawValues := range incompleteOrInvalid {
+		if _, err := parseWeather(rawValues[0], rawValues[1], rawValues[2]); !errors.Is(err, errInvalidWeather) {
+			t.Errorf("%v: se esperaba errInvalidWeather y se obtuvo %v", rawValues, err)
+		}
+	}
+}
+
+func TestRESTUniversityRoutesUseWeather(t *testing.T) {
+	handler := universityTestHandler(t)
+	statusCode, body := getUniversityRoutes(t, handler, "from_stop=PAR-PORTAL-01&limit=1&temperature_c=3&wind_speed_kmh=10&pm25=60")
+	if statusCode != http.StatusOK || body.Total != 1 {
+		t.Errorf("con un clima válido se esperaba una ruta: %d %+v", statusCode, body)
+	}
+	for _, query := range []string{
+		"from_stop=PAR-PORTAL-01&temperature_c=3",
+		"from_stop=PAR-PORTAL-01&temperature_c=3&wind_speed_kmh=10&pm25=-1",
+	} {
+		statusCode, body := getUniversityRoutes(t, handler, query)
+		if statusCode != http.StatusBadRequest || body.Error == "" {
+			t.Errorf("%s: se esperaba 400: %d %+v", query, statusCode, body)
+		}
 	}
 }
 
