@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -293,6 +294,24 @@ func TestUniversityRouteJSONWithoutCost(t *testing.T) {
 	routeJSON := newUniversityRouteJSON(&microv1.UniversityRoute{CampusId: "san-francisco", TotalTimeSeconds: 240})
 	if routeJSON.Cost != (costBreakdownJSON{}) || routeJSON.TotalTimeSeconds != 240 {
 		t.Errorf("sin costo, la ruta debe seguir completa y el costo en 0: %+v", routeJSON)
+	}
+}
+
+// Un recargo por clima con decimales, como los 33,6 de una caminata de 84 s con
+// factor 1,2, debe llegar exacto y sumar el total junto a los demás componentes.
+func TestCostBreakdownJSONKeepsWeatherDecimals(t *testing.T) {
+	costJSON := newCostBreakdownJSON(&microv1.CostBreakdown{Ride: 240, Walk: 168, Wait: 600, Weather: 33.6, Total: 1041.6})
+	encoded, err := json.Marshal(costJSON)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := `{"ride":240,"walk":168,"wait":600,"transfer":0,"crowding":0,"weather":33.6,"total":1041.6}`
+	if string(encoded) != expected {
+		t.Errorf("se esperaba %s y se obtuvo %s", expected, encoded)
+	}
+	componentsSum := costJSON.Ride + costJSON.Walk + costJSON.Wait + costJSON.Transfer + costJSON.Crowding + costJSON.Weather
+	if math.Abs(componentsSum-costJSON.Total) > 1e-9 {
+		t.Errorf("los componentes suman %v y el total es %v", componentsSum, costJSON.Total)
 	}
 }
 
