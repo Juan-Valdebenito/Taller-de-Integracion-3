@@ -2,12 +2,14 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"net/http"
 	"testing"
 
 	microv1 "github.com/Juan-Valdebenito/Taller-de-Integracion-3/proto/gen/go/micro/v1"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestValidateWeatherAcceptsValidValues(t *testing.T) {
@@ -120,6 +122,39 @@ func TestRESTUniversityRoutesUseWeather(t *testing.T) {
 		if statusCode != http.StatusBadRequest || body.Error == "" {
 			t.Errorf("%s: se esperaba 400: %d %+v", query, statusCode, body)
 		}
+	}
+}
+
+// Desde unos 100 m de PAR-PORTAL-01, con 3 °C (factor 1,2), la caminata inicial
+// paga un recargo de 20 %. REST y gRPC deben informar el mismo valor.
+func TestUniversityRoutesReportWeather(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	latitude, longitude := locationNearStop(graph, "PAR-PORTAL-01")
+	query := fmt.Sprintf("lat=%f&long=%f&campus=san-francisco&limit=1&temperature_c=3&wind_speed_kmh=10&pm25=20", latitude, longitude)
+	statusCode, body := getUniversityRoutes(t, universityTestHandler(t), query)
+	if statusCode != http.StatusOK || body.Total != 1 {
+		t.Fatalf("se esperaba una ruta: %d %+v", statusCode, body)
+	}
+	cost := body.Routes[0].Cost
+	initialWalkSeconds := float64(body.Routes[0].Movements[0].TimeSec)
+	if cost.Weather != roundToTenth(initialWalkSeconds*2*0.2) {
+		t.Errorf("se esperaba un recargo de %v: %+v", roundToTenth(initialWalkSeconds*2*0.2), cost)
+	}
+	componentsSum := cost.Ride + cost.Walk + cost.Wait + cost.Transfer + cost.Crowding + cost.Weather
+	if roundToTenth(componentsSum) != cost.Total {
+		t.Errorf("los componentes deben sumar el total: %+v", cost)
+	}
+
+	client := startUniversityGRPCClient(t, graph)
+	response, err := client.PlanUniversityRoutes(authorizedContext(t), &microv1.PlanUniversityRoutesRequest{
+		Latitude: proto.Float64(latitude), Longitude: proto.Float64(longitude), CampusId: "san-francisco", Limit: 1,
+		Weather: &microv1.WeatherConditions{TemperatureC: 3, WindSpeedKmh: 10, Pm25: 20},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if grpcCost := response.GetRoutes()[0].GetCost(); grpcCost.GetWeather() != cost.Weather || grpcCost.GetTotal() != cost.Total {
+		t.Errorf("gRPC debe informar lo mismo que REST: %+v / %+v", grpcCost, cost)
 	}
 }
 

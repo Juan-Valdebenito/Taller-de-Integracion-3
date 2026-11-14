@@ -26,7 +26,7 @@ func TestCostBreakdownResponseJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected := `{"ride":300,"walk":240,"wait":600,"transfer":0,"crowding":0,"total":1140}`
+	expected := `{"ride":300,"walk":240,"wait":600,"transfer":0,"crowding":0,"weather":0,"total":1140}`
 	if string(encoded) != expected {
 		t.Errorf("se esperaba %s y se obtuvo %s", expected, encoded)
 	}

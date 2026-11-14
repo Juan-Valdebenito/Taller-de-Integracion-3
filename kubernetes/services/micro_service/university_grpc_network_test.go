@@ -233,6 +233,7 @@ func TestGRPCAndRESTReportSameCosts(t *testing.T) {
 			Wait:     grpcRoute.GetCost().GetWait(),
 			Transfer: grpcRoute.GetCost().GetTransfer(),
 			Crowding: grpcRoute.GetCost().GetCrowding(),
+			Weather:  grpcRoute.GetCost().GetWeather(),
 			Total:    grpcRoute.GetCost().GetTotal(),
 		}
 		if grpcRoute.GetCampusId() != restRoute.CampusID || grpcCost != restRoute.Cost {

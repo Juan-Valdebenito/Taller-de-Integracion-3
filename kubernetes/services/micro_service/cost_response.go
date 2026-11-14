@@ -13,7 +13,9 @@ type costBreakdownResponse struct {
 	Transfer float64 `json:"transfer"`
 	// Crowding es el recargo por viajar en micros llenas.
 	Crowding float64 `json:"crowding"`
-	Total    float64 `json:"total"`
+	// Weather es el recargo por caminar con mal clima.
+	Weather float64 `json:"weather"`
+	Total   float64 `json:"total"`
 }
 
 func newCostBreakdownResponse(breakdown CostBreakdown) costBreakdownResponse {
@@ -23,6 +25,7 @@ func newCostBreakdownResponse(breakdown CostBreakdown) costBreakdownResponse {
 		Wait:     roundToTenth(breakdown.Wait),
 		Transfer: roundToTenth(breakdown.Transfer),
 		Crowding: roundToTenth(breakdown.Crowding),
+		Weather:  roundToTenth(breakdown.Weather),
 		Total:    roundToTenth(breakdown.Total),
 	}
 }

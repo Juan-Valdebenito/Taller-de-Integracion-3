@@ -100,6 +100,7 @@ func microUniversityRoute(route UniversityRoute, weights CostWeights) *microv1.U
 			Wait:     routeResponse.Cost.Wait,
 			Transfer: routeResponse.Cost.Transfer,
 			Crowding: routeResponse.Cost.Crowding,
+			Weather:  routeResponse.Cost.Weather,
 			Total:    routeResponse.Cost.Total,
 		},
 	}
