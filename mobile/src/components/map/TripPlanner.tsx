@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { fetchAllStops, fetchRouteAlternatives, fetchTransitRouteLabels, type RoutePlan } from '../../api/tripPlannerApi';
 import type { Stop } from '../../location/geo';
 import type { LiveBus } from '../../realtime/liveBuses';
 import { Button } from '../Button';
+import { ErrorState } from '../ErrorState';
+import { LoadingState } from '../LoadingState';
 import { makeStyles, radius, spacing, useTheme } from '../../theme';
 
 type Selection = 'origin' | 'destination' | null;
@@ -114,26 +116,37 @@ export function TripPlanner({ buses = [] }: { buses?: readonly LiveBus[] }) {
   const [preference, setPreference] = useState<Preference>('fastest');
   const [planning, setPlanning] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
+  const mounted = useRef(false);
+  const stopsRequestId = useRef(0);
 
-  useEffect(() => {
-    let mounted = true;
+  const loadStops = useCallback(() => {
+    const requestId = ++stopsRequestId.current;
+    setLoadingStops(true);
+    setStopsError(null);
     Promise.all([fetchAllStops(), fetchTransitRouteLabels().catch(() => ({}))])
       .then(([result, labels]) => {
-        if (mounted) {
-          setStops(result.sort((left, right) => left.name.localeCompare(right.name, 'es')));
-          setRouteLabels(labels);
-        }
+        if (!mounted.current || requestId !== stopsRequestId.current) return;
+        setStops(result.sort((left, right) => left.name.localeCompare(right.name, 'es')));
+        setRouteLabels(labels);
       })
       .catch((error: unknown) => {
-        if (mounted) setStopsError(error instanceof Error ? error.message : 'No se pudieron cargar los paraderos.');
+        if (!mounted.current || requestId !== stopsRequestId.current) return;
+        setStopsError(error instanceof Error ? error.message : 'No se pudieron cargar los paraderos.');
       })
       .finally(() => {
-        if (mounted) setLoadingStops(false);
+        if (!mounted.current || requestId !== stopsRequestId.current) return;
+        setLoadingStops(false);
       });
-    return () => {
-      mounted = false;
-    };
   }, []);
+
+  useEffect(() => {
+    mounted.current = true;
+    loadStops();
+    return () => {
+      mounted.current = false;
+      stopsRequestId.current += 1;
+    };
+  }, [loadStops]);
 
   const filteredStops = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase('es');
@@ -179,9 +192,9 @@ export function TripPlanner({ buses = [] }: { buses?: readonly LiveBus[] }) {
     <View>
       <Text style={styles.intro}>Elige dos paraderos y compara las opciones por tiempo total.</Text>
       {loadingStops ? (
-        <View style={styles.loading}><ActivityIndicator color={colors.accent} /><Text style={styles.helper}>Cargando paraderos…</Text></View>
+        <LoadingState message="Cargando paraderos…" size="small" />
       ) : stopsError ? (
-        <Text style={styles.error} accessibilityRole="alert">{stopsError}</Text>
+        <ErrorState message={stopsError} onRetry={loadStops} />
       ) : (
         <>
           <Pressable accessibilityRole="button" onPress={() => { setSelection('origin'); setQuery(''); }} style={styles.stopField}>
@@ -249,7 +262,7 @@ export function TripPlanner({ buses = [] }: { buses?: readonly LiveBus[] }) {
           <View style={styles.action}>
             <Button title="Buscar recorridos" onPress={planTrip} disabled={!origin || !destination || origin.id === destination.id} loading={planning} loadingTitle="Calculando…" />
           </View>
-          {planError ? <Text style={styles.error} accessibilityRole="alert">{planError}</Text> : null}
+          {planError ? <ErrorState message={planError} onRetry={planTrip} /> : null}
           {plans?.length ? (
             <View style={styles.results}>
               <Text style={styles.resultsTitle}>Recomendación y alternativas por tiempo total</Text>

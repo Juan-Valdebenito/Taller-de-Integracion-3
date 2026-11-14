@@ -36,6 +36,6 @@ const useStyles = makeStyles((colors) => ({
   elevated: {
     borderRadius: radius.xl,
     padding: spacing.xl,
-    boxShadow: '0 12px 28px rgba(0, 0, 0, 0.16)',
+    boxShadow: '0 10px 25px rgba(0, 0, 0, 0.3)',
   },
 }));

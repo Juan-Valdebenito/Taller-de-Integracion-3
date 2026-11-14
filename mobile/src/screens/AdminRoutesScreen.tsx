@@ -9,8 +9,12 @@ import { ApiError } from '../api/errors';
 import { DELETE_ROUTE_FAILED } from '../admin/routeForm';
 import { EMPTY_ROUTE_FILTERS, filterRoutes, ROUTE_STATUS_OPTIONS, stopDotColor, type AdminRouteRow, type RouteFilters } from '../admin/routes';
 import { FLEET_STATUS } from '../company/fleet';
+import { EmptyState } from '../components/EmptyState';
+import { ErrorState } from '../components/ErrorState';
+import { LoadingState } from '../components/LoadingState';
 import { RouteForm } from '../components/RouteForm';
 import { SelectField } from '../components/SelectField';
+import { ToastBanner } from '../components/ToastBanner';
 import { useAdminRoutes } from '../hooks/useAdminRoutes';
 import { useRouteStops } from '../hooks/useRouteStops';
 import { makeStyles, radius, spacing, useTheme } from '../theme';
@@ -117,14 +121,7 @@ export function AdminRoutesScreen() {
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void refresh()} tintColor={colors.accent} colors={[colors.primary]} />}
       >
-        {toast ? (
-          <LinearGradient colors={['#1f9d4f', '#167a3c']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.toast}>
-            <Ionicons name="checkmark-circle" size={18} color="#ffffff" />
-            <Text style={styles.toastText} accessibilityRole="alert">
-              {toast}
-            </Text>
-          </LinearGradient>
-        ) : null}
+        <ToastBanner message={toast} tone="success" />
 
         <Text style={styles.title} accessibilityRole="header">Rutas del Sistema</Text>
         <Text style={styles.subtitle}>
@@ -141,10 +138,8 @@ export function AdminRoutesScreen() {
           </LinearGradient>
         </Pressable>
 
-        {error || actionError ? (
-          <View style={styles.error} accessibilityRole="alert">
-            <Text style={styles.errorText}>{error ?? actionError}</Text>
-          </View>
+        {(error || actionError) ? (
+          <ErrorState message={(error ?? actionError)!} />
         ) : null}
 
         <View style={styles.search}>
@@ -163,9 +158,15 @@ export function AdminRoutesScreen() {
         <SelectField label="Estado" value={filters.status} options={ROUTE_STATUS_OPTIONS} onChange={(status) => setFilters((f) => ({ ...f, status }))} />
 
         {loading && routes.length === 0 ? (
-          <Text style={styles.empty}>Cargando rutas...</Text>
+          <LoadingState message="Cargando rutas…" />
         ) : visible.length === 0 ? (
-          <Text style={styles.empty}>{error ? '' : 'No se encontraron rutas'}</Text>
+          error ? null : <EmptyState
+            emoji="🗺️"
+            title="No se encontraron rutas"
+            description="Ajusta los filtros o crea una nueva ruta."
+            onAction={() => setEditing(null)}
+            actionLabel="Nueva ruta"
+          />
         ) : (
           visible.map((route) => (
             <RouteCard
@@ -307,7 +308,7 @@ function RouteDetails({ route, onStopsLoaded }: { route: AdminRouteRow; onStopsL
     <View style={styles.details}>
       <Text style={styles.detailsTitle}>Recorrido de paraderos</Text>
       {loading ? (
-        <Text style={styles.muted}>Cargando paraderos y buses...</Text>
+        <LoadingState message="Cargando paraderos y buses…" size="small" />
       ) : error ? (
         <View style={styles.inline} accessibilityRole="alert">
           <Text style={[styles.muted, { color: colors.danger, flex: 1 }]}>{error}</Text>

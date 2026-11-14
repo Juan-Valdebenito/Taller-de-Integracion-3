@@ -13,8 +13,11 @@ import {
   type ComplaintStatus,
 } from '../api/complaintsApi';
 import { useAuth } from '../auth/AuthContext';
-import { Card } from '../components/Card';
 import { Button } from '../components/Button';
+import { Card } from '../components/Card';
+import { EmptyState } from '../components/EmptyState';
+import { ErrorState } from '../components/ErrorState';
+import { LoadingState } from '../components/LoadingState';
 import { PageTitle } from '../components/PageTitle';
 import { SelectField } from '../components/SelectField';
 import { TextField } from '../components/TextField';
@@ -96,7 +99,7 @@ export function CompanyComplaintsScreen() {
   const header = (
     <View>
       <PageTitle title="Reclamos" subtitle="Revisa los reclamos recibidos de tus pasajeros" />
-      {error ? <View style={styles.message} accessibilityRole="alert"><Text style={styles.messageText}>{error}</Text></View> : null}
+      {error ? <ErrorState message={error} onRetry={refresh} /> : null}
       <View style={styles.filters}>
         <View style={styles.filter}><SelectField label="Categorías:" value={category} options={CATEGORY_FILTER_OPTIONS} onChange={setCategory} /></View>
         <View style={styles.filter}><SelectField label="Estados:" value={status} options={STATUS_FILTER_OPTIONS} onChange={setStatus} /></View>
@@ -104,11 +107,14 @@ export function CompanyComplaintsScreen() {
     </View>
   );
 
-  const empty = loading ? <Text style={styles.loading}>Cargando reclamos...</Text> : error ? undefined : (
-    <View style={styles.empty}>
-      <Text style={styles.emptyTitle}>No hay reclamos</Text>
-      <Text style={styles.emptyText}>Los reclamos de tus pasajeros aparecerán aquí</Text>
-    </View>
+  const empty = loading ? (
+    <LoadingState message="Cargando reclamos…" />
+  ) : error ? undefined : (
+    <EmptyState
+      emoji="📋"
+      title="No hay reclamos"
+      description="Los reclamos de tus pasajeros aparecerán aquí"
+    />
   );
 
   return (

@@ -133,9 +133,9 @@ function BusListSkeleton() {
   );
 }
 
-// Colores y medidas de BusSidePanel del web.
-const useStyles = makeStyles((_colors, font) => ({
-  empty: { paddingVertical: 20, paddingHorizontal: 16, textAlign: 'center', color: '#475569', fontSize: font(12) },
+// Colores y medidas del tema, adaptados a modo claro y oscuro.
+const useStyles = makeStyles((colors, font) => ({
+  empty: { paddingVertical: 20, paddingHorizontal: 16, textAlign: 'center', color: colors.muted, fontSize: font(12) },
   row: {
     paddingVertical: 10,
     paddingHorizontal: 14,
@@ -148,14 +148,14 @@ const useStyles = makeStyles((_colors, font) => ({
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   inline: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   emoji: { fontSize: font(14) },
-  busId: { fontSize: font(13), fontWeight: '700', color: '#f1f5f9' },
+  busId: { fontSize: font(13), fontWeight: '700', color: colors.text },
   dot: { width: 6, height: 6, borderRadius: 3 },
-  status: { fontSize: font(10), color: '#94a3b8' },
-  routeName: { fontSize: font(11), color: '#64748b', marginBottom: 4 },
+  status: { fontSize: font(10), color: colors.muted },
+  routeName: { fontSize: font(11), color: colors.muted, marginBottom: 4 },
   occupancy: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   pct: { fontSize: font(11), fontWeight: '700', fontVariant: ['tabular-nums'] },
-  speed: { fontSize: font(10), color: '#94a3b8', fontVariant: ['tabular-nums'] },
-  track: { height: 4, marginTop: 6, borderRadius: 9999, backgroundColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' },
+  speed: { fontSize: font(10), color: colors.muted, fontVariant: ['tabular-nums'] },
+  track: { height: 4, marginTop: 6, borderRadius: 9999, backgroundColor: colors.field, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: 9999 },
   eta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
   etaChip: {
@@ -171,7 +171,7 @@ const useStyles = makeStyles((_colors, font) => ({
     fontVariant: ['tabular-nums'],
     overflow: 'hidden',
   },
-  etaStop: { flexShrink: 1, fontSize: font(10), color: '#94a3b8' },
+  etaStop: { flexShrink: 1, fontSize: font(10), color: colors.muted },
   prediction: {
     marginTop: 6,
     paddingVertical: 3,
@@ -183,10 +183,10 @@ const useStyles = makeStyles((_colors, font) => ({
     alignItems: 'center',
   },
   predictionText: { fontSize: font(10) },
-  predictionLevel: { fontSize: font(10), color: '#64748b' },
+  predictionLevel: { fontSize: font(10), color: colors.muted },
   skeletonRow: { flexDirection: 'row', gap: 10, paddingVertical: 10, paddingHorizontal: 14 },
-  skeletonCircle: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.08)' },
+  skeletonCircle: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.border },
   skeletonContent: { flex: 1, gap: 6 },
-  skeletonLine: { height: 10, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.08)' },
-  skeletonBar: { height: 4, borderRadius: 9999, backgroundColor: 'rgba(255,255,255,0.06)' },
+  skeletonLine: { height: 10, borderRadius: 4, backgroundColor: colors.border },
+  skeletonBar: { height: 4, borderRadius: 9999, backgroundColor: colors.field },
 }));

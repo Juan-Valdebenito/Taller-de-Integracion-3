@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { ComplaintStats } from '../api/adminApi';
 import { adminCategory, breakdown } from '../admin/complaintStats';
 import { ComplaintKpis } from '../components/ComplaintKpis';
+import { ErrorState } from '../components/ErrorState';
 import { useAdminDashboard } from '../hooks/useAdminDashboard';
 import { makeStyles, radius, spacing, useTheme } from '../theme';
 
@@ -46,9 +47,7 @@ export function AdminDashboardScreen() {
         </Pressable>
 
         {error ? (
-          <View style={styles.error} accessibilityRole="alert">
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
+          <ErrorState message={error} onRetry={() => void refresh()} />
         ) : null}
 
         <ComplaintKpis stats={stats} />

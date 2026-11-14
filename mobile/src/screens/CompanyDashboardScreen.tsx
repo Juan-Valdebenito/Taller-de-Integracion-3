@@ -4,6 +4,7 @@ import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Card } from '../components/Card';
+import { ErrorState } from '../components/ErrorState';
 import { PageTitle } from '../components/PageTitle';
 import type { CompanyDashboardStats } from '../company/dashboardStats';
 import { useCompanyDashboard } from '../hooks/useCompanyDashboard';
@@ -63,12 +64,7 @@ export function CompanyDashboardScreen() {
         <PageTitle title="Dashboard" subtitle="KPIs y resumen de operaciones de la empresa" />
 
         {error ? (
-          <View style={styles.error} accessibilityRole="alert">
-            <Text style={styles.errorText}>{error}</Text>
-            <Pressable onPress={onRefresh} accessibilityRole="button" hitSlop={6}>
-              <Text style={styles.link}>Reintentar</Text>
-            </Pressable>
-          </View>
+          <ErrorState message={error} onRetry={onRefresh} />
         ) : null}
 
         <View style={styles.grid}>

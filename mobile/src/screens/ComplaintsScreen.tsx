@@ -13,8 +13,12 @@ import {
 } from '../api/complaintsApi';
 import { Card } from '../components/Card';
 import { ComplaintForm, type ComplaintCreated } from '../components/ComplaintForm';
+import { EmptyState } from '../components/EmptyState';
+import { ErrorState } from '../components/ErrorState';
+import { LoadingState } from '../components/LoadingState';
 import { PageTitle } from '../components/PageTitle';
 import { SelectField } from '../components/SelectField';
+import { ToastBanner } from '../components/ToastBanner';
 import { useMyComplaints } from '../hooks/useMyComplaints';
 import { makeStyles, radius, spacing, useTheme } from '../theme';
 
@@ -63,15 +67,13 @@ export function ComplaintsScreen() {
         </Pressable>
       </View>
       {error ? (
-        <View style={styles.message} accessibilityRole="alert">
-          <Text style={styles.messageText}>{error}</Text>
-        </View>
+        <ErrorState message={error} onRetry={refresh} />
       ) : null}
       {success ? (
-        <View style={styles.message} accessibilityRole="alert">
-          <Text style={styles.messageText}>{success}</Text>
-          {photoWarning ? <Text style={styles.warningText}>{photoWarning}</Text> : null}
-        </View>
+        <ToastBanner message={success} tone="success" />
+      ) : null}
+      {photoWarning ? (
+        <ToastBanner message={photoWarning} tone="warning" />
       ) : null}
       <View style={styles.filters}>
         <View style={styles.filter}>
@@ -85,13 +87,15 @@ export function ComplaintsScreen() {
   );
 
   const empty = loading ? (
-    <Text style={styles.loading}>Cargando reclamos...</Text>
+    <LoadingState message="Cargando reclamos..." />
   ) : error ? undefined : (
-    <View style={styles.empty}>
-      <Text style={styles.emptyEmoji}>📭</Text>
-      <Text style={styles.emptyTitle}>No tienes reclamos</Text>
-      <Text style={styles.emptyText}>Tus reclamos aparecerán aquí</Text>
-    </View>
+    <EmptyState
+      emoji="📭"
+      title="No tienes reclamos"
+      description="Tus reclamos aparecerán aquí"
+      onAction={openForm}
+      actionLabel="+ Crear reclamo"
+    />
   );
 
   return (

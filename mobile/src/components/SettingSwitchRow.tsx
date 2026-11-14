@@ -33,7 +33,7 @@ export function SettingSwitchRow({ label, description, value, onValueChange, dis
 }
 
 const useStyles = makeStyles((colors, font) => ({
-  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.sm, gap: spacing.md },
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.sm, minHeight: 48, gap: spacing.md },
   text: { flex: 1 },
   label: { fontSize: font(16), fontWeight: '600', color: colors.text },
   description: { marginTop: 2, fontSize: font(13), color: colors.muted, lineHeight: font(18) },
