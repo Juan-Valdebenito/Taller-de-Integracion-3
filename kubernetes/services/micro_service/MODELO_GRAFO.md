@@ -599,6 +599,57 @@ sumar, para combinarlas como una sola línea. Los IDs sin el formato
 La ocupación se usa **en el momento de la consulta**. No predice cómo irá la micro
 cuando el pasajero llegue al paradero.
 
+## Clima
+
+Caminar con frío, calor, viento fuerte o mala calidad del aire se percibe más
+pesado. Por eso el costo de caminar se multiplica por un factor según el clima.
+Viajar en micro no cambia: el clima solo afecta a los tramos a pie, incluida la
+caminata inicial desde la ubicación del pasajero.
+
+### Reglas
+
+Cada condición suma un recargo al factor:
+
+| Condición | Umbral | Recargo |
+|---|---|---|
+| Frío | Menos de 5 °C | +0,2 |
+| Frío intenso | Menos de 0 °C | +0,4 |
+| Calor | Más de 30 °C | +0,2 |
+| Viento | Más de 30 km/h | +0,2 |
+| Viento fuerte | Más de 50 km/h | +0,4 |
+| Aire sobre la norma | PM2.5 sobre 50 µg/m³ | +0,2 |
+| Aire en alerta | PM2.5 sobre 80 µg/m³ | +0,4 |
+
+```text
+factor = 1 + suma de recargos, con un máximo de 2,0
+```
+
+Los umbrales de PM2.5 toman como referencia la norma chilena: 50 µg/m³ como norma
+diaria y 80 como alerta. Los demás umbrales y todos los recargos son un **supuesto
+ajustable**, como los pesos y los factores de ocupación.
+
+El máximo de 2,0 evita que la suma de varias condiciones vuelva absurda una
+caminata. Como el factor nunca baja de 1, el costo nunca baja del tiempo real y A*
+sigue siendo válido.
+
+### Recargo
+
+El recargo se informa aparte, en `cost.weather`:
+
+```text
+recargo = tiempo caminando × peso de caminar × (factor − 1)
+```
+
+| Clima | Factor | Recargo de una caminata de 84 s |
+|---|---|---|
+| 15 °C, poco viento y aire limpio | 1,0 | 0 |
+| 3 °C | 1,2 | 84 × 2 × 0,2 = **33,6** |
+| 3 °C y PM2.5 de 60, típico de un invierno en Temuco | 1,4 | 84 × 2 × 0,4 = **67,2** |
+
+Con mal clima puede convenir esperar una micro antes que caminar. Por ejemplo,
+caminar 420 s cuesta 840, menos que una micro de 300 s con su espera (900). Con
+factor 1,4, la misma caminata cuesta 1176, y la ruta prefiere la micro.
+
 ## API
 
 Las rutas a la universidad se pueden pedir de tres formas. La app y el web deben
