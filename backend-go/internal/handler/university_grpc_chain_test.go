@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
 	microv1 "github.com/Juan-Valdebenito/Taller-de-Integracion-3/proto/gen/go/micro/v1"
 	"google.golang.org/grpc"
 
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/currentweather"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/infrastructure/grpcclient"
 )
 
@@ -34,12 +36,38 @@ func (costMicroServer) PlanUniversityRoutes(context.Context, *microv1.PlanUniver
 
 func startCostMicroClient(t *testing.T) *grpcclient.MicroClient {
 	t.Helper()
+	return startMicroClientWith(t, costMicroServer{})
+}
+
+// recordingMicroServer responde como costMicroServer y además guarda la última
+// petición recibida, para revisar qué llegó por la red.
+type recordingMicroServer struct {
+	costMicroServer
+	mutex       sync.Mutex
+	lastRequest *microv1.PlanUniversityRoutesRequest
+}
+
+func (server *recordingMicroServer) PlanUniversityRoutes(requestContext context.Context, request *microv1.PlanUniversityRoutesRequest) (*microv1.PlanUniversityRoutesResponse, error) {
+	server.mutex.Lock()
+	server.lastRequest = request
+	server.mutex.Unlock()
+	return server.costMicroServer.PlanUniversityRoutes(requestContext, request)
+}
+
+func (server *recordingMicroServer) receivedRequest() *microv1.PlanUniversityRoutesRequest {
+	server.mutex.Lock()
+	defer server.mutex.Unlock()
+	return server.lastRequest
+}
+
+func startMicroClientWith(t *testing.T, microServer microv1.MicroServiceServer) *grpcclient.MicroClient {
+	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
 	grpcServer := grpc.NewServer()
-	microv1.RegisterMicroServiceServer(grpcServer, costMicroServer{})
+	microv1.RegisterMicroServiceServer(grpcServer, microServer)
 	go func() { _ = grpcServer.Serve(listener) }()
 
 	microClient, err := grpcclient.NewMicroClient(listener.Addr().String(), "clave-de-prueba", 5*time.Second)
@@ -75,5 +103,29 @@ func TestUniversityCostSurvivesGRPCToJSON(t *testing.T) {
 	expectedWeights := costWeightsJSON{RideWeight: 1.5, WalkWeight: 2.5, WaitWeight: 2.5, TransferPenaltySeconds: 300, AssumedHeadwaySeconds: 600}
 	if body.CostWeights == nil || *body.CostWeights != expectedWeights {
 		t.Errorf("se esperaban los pesos %+v: %s", expectedWeights, recorder.Body.String())
+	}
+}
+
+// El clima y la ocupación de backend-go deben llegar exactos a micro_service por
+// una conexión gRPC real, con decimales incluidos.
+func TestWeatherAndOccupancyTravelToMicroService(t *testing.T) {
+	recordingServer := &recordingMicroServer{}
+	weather := fixedWeather{conditions: &currentweather.Conditions{TemperatureC: 3.25, WindSpeedKmh: 35.5, PM25: 62.75}}
+	proxyHandler := NewGRPCProxyHandler(nil, startMicroClientWith(t, recordingServer)).
+		WithLineOccupancy(fixedOccupancy{"L7B": 0.95, "L1C": 0.4}).
+		WithCurrentWeather(weather)
+	recorder := serveUniversityRequestWith(proxyHandler, "/routes/university?from_stop=PAR-PORTAL-01")
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("se esperaba 200: %d %s", recorder.Code, recorder.Body.String())
+	}
+
+	request := recordingServer.receivedRequest()
+	sentWeather := request.GetWeather()
+	if sentWeather == nil || sentWeather.GetTemperatureC() != 3.25 || sentWeather.GetWindSpeedKmh() != 35.5 || sentWeather.GetPm25() != 62.75 {
+		t.Errorf("el clima no llegó exacto: %+v", sentWeather)
+	}
+	occupancy := request.GetLineOccupancy()
+	if len(occupancy) != 2 || occupancy["L7B"] != 0.95 || occupancy["L1C"] != 0.4 {
+		t.Errorf("la ocupación no llegó exacta: %v", occupancy)
 	}
 }
