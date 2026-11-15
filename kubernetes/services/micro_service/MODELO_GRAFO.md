@@ -674,6 +674,24 @@ resultado.
 Si ninguna estación tiene lecturas en los últimos 30 minutos, no hay clima, y las
 rutas se calculan sin él.
 
+### Guardado y fallas
+
+backend-go no consulta `clima_service` en cada petición de rutas.
+`currentweather.Cache` guarda el último clima con estas reglas:
+
+| Regla | Valor | Por qué |
+|---|---|---|
+| Renovar el clima | Cada 5 minutos | El clima no cambia tanto en ese tiempo |
+| Esperar a `clima_service` | Máximo 2 segundos | Una ruta no debe demorarse por el clima |
+| Usar el último clima si el servicio falla | Hasta 30 minutos | Pasado ese tiempo, es mejor calcular sin clima que con uno viejo |
+| Reintentar tras una falla | A los 5 minutos | Insistir con un servicio caído haría esperar 2 segundos a cada petición |
+
+Si varias peticiones llegan al mismo tiempo, esperan **una sola consulta** en vez de
+hacer una cada una.
+
+La regla principal es que **las fallas de `clima_service` nunca impiden calcular
+rutas**. En el peor caso, las rutas se calculan sin clima.
+
 ## API
 
 Las rutas a la universidad se pueden pedir de tres formas. La app y el web deben
