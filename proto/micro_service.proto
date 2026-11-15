@@ -10,6 +10,8 @@ service MicroService {
 	rpc GetStop(GetStopRequest) returns (Stop);
 	rpc ListRoutes(ListRoutesRequest) returns (ListRoutesResponse);
 	rpc PlanRoute(PlanRouteRequest) returns (RoutePlan);
+	rpc ListCampuses(ListCampusesRequest) returns (ListCampusesResponse);
+	rpc PlanUniversityRoutes(PlanUniversityRoutesRequest) returns (PlanUniversityRoutesResponse);
 }
 
 message HealthRequest {}
@@ -81,4 +83,82 @@ message Movement {
 	string trip_id = 5;
 	int32 time_seconds = 6;
 	int32 distance_meters = 7;
+}
+
+message ListCampusesRequest {}
+
+message ListCampusesResponse {
+	repeated Campus campuses = 1;
+}
+
+message Campus {
+	string id = 1;
+	string name = 2;
+	repeated string stop_ids = 3;
+}
+
+// El origen es origin_stop_id, o latitude y longitude, pero nunca ambos.
+// Un campus_id vacío considera todos los campus.
+message PlanUniversityRoutesRequest {
+	string origin_stop_id = 1;
+	optional double latitude = 2;
+	optional double longitude = 3;
+	string campus_id = 4;
+	int32 limit = 5;
+	// Ocupación de cada línea, de 0 a 1, por el route_id de micro_service (por
+	// ejemplo "L7A"). Las líneas que no aparecen no se penalizan.
+	map<string, double> line_occupancy = 6;
+	// Clima de la consulta. Si no viene, caminar no se penaliza. Es un mensaje para
+	// distinguir "sin clima" de un clima a 0 °C.
+	WeatherConditions weather = 7;
+}
+
+// Clima del momento de la consulta. clima_service no informa lluvia.
+message WeatherConditions {
+	double temperature_c = 1;
+	double wind_speed_kmh = 2;
+	double pm25 = 3;
+}
+
+message PlanUniversityRoutesResponse {
+	repeated UniversityRoute routes = 1;
+	int32 total = 2;
+	// Pesos con que se calcularon los costos de las rutas.
+	CostWeights cost_weights = 3;
+}
+
+message UniversityRoute {
+	string campus_id = 1;
+	string campus_name = 2;
+	string destination_stop_id = 3;
+	int32 total_time_seconds = 4;
+	int32 total_distance_meters = 5;
+	int32 transfers = 6;
+	repeated Movement movements = 7;
+	// Costo con que se ordenó la ruta, en segundos equivalentes.
+	CostBreakdown cost = 8;
+}
+
+// Costo de una ruta por componente, en segundos equivalentes. total es la suma
+// de los demás componentes.
+message CostBreakdown {
+	double ride = 1;
+	double walk = 2;
+	double wait = 3;
+	double transfer = 4;
+	double total = 5;
+	// Recargo por viajar en micros llenas.
+	double crowding = 6;
+	// Recargo por caminar con mal clima.
+	double weather = 7;
+}
+
+// Pesos de la función de costo. assumed_headway_seconds es el intervalo supuesto
+// entre micros: la espera de las líneas sin frecuencia conocida es una estimación.
+message CostWeights {
+	double ride_weight = 1;
+	double walk_weight = 2;
+	double wait_weight = 3;
+	double transfer_penalty_seconds = 4;
+	int32 assumed_headway_seconds = 5;
 }

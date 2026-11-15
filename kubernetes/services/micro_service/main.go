@@ -5,7 +5,6 @@ package main
 // listar datos o planificar un trayecto.
 
 import (
-	"container/heap"
 	"context"
 	"crypto/subtle"
 	"encoding/json"
@@ -112,7 +111,7 @@ func (g *TransitGraph) LoadFromDB(ctx context.Context, pool *pgxpool.Pool) error
 		return fmt.Errorf("read route edges: %w", err)
 	}
 
-	transferRows, err := pool.Query(ctx, `SELECT from_stop_id, to_stop_id, walk_time_seconds FROM transfers ORDER BY from_stop_id, to_stop_id`)
+	transferRows, err := pool.Query(ctx, `SELECT from_stop_id, to_stop_id, walk_time_seconds, distance_meters FROM transfers ORDER BY from_stop_id, to_stop_id`)
 	if err != nil {
 		return fmt.Errorf("query transfers: %w", err)
 	}
@@ -120,7 +119,7 @@ func (g *TransitGraph) LoadFromDB(ctx context.Context, pool *pgxpool.Pool) error
 	for transferRows.Next() {
 		var fromID string
 		edge := Edge{RouteID: walkRouteID}
-		if err := transferRows.Scan(&fromID, &edge.ToStopID, &edge.BaseTimeSec); err != nil {
+		if err := transferRows.Scan(&fromID, &edge.ToStopID, &edge.BaseTimeSec, &edge.DistanceM); err != nil {
 			return fmt.Errorf("scan transfer: %w", err)
 		}
 		if err := validateEdge(next, fromID, edge); err != nil {
@@ -172,6 +171,8 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET /stops/", s.stopByID)
 	mux.HandleFunc("GET /routes", s.routesList)
 	mux.HandleFunc("GET /routes/plan", s.routePlan)
+	mux.HandleFunc("GET /routes/university", s.universityRoutes)
+	mux.HandleFunc("GET /campuses", s.campuses)
 	mux.HandleFunc("POST /admin/reload-graph", s.reloadGraph)
 	return loggingMiddleware(mux)
 }
@@ -347,18 +348,23 @@ func (s *Server) routePlan(w http.ResponseWriter, r *http.Request) {
 	for _, step := range path {
 		response.TotalTimeSec += step.Edge.BaseTimeSec
 		response.TotalDistanceM += step.Edge.DistanceM
-		movement := Movement{FromStopID: step.From, ToStopID: step.Edge.ToStopID, TimeSec: step.Edge.BaseTimeSec, DistanceM: step.Edge.DistanceM}
-		if step.Edge.RouteID == walkRouteID {
-			movement.Mode = "walk"
-		} else {
-			movement.Mode = "bus"
-			movement.RouteID = step.Edge.RouteID
-			movement.TripID = step.Edge.TripID
-		}
-		response.Movements = append(response.Movements, movement)
+		response.Movements = append(response.Movements, movementFromStep(step))
 	}
 	response.Transfers = countTransfers(path)
 	writeJSON(w, http.StatusOK, response)
+}
+
+// movementFromStep convierte un tramo interno al formato que entrega la API.
+func movementFromStep(step pathStep) Movement {
+	movement := Movement{FromStopID: step.From, ToStopID: step.Edge.ToStopID, TimeSec: step.Edge.BaseTimeSec, DistanceM: step.Edge.DistanceM}
+	if step.Edge.RouteID == walkRouteID {
+		movement.Mode = "walk"
+	} else {
+		movement.Mode = "bus"
+		movement.RouteID = step.Edge.RouteID
+		movement.TripID = step.Edge.TripID
+	}
+	return movement
 }
 
 func (s *Server) reloadGraph(w http.ResponseWriter, r *http.Request) {
@@ -374,156 +380,6 @@ func (s *Server) reloadGraph(w http.ResponseWriter, r *http.Request) {
 	}
 	s.store.Replace(graph)
 	writeJSON(w, http.StatusOK, map[string]any{"graph_loaded": true, "total_stops": len(graph.Stops), "total_edges": graph.EdgeCount()})
-}
-
-type pathStep struct {
-	From string
-	Edge Edge
-}
-type dijkstraItem struct {
-	stop, route                      string
-	time, transfers, sequence, index int
-}
-type priorityQueue []*dijkstraItem
-
-func (q priorityQueue) Len() int { return len(q) }
-func (q priorityQueue) Less(i, j int) bool {
-	if q[i].transfers != q[j].transfers {
-		return q[i].transfers < q[j].transfers
-	}
-	if q[i].time != q[j].time {
-		return q[i].time < q[j].time
-	}
-	return q[i].sequence < q[j].sequence
-}
-func (q priorityQueue) Swap(i, j int) { q[i], q[j] = q[j], q[i]; q[i].index = i; q[j].index = j }
-func (q *priorityQueue) Push(item any) {
-	entry := item.(*dijkstraItem)
-	entry.index = len(*q)
-	*q = append(*q, entry)
-}
-func (q *priorityQueue) Pop() any {
-	old := *q
-	n := len(old)
-	item := old[n-1]
-	*q = old[:n-1]
-	return item
-}
-
-func fastestPath(graph *TransitGraph, from, to string) ([]pathStep, bool) {
-	dist := map[string]int{from: 0}
-	previous := make(map[string]pathStep)
-	queue := &priorityQueue{&dijkstraItem{stop: from}}
-	heap.Init(queue)
-	for queue.Len() > 0 {
-		item := heap.Pop(queue).(*dijkstraItem)
-		if item.time != dist[item.stop] {
-			continue
-		}
-		if item.stop == to {
-			return reconstructPath(previous, from, to), true
-		}
-		for _, edge := range graph.Edges[item.stop] {
-			candidate := item.time + edge.BaseTimeSec
-			best, seen := dist[edge.ToStopID]
-			if !seen || candidate < best {
-				dist[edge.ToStopID] = candidate
-				previous[edge.ToStopID] = pathStep{From: item.stop, Edge: edge}
-				heap.Push(queue, &dijkstraItem{stop: edge.ToStopID, time: candidate})
-			}
-		}
-	}
-	return nil, false
-}
-
-func minimumTransferPath(graph *TransitGraph, from, to string) ([]pathStep, bool) {
-	type state struct{ stop, route string }
-	start := state{stop: from}
-	best := map[state][2]int{start: {0, 0}}
-	previous := make(map[state]struct {
-		from state
-		edge Edge
-	})
-	sequence := 0
-	queue := &priorityQueue{&dijkstraItem{stop: from}}
-	heap.Init(queue)
-	var final state
-	for queue.Len() > 0 {
-		item := heap.Pop(queue).(*dijkstraItem)
-		current := state{stop: item.stop, route: item.route}
-		cost, ok := best[current]
-		if !ok || cost != [2]int{item.transfers, item.time} {
-			continue
-		}
-		if item.stop == to {
-			final = current
-			break
-		}
-		for _, edge := range graph.Edges[item.stop] {
-			nextRoute, additionalTransfer := item.route, 0
-			if edge.RouteID != walkRouteID {
-				if nextRoute != "" && nextRoute != edge.RouteID {
-					additionalTransfer = 1
-				}
-				nextRoute = edge.RouteID
-			}
-			next := state{stop: edge.ToStopID, route: nextRoute}
-			candidate := [2]int{item.transfers + additionalTransfer, item.time + edge.BaseTimeSec}
-			old, seen := best[next]
-			if !seen || candidate[0] < old[0] || (candidate[0] == old[0] && candidate[1] < old[1]) {
-				best[next] = candidate
-				previous[next] = struct {
-					from state
-					edge Edge
-				}{from: current, edge: edge}
-				sequence++
-				heap.Push(queue, &dijkstraItem{stop: next.stop, route: next.route, time: candidate[1], transfers: candidate[0], sequence: sequence})
-			}
-		}
-	}
-	if final.stop == "" {
-		return nil, false
-	}
-	path := make([]pathStep, 0)
-	for final != start {
-		step, ok := previous[final]
-		if !ok {
-			return nil, false
-		}
-		path = append(path, pathStep{From: step.from.stop, Edge: step.edge})
-		final = step.from
-	}
-	reversePath(path)
-	return path, true
-}
-
-func reconstructPath(previous map[string]pathStep, from, to string) []pathStep {
-	path := make([]pathStep, 0)
-	for current := to; current != from; {
-		step := previous[current]
-		path = append(path, step)
-		current = step.From
-	}
-	reversePath(path)
-	return path
-}
-func reversePath(path []pathStep) {
-	for left, right := 0, len(path)-1; left < right; left, right = left+1, right-1 {
-		path[left], path[right] = path[right], path[left]
-	}
-}
-func countTransfers(path []pathStep) int {
-	previousRoute, transfers := "", 0
-	for _, step := range path {
-		if step.Edge.RouteID == walkRouteID {
-			continue
-		}
-		if previousRoute != "" && previousRoute != step.Edge.RouteID {
-			transfers++
-		}
-		previousRoute = step.Edge.RouteID
-	}
-	return transfers
 }
 
 func haversineMeters(lat1, lon1, lat2, lon2 float64) float64 {

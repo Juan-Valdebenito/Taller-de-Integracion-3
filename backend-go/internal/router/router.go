@@ -165,6 +165,8 @@ func Setup(
 			grpcGroup.GET("/micro/stops/:id", grpcH.GetStop)
 			grpcGroup.GET("/micro/routes", grpcH.ListRoutes)
 			grpcGroup.GET("/micro/routes/plan", grpcH.PlanRoute)
+			grpcGroup.GET("/micro/campuses", grpcH.ListCampuses)
+			grpcGroup.GET("/micro/routes/university", grpcH.PlanUniversityRoutes)
 		}
 	}
 

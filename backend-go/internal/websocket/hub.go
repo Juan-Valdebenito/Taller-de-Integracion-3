@@ -32,6 +32,21 @@ type Hub struct {
 
 	// Servicio de ocupación para enriquecer broadcasts.
 	occupancySvc *service.OccupancyService
+
+	// occupancyRecorder guarda los pasajeros de cada micro publicada. Es opcional:
+	// sin él, el Hub funciona igual que antes.
+	occupancyRecorder OccupancyRecorder
+}
+
+// OccupancyRecorder lo implementa liveoccupancy.Tracker.
+type OccupancyRecorder interface {
+	Record(busID, routeID string, currentPassengers, capacity int)
+}
+
+// SetOccupancyRecorder conecta el registro de ocupación. Debe llamarse antes de
+// iniciar Run, porque Run lee el campo sin sincronización.
+func (h *Hub) SetOccupancyRecorder(recorder OccupancyRecorder) {
+	h.occupancyRecorder = recorder
 }
 
 // NewHub crea un nuevo Hub con el servicio de ocupación inyectado.
@@ -98,6 +113,9 @@ func (h *Hub) handlePublish(msg *PublishMessage) {
 	// Una publicación se convierte en un evento enriquecido (por ejemplo, con
 	// nivel de ocupación) y se entrega a quienes siguen la ruta o la micro.
 	data := msg.Data
+	if h.occupancyRecorder != nil {
+		h.occupancyRecorder.Record(data.BusID, data.RouteID, data.CurrentPassengers, data.Capacity)
+	}
 
 	// Construir predicción de ocupación
 	var occupancy *OccupancyInfo
