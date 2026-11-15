@@ -431,6 +431,12 @@ func env(key, fallback string) string {
 
 func main() {
 	config := loadConfig()
+	weights, err := loadCostWeightsFromEnv()
+	if err != nil {
+		log.Fatalf("configuración de pesos inválida: %v", err)
+	}
+	configuredCostWeights = weights
+
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, config.DatabaseURL)
 	if err != nil {

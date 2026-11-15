@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: micros-service
-          image: ignaciogsm/micro_service:v1.1
+          image: tpenroz/micro_service:v1.2
           imagePullPolicy: Always
           resources:
             requests:

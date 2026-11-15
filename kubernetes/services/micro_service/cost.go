@@ -4,10 +4,16 @@ package main
 // le pesa al pasajero cada parte del viaje. Un minuto caminando suele percibirse
 // como más pesado que un minuto sentado en la micro, y los pesos lo representan.
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+	"math"
+	"os"
+	"strconv"
+)
 
 // errInvalidCostWeights indica pesos que impedirían comparar rutas correctamente.
-var errInvalidCostWeights = errors.New("cost weights must be at least 1")
+var errInvalidCostWeights = errors.New("ride, walk and wait weights must be at least 1; transfer penalty must be non-negative")
 
 // CostWeights multiplica el tiempo de cada tipo de tramo.
 type CostWeights struct {
@@ -27,18 +33,63 @@ type CostWeights struct {
 	Weather *WeatherConditions
 }
 
-// defaultCostWeights usa valores típicos de planificación de transporte: caminar
-// y esperar pesan el doble que viajar en micro, y cambiar de línea equivale a 5
-// minutos más de viaje. Son un punto de partida ajustable.
-func defaultCostWeights() CostWeights {
-	return CostWeights{RideWeight: 1.0, WalkWeight: 2.0, WaitWeight: 2.0, TransferPenaltySeconds: 300}
+// configuredCostWeights parte con los valores de respaldo y se reemplaza al
+// inicio con los valores válidos leídos desde las variables de entorno.
+var configuredCostWeights = CostWeights{
+	RideWeight:             1.0,
+	WalkWeight:             2.0,
+	WaitWeight:             2.0,
+	TransferPenaltySeconds: 300,
 }
 
-// validate exige pesos de al menos 1 y una penalización no negativa. Así el costo
-// nunca es menor que el tiempo real, y la estimación de A* basada en tiempo sigue
-// siendo válida.
+// defaultCostWeights devuelve los pesos cargados al iniciar el servicio. Si una
+// variable de entorno no está definida, se conserva su valor de respaldo.
+func defaultCostWeights() CostWeights {
+	return configuredCostWeights
+}
+
+// loadCostWeightsFromEnv lee los pesos configurables desde el entorno y conserva
+// los valores de respaldo para las variables que no estén definidas.
+func loadCostWeightsFromEnv() (CostWeights, error) {
+	weights := configuredCostWeights
+
+	values := []struct {
+		name string
+		dst  *float64
+	}{
+		{"RIDE_WEIGHT", &weights.RideWeight},
+		{"WALK_WEIGHT", &weights.WalkWeight},
+		{"WAIT_WEIGHT", &weights.WaitWeight},
+		{"TRANSFER_PENALTY_SECONDS", &weights.TransferPenaltySeconds},
+	}
+
+	for _, value := range values {
+		raw := os.Getenv(value.name)
+		if raw == "" {
+			continue
+		}
+
+		parsed, err := strconv.ParseFloat(raw, 64)
+		if err != nil {
+			return CostWeights{}, fmt.Errorf("%s debe ser numérico: %w", value.name, err)
+		}
+		*value.dst = parsed
+	}
+
+	if err := weights.validate(); err != nil {
+		return CostWeights{}, err
+	}
+	return weights, nil
+}
+
+// validate exige pesos de viaje, caminata y espera finitos y de al menos 1, y una
+// penalización por transbordo finita y no negativa. Así el costo no queda por
+// debajo del tiempo real y la estimación de A* basada en tiempo sigue siendo válida.
 func (weights CostWeights) validate() error {
-	if weights.RideWeight < 1 || weights.WalkWeight < 1 || weights.WaitWeight < 1 || weights.TransferPenaltySeconds < 0 {
+	if math.IsNaN(weights.RideWeight) || math.IsInf(weights.RideWeight, 0) || weights.RideWeight < 1 ||
+		math.IsNaN(weights.WalkWeight) || math.IsInf(weights.WalkWeight, 0) || weights.WalkWeight < 1 ||
+		math.IsNaN(weights.WaitWeight) || math.IsInf(weights.WaitWeight, 0) || weights.WaitWeight < 1 ||
+		math.IsNaN(weights.TransferPenaltySeconds) || math.IsInf(weights.TransferPenaltySeconds, 0) || weights.TransferPenaltySeconds < 0 {
 		return errInvalidCostWeights
 	}
 	return nil
