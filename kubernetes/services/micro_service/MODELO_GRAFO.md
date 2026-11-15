@@ -650,6 +650,30 @@ Con mal clima puede convenir esperar una micro antes que caminar. Por ejemplo,
 caminar 420 s cuesta 840, menos que una micro de 300 s con su espera (900). Con
 factor 1,4, la misma caminata cuesta 1176, y la ruta prefiere la micro.
 
+### De dónde sale
+
+`clima_service` entrega temperatura, humedad, viento y material particulado (PM2.5
+y PM10) de 4 estaciones. El costo usa la temperatura, el viento y el PM2.5.
+
+1. Al pedir rutas, backend-go consulta a `clima_service` por gRPC, con
+   `ListTelemetry`, las lecturas de los **últimos 30 minutos**.
+2. `currentweather.Provider` toma la **última lectura de cada estación**.
+3. Promedia temperatura, viento y PM2.5 entre las estaciones.
+4. backend-go envía el resultado a `micro_service` en el mensaje `weather`.
+
+Se usa la última lectura de cada estación para que todas pesen igual. Si se
+promediaran todas las lecturas, una estación que informa más seguido dominaría el
+resultado.
+
+| Estación | Lecturas | Se usa |
+|---|---|---|
+| A | Hace 10, 5 y 1 minuto | La de hace 1 minuto: 4 °C, 10 km/h y PM2.5 de 40 |
+| B | Hace 2 minutos | 6 °C, 20 km/h y PM2.5 de 60 |
+| **Ciudad** | | **5 °C, 15 km/h y PM2.5 de 50** |
+
+Si ninguna estación tiene lecturas en los últimos 30 minutos, no hay clima, y las
+rutas se calculan sin él.
+
 ## API
 
 Las rutas a la universidad se pueden pedir de tres formas. La app y el web deben
