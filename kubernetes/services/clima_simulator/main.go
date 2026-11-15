@@ -1,18 +1,19 @@
 package main
 
-// Productor de datos de clima de desarrollo. Genera lecturas plausibles y las
-// publica con el mismo esquema que usarían sensores reales, para probar la
-// API, la persistencia y la distribución por NATS sin hardware.
+// Productor de datos de clima de desarrollo. Consulta Open-Meteo y publica las
+// lecturas con el esquema del servicio para probar la API y la persistencia.
 
 import (
 	"bytes"
 	"encoding/json"
-	"hash/fnv"
+	"fmt"
+	"io"
 	"log"
-	"math"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 )
@@ -53,15 +54,23 @@ type WeatherPayload struct {
 
 // WeatherManager orquesta las estaciones concurrentes
 type WeatherManager struct {
-	apiEndpoint string
-	apiKey      string
-	httpClient  *http.Client
+	apiEndpoint      string
+	apiKey           string
+	weatherAPIURL    string
+	airQualityAPIURL string
+	refreshInterval  time.Duration
+	maxStaleness     time.Duration
+	httpClient       *http.Client
 }
 
 func NewWeatherManager(endpoint, apiKey string) *WeatherManager {
 	return &WeatherManager{
-		apiEndpoint: endpoint,
-		apiKey:      apiKey,
+		apiEndpoint:      endpoint,
+		apiKey:           apiKey,
+		weatherAPIURL:    "https://api.open-meteo.com/v1/forecast",
+		airQualityAPIURL: "https://air-quality-api.open-meteo.com/v1/air-quality",
+		refreshInterval:  15 * time.Minute,
+		maxStaleness:     time.Hour,
 		httpClient: &http.Client{
 			Timeout: 5 * time.Second,
 			Transport: &http.Transport{
@@ -73,25 +82,80 @@ func NewWeatherManager(endpoint, apiKey string) *WeatherManager {
 	}
 }
 
-// StartStation ejecuta la simulación continua de una estación
+type openMeteoCurrent struct {
+	Time         *int64   `json:"time"`
+	TemperatureC *float64 `json:"temperature_2m"`
+	HumidityPct  *float64 `json:"relative_humidity_2m"`
+	WindSpeedKMH *float64 `json:"wind_speed_10m"`
+	PM25         *float64 `json:"pm2_5"`
+	PM10         *float64 `json:"pm10"`
+}
+
+type openMeteoResponse struct {
+	Current openMeteoCurrent `json:"current"`
+}
+
+type stationReadingCache struct {
+	payload   WeatherPayload
+	fetchedAt time.Time
+}
+
+func (c *stationReadingCache) update(payload WeatherPayload, fetchedAt time.Time) {
+	c.payload = payload
+	c.fetchedAt = fetchedAt
+}
+
+func (c stationReadingCache) readingAt(now time.Time, maxStaleness time.Duration) (WeatherPayload, bool) {
+	if c.fetchedAt.IsZero() || maxStaleness <= 0 || now.Before(c.fetchedAt) || now.Sub(c.fetchedAt) > maxStaleness {
+		return WeatherPayload{}, false
+	}
+	return c.payload, true
+}
+
+// StartStation publica los datos cacheados de una estación.
 func (m *WeatherManager) StartStation(config StationConfig, stopChan <-chan struct{}) {
 	if config.IntervalSeconds <= 0 {
 		log.Printf("[MANAGER] Intervalo inválido para %s: %d", config.StationID, config.IntervalSeconds)
 		return
 	}
+	if m.refreshInterval <= 0 || m.maxStaleness <= 0 {
+		log.Printf("[MANAGER] Intervalo Open-Meteo inválido para %s", config.StationID)
+		return
+	}
 
 	ticker := time.NewTicker(time.Duration(config.IntervalSeconds) * time.Second)
 	defer ticker.Stop()
+	refreshTicker := time.NewTicker(m.refreshInterval)
+	defer refreshTicker.Stop()
 
 	log.Printf("[MANAGER] Iniciado sensor %s (%s) cada %ds", config.StationID, config.Sector, config.IntervalSeconds)
+	cache := stationReadingCache{}
+	staleWarningLogged := false
+	refresh := func() {
+		payload, err := m.fetchReadings(config)
+		if err != nil {
+			log.Printf("[OPEN-METEO] No se pudo actualizar %s: %v", config.StationID, err)
+			return
+		}
+		cache.update(payload, time.Now())
+		staleWarningLogged = false
+	}
+	refresh()
 
 	for {
 		select {
 		case <-ticker.C:
-			// Generar lectura simulada
-			payload := m.generateReadings(config)
-			// Enviar al backend HTTP
+			payload, ok := cache.readingAt(time.Now(), m.maxStaleness)
+			if !ok {
+				if !cache.fetchedAt.IsZero() && !staleWarningLogged {
+					log.Printf("[OPEN-METEO] Datos vencidos para %s; se omite telemetría hasta actualizar", config.StationID)
+					staleWarningLogged = true
+				}
+				continue
+			}
 			m.sendTelemetry(payload)
+		case <-refreshTicker.C:
+			refresh()
 		case <-stopChan:
 			log.Printf("[MANAGER] Deteniendo sensor %s", config.StationID)
 			return
@@ -99,23 +163,37 @@ func (m *WeatherManager) StartStation(config StationConfig, stopChan <-chan stru
 	}
 }
 
-func (m *WeatherManager) generateReadings(config StationConfig) WeatherPayload {
-	return m.generateReadingsAt(config, time.Now())
-}
+func (m *WeatherManager) fetchReadings(config StationConfig) (WeatherPayload, error) {
+	weather, err := m.fetchCurrent(m.weatherAPIURL, config, "temperature_2m,relative_humidity_2m,wind_speed_10m")
+	if err != nil {
+		return WeatherPayload{}, fmt.Errorf("consultando clima: %w", err)
+	}
+	airQuality, err := m.fetchCurrent(m.airQualityAPIURL, config, "pm2_5,pm10")
+	if err != nil {
+		return WeatherPayload{}, fmt.Errorf("consultando calidad del aire: %w", err)
+	}
+	current := weather.Current
+	air := airQuality.Current
+	if current.Time == nil || current.TemperatureC == nil || current.HumidityPct == nil || current.WindSpeedKMH == nil {
+		return WeatherPayload{}, fmt.Errorf("respuesta de clima incompleta")
+	}
+	if air.Time == nil || air.PM25 == nil || air.PM10 == nil {
+		return WeatherPayload{}, fmt.Errorf("respuesta de calidad del aire incompleta")
+	}
+	if *current.Time <= 0 || *air.Time <= 0 {
+		return WeatherPayload{}, fmt.Errorf("respuesta contiene timestamps inválidos")
+	}
+	if *current.HumidityPct < 0 || *current.HumidityPct > 100 || *current.WindSpeedKMH < 0 || *air.PM25 < 0 || *air.PM10 < 0 {
+		return WeatherPayload{}, fmt.Errorf("respuesta contiene métricas fuera del contrato")
+	}
 
-func (m *WeatherManager) generateReadingsAt(config StationConfig, now time.Time) WeatherPayload {
-	dayFraction := float64(now.Hour()) + float64(now.Minute())/60.0 + float64(now.Second())/3600.0
-	dailyPhase := 2 * math.Pi * (dayFraction - 8) / 24
-	stationOffset := stationClimateOffset(config.StationID)
-
-	// La temperatura alcanza su máximo durante la tarde y el material particulado durante la noche.
-	temperature := 11.0 + 7.0*math.Sin(dailyPhase) + stationOffset*2.0
-	daylight := clamp(math.Sin(math.Pi*(dayFraction-6)/12), 0, 1)
-	night := 1 - daylight
-	humidity := clamp(78.0-1.8*(temperature-8.0)+4.0*math.Sin(dailyPhase+math.Pi/3), 35, 98)
-	wind := clamp(8.0+3.0*math.Sin(dailyPhase+stationOffset*math.Pi)+stationOffset*2.0, 1, 24)
-	pm25 := clamp(18.0+68.0*math.Pow(night, 1.5)+stationOffset*8.0, 5, 180)
-
+	validAt := time.Unix(*current.Time, 0)
+	if airValidAt := time.Unix(*air.Time, 0); airValidAt.Before(validAt) {
+		validAt = airValidAt
+	}
+	if validAt.After(time.Now().Add(5 * time.Minute)) {
+		return WeatherPayload{}, fmt.Errorf("respuesta contiene un timestamp futuro")
+	}
 	return WeatherPayload{
 		StationID: config.StationID,
 		Location: Location{
@@ -124,25 +202,45 @@ func (m *WeatherManager) generateReadingsAt(config StationConfig, now time.Time)
 			Sector:    config.Sector,
 		},
 		Readings: SensorReadings{
-			TemperatureC: temperature,
-			HumidityPct:  humidity,
-			WindSpeedKMH: wind,
-			PM25:         pm25,
-			PM10:         pm25 * 1.45,
+			TemperatureC: *current.TemperatureC,
+			HumidityPct:  *current.HumidityPct,
+			WindSpeedKMH: *current.WindSpeedKMH,
+			PM25:         *air.PM25,
+			PM10:         *air.PM10,
 		},
 		Status:    "OPERATIONAL",
-		Timestamp: now.Unix(),
+		Timestamp: validAt.Unix(),
+	}, nil
+}
+
+func (m *WeatherManager) fetchCurrent(endpoint string, config StationConfig, variables string) (openMeteoResponse, error) {
+	parsedURL, err := url.Parse(endpoint)
+	if err != nil {
+		return openMeteoResponse{}, fmt.Errorf("URL inválida: %w", err)
 	}
-}
+	query := parsedURL.Query()
+	query.Set("latitude", strconv.FormatFloat(config.Latitude, 'f', -1, 64))
+	query.Set("longitude", strconv.FormatFloat(config.Longitude, 'f', -1, 64))
+	query.Set("current", variables)
+	query.Set("temperature_unit", "celsius")
+	query.Set("wind_speed_unit", "kmh")
+	query.Set("timeformat", "unixtime")
+	parsedURL.RawQuery = query.Encode()
 
-func stationClimateOffset(stationID string) float64 {
-	hasher := fnv.New32a()
-	_, _ = hasher.Write([]byte(stationID))
-	return (float64(hasher.Sum32()%2001)/1000.0 - 1.0) * 0.5
-}
+	resp, err := m.httpClient.Get(parsedURL.String())
+	if err != nil {
+		return openMeteoResponse{}, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return openMeteoResponse{}, fmt.Errorf("HTTP %d desde %s", resp.StatusCode, parsedURL.Host)
+	}
 
-func clamp(value, minimum, maximum float64) float64 {
-	return math.Max(minimum, math.Min(maximum, value))
+	var response openMeteoResponse
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&response); err != nil {
+		return openMeteoResponse{}, fmt.Errorf("JSON inválido: %w", err)
+	}
+	return response, nil
 }
 
 // Envió HTTP POST
@@ -202,6 +300,10 @@ func main() {
 	apiURL := env("WEATHER_API_URL", "http://localhost:8080/api/v1/telemetry/weather")
 	apiKey := env("WEATHER_API_KEY", "temuco_weather_secret_key")
 	manager := NewWeatherManager(apiURL, apiKey)
+	manager.weatherAPIURL = env("OPEN_METEO_WEATHER_URL", manager.weatherAPIURL)
+	manager.airQualityAPIURL = env("OPEN_METEO_AIR_QUALITY_URL", manager.airQualityAPIURL)
+	manager.refreshInterval = durationSecondsFromEnv("OPEN_METEO_REFRESH_INTERVAL_SECONDS", manager.refreshInterval)
+	manager.maxStaleness = durationSecondsFromEnv("OPEN_METEO_MAX_STALENESS_SECONDS", manager.maxStaleness)
 
 	stopChan := make(chan struct{})
 
@@ -225,4 +327,16 @@ func env(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func durationSecondsFromEnv(key string, fallback time.Duration) time.Duration {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+	seconds, err := strconv.Atoi(value)
+	if err != nil || seconds <= 0 {
+		log.Fatalf("%s debe ser un entero positivo: %q", key, value)
+	}
+	return time.Duration(seconds) * time.Second
 }
