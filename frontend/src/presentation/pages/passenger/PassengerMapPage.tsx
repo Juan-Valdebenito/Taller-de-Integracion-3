@@ -28,6 +28,7 @@ import { RouteFilter } from '../../components/map/RouteFilter';
 import { MapStatusBar } from '../../components/map/MapStatusBar';
 import { ConnectionOverlay } from '../../components/map/ConnectionOverlay';
 import { microStopsApi, type MicroStop } from '../../../infrastructure/api/microStopsApi';
+import { climateTelemetryApi, type ClimateTelemetryRecord } from '../../../infrastructure/api/climateTelemetryApi';
 import { LiveMap } from '../../components/passenger/LiveMap';
 import { SimulationDevTools, type SimEventType } from '../../components/passenger/SimulationDevTools';
 
@@ -50,6 +51,9 @@ function passengersAfter(bus: BusState, event: SimEventType): number {
 }
 
 const STOPS_LIMIT = 5000;
+const CLIMATE_REFRESH_MS = 10_000;
+const CLIMATE_WINDOW_MS = 60 * 60 * 1000;
+const CLIMATE_TELEMETRY_LIMIT = 1000;
 
 export function PassengerMapPage() {
   // ── Estado ────────────────────────────────────────────────────
@@ -58,6 +62,9 @@ export function PassengerMapPage() {
   const [stops, setStops] = useState<MicroStop[]>([]);
   const [stopsLoading, setStopsLoading] = useState(true);
   const [stopsMessage, setStopsMessage] = useState<string | null>(null);
+  const [climateTelemetry, setClimateTelemetry] = useState<ClimateTelemetryRecord[]>([]);
+  const [climateLoading, setClimateLoading] = useState(true);
+  const [climateMessage, setClimateMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -79,6 +86,53 @@ export function PassengerMapPage() {
 
     return () => {
       active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    let inFlight = false;
+
+    const loadClimateTelemetry = async () => {
+      if (inFlight) return;
+      inFlight = true;
+
+      const to = new Date();
+      const from = new Date(to.getTime() - CLIMATE_WINDOW_MS);
+
+      try {
+        const records = await climateTelemetryApi.getAll({
+          from: from.toISOString(),
+          to: to.toISOString(),
+          limit: CLIMATE_TELEMETRY_LIMIT,
+        });
+        if (!active) return;
+
+        const latestByStation = new Map<string, ClimateTelemetryRecord>();
+        for (const record of records) {
+          const current = latestByStation.get(record.station_id);
+          if (!current || Date.parse(record.time) > Date.parse(current.time)) {
+            latestByStation.set(record.station_id, record);
+          }
+        }
+
+        const latestRecords = Array.from(latestByStation.values());
+        setClimateTelemetry(latestRecords);
+        setClimateMessage(latestRecords.length === 0 ? 'No se encontraron registros climáticos recientes.' : null);
+      } catch {
+        if (active) setClimateMessage('No se pudo actualizar la información climática.');
+      } finally {
+        inFlight = false;
+        if (active) setClimateLoading(false);
+      }
+    };
+
+    void loadClimateTelemetry();
+    const intervalId = window.setInterval(() => void loadClimateTelemetry(), CLIMATE_REFRESH_MS);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
     };
   }, []);
 
@@ -149,7 +203,7 @@ export function PassengerMapPage() {
       <div className="map-content">
         {/* Mapa Leaflet */}
         <div className="map-leaflet-wrapper">
-          <LiveMap stops={stops}>
+          <LiveMap stops={stops} climateTelemetry={climateTelemetry}>
             {/* Marcadores de micros con animación */}
             {visibleBuses.map((bus) => (
               <BusMarker
@@ -164,6 +218,12 @@ export function PassengerMapPage() {
           {stopsLoading || stopsMessage ? (
             <div className="map-stops-notice" role="status" aria-live="polite">
               {stopsLoading ? 'Cargando paraderos...' : stopsMessage}
+            </div>
+          ) : null}
+
+          {climateLoading || climateMessage ? (
+            <div className="map-climate-notice" role="status" aria-live="polite">
+              {climateLoading && climateTelemetry.length === 0 ? 'Cargando información climática...' : climateMessage}
             </div>
           ) : null}
 

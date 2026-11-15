@@ -5,6 +5,8 @@ import 'leaflet/dist/leaflet.css';
 import './LiveMap.css';
 import { HazardMarker } from './HazardMarker';
 import { StopMarker } from '../map/StopMarker';
+import { ClimateMarker } from './ClimateMarker';
+import type { ClimateTelemetryRecord } from '../../../infrastructure/api/climateTelemetryApi';
 import type { MicroStop } from '../../../infrastructure/api/microStopsApi';
 
 // Fix for default Leaflet icon paths in React
@@ -48,6 +50,7 @@ export interface HazardData {
 interface LiveMapProps {
   buses?: BusData[];
   stops?: MicroStop[];
+  climateTelemetry?: ClimateTelemetryRecord[];
   hazards?: HazardData[];
   onBusClick?: (busId: string, lineName: string) => void;
   onMapClick?: (lat: number, lng: number) => void;
@@ -157,6 +160,7 @@ const createBusIcon = (
 export const LiveMap: React.FC<LiveMapProps> = ({
   buses = [],
   stops = [],
+  climateTelemetry = [],
   hazards = [],
   onBusClick,
   onMapClick,
@@ -192,6 +196,10 @@ export const LiveMap: React.FC<LiveMapProps> = ({
 
         {stops.map((stop) => (
           <StopMarker key={stop.id} stop={stop} />
+        ))}
+
+        {climateTelemetry.map((record) => (
+          <ClimateMarker key={record.station_id} record={record} />
         ))}
         
         {buses.map((bus) => {

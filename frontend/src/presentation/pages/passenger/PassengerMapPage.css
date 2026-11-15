@@ -230,6 +230,22 @@
   pointer-events: none;
 }
 
+.map-climate-notice {
+  position: absolute;
+  z-index: 1000;
+  right: 12px;
+  bottom: 12px;
+  max-width: min(360px, calc(100% - 24px));
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  background: rgba(15, 20, 30, 0.92);
+  color: #e2e8f0;
+  font-size: 12px;
+  text-align: left;
+  pointer-events: none;
+}
+
 /* ── Panel lateral ────────────────────────────────────────────── */
 .map-side-panel {
   width: 260px;
