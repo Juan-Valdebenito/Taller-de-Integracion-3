@@ -129,3 +129,35 @@ func TestWeatherAndOccupancyTravelToMicroService(t *testing.T) {
 		t.Errorf("la ocupación no llegó exacta: %v", occupancy)
 	}
 }
+
+// Con el clima desconocido, el mensaje no debe viajar. Si viajara con ceros,
+// micro_service leería 0 °C y cobraría frío intenso a todas las caminatas.
+// Por la red, proto3 distingue un mensaje ausente de uno con ceros.
+func TestUnknownWeatherDoesNotTravelToMicroService(t *testing.T) {
+	testCases := []struct {
+		name           string
+		connectWeather func(proxyHandler *GRPCProxyHandler) *GRPCProxyHandler
+	}{
+		{"clima desconocido", func(proxyHandler *GRPCProxyHandler) *GRPCProxyHandler {
+			return proxyHandler.WithCurrentWeather(fixedWeather{conditions: nil})
+		}},
+		{"sin fuente de clima", func(proxyHandler *GRPCProxyHandler) *GRPCProxyHandler {
+			return proxyHandler
+		}},
+	}
+	for _, testCase := range testCases {
+		recordingServer := &recordingMicroServer{}
+		proxyHandler := testCase.connectWeather(NewGRPCProxyHandler(nil, startMicroClientWith(t, recordingServer)))
+		recorder := serveUniversityRequestWith(proxyHandler, "/routes/university?from_stop=PAR-PORTAL-01")
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("%s: se esperaba 200: %d %s", testCase.name, recorder.Code, recorder.Body.String())
+		}
+		request := recordingServer.receivedRequest()
+		if request == nil {
+			t.Fatalf("%s: la petición no llegó a micro_service", testCase.name)
+		}
+		if request.Weather != nil {
+			t.Errorf("%s: no debe viajar un mensaje de clima: %+v", testCase.name, request.Weather)
+		}
+	}
+}
