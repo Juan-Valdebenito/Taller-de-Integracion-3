@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -105,6 +106,40 @@ func TestUniversityRoutesDeliverWeatherThroughRouter(t *testing.T) {
 	}
 	if body.Routes[1].Cost["weather"] != 33.6 || body.Routes[1].Cost["total"] != 1041.6 {
 		t.Errorf("se esperaba weather = 33.6 y total = 1041.6: %v", body.Routes[1].Cost)
+	}
+}
+
+// A través del router, cada ruta debe traer sus 7 componentes, incluidos los que
+// valen 0, y estos deben sumar el total.
+func TestUniversityRoutesComponentsAddUpThroughRouter(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/integrations/micro/routes/university?from_stop=PAR-PORTAL-01", nil)
+	request.Header.Set("Authorization", "Bearer "+accessToken(t, "usr-pass", "PASSENGER"))
+	recorder := httptest.NewRecorder()
+	universityRoutesEngine().ServeHTTP(recorder, request)
+	var body struct {
+		Routes []struct {
+			Cost map[string]float64 `json:"cost"`
+		} `json:"routes"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	components := []string{"ride", "walk", "wait", "transfer", "crowding", "weather"}
+	for routeIndex, route := range body.Routes {
+		componentsSum := 0.0
+		for _, component := range components {
+			value, present := route.Cost[component]
+			if !present {
+				t.Errorf("ruta %d: falta el componente %s", routeIndex+1, component)
+			}
+			componentsSum += value
+		}
+		if _, present := route.Cost["total"]; !present || math.Abs(componentsSum-route.Cost["total"]) > 1e-9 {
+			t.Errorf("ruta %d: los componentes suman %v y el total es %v", routeIndex+1, componentsSum, route.Cost["total"])
+		}
+	}
+	if len(body.Routes) != 2 {
+		t.Errorf("se esperaban 2 rutas: %s", recorder.Body.String())
 	}
 }
 
