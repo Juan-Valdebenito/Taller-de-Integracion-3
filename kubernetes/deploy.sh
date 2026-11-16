@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Despliega TransitHub en el cluster, repartido en tres cuentas:
+# Despliega TransitHub en tres cuentas del cluster, mediante cuatro stacks.
 #
-#   foundation → student-jvaldebenito: NATS, micros, backend-go y transporte-db
-#   app        → student-tpenroz:      frontend, bridge e Ingress principal
-#   realtime   → student-iglausser:    clima, telemetría, realtime e Ingress
+#   foundation → student-jvaldebenito: NATS, backend-go y transporte-db
+#   micros     → student-tpenroz:      ConfigMap, base de datos y servicio de micros
+#   app        → student-tpenroz:      frontend e Ingress principal
+#   realtime   → student-iglausser:    clima, telemetría, simulador, realtime e Ingress
 #
 # Uso (desde la raíz del repo):
 #   bash kubernetes/deploy.sh <foundation|micros|app|realtime> render
@@ -121,8 +122,8 @@ load_env() {
   # u otro método para generar un password seguro. Se puede dejar vacío si no se usa Redis.
   REDIS_PASSWORD="${REDIS_PASSWORD:-}"
 
-  # Cada stack se aplica con su propio namespace/contexto. Esto refleja que la
-  # aplicación está repartida entre cuentas distintas del cluster.
+  # El namespace y contexto se eligen por stack. micros y app comparten cuenta,
+  # namespace y contexto; los otros stacks usan sus destinos configurados.
   case "$STACK" in
     foundation)
       NAMESPACE="$FOUNDATION_NAMESPACE"

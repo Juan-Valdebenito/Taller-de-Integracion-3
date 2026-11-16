@@ -8,6 +8,10 @@ data:
   DB_PORT: "5432"
   DB_NAME: "micros_db"
   DB_USER: "micros_user"  # Asegurarse de configurar usuario y contraseña
+  RIDE_WEIGHT: "1.0"
+  WALK_WEIGHT: "2.0"
+  WAIT_WEIGHT: "2.0"
+  TRANSFER_PENALTY_SECONDS: "300"
 
   PORT: "3001"    # puerto del microservicio
   GRPC_PORT: "9091"
