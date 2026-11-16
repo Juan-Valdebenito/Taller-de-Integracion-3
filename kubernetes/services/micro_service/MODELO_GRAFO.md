@@ -811,7 +811,7 @@ La API REST de `micro_service`, en `GET /routes/university`, responde lo mismo.
           "distance_meters": 950
         }
       ],
-      "cost": { "ride": 240, "walk": 0, "wait": 600, "transfer": 0, "crowding": 0, "total": 840 }
+      "cost": { "ride": 240, "walk": 0, "wait": 600, "transfer": 0, "crowding": 0, "weather": 0, "total": 840 }
     }
   ],
   "total": 1,
@@ -837,6 +837,7 @@ empate se resuelve siempre igual, así que la respuesta no cambia entre consulta
 | `cost.wait` | Espera estimada en cada subida a una micro, por su peso |
 | `cost.transfer` | Penalización por cada cambio de línea |
 | `cost.crowding` | Recargo por viajar en micros llenas |
+| `cost.weather` | Recargo por caminar con mal clima |
 | `cost.total` | Suma de los demás; es el valor con que se ordenan las rutas |
 | `cost_weights` | Pesos usados en el cálculo |
 | `cost_weights.assumed_headway_seconds` | Intervalo supuesto entre micros: la espera es una estimación |
@@ -862,11 +863,15 @@ Si backend-go está actualizado, pero el cluster mantiene la imagen anterior de
 La app debe revisar si `cost_weights` es `null` antes de mostrar el costo. El orden
 de las rutas no depende de esto: siempre lo decide `micro_service`.
 
+Si la imagen de `micro_service` ya calcula el costo, pero es anterior a la
+ocupación o al clima, ignora esos datos. Las rutas llegan con `cost.crowding` y
+`cost.weather` en 0, y se ordenan sin considerarlos.
+
 ### Errores
 
 | Caso | gRPC | HTTP |
 |---|---|---|
-| Falta el origen, vienen dos, o el límite o las coordenadas no son válidos | `InvalidArgument` | 400 |
+| Falta el origen, vienen dos, o no son válidos el límite, las coordenadas, la ocupación o el clima | `InvalidArgument` | 400 |
 | Sin sesión en backend-go | — | 401 |
 | Paradero o campus inexistente, o sin paraderos a 1000 m | `NotFound` | 404 |
 | `micro_service` rechaza la clave de backend-go | `Unauthenticated` | 502 en backend-go |
