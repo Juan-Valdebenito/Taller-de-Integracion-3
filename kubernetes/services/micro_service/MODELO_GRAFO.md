@@ -310,6 +310,10 @@ revisa antes de cargarlo.
 El tiempo que entrega el planificador es un **mínimo de viaje**, no una hora exacta
 de llegada.
 
+Las rutas a la universidad sí consideran la espera y los cambios de línea, porque se
+ordenan por costo (ver Ocupación, Clima y API). El tiempo detenido en cada paradero
+sigue sin incluirse.
+
 ## Transbordos a pie
 
 Los datos oficiales tienen 42 filas: 21 pares de paraderos, una fila por sentido.
@@ -363,6 +367,13 @@ Los algoritmos están en `planner.go`, que no depende de HTTP ni de gRPC.
 | `fastestPath` | Dijkstra | Menor tiempo |
 | `aStarPath` | A* | Menor tiempo, explorando menos paraderos |
 | `minimumTransferPath` | Dijkstra con la línea actual en el estado | Menos cambios de línea y, si empatan, menor tiempo |
+| `cheapestPath` | Dijkstra con la situación del pasajero en el estado | Menor costo |
+| `aStarCheapestPath` | A* con la misma situación en el estado | Menor costo, explorando menos estados |
+
+Con costo, el estado de la búsqueda es el paradero más la situación del pasajero:
+la última línea y si sigue arriba de ella. Llegar a un paradero arriba de una micro
+no cuesta lo mismo que llegar caminando, porque seguir en la misma micro no requiere
+esperar.
 
 La API no ofrece `aStarPath` como preferencia propia. Lo usan las rutas
 alternativas y las rutas a la universidad en cada búsqueda.
@@ -410,6 +421,9 @@ Muestra que A* aporta poco en la red actual, y que su ventaja aparece al crecer.
 ## Rutas alternativas
 
 `alternatives.go` entrega hasta K rutas distintas, de la más rápida a la más lenta.
+Las rutas a la universidad usan la versión por costo, `cost_alternatives.go`: aplica
+Yen sobre el costo, y cada desviación parte desde la situación del pasajero en ese
+paradero.
 La API las entrega a través de las rutas a la universidad.
 
 ### Algoritmo de Yen
@@ -500,8 +514,8 @@ Para agregar un campus, se suma a la lista `universityCampuses`.
 | Campus inexistente | Error `errUnknownCampus` |
 
 Incluir primero la mejor ruta de cada campus evita que el más cercano llene todas
-las opciones. Por eso una ruta más lenta hacia otro campus puede desplazar a una
-alternativa más rápida.
+las opciones. Por eso una ruta más cara hacia otro campus puede desplazar a una
+alternativa más barata.
 
 ### Salida desde la ubicación
 
@@ -510,7 +524,7 @@ alternativa más rápida.
 1. Busca hasta 3 paraderos con conexiones de salida, a 1000 m o menos.
 2. Calcula las rutas al campus desde cada uno.
 3. Agrega la caminata inicial como primer tramo.
-4. Ordena por tiempo total, con la caminata incluida.
+4. Ordena por costo, con la caminata incluida.
 
 No siempre conviene el paradero más cercano: caminar un poco más puede ahorrar
 tiempo de viaje. Si un paradero cercano ya es parte del campus, la ruta solo camina
@@ -525,11 +539,14 @@ red, muchas ubicaciones de Temuco quedarán a más de 1000 m de un paradero.
 Desde unos 100 m al norte de `PAR-PORTAL-01`, sin indicar campus y con un límite de
 3 rutas:
 
-| Tiempo total | Campus | Ruta |
-|---|---|---|
-| 324 s | San Francisco | Caminar 84 s y tomar la línea 1C, 240 s |
-| 821 s | San Francisco | Caminar todo el trayecto |
-| 1944 s | San Juan Pablo II | Caminar 84 s y tomar la línea 7B, 1860 s |
+| Tiempo total | Costo | Campus | Ruta |
+|---|---|---|---|
+| 324 s | 1008 | San Francisco | Caminar 84 s y tomar la línea 7B, 240 s |
+| 821 s | 1642 | San Francisco | Caminar todo el trayecto |
+| 1944 s | 2628 | San Juan Pablo II | Caminar 84 s y tomar la línea 7B, 1860 s |
+
+Sin ocupación ni clima, el costo suma la caminata con peso 2, la espera de 600 y el
+viaje. En la primera ruta: 84 × 2 + 600 + 240 = 1008.
 
 ## Ocupación
 
@@ -1068,7 +1085,7 @@ prueba confirma que el planificador entrega ese tiempo y esa distancia.
 
 | Problema | Se resuelve en |
 |---|---|
-| Faltan 390 paraderos por cargar en el catálogo: el generador está listo, pero no se ha ejecutado | Subtarea 2b, pausada |
+| Faltan 390 paraderos por cargar en el catálogo: el generador está listo, pero no se ha ejecutado | Ejecutar `generator/generator.go` y cargar el resultado |
 | 7A y 7B tienen el mismo nombre largo en los datos oficiales | Confirmar con el equipo |
 | `L7A` no cierra su circuito en los datos oficiales | Confirmar con el equipo |
 | La espera es una estimación: no hay frecuencias reales de las líneas | Conseguir frecuencias y cargarlas en `lineHeadwaySeconds` |
@@ -1079,4 +1096,4 @@ prueba confirma que el planificador entrega ese tiempo y esa distancia.
 | En `main`, los paraderos se movieron a `/mapinfo/micro/stops`, pero la app móvil todavía pide `/integrations/micro/stops`, que ya no existe | Actualizar `mobile/src/api/stopsApi.ts` |
 | El clima no considera la lluvia: `clima_service` no la guarda | Que `clima_service` guarde la lluvia de Open-Meteo |
 | El clima depende de que `clima_simulator` pueda salir a internet para consultar Open-Meteo | Confirmar en el cluster |
-| Muchas ubicaciones de Temuco quedan a más de 1000 m de un paradero de la red, porque esta tiene 7 paraderos | Subtarea 2b y más recorridos |
+| Muchas ubicaciones de Temuco quedan a más de 1000 m de un paradero de la red, porque esta tiene 7 paraderos | Cargar el catálogo y agregar recorridos |
