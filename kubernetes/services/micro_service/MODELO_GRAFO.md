@@ -1004,11 +1004,20 @@ correcta.
 `graph_data_test.go` revisa los datos oficiales con las reglas de este documento y
 con el planificador real. `planner_test.go` compara Dijkstra y A*, y
 `alternatives_test.go` revisa las rutas alternativas. `university_test.go` y
-`location_test.go` revisan las rutas a la universidad. Ninguno necesita una base de
-datos.
+`location_test.go` revisan las rutas a la universidad. Los archivos que empiezan con
+`cost`, junto con `occupancy_test.go` y `weather_test.go`, revisan la función de
+costo. Ninguno necesita una base de datos.
 
 ```bash
 cd kubernetes/services/micro_service
+go test ./...
+```
+
+En backend-go, `liveoccupancy` y `currentweather` tienen sus propias pruebas, y el
+handler y el router prueban el recorrido completo hasta el JSON:
+
+```bash
+cd backend-go
 go test ./...
 ```
 
@@ -1029,6 +1038,14 @@ go test ./...
 | Campus | Sus paraderos existen en la red, y los ID no se repiten |
 | Rutas a la universidad | Son válidas desde todos los paraderos y aparecen ambos campus |
 | Salida desde la ubicación | Incluye la caminata, omite paraderos sin conexiones e informa si no hay cercanos |
+| Búsqueda por costo | Dijkstra coincide con la fuerza bruta, y A* da el mismo costo explorando menos estados |
+| Yen por costo | Coincide con la fuerza bruta, y cada desviación parte desde la situación del pasajero |
+| Desglose del costo | Los componentes suman el total, en REST, gRPC y backend-go |
+| Ocupación | Con una línea llena, la ruta prefiere otra; los factores van de 1,0 a 1,6 |
+| Clima | Con mal clima, la ruta prefiere la micro antes que caminar; el factor va de 1,0 a 2,0 |
+| Ocupación en vivo | Las micros publicadas en el Hub llegan a `micro_service`, con sus IDs traducidos |
+| Clima actual | Se promedia la última lectura de cada estación, y las fallas no impiden calcular rutas |
+| Sin datos | Sin ocupación o sin clima, no se envía nada; el clima nunca viaja como 0 °C |
 
 `PAR-CJP-02` ↔ `PAR-DPORT-01` está registrado en la prueba como excepción conocida
 de velocidad. Si el equipo corrige el dato, se quita esa excepción. Cualquier otro
@@ -1057,6 +1074,9 @@ prueba confirma que el planificador entrega ese tiempo y esa distancia.
 | La espera es una estimación: no hay frecuencias reales de las líneas | Conseguir frecuencias y cargarlas en `lineHeadwaySeconds` |
 | La ocupación es la del momento de la consulta, no la de la llegada al paradero | Mejora futura |
 | `PAR-CJP-02` ↔ `PAR-DPORT-01` tiene un tiempo atípico de 7380 s | Confirmar con el equipo |
-| Las rutas a la universidad no están desplegadas: faltan las imágenes nuevas de `micro_service` y backend-go | Coordinar con Ignacio |
-| Los endpoints antiguos de `/integrations` responden 401 si `micro_service` rechaza la clave de backend-go, y la app cerraría la sesión del usuario | Tarea aparte: cambiar `writeRPCError` |
+| Las rutas a la universidad, el costo, la ocupación y el clima no están desplegados: faltan las imágenes nuevas de `micro_service` y backend-go | Coordinar con Ignacio |
+| Los endpoints de paraderos y clima responden 401 si un microservicio rechaza la clave de backend-go, y la app cerraría la sesión del usuario | Tarea aparte: cambiar `writeRPCError` |
+| En `main`, los paraderos se movieron a `/mapinfo/micro/stops`, pero la app móvil todavía pide `/integrations/micro/stops`, que ya no existe | Actualizar `mobile/src/api/stopsApi.ts` |
+| El clima no considera la lluvia: `clima_service` no la guarda | Que `clima_service` guarde la lluvia de Open-Meteo |
+| El clima depende de que `clima_simulator` pueda salir a internet para consultar Open-Meteo | Confirmar en el cluster |
 | Muchas ubicaciones de Temuco quedan a más de 1000 m de un paradero de la red, porque esta tiene 7 paraderos | Subtarea 2b y más recorridos |
