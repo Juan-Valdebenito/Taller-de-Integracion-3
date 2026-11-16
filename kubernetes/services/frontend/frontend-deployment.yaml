@@ -20,7 +20,7 @@ spec:
       containers:
         - name: frontend
           # deploy.sh la reemplaza por <DOCKERHUB_USER>/transithub-frontend:<IMAGE_TAG> (cluster.env); se construye con: bash kubernetes/deploy.sh app build
-          image: tpenroz/transithub-frontend:v1
+          image: <DOCKERHUB_USER>/transithub-frontend:<IMAGE_TAG>
           imagePullPolicy: Always
           ports:
             - name: http

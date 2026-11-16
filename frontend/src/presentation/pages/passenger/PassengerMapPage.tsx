@@ -17,9 +17,7 @@
  *    por el WebSocket nativo /ws de Go
  */
 
-import { useCallback, useState } from 'react';
-import { MapContainer, TileLayer } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
+import { useCallback, useEffect, useState } from 'react';
 import './PassengerMapPage.css';
 
 import { useSimulatedBuses, BusState } from '../../../hooks/useSimulatedBuses';
@@ -29,7 +27,9 @@ import { BusSidePanel } from '../../components/map/BusSidePanel';
 import { RouteFilter } from '../../components/map/RouteFilter';
 import { MapStatusBar } from '../../components/map/MapStatusBar';
 import { ConnectionOverlay } from '../../components/map/ConnectionOverlay';
-import { RouteNodesLayer } from '../../components/map/RouteNodesLayer';
+import { microStopsApi, type MicroStop } from '../../../infrastructure/api/microStopsApi';
+import { climateTelemetryApi, type ClimateTelemetryRecord } from '../../../infrastructure/api/climateTelemetryApi';
+import { LiveMap } from '../../components/passenger/LiveMap';
 import { SimulationDevTools, type SimEventType } from '../../components/passenger/SimulationDevTools';
 
 // El simulador es una herramienta de desarrollo: no se muestra en producción.
@@ -50,23 +50,95 @@ function passengersAfter(bus: BusState, event: SimEventType): number {
   }
 }
 
-// Centro del mapa: Plaza de Armas de Temuco
-const TEMUCO_CENTER: [number, number] = [-38.7359, -72.5904];
-const DEFAULT_ZOOM = 14;
+const STOPS_LIMIT = 5000;
+const CLIMATE_REFRESH_MS = 10_000;
+const CLIMATE_WINDOW_MS = 60 * 60 * 1000;
+const CLIMATE_TELEMETRY_LIMIT = 1000;
 
 export function PassengerMapPage() {
   // ── Estado ────────────────────────────────────────────────────
   const [selectedBusId, setSelectedBusId] = useState<string | null>(null);
   const [routeFilter, setRouteFilter] = useState<string>('all');
+  const [stops, setStops] = useState<MicroStop[]>([]);
+  const [stopsLoading, setStopsLoading] = useState(true);
+  const [stopsMessage, setStopsMessage] = useState<string | null>(null);
+  const [climateTelemetry, setClimateTelemetry] = useState<ClimateTelemetryRecord[]>([]);
+  const [climateLoading, setClimateLoading] = useState(true);
+  const [climateMessage, setClimateMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    microStopsApi.getAll({ limit: STOPS_LIMIT })
+      .then(({ stops: loadedStops, total }) => {
+        if (!active) return;
+        setStops(loadedStops);
+        if (total > loadedStops.length) {
+          setStopsMessage(`Se muestran ${loadedStops.length} de ${total} paraderos.`);
+        }
+      })
+      .catch(() => {
+        if (active) setStopsMessage('No se pudieron cargar los paraderos.');
+      })
+      .finally(() => {
+        if (active) setStopsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    let inFlight = false;
+
+    const loadClimateTelemetry = async () => {
+      if (inFlight) return;
+      inFlight = true;
+
+      const to = new Date();
+      const from = new Date(to.getTime() - CLIMATE_WINDOW_MS);
+
+      try {
+        const records = await climateTelemetryApi.getAll({
+          from: from.toISOString(),
+          to: to.toISOString(),
+          limit: CLIMATE_TELEMETRY_LIMIT,
+        });
+        if (!active) return;
+
+        const latestByStation = new Map<string, ClimateTelemetryRecord>();
+        for (const record of records) {
+          const current = latestByStation.get(record.station_id);
+          if (!current || Date.parse(record.time) > Date.parse(current.time)) {
+            latestByStation.set(record.station_id, record);
+          }
+        }
+
+        const latestRecords = Array.from(latestByStation.values());
+        setClimateTelemetry(latestRecords);
+        setClimateMessage(latestRecords.length === 0 ? 'No se encontraron registros climáticos recientes.' : null);
+      } catch {
+        if (active) setClimateMessage('No se pudo actualizar la información climática.');
+      } finally {
+        inFlight = false;
+        if (active) setClimateLoading(false);
+      }
+    };
+
+    void loadClimateTelemetry();
+    const intervalId = window.setInterval(() => void loadClimateTelemetry(), CLIMATE_REFRESH_MS);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   // ── Buses simulados (fallback cuando WS no está conectado) ────
   const simulatedBuses = useSimulatedBuses(2000);
-  const [buses, setBuses] = useState<BusState[]>(simulatedBuses);
-
-  // Sincronizar estado local con la simulación
-  useState(() => {
-    setBuses(simulatedBuses);
-  });
+  const [buses, setBuses] = useState<BusState[]>([]);
 
   // ── WebSocket (fuente primaria) ────────────────────────────────
   const setBusesCallback = useCallback(
@@ -82,7 +154,7 @@ export function PassengerMapPage() {
   const [localPassengers, setLocalPassengers] = useState<Record<string, { base: number; value: number }>>({});
 
   // WebSocket es la fuente primaria; simulación es fallback
-  const sourceBuses = wsState.status === 'connected' ? buses : simulatedBuses;
+  const sourceBuses = wsState.status === 'connected' && wsState.totalMessages > 0 ? buses : simulatedBuses;
   const activeBuses = sourceBuses.map((bus) => {
     const local = localPassengers[bus.id];
     return local && local.base === bus.currentPassengers ? { ...bus, currentPassengers: local.value } : bus;
@@ -131,21 +203,7 @@ export function PassengerMapPage() {
       <div className="map-content">
         {/* Mapa Leaflet */}
         <div className="map-leaflet-wrapper">
-          <MapContainer
-            center={TEMUCO_CENTER}
-            zoom={DEFAULT_ZOOM}
-            style={{ height: '100%', width: '100%' }}
-            zoomControl={true}
-          >
-            {/* Tiles de OpenStreetMap */}
-            <TileLayer
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              maxZoom={19}
-            />
-
-            <RouteNodesLayer routeFilter={routeFilter} />
-
+          <LiveMap stops={stops} climateTelemetry={climateTelemetry}>
             {/* Marcadores de micros con animación */}
             {visibleBuses.map((bus) => (
               <BusMarker
@@ -155,7 +213,19 @@ export function PassengerMapPage() {
                 onSelect={handleSelectBus}
               />
             ))}
-          </MapContainer>
+          </LiveMap>
+
+          {stopsLoading || stopsMessage ? (
+            <div className="map-stops-notice" role="status" aria-live="polite">
+              {stopsLoading ? 'Cargando paraderos...' : stopsMessage}
+            </div>
+          ) : null}
+
+          {climateLoading || climateMessage ? (
+            <div className="map-climate-notice" role="status" aria-live="polite">
+              {climateLoading && climateTelemetry.length === 0 ? 'Cargando información climática...' : climateMessage}
+            </div>
+          ) : null}
 
           {/* Overlay de conexión */}
           <ConnectionOverlay status={wsState.status} />
