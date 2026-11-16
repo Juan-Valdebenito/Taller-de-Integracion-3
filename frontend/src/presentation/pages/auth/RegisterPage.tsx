@@ -78,7 +78,7 @@ export function RegisterPage() {
       </p>
 
       {errorMessage && (
-        <div style={{
+        <div role="alert" aria-live="assertive" style={{
           background: 'rgba(239, 68, 68, 0.15)',
           color: '#f87171',
           padding: '10px 14px',

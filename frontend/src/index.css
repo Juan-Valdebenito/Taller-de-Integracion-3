@@ -42,6 +42,9 @@
   --color-text-primary:   hsl(220, 20%, 95%);
   --color-text-secondary: hsl(220, 10%, 65%);
   --color-text-muted:     hsl(220, 8%, 45%);
+  --color-danger-readable: hsl(0, 85%, 72%);
+  --color-success-readable: hsl(142, 55%, 65%);
+  --color-warning-readable: hsl(38, 85%, 68%);
 
   /* Tipografía */
   --font-family: 'Inter', system-ui, -apple-system, sans-serif;
@@ -123,6 +126,71 @@ button {
   font-family: inherit;
 }
 
+/* Shared feedback and keyboard treatment for non-map web views. */
+.app-accessible {
+  /* Supporting text reaches readable contrast on dark surfaces. */
+  --color-text-muted: hsl(220, 10%, 62%);
+}
+
+.app-accessible :focus-visible {
+  outline: 3px solid var(--color-primary-300);
+  outline-offset: 3px;
+}
+
+.app-accessible :disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.app-accessible input:not([type="checkbox"]):not([type="radio"]),
+.app-accessible textarea,
+.app-accessible select {
+  color: var(--color-text-primary);
+}
+
+.app-accessible input::placeholder,
+.app-accessible textarea::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
+}
+
+.app-accessible [aria-invalid="true"] {
+  border-color: var(--color-danger-readable) !important;
+}
+
+.app-accessible [role="alert"] {
+  border: 1px solid hsla(0, 84%, 65%, 0.45);
+  border-radius: var(--radius-md);
+  background: hsla(0, 84%, 60%, 0.12);
+  color: var(--color-danger-readable);
+  padding: var(--space-3) var(--space-4);
+}
+
+.app-accessible [role="status"] {
+  color: var(--color-text-secondary);
+}
+
+.app-accessible table th {
+  color: var(--color-text-secondary) !important;
+}
+
+.app-accessible tbody tr {
+  transition: background-color var(--transition-fast);
+}
+
+.app-accessible tbody tr:hover {
+  background: hsla(215, 80%, 60%, 0.06);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-accessible *, .app-accessible *::before, .app-accessible *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 input, textarea, select {
   font-family: inherit;
 }
@@ -160,6 +228,14 @@ input, textarea, select {
   .company-layout > main {
     padding: var(--space-5) var(--space-4) !important;
   }
+}
+
+@media (max-width: 760px) {
+  .admin-layout > aside { width: 180px !important; }
+  .admin-layout > aside nav a { padding-inline: var(--space-2) !important; }
+  .admin-layout header { padding: 0 var(--space-4) !important; }
+  .admin-layout main { padding: var(--space-5) var(--space-4) !important; }
+  .admin-layout main > div { max-width: 100%; }
 }
 
 /* ── Scrollbar personalizada ───────────────────────────────── */

@@ -174,7 +174,7 @@ export function PassengerComplaintsPage() {
 
   if (isLoading) {
     return (
-      <div 
+      <div className="app-accessible" role="status" aria-live="polite"
         style={{ 
           padding: 'var(--space-8)', 
           textAlign: 'center' 
@@ -195,7 +195,7 @@ export function PassengerComplaintsPage() {
   // Pagina de reclamos
 
   return (
-    <div style={{ padding: 'var(--space-8)' }}>
+    <div className="app-accessible" style={{ padding: 'var(--space-8)' }}>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)', }} >
         <div>
@@ -222,13 +222,13 @@ export function PassengerComplaintsPage() {
       </div>
 
       {error && (
-        <div style={{ marginBottom: 'var(--space-6)', padding: 'var(--space-6)', borderRadius: 'var(--radius-lg)', background: 'var(--color-background-secondary)', }}>
+        <div role="alert" aria-live="assertive" style={{ marginBottom: 'var(--space-6)', padding: 'var(--space-6)', borderRadius: 'var(--radius-lg)', background: 'var(--color-background-secondary)', }}>
           {error}
         </div>
       )}
 
       {success && (
-         <div style={{ marginBottom: 'var(--space-6)', padding: 'var(--space-6)', borderRadius: 'var(--radius-lg)', background: 'var(--color-background-secondary)', }}>
+         <div role="status" aria-live="polite" style={{ marginBottom: 'var(--space-6)', padding: 'var(--space-6)', borderRadius: 'var(--radius-lg)', background: 'var(--color-background-secondary)', }}>
           {success}
         </div>
       )}
