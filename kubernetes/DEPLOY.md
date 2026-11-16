@@ -92,7 +92,7 @@ El orden de despliegue recomendado sigue la secuencia del equipo:
 2. **Backend-go** usa micros localmente y clima mediante DNS cross-namespace; se ejecuta en foundation.
 3. **App** expone frontend y el bridge de backend-go mediante el Ingress principal.
 4. **Realtime** publica clima, clima-db y telemetría, y replica sus ConfigMaps/Secrets de transporte porque los Secrets no se comparten entre namespaces.
-5. **PostgreSQL `transporte_db`** usa el PVC `transporte-db-pvc` (1 GiB,
+5. **PostgreSQL `transporte_db`** usa el PVC `transporte-db-pvc` (5 GiB,
    `ReadWriteOnce`) montado en `/var/lib/postgresql/data`. Como el manifiesto no
    fija `storageClassName`, Kubernetes usa la StorageClass por defecto del
    clúster. El PVC se aplica junto al Deployment desde el stack `foundation`;

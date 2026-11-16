@@ -38,6 +38,7 @@ FOUNDATION_FILES=(
   services/redis_server/redis-auth-secret.yaml
   services/redis_server/redis-server-deployment.yml
   services/backend-go/clima-client-secret.yaml
+  services/backend-go/backend-go-configmap.yaml
   services/backend-go/backend-go-deployment.yaml
   services/backend-go/backend-go-service.yaml
   ingress/backend-go-ingress.yaml
