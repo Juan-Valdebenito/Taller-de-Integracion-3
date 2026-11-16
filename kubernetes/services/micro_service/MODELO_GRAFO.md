@@ -629,6 +629,60 @@ El último caso merece atención: al bajarse y caminar, el pasajero tiene que es
 otra micro, pero no cambió de línea. Es la misma regla de `countTransfers`, que
 tampoco lo cuenta como transbordo. Los tramos a pie nunca tienen espera.
 
+### Búsqueda por costo
+
+`cost_search.go` busca la ruta de menor costo. Con tiempo bastaba recordar el
+paradero; con costo no, porque el costo de un tramo depende de cómo se llegó al
+paradero. Por eso cada estado de la búsqueda es el **paradero más la situación del
+pasajero**, y un mismo paradero puede aparecer en varios estados.
+
+Viaje de `PAR-DPORT-01` a `PAR-CJP-01`, según la situación al partir:
+
+| Situación del pasajero | Elige | Costo |
+|---|---|---|
+| Va arriba de la 7B | Seguir en la 7B | 1320, sin esperar |
+| Espera en el paradero | Tomar la 7B | 600 de espera + 1320 = 1920 |
+| Va arriba de la 7A | Seguir en la 7A hasta `PAR-CJP-02` y caminar | 1500 + 240 × 2 = 1980 |
+
+En el tercer caso no conviene bajarse y tomar la 7B: costaría 600 de espera, 300 de
+transbordo y 1320 de viaje, en total 2220.
+
+### A* con costo
+
+A* reutiliza la estimación de tiempo y la convierte en costo:
+
+```text
+estimación de costo = estimación de tiempo × el menor peso entre micro y caminata
+```
+
+Cada segundo de viaje cuesta al menos ese peso mínimo, y la espera, los transbordos
+y los recargos nunca restan. Por eso la estimación no supera el costo real, y A*
+encuentra la ruta óptima.
+
+| Red | Dijkstra | A* | Reducción |
+|---|---|---|---|
+| Red oficial, 42 viajes | 340 estados | 218 | 36 % |
+| Cuadrícula de prueba, 100 viajes en 900 paraderos | 43 394 | 18 089 | 58 % |
+
+Con costo, A* ahorra más que con tiempo (36 % frente a 9,5 % en la red oficial),
+porque cada paradero tiene varios estados y orientarse hacia el destino evita
+explorar muchos de ellos.
+
+### Alternativas por costo
+
+`cost_alternatives.go` aplica Yen sobre el costo, con dos diferencias respecto de la
+versión por tiempo:
+
+- **Cada desviación parte desde la situación del pasajero** en ese paradero. Si
+  venía arriba de la 7B, seguir en ella no cobra espera.
+- **No se juntan las líneas que comparten un tramo**, porque la línea define si hay
+  transbordo. Yen revisa las rutas de la más barata a la más cara, y de cada
+  recorrido igual para el pasajero conserva la primera, que es la más barata.
+
+Para cada alternativa pedida, Yen revisa hasta 10 rutas
+(`maxRankedPathsPerAlternative`). Si muchas líneas compartieran los mismos tramos,
+podría entregar menos alternativas de las pedidas. En la red actual no ocurre.
+
 ## Ocupación
 
 Un minuto de pie en una micro llena se percibe más largo que uno sentado. Por eso
