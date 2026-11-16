@@ -894,9 +894,22 @@ Las rutas a la universidad necesitan imágenes nuevas de dos servicios:
 
 ### Orden
 
-1. **Primero `micro_service`.** Si backend-go se actualiza antes, sus rutas nuevas
-   llaman a funciones gRPC que la imagen antigua no tiene, y responden 500.
-2. **Después backend-go.**
+1. **`clima_service` y `clima_simulator`**, en el stack `realtime`. No es
+   obligatorio para las rutas, pero sin ellos no hay clima.
+2. **`micro_service`.** Su imagen nueva incluye las rutas a la universidad, el costo,
+   la ocupación y el clima.
+3. **backend-go.** Su imagen nueva envía la ocupación y el clima, y muestra el costo.
+
+El orden importa porque backend-go depende de lo que sabe hacer `micro_service`:
+
+| Si backend-go se actualiza y `micro_service` tiene… | Resultado |
+|---|---|
+| La imagen sin rutas a la universidad | Las rutas nuevas responden 500 |
+| Una imagen con costo, pero sin ocupación ni clima | Funciona, pero `crowding` y `weather` llegan en 0 |
+| La imagen nueva | Funciona completo |
+
+Actualizar `micro_service` antes nunca rompe nada: backend-go antiguo simplemente
+no envía la ocupación ni el clima.
 
 ### Comandos
 
