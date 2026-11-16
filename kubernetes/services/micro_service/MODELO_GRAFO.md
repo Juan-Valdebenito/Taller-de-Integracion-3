@@ -548,6 +548,52 @@ Desde unos 100 m al norte de `PAR-PORTAL-01`, sin indicar campus y con un límit
 Sin ocupación ni clima, el costo suma la caminata con peso 2, la espera de 600 y el
 viaje. En la primera ruta: 84 × 2 + 600 + 240 = 1008.
 
+## Función de costo
+
+La ruta más rápida no siempre es la mejor para el pasajero. Un minuto esperando en
+el paradero o caminando se percibe más pesado que un minuto sentado en la micro, y
+cambiar de micro es una molestia aunque no agregue tiempo. Por eso las rutas a la
+universidad se ordenan por **costo**, no por tiempo.
+
+El costo se mide en **segundos equivalentes**: cuánto le pesa al pasajero cada parte
+del viaje. Está en `cost.go`.
+
+### Fórmula
+
+```text
+costo = viaje en micro × peso del viaje
+      + caminata × peso de caminar
+      + espera × peso de esperar
+      + penalización × cambios de línea
+      + recargo por ocupación
+      + recargo por clima
+```
+
+Cada término es un componente de `cost` en la respuesta: `ride`, `walk`, `wait`,
+`transfer`, `crowding` y `weather`. `total` es su suma.
+
+### Pesos
+
+| Peso | Valor | Significado |
+|---|---|---|
+| Viaje en micro | 1,0 | La referencia: un segundo en micro cuesta un segundo |
+| Caminar | 2,0 | Un segundo caminando pesa el doble |
+| Esperar | 2,0 | Un segundo en el paradero pesa el doble |
+| Cambio de línea | 300 s | Cada transbordo equivale a 5 minutos más de viaje |
+
+Son valores típicos de la planificación de transporte, y un **supuesto ajustable**.
+Están en `defaultCostWeights`. Cada respuesta los informa en `cost_weights`.
+
+### Por qué los pesos son al menos 1
+
+Con pesos de al menos 1, y recargos que nunca restan, **el costo de una ruta nunca
+es menor que su tiempo**. Eso permite que A* use la misma estimación basada en
+tiempo sin perder la ruta óptima. `validate` rechaza pesos menores que 1 y una
+penalización negativa.
+
+Con todos los pesos en 1, sin espera ni transbordos, el costo es exactamente el
+tiempo. La búsqueda por tiempo es un caso particular de la función de costo.
+
 ## Ocupación
 
 Un minuto de pie en una micro llena se percibe más largo que uno sentado. Por eso
