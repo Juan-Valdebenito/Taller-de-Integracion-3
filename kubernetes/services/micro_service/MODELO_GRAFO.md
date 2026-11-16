@@ -594,6 +594,41 @@ penalización negativa.
 Con todos los pesos en 1, sin espera ni transbordos, el costo es exactamente el
 tiempo. La búsqueda por tiempo es un caso particular de la función de costo.
 
+### Espera
+
+Los datos no incluyen frecuencias ni horarios de las micros. Por eso la espera es un
+**supuesto**: cada línea pasa cada 10 minutos (`defaultHeadwaySeconds`).
+
+Si el pasajero llega al paradero en un momento cualquiera, espera en promedio la
+mitad del intervalo entre micros:
+
+```text
+espera = 600 s / 2 = 300 s
+costo de la espera = 300 s × 2,0 = 600
+```
+
+Si se conoce la frecuencia real de una línea, se agrega a `lineHeadwaySeconds`. Por
+ejemplo, con la 7B cada 4 minutos, su espera baja a 2 minutos y las demás líneas
+siguen con el supuesto. Cada respuesta informa el supuesto en
+`cost_weights.assumed_headway_seconds`.
+
+### Cuándo se espera y cuándo hay transbordo
+
+El costo recuerda la situación del pasajero antes de cada tramo: la última línea en
+que viajó y si todavía va arriba de esa micro (`rideState`).
+
+| Situación antes del tramo en micro | Espera | Transbordo |
+|---|---|---|
+| Primera micro del viaje | Sí | No |
+| Sigue en la misma micro | No | No |
+| Cambia de línea | Sí | Sí |
+| Camina y sube a otra línea | Sí | Sí |
+| Camina y vuelve a la misma línea | Sí | No |
+
+El último caso merece atención: al bajarse y caminar, el pasajero tiene que esperar
+otra micro, pero no cambió de línea. Es la misma regla de `countTransfers`, que
+tampoco lo cuenta como transbordo. Los tramos a pie nunca tienen espera.
+
 ## Ocupación
 
 Un minuto de pie en una micro llena se percibe más largo que uno sentado. Por eso
