@@ -6,6 +6,7 @@ import { ApiError } from '../api/errors';
 import { useAuth } from '../auth/AuthContext';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
+import { ErrorState } from '../components/ErrorState';
 import { PageTitle } from '../components/PageTitle';
 import { makeStyles, radius, spacing, useTheme } from '../theme';
 import { useSignOut } from '../hooks/useSignOut';
@@ -78,9 +79,7 @@ export function ProfileScreen() {
         </View>
 
         {error ? (
-          <View style={styles.error} accessibilityRole="alert">
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
+          <ErrorState message={error} onRetry={reload} />
         ) : null}
 
         <Text style={styles.sectionTitle}>Datos de la cuenta</Text>
@@ -132,8 +131,6 @@ const useStyles = makeStyles((colors, font) => ({
     paddingVertical: spacing.xs,
   },
   badgeText: { color: colors.accent, fontWeight: '600', fontSize: font(13) },
-  error: { backgroundColor: colors.dangerBg, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
-  errorText: { color: colors.danger, fontSize: font(14) },
   sectionTitle: {
     fontSize: font(13),
     fontWeight: '600',

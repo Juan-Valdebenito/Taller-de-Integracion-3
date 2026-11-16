@@ -8,7 +8,11 @@ import { deactivateUser, updateUser } from '../api/adminApi';
 import { ApiError } from '../api/errors';
 import { countUsers, EMPTY_USER_FILTERS, filterUsers, USER_ROLE, USER_ROLE_OPTIONS, USER_STATUS_OPTIONS, type AdminUserRow, type UserFilters } from '../admin/users';
 import { useAuth } from '../auth/AuthContext';
+import { EmptyState } from '../components/EmptyState';
+import { ErrorState } from '../components/ErrorState';
+import { LoadingState } from '../components/LoadingState';
 import { SelectField } from '../components/SelectField';
+import { ToastBanner } from '../components/ToastBanner';
 import { UserForm } from '../components/UserForm';
 import { useAdminUsers } from '../hooks/useAdminUsers';
 import { makeStyles, radius, spacing, useTheme } from '../theme';
@@ -96,14 +100,7 @@ export function AdminUsersScreen() {
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void refresh()} tintColor={colors.accent} colors={[colors.primary]} />}
       >
-        {toast ? (
-          <LinearGradient colors={['#1f9d4f', '#167a3c']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.toast}>
-            <Ionicons name="checkmark-circle" size={18} color="#ffffff" />
-            <Text style={styles.toastText} accessibilityRole="alert">
-              {toast}
-            </Text>
-          </LinearGradient>
-        ) : null}
+        <ToastBanner message={toast} tone="success" />
 
         <Text style={styles.title} accessibilityRole="header">Gestión de Usuarios</Text>
         <Text style={styles.subtitle}>{users.length} usuarios registrados en el sistema</Text>
@@ -124,10 +121,8 @@ export function AdminUsersScreen() {
           ))}
         </View>
 
-        {error || actionError ? (
-          <View style={styles.error} accessibilityRole="alert">
-            <Text style={styles.errorText}>{error ?? actionError}</Text>
-          </View>
+        {(error || actionError) ? (
+          <ErrorState message={(error ?? actionError)!} />
         ) : null}
 
         <View style={styles.search}>
@@ -147,9 +142,15 @@ export function AdminUsersScreen() {
         <SelectField label="Estado" value={filters.status} options={USER_STATUS_OPTIONS} onChange={(status) => setFilters((f) => ({ ...f, status }))} />
 
         {loading && users.length === 0 ? (
-          <Text style={styles.empty}>Cargando usuarios...</Text>
+          <LoadingState message="Cargando usuarios…" />
         ) : visible.length === 0 ? (
-          <Text style={styles.empty}>{error ? '' : 'No se encontraron usuarios'}</Text>
+          error ? null : <EmptyState
+            emoji="👥"
+            title="No se encontraron usuarios"
+            description="Prueba cambiando los filtros o crea un nuevo usuario."
+            onAction={() => setEditing('new')}
+            actionLabel="Nuevo usuario"
+          />
         ) : (
           <>
             {visible.map((user) => (

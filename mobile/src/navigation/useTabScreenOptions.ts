@@ -24,9 +24,17 @@ export function useTabScreenOptions() {
     tabBarStyle: {
       backgroundColor: colors.surface,
       borderTopColor: colors.border,
+      borderTopWidth: 1,
       height: TAB_BAR_HEIGHT + insets.bottom,
       paddingBottom: insets.bottom,
+      paddingTop: 3,
+      elevation: 10,
+      shadowColor: '#000000',
+      shadowOpacity: 0.08,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: -3 },
     },
+    tabBarItemStyle: { minWidth: 64, paddingVertical: 2 },
     headerTitleStyle: { fontFamily: 'Inter_700Bold', fontSize: font(17) },
     tabBarLabelStyle: { fontFamily: 'Inter_500Medium', fontSize: font(11), lineHeight: font(16) },
   };

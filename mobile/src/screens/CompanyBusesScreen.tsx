@@ -9,7 +9,11 @@ import { ApiError } from '../api/errors';
 import { useAuth } from '../auth/AuthContext';
 import { BusForm } from '../components/BusForm';
 import { Button } from '../components/Button';
+import { EmptyState } from '../components/EmptyState';
+import { ErrorState } from '../components/ErrorState';
+import { LoadingState } from '../components/LoadingState';
 import { SelectField } from '../components/SelectField';
+import { ToastBanner } from '../components/ToastBanner';
 import {
   avgOccupancyColor,
   EMPTY_FLEET_FILTERS,
@@ -93,12 +97,7 @@ export function CompanyBusesScreen() {
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void refresh()} tintColor={colors.accent} colors={[colors.primary]} />}
       >
-        {toast ? (
-          <LinearGradient colors={['#1f9d4f', '#167a3c']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.toast}>
-            <Ionicons name="checkmark-circle" size={18} color="#ffffff" />
-            <Text style={styles.toastText} accessibilityRole="alert">{toast}</Text>
-          </LinearGradient>
-        ) : null}
+        <ToastBanner message={toast} tone="success" />
 
         <Text style={styles.title} accessibilityRole="header">Gestión de Flota de Micros</Text>
         <Text style={styles.subtitle}>Administración de vehículos, asignación de rutas operativas y control de aforo en tiempo real.</Text>
@@ -122,9 +121,7 @@ export function CompanyBusesScreen() {
         </View>
 
         {error ? (
-          <View style={styles.error} accessibilityRole="alert">
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
+          <ErrorState message={error} onRetry={() => void refresh()} />
         ) : null}
 
         <View style={styles.kpis}>
@@ -172,11 +169,19 @@ export function CompanyBusesScreen() {
           <Text style={styles.listSubtitle}>Actualización automática de estado y aforo</Text>
         </View>
         {loading && buses.length === 0 ? (
-          <Text style={styles.empty}>Cargando flota de micros...</Text>
+          <LoadingState message="Cargando flota de micros…" />
         ) : visible.length === 0 ? (
-          <Text style={styles.empty}>
-            {buses.length === 0 && !error ? 'No hay micros registradas para esta empresa.' : 'No se encontraron micros con los criterios seleccionados.'}
-          </Text>
+          error ? null : <EmptyState
+            emoji="🚍"
+            title={buses.length === 0 ? 'No hay micros registradas para esta empresa.' : 'Sin resultados'}
+            description={
+              buses.length === 0
+                ? 'Registra la primera micro de tu empresa.'
+                : 'No se encontraron micros con los criterios seleccionados.'
+            }
+            onAction={buses.length === 0 ? () => setEditing(null) : undefined}
+            actionLabel="Nueva Micro"
+          />
         ) : (
           visible.map((bus) => (
             <BusCard

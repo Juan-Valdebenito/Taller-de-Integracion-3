@@ -14,6 +14,12 @@ interface ListStopsResponse {
   total?: number;
 }
 
+/** Todos los paraderos disponibles para seleccionar origen y destino. */
+export async function fetchAllStops(): Promise<Stop[]> {
+  const response = await apiRequest<ListStopsResponse | null>('/integrations/micro/stops?limit=1000');
+  return (response?.stops ?? []).map(toStop).filter((stop): stop is Stop => stop !== null);
+}
+
 export interface NearbyStopsQuery extends Coordinates {
   radiusMeters: number;
   /** Máximo de paraderos a traer (el backend usa 50 por defecto). */

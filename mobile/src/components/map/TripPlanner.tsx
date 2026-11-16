@@ -1,0 +1,314 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Pressable, Text, TextInput, View } from 'react-native';
+
+import { fetchAllStops, fetchRouteAlternatives, fetchTransitRouteLabels, type RoutePlan } from '../../api/tripPlannerApi';
+import type { Stop } from '../../location/geo';
+import type { LiveBus } from '../../realtime/liveBuses';
+import { Button } from '../Button';
+import { ErrorState } from '../ErrorState';
+import { LoadingState } from '../LoadingState';
+import { makeStyles, radius, spacing, useTheme } from '../../theme';
+
+type Selection = 'origin' | 'destination' | null;
+type Preference = 'fastest' | 'least_walking' | 'least_occupied';
+
+const PREFERENCE_OPTIONS: readonly { id: Preference; label: string; description: string }[] = [
+  { id: 'fastest', label: 'Llegar antes', description: 'Prioriza el menor tiempo total.' },
+  { id: 'least_walking', label: 'Caminar menos', description: 'Reduce el tiempo de los tramos a pie.' },
+  { id: 'least_occupied', label: 'Menor ocupación', description: 'Usa la ocupación reciente de micros activas.' },
+];
+
+function formatDuration(seconds: number): string {
+  const minutes = Math.max(1, Math.ceil(seconds / 60));
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return hours ? `${hours} h ${remainder} min` : `${minutes} min`;
+}
+
+function walkingMinutes(plan: RoutePlan): number {
+  const seconds = plan.movements.reduce((total, movement) => total + (movement.mode === 'walk' ? movement.time_seconds : 0), 0);
+  return Math.ceil(seconds / 60);
+}
+
+function walkingSeconds(plan: RoutePlan): number {
+  return plan.movements.reduce((total, movement) => total + (movement.mode === 'walk' ? movement.time_seconds : 0), 0);
+}
+
+function normalizedRouteName(value: string): string {
+  return value.toLocaleLowerCase('es').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+}
+
+function occupancyScore(plan: RoutePlan, buses: readonly LiveBus[], routeLabels: Record<string, string>): number | null {
+  const cutoff = Date.now() - 30_000;
+  const routeIds = [...new Set(plan.movements.filter((movement) => movement.mode === 'bus' && movement.route_id).map((movement) => movement.route_id!))];
+  const values = routeIds.flatMap((routeId) => {
+    const label = normalizedRouteName(routeLabels[routeId] ?? '');
+    const matches = buses.filter((bus) => {
+      if (bus.lastUpdate < cutoff || bus.capacity <= 0) return false;
+      if (bus.routeId === routeId) return true;
+      const busName = normalizedRouteName(`${bus.routeName} ${bus.routeId}`);
+      return Boolean(label) && (busName.includes(label) || label.includes(busName));
+    });
+    return matches.map((bus) => bus.occupancy?.predictedRatio ?? bus.currentPassengers / bus.capacity);
+  });
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+}
+
+function recommendationFor(
+  plans: readonly RoutePlan[],
+  preference: Preference,
+  buses: readonly LiveBus[],
+  routeLabels: Record<string, string>,
+): { recommended: RoutePlan | null; alternatives: RoutePlan[]; occupancyAvailable: boolean } {
+  const byTime = [...plans].sort((left, right) => left.total_time_seconds - right.total_time_seconds);
+  const occupancyByPlan = new Map(plans.map((plan) => [plan, occupancyScore(plan, buses, routeLabels)]));
+  const occupancyAvailable = [...occupancyByPlan.values()].some((score) => score !== null);
+  let recommended = byTime[0] ?? null;
+  if (preference === 'least_walking') {
+    recommended = [...plans].sort((left, right) => walkingSeconds(left) - walkingSeconds(right) || left.total_time_seconds - right.total_time_seconds)[0] ?? null;
+  } else if (preference === 'least_occupied' && occupancyAvailable) {
+    recommended = [...plans].sort((left, right) => {
+      const leftScore = occupancyByPlan.get(left) ?? Number.POSITIVE_INFINITY;
+      const rightScore = occupancyByPlan.get(right) ?? Number.POSITIVE_INFINITY;
+      return leftScore - rightScore || left.total_time_seconds - right.total_time_seconds;
+    })[0] ?? null;
+  }
+  return {
+    recommended,
+    alternatives: byTime.filter((plan) => plan !== recommended).slice(0, 2),
+    occupancyAvailable,
+  };
+}
+
+function RouteOption({ plan, index, routeLabels, occupancyRatio }: { plan: RoutePlan; index: number; routeLabels: Record<string, string>; occupancyRatio: number | null }) {
+  const styles = useStyles();
+  const walking = walkingMinutes(plan);
+  const lines = [...new Set(plan.movements.filter((movement) => movement.mode === 'bus' && movement.route_id).map((movement) => routeLabels[movement.route_id!] ?? movement.route_id!))];
+  return (
+    <View style={[styles.option, index === 0 ? styles.recommended : null]}>
+      <View style={styles.optionHeader}>
+        <Text style={styles.optionTitle}>{index === 0 ? 'Recomendación principal' : `Alternativa ${index}`}</Text>
+        <Text style={styles.duration}>{formatDuration(plan.total_time_seconds)}</Text>
+      </View>
+      <Text style={styles.optionDetails}>
+        {plan.transfers === 0 ? 'Sin transbordos' : `${plan.transfers} ${plan.transfers === 1 ? 'transbordo' : 'transbordos'}`}
+        {walking ? ` · ${walking} min a pie` : ''}
+      </Text>
+      {lines.length ? <Text style={styles.optionDetails}>Líneas: {lines.join(', ')}</Text> : null}
+      {occupancyRatio !== null ? <Text style={styles.optionDetails}>Ocupación estimada: {Math.round(occupancyRatio * 100)}%</Text> : null}
+      <Text style={styles.optionDetails}>{(plan.total_distance_meters / 1000).toFixed(1).replace('.', ',')} km en total</Text>
+    </View>
+  );
+}
+
+export function TripPlanner({ buses = [] }: { buses?: readonly LiveBus[] }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
+  const [stops, setStops] = useState<Stop[]>([]);
+  const [routeLabels, setRouteLabels] = useState<Record<string, string>>({});
+  const [loadingStops, setLoadingStops] = useState(true);
+  const [stopsError, setStopsError] = useState<string | null>(null);
+  const [origin, setOrigin] = useState<Stop | null>(null);
+  const [destination, setDestination] = useState<Stop | null>(null);
+  const [selection, setSelection] = useState<Selection>(null);
+  const [query, setQuery] = useState('');
+  const [plans, setPlans] = useState<RoutePlan[] | null>(null);
+  const [preference, setPreference] = useState<Preference>('fastest');
+  const [planning, setPlanning] = useState(false);
+  const [planError, setPlanError] = useState<string | null>(null);
+  const mounted = useRef(false);
+  const stopsRequestId = useRef(0);
+
+  const loadStops = useCallback(() => {
+    const requestId = ++stopsRequestId.current;
+    setLoadingStops(true);
+    setStopsError(null);
+    Promise.all([fetchAllStops(), fetchTransitRouteLabels().catch(() => ({}))])
+      .then(([result, labels]) => {
+        if (!mounted.current || requestId !== stopsRequestId.current) return;
+        setStops(result.sort((left, right) => left.name.localeCompare(right.name, 'es')));
+        setRouteLabels(labels);
+      })
+      .catch((error: unknown) => {
+        if (!mounted.current || requestId !== stopsRequestId.current) return;
+        setStopsError(error instanceof Error ? error.message : 'No se pudieron cargar los paraderos.');
+      })
+      .finally(() => {
+        if (!mounted.current || requestId !== stopsRequestId.current) return;
+        setLoadingStops(false);
+      });
+  }, []);
+
+  useEffect(() => {
+    mounted.current = true;
+    loadStops();
+    return () => {
+      mounted.current = false;
+      stopsRequestId.current += 1;
+    };
+  }, [loadStops]);
+
+  const filteredStops = useMemo(() => {
+    const normalized = query.trim().toLocaleLowerCase('es');
+    return stops.filter((stop) => {
+      if (selection === 'origin' && stop.id === destination?.id) return false;
+      if (selection === 'destination' && stop.id === origin?.id) return false;
+      return !normalized || stop.name.toLocaleLowerCase('es').includes(normalized);
+    }).slice(0, 8);
+  }, [destination?.id, origin?.id, query, selection, stops]);
+
+  const chooseStop = (stop: Stop) => {
+    if (selection === 'origin') setOrigin(stop);
+    if (selection === 'destination') setDestination(stop);
+    setPlans(null);
+    setPlanError(null);
+    setSelection(null);
+    setQuery('');
+  };
+
+  const planTrip = async () => {
+    if (!origin || !destination) return;
+    setPlanning(true);
+    setPlanError(null);
+    setPlans(null);
+    try {
+      const result = await fetchRouteAlternatives(origin, destination);
+      setPlans(result);
+      if (result.length === 0) setPlanError('No encontramos un recorrido entre esos paraderos.');
+    } catch (error: unknown) {
+      setPlanError(error instanceof Error ? error.message : 'No se pudieron calcular los recorridos. Intenta de nuevo.');
+    } finally {
+      setPlanning(false);
+    }
+  };
+
+  const selectionTitle = selection === 'origin' ? 'origen' : 'destino';
+  const recommendation = useMemo(
+    () => recommendationFor(plans ?? [], preference, buses, routeLabels),
+    [buses, plans, preference, routeLabels],
+  );
+
+  return (
+    <View>
+      <Text style={styles.intro}>Elige dos paraderos y compara las opciones por tiempo total.</Text>
+      {loadingStops ? (
+        <LoadingState message="Cargando paraderos…" size="small" />
+      ) : stopsError ? (
+        <ErrorState message={stopsError} onRetry={loadStops} />
+      ) : (
+        <>
+          <Pressable accessibilityRole="button" onPress={() => { setSelection('origin'); setQuery(''); }} style={styles.stopField}>
+            <Text style={styles.fieldLabel}>Origen</Text>
+            <Text style={[styles.stopName, !origin ? styles.placeholder : null]}>{origin?.name ?? 'Selecciona un paradero'}</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={() => { setSelection('destination'); setQuery(''); }} style={styles.stopField}>
+            <Text style={styles.fieldLabel}>Destino</Text>
+            <Text style={[styles.stopName, !destination ? styles.placeholder : null]}>{destination?.name ?? 'Selecciona un paradero'}</Text>
+          </Pressable>
+
+          {selection ? (
+            <View style={styles.picker}>
+              <Text style={styles.fieldLabel}>Buscar paradero de {selectionTitle}</Text>
+              <TextInput
+                accessibilityLabel={`Buscar paradero de ${selectionTitle}`}
+                autoCapitalize="none"
+                onChangeText={setQuery}
+                placeholder="Escribe el nombre"
+                placeholderTextColor={colors.placeholder}
+                style={styles.searchInput}
+                value={query}
+              />
+              {filteredStops.map((stop) => (
+                <Pressable key={stop.id} accessibilityRole="button" onPress={() => chooseStop(stop)} style={styles.stopResult}>
+                  <Text style={styles.stopName}>{stop.name}</Text>
+                </Pressable>
+              ))}
+              {filteredStops.length === 0 ? <Text style={styles.helper}>No hay paraderos que coincidan.</Text> : null}
+              <Pressable accessibilityRole="button" onPress={() => setSelection(null)} style={styles.cancelPicker}>
+                <Text style={styles.link}>Cancelar</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          <View style={styles.preferences}>
+            <Text style={styles.fieldLabel}>¿Qué prefieres?</Text>
+            {PREFERENCE_OPTIONS.map((option) => {
+              const selected = preference === option.id;
+              return (
+                <Pressable
+                  key={option.id}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: selected }}
+                  onPress={() => setPreference(option.id)}
+                  style={[styles.preference, selected ? styles.preferenceSelected : null]}
+                >
+                  <View style={[styles.radio, selected ? styles.radioSelected : null]} />
+                  <View style={styles.preferenceText}>
+                    <Text style={styles.preferenceTitle}>{option.label}</Text>
+                    <Text style={styles.helper}>{option.description}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+            <View style={[styles.preference, styles.preferenceDisabled]} accessibilityState={{ disabled: true }}>
+              <View style={styles.radio} />
+              <View style={styles.preferenceText}>
+                <Text style={styles.preferenceTitle}>Evitar lluvia · Próximamente</Text>
+                <Text style={styles.helper}>Se activará cuando la app tenga pronóstico meteorológico.</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.action}>
+            <Button title="Buscar recorridos" onPress={planTrip} disabled={!origin || !destination || origin.id === destination.id} loading={planning} loadingTitle="Calculando…" />
+          </View>
+          {planError ? <ErrorState message={planError} onRetry={planTrip} /> : null}
+          {plans?.length ? (
+            <View style={styles.results}>
+              <Text style={styles.resultsTitle}>Recomendación y alternativas por tiempo total</Text>
+              {preference === 'least_occupied' && !recommendation.occupancyAvailable ? (
+                <Text style={styles.helper}>No hay ocupación reciente disponible; mostramos la ruta más rápida.</Text>
+              ) : null}
+              {recommendation.recommended ? <RouteOption plan={recommendation.recommended} index={0} routeLabels={routeLabels} occupancyRatio={occupancyScore(recommendation.recommended, buses, routeLabels)} /> : null}
+              {recommendation.alternatives.map((plan, index) => <RouteOption key={`${plan.origin_stop_id}-${plan.destination_stop_id}-${index}`} plan={plan} index={index + 1} routeLabels={routeLabels} occupancyRatio={occupancyScore(plan, buses, routeLabels)} />)}
+              {plans.length < 3 ? <Text style={styles.helper}>El planificador encontró {plans.length} recorrido{plans.length === 1 ? '' : 's'} distinto{plans.length === 1 ? '' : 's'}.</Text> : null}
+            </View>
+          ) : null}
+        </>
+      )}
+    </View>
+  );
+}
+
+const useStyles = makeStyles((colors, font) => ({
+  intro: { color: colors.muted, fontSize: font(13), lineHeight: font(19) },
+  loading: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.md },
+  helper: { color: colors.muted, fontSize: font(12), lineHeight: font(18), marginTop: spacing.xs },
+  error: { color: colors.danger, fontSize: font(13), lineHeight: font(19), marginTop: spacing.sm },
+  stopField: { backgroundColor: colors.field, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.sm, marginTop: spacing.sm },
+  fieldLabel: { color: colors.muted, fontSize: font(11), fontWeight: '600', marginBottom: 2 },
+  stopName: { color: colors.text, fontSize: font(14), lineHeight: font(20) },
+  placeholder: { color: colors.placeholder },
+  picker: { marginTop: spacing.md, padding: spacing.sm, backgroundColor: colors.background, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
+  searchInput: { backgroundColor: colors.field, color: colors.text, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.sm, paddingVertical: spacing.sm, fontSize: font(14), marginBottom: spacing.xs },
+  stopResult: { paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
+  cancelPicker: { alignSelf: 'flex-end', paddingTop: spacing.sm },
+  link: { color: colors.accent, fontSize: font(13), fontWeight: '600' },
+  action: { marginTop: spacing.md },
+  preferences: { marginTop: spacing.md, gap: spacing.xs },
+  preference: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, borderRadius: radius.md, padding: spacing.sm },
+  preferenceSelected: { borderColor: colors.accent, backgroundColor: colors.successBg },
+  preferenceDisabled: { opacity: 0.7 },
+  preferenceText: { flex: 1 },
+  preferenceTitle: { color: colors.text, fontSize: font(13), fontWeight: '600' },
+  radio: { width: 18, height: 18, borderRadius: radius.full, borderWidth: 1, borderColor: colors.muted },
+  radioSelected: { borderWidth: 5, borderColor: colors.accent },
+  results: { marginTop: spacing.md, gap: spacing.sm },
+  resultsTitle: { color: colors.text, fontSize: font(14), fontWeight: '700' },
+  option: { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.sm },
+  recommended: { borderColor: colors.accent, borderLeftWidth: 4 },
+  optionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
+  optionTitle: { color: colors.text, fontSize: font(13), fontWeight: '700', flexShrink: 1 },
+  duration: { color: colors.accent, fontSize: font(15), fontWeight: '700' },
+  optionDetails: { color: colors.muted, fontSize: font(12), marginTop: 3 },
+}));

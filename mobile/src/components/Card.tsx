@@ -31,6 +31,7 @@ const useStyles = makeStyles((colors) => ({
     borderColor: colors.border,
     borderRadius: radius.lg,
     padding: spacing.lg,
+    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
   },
   elevated: {
     borderRadius: radius.xl,

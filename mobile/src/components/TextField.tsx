@@ -18,6 +18,7 @@ export const TextField = forwardRef<TextInputInstance, TextFieldProps>(function 
       <TextInput
         ref={ref}
         accessibilityLabel={label}
+        accessibilityHint={props.accessibilityHint}
         placeholderTextColor={colors.placeholder}
         keyboardAppearance={scheme}
         style={[styles.input, error ? styles.inputError : null, style]}
@@ -43,10 +44,11 @@ const useStyles = makeStyles((colors, font) => ({
     borderRadius: radius.md,
     paddingHorizontal: 12,
     paddingVertical: 10,
+    minHeight: 48,
     fontSize: font(14),
     color: colors.text,
     backgroundColor: colors.field,
   },
   inputError: { borderColor: colors.danger },
-  error: { marginTop: spacing.xs, color: colors.danger, fontSize: font(13) },
+  error: { marginTop: spacing.xs, color: colors.danger, fontSize: font(13), lineHeight: font(19) },
 }));

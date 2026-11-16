@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
+import { ErrorState } from '../components/ErrorState';
 import { PageTitle } from '../components/PageTitle';
 import { SegmentedControl, type SegmentedOption } from '../components/SegmentedControl';
 import { SettingSwitchRow } from '../components/SettingSwitchRow';
@@ -62,11 +63,7 @@ export function SettingsScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <PageTitle emoji="⚙️" title="Configuración" subtitle="Notificaciones y preferencias de la app" />
         {saveError ? (
-          <View style={styles.error}>
-            <Text style={styles.errorText} accessibilityRole="alert">
-              {saveError}
-            </Text>
-          </View>
+          <ErrorState message={saveError} />
         ) : null}
 
         <Text style={styles.sectionTitle} accessibilityRole="header">
@@ -191,8 +188,6 @@ function pushStatusText(state: PushRegistrationState): string | null {
 const useStyles = makeStyles((colors, font) => ({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xl },
-  error: { backgroundColor: colors.dangerBg, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
-  errorText: { color: colors.danger, fontSize: font(14) },
   sectionTitle: {
     fontSize: font(13),
     fontWeight: '600',

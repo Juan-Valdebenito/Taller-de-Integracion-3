@@ -4,6 +4,8 @@ import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SelectField } from '../components/SelectField';
+import { ErrorState } from '../components/ErrorState';
+import { LoadingState } from '../components/LoadingState';
 import { busOptionLabel, canDrive, routeOptionLabel } from '../company/driverTrip';
 import { useDriverTrip } from '../hooks/useDriverTrip';
 import { useRouteStops } from '../hooks/useRouteStops';
@@ -63,12 +65,7 @@ export function DriverModeScreen() {
         </View>
 
         {driver.error ? (
-          <View style={styles.error} accessibilityRole="alert">
-            <Text style={styles.errorText}>{driver.error}</Text>
-            <Pressable onPress={() => void driver.refresh()} accessibilityRole="button" hitSlop={6}>
-              <Text style={styles.link}>Reintentar</Text>
-            </Pressable>
-          </View>
+          <ErrorState message={driver.error} onRetry={() => void driver.refresh()} />
         ) : null}
 
         {driver.trip ? <ActiveTripCard driver={driver} location={location} background={background} /> : <SetupCard driver={driver} />}
@@ -292,7 +289,7 @@ function ActiveTripCard({ driver, location, background }: { driver: Driver; loca
       <BackgroundStatus status={background} />
 
       {loading ? (
-        <Text style={[styles.muted, styles.spaced]}>Cargando paraderos...</Text>
+        <LoadingState message="Cargando paraderos..." size="small" />
       ) : error ? (
         <View style={[styles.inline, styles.spaced]} accessibilityRole="alert">
           <Text style={[styles.muted, styles.errorInline]}>{error}</Text>

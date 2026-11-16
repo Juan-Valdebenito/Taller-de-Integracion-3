@@ -5,6 +5,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { CompanyBus, CompanyRoute } from '../api/companyApi';
 import { Card } from '../components/Card';
+import { EmptyState } from '../components/EmptyState';
+import { ErrorState } from '../components/ErrorState';
+import { LoadingState } from '../components/LoadingState';
 import { PageTitle } from '../components/PageTitle';
 import { useCompanyOperations } from '../hooks/useCompanyOperations';
 import { useRouteStops } from '../hooks/useRouteStops';
@@ -42,11 +45,18 @@ export function CompanyRoutesScreen() {
       >
         <PageTitle title="Rutas" subtitle="Rutas y paradas de la empresa" />
         {error ? (
-          <View style={styles.error} accessibilityRole="alert">
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
+          <ErrorState message={error} onRetry={onRefresh} />
         ) : null}
-        {!loading && !error && routes.length === 0 ? <Text style={styles.empty}>No hay rutas registradas para esta empresa.</Text> : null}
+        {loading && routes.length === 0 ? (
+          <LoadingState message="Cargando rutas…" />
+        ) : null}
+        {!loading && !error && routes.length === 0 ? (
+          <EmptyState
+            emoji="🗺️"
+            title="No hay rutas registradas para esta empresa."
+            description="Las rutas asignadas aparecerán aquí."
+          />
+        ) : null}
         {routes.map((route) => (
           <RouteCard
             key={route.id}
@@ -102,10 +112,7 @@ function RouteStops({ routeId }: { routeId: string }) {
   return (
     <View style={styles.stops}>
       {loading ? (
-        <View style={styles.inline}>
-          <ActivityIndicator color={colors.accent} />
-          <Text style={styles.detail}>Cargando paraderos...</Text>
-        </View>
+        <LoadingState message="Cargando paraderos…" size="small" />
       ) : error ? (
         <View style={styles.inline} accessibilityRole="alert">
           <Text style={[styles.detail, styles.errorText]}>{error}</Text>

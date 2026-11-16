@@ -314,8 +314,8 @@ type routePlanResponse struct {
 func (s *Server) routePlan(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	from, to, preference := query.Get("from_stop"), query.Get("to_stop"), query.Get("preference")
-	if from == "" || to == "" || (preference != "fastest" && preference != "min_transfers") {
-		writeError(w, http.StatusBadRequest, "from_stop, to_stop and preference=fastest|min_transfers are required")
+	if from == "" || to == "" || (preference != "fastest" && preference != "min_transfers" && preference != "shortest" && preference != "least_walk") {
+		writeError(w, http.StatusBadRequest, "from_stop, to_stop and preference=fastest|min_transfers|shortest|least_walk are required")
 		return
 	}
 	graph := s.store.Get()
@@ -334,10 +334,15 @@ func (s *Server) routePlan(w http.ResponseWriter, r *http.Request) {
 	var path []pathStep
 	if from != to {
 		var found bool
-		if preference == "fastest" {
+		switch preference {
+		case "fastest":
 			path, found = fastestPath(graph, from, to)
-		} else {
+		case "min_transfers":
 			path, found = minimumTransferPath(graph, from, to)
+		case "shortest":
+			path, found = shortestPath(graph, from, to)
+		case "least_walk":
+			path, found = leastWalkingPath(graph, from, to)
 		}
 		if !found {
 			writeError(w, http.StatusNotFound, "no route found between stops")

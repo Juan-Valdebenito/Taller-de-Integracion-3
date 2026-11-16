@@ -8,7 +8,11 @@ import { setCompanyActive, type CompanySummary } from '../api/adminApi';
 import { ApiError } from '../api/errors';
 import { COMPANY_STATUS_OPTIONS, filterCompanies, type CompanyCard, type CompanyStatusFilter } from '../admin/companies';
 import { CompanyForm } from '../components/CompanyForm';
+import { EmptyState } from '../components/EmptyState';
+import { ErrorState } from '../components/ErrorState';
+import { LoadingState } from '../components/LoadingState';
 import { SelectField } from '../components/SelectField';
+import { ToastBanner } from '../components/ToastBanner';
 import { useAdminCompanies } from '../hooks/useAdminCompanies';
 import { makeStyles, radius, spacing, useTheme } from '../theme';
 import { confirmAction } from '../utils/platform';
@@ -88,14 +92,7 @@ export function AdminCompaniesScreen() {
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void refresh()} tintColor={colors.accent} colors={[colors.primary]} />}
       >
-        {toast ? (
-          <LinearGradient colors={['#1f9d4f', '#167a3c']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.toast}>
-            <Ionicons name="checkmark-circle" size={18} color="#ffffff" />
-            <Text style={styles.toastText} accessibilityRole="alert">
-              {toast}
-            </Text>
-          </LinearGradient>
-        ) : null}
+        <ToastBanner message={toast} tone="success" />
 
         <Text style={styles.title} accessibilityRole="header">Empresas de Transporte</Text>
         <Text style={styles.subtitle}>
@@ -112,10 +109,8 @@ export function AdminCompaniesScreen() {
           </LinearGradient>
         </Pressable>
 
-        {error || actionError ? (
-          <View style={styles.error} accessibilityRole="alert">
-            <Text style={styles.errorText}>{error ?? actionError}</Text>
-          </View>
+        {(error || actionError) ? (
+          <ErrorState message={(error ?? actionError)!} />
         ) : null}
 
         <View style={styles.search}>
@@ -133,9 +128,15 @@ export function AdminCompaniesScreen() {
         <SelectField label="Estado" value={status} options={COMPANY_STATUS_OPTIONS} onChange={setStatus} />
 
         {loading && companies.length === 0 ? (
-          <Text style={styles.empty}>Cargando empresas...</Text>
+          <LoadingState message="Cargando empresas…" />
         ) : visible.length === 0 ? (
-          <Text style={styles.empty}>{error ? '' : 'No se encontraron empresas'}</Text>
+          error ? null : <EmptyState
+            emoji="🏢"
+            title="No se encontraron empresas"
+            description="Prueba con otro filtro o crea la primera empresa."
+            onAction={() => setEditing(null)}
+            actionLabel="Nueva empresa"
+          />
         ) : (
           visible.map((company) => (
             <CompanyCardView
@@ -247,18 +248,6 @@ const useStyles = makeStyles((colors, font) => ({
   newButton: { paddingVertical: 12, paddingHorizontal: 20, borderRadius: radius.md },
   newText: { color: '#ffffff', fontSize: font(14), fontWeight: '700' },
   dimmed: { opacity: 0.7 },
-  toast: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: spacing.md,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  toastText: { flex: 1, color: '#ffffff', fontSize: font(14), fontWeight: '600' },
   contact: { gap: spacing.xs },
   contactRow: { color: colors.placeholder, fontSize: font(12), lineHeight: font(18) },
   actions: { flexDirection: 'row', gap: spacing.sm },
@@ -268,8 +257,6 @@ const useStyles = makeStyles((colors, font) => ({
   offAction: { borderColor: 'rgba(239, 68, 68, 0.3)', backgroundColor: 'rgba(239, 68, 68, 0.1)' },
   onAction: { borderColor: 'rgba(34, 197, 94, 0.3)', backgroundColor: 'rgba(34, 197, 94, 0.1)' },
   toggleText: { fontSize: font(12) },
-  error: { marginBottom: spacing.md, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.dangerBg },
-  errorText: { color: colors.danger, fontSize: font(14), lineHeight: font(20) },
   search: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -283,7 +270,6 @@ const useStyles = makeStyles((colors, font) => ({
   },
   searchIcon: { fontSize: 14 },
   searchInput: { flex: 1, paddingVertical: 12, color: colors.text, fontSize: font(14) },
-  empty: { paddingVertical: 48, textAlign: 'center', color: colors.placeholder, fontSize: font(14) },
   card: {
     marginBottom: spacing.md,
     padding: spacing.lg,

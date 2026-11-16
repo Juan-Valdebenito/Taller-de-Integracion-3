@@ -1,4 +1,4 @@
-import { ActivityIndicator, Pressable, Text } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { makeStyles, radius, spacing, useTheme } from '../theme';
 
@@ -33,11 +33,15 @@ export function Button({ title, onPress, loading = false, disabled = false, vari
         variant === 'danger' ? styles.danger : primary ? styles.primary : styles.secondary,
         pressed && variant === 'primary' ? styles.primaryPressed : null,
         pressed && variant === 'danger' ? styles.dangerPressed : null,
+        pressed && variant === 'secondary' ? styles.secondaryPressed : null,
         isDisabled ? styles.disabled : null,
       ]}
     >
-      {loading && !loadingTitle ? (
-        <ActivityIndicator color={variant === 'danger' ? colors.onDanger : primary ? colors.onPrimary : colors.accent} />
+      {loading ? (
+        <View style={styles.loadingContent}>
+          <ActivityIndicator size="small" color={variant === 'danger' ? colors.onDanger : primary ? colors.onPrimary : colors.accent} />
+          {loadingTitle ? <Text style={[styles.text, variant === 'danger' ? styles.textDanger : primary ? styles.textPrimary : styles.textSecondary]}>{loadingTitle}</Text> : null}
+        </View>
       ) : (
         <Text style={[styles.text, variant === 'danger' ? styles.textDanger : primary ? styles.textPrimary : styles.textSecondary]}>
           {loading && loadingTitle ? loadingTitle : title}
@@ -55,16 +59,18 @@ const useStyles = makeStyles((colors, font) => ({
     paddingHorizontal: spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 44,
+    minHeight: 48,
   },
   primary: { backgroundColor: colors.primary },
   primaryPressed: { backgroundColor: colors.primaryPressed },
   danger: { backgroundColor: colors.danger },
   dangerPressed: { backgroundColor: colors.dangerPressed },
   secondary: { backgroundColor: 'transparent' },
+  secondaryPressed: { backgroundColor: colors.field },
   disabled: { opacity: 0.7 },
   text: { fontSize: font(14), fontWeight: '700' },
   textPrimary: { color: colors.onPrimary },
   textDanger: { color: colors.onDanger },
   textSecondary: { color: colors.accent },
+  loadingContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
 }));

@@ -42,7 +42,8 @@ export const lightColors: Readonly<ThemeColors> = Object.freeze({
   background: '#ffffff',
   surface: '#f3f4f6',
   field: '#ffffff',
-  placeholder: '#9ca3af',
+  // Placeholder remains secondary, but readable on white fields (WCAG AA).
+  placeholder: '#6b7280',
   danger: '#b91c1c',
   dangerPressed: '#991b1b',
   onDanger: '#ffffff',
@@ -68,7 +69,7 @@ export const darkColors: Readonly<ThemeColors> = Object.freeze({
   background: '#101318',
   surface: '#191d24',
   field: '#22272f',
-  placeholder: '#6a707c',
+  placeholder: '#9299a6',
   danger: '#f87171',
   dangerPressed: '#fca5a5',
   onDanger: '#101318',

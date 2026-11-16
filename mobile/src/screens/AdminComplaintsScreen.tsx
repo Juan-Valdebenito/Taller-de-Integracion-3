@@ -21,7 +21,11 @@ import { adminCategory } from '../admin/complaintStats';
 import { ComplaintKpis } from '../components/ComplaintKpis';
 import { ComplaintPhotos } from '../components/ComplaintPhotos';
 import { ComplaintResolutionForm } from '../components/ComplaintResolutionForm';
+import { EmptyState } from '../components/EmptyState';
+import { ErrorState } from '../components/ErrorState';
+import { LoadingState } from '../components/LoadingState';
 import { SelectField } from '../components/SelectField';
+import { ToastBanner } from '../components/ToastBanner';
 import { useAdminComplaints } from '../hooks/useAdminComplaints';
 import { makeStyles, radius, spacing, useTheme } from '../theme';
 import { confirmAction } from '../utils/platform';
@@ -94,14 +98,7 @@ export function AdminComplaintsScreen() {
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void refresh()} tintColor={colors.accent} colors={[colors.primary]} />}
       >
-        {toast ? (
-          <LinearGradient colors={['#1f9d4f', '#167a3c']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.toast}>
-            <Ionicons name="checkmark-circle" size={18} color="#ffffff" />
-            <Text style={styles.toastText} accessibilityRole="alert">
-              {toast}
-            </Text>
-          </LinearGradient>
-        ) : null}
+        <ToastBanner message={toast} tone="success" />
 
         <Text style={styles.title} accessibilityRole="header">Panel de Reclamos y Calidad de Servicio</Text>
         <Text style={styles.subtitle}>Supervisión analítica y resolución de incidentes para las líneas 7A, 7B y 1C de Temuco.</Text>
@@ -116,10 +113,8 @@ export function AdminComplaintsScreen() {
           <Text style={styles.refreshText}>{loading ? 'Actualizando...' : 'Actualizar Datos'}</Text>
         </Pressable>
 
-        {error || actionError ? (
-          <View style={styles.error} accessibilityRole="alert">
-            <Text style={styles.errorText}>{error ?? actionError}</Text>
-          </View>
+        {(error || actionError) ? (
+          <ErrorState message={(error ?? actionError)!} />
         ) : null}
 
         <ComplaintKpis stats={stats} />
@@ -152,9 +147,13 @@ export function AdminComplaintsScreen() {
           Listado de Reclamos ({visible.length})
         </Text>
         {loading && complaints.length === 0 ? (
-          <Text style={styles.empty}>Cargando reclamos del sistema...</Text>
+          <LoadingState message="Cargando reclamos del sistema…" />
         ) : visible.length === 0 ? (
-          <Text style={styles.empty}>{error ? '' : 'No se encontraron reclamos con los filtros seleccionados.'}</Text>
+          error ? null : <EmptyState
+            emoji="📋"
+            title="No se encontraron reclamos"
+            description="No se encontraron reclamos con los filtros seleccionados."
+          />
         ) : (
           visible.map((complaint) => (
             <ComplaintCard
