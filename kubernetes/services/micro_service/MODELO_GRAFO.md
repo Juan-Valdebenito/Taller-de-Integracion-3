@@ -971,6 +971,34 @@ curl -H "Authorization: Bearer <access token>" \
   https://<API_HOST>/api/v1/integrations/micro/campuses
 ```
 
+Después se piden rutas desde una ubicación, para que haya una caminata inicial:
+
+```bash
+curl -H "Authorization: Bearer <access token>" \
+  "https://<API_HOST>/api/v1/integrations/micro/routes/university?lat=-38.735&long=-72.612"
+```
+
+En la respuesta se revisa:
+
+| Qué revisar | Esperado | Si no se cumple |
+|---|---|---|
+| `cost_weights` | Trae los pesos, no `null` | `micro_service` tiene una imagen sin costo |
+| `cost.total` | Es la suma de los demás componentes | Algún servicio tiene una imagen anterior |
+| `cost.crowding` | Mayor que 0 en alguna ruta, si hay micros llenas | No hay micros publicando, o `micro_service` es anterior a la ocupación |
+| `cost.weather` | Mayor que 0 en alguna ruta, si hace frío, calor, viento o hay mal aire | No hay clima, o `micro_service` es anterior al clima |
+
+Que `crowding` o `weather` valgan 0 no siempre es un error: puede que las micros
+vayan vacías o que el día esté templado. Para distinguirlo, se revisan los logs de
+backend-go:
+
+```bash
+kubectl logs deploy/backend-go -n <FOUNDATION_NAMESPACE> | grep weather_fetch_failed
+```
+
+Si aparece `weather_fetch_failed`, backend-go no pudo obtener el clima. En ese caso
+se revisa que `clima_service` esté funcionando y que `CLIMATE_API_KEY` sea la
+correcta.
+
 ## Validación
 
 `graph_data_test.go` revisa los datos oficiales con las reglas de este documento y
