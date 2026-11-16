@@ -692,6 +692,36 @@ hacer una cada una.
 La regla principal es que **las fallas de `clima_service` nunca impiden calcular
 rutas**. En el peor caso, las rutas se calculan sin clima.
 
+### Casos sin datos
+
+| Situación | Resultado |
+|---|---|
+| backend-go sin fuente de clima conectada | No envía clima |
+| `clima_service` sin lecturas de los últimos 30 minutos | No envía clima |
+| `clima_service` caído por más de 30 minutos | No envía clima |
+| Clima con valores imposibles, como `NaN` o un viento negativo | `micro_service` responde 400 o `InvalidArgument` |
+| `micro_service` con la imagen anterior | Ignora el clima |
+
+Cuando no hay clima, el mensaje `weather` **no se envía**. Si se enviara con ceros,
+`micro_service` leería 0 °C y cobraría frío intenso a todas las caminatas. Por eso
+el contrato usa un mensaje, que puede faltar, en vez de tres números sueltos.
+
+### Limitaciones
+
+| Limitación | Detalle |
+|---|---|
+| **No considera la lluvia** | `clima_service` no la guarda. Inferirla de la humedad sería inventar el dato |
+| **Los datos son estimaciones** | Vienen de Open-Meteo: modelos meteorológicos, no sensores. Se renuevan cada 15 minutos |
+| **Un solo clima para toda la ciudad** | Una caminata en Padre Las Casas usa el mismo valor que una en el centro |
+| **Es el clima del momento** | No usa el pronóstico de la hora en que el pasajero caminará |
+
+Desde el commit `133a750`, `clima_simulator` consulta Open-Meteo; antes inventaba
+los datos al azar. Open-Meteo también ofrece la lluvia, así que podría incorporarse
+si `clima_service` empieza a guardarla. Ese cambio corresponde al servicio de clima.
+
+Con 4 estaciones cercanas entre sí, la diferencia de usar un solo clima por ciudad
+debería ser pequeña.
+
 ## API
 
 Las rutas a la universidad se pueden pedir de tres formas. La app y el web deben
