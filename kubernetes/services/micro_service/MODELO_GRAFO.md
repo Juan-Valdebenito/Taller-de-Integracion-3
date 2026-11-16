@@ -926,13 +926,28 @@ bash kubernetes/deploy.sh foundation apply
 
 No hay variables nuevas. backend-go ya usa:
 
-| Variable | Valor |
-|---|---|
-| `MICRO_GRPC_TARGET` | `micros-service-svc.<APP_NAMESPACE>.svc.cluster.local:9091` |
-| `MICRO_API_KEY` | Clave `ADMIN_KEY` del Secret `micros-secrets` |
+| Variable | Valor | Para qué |
+|---|---|---|
+| `MICRO_GRPC_TARGET` | `micros-service-svc.<APP_NAMESPACE>.svc.cluster.local:9091` | Pedir las rutas |
+| `MICRO_API_KEY` | Clave `ADMIN_KEY` del Secret `micros-secrets` | Autenticarse ante `micro_service` |
+| `CLIMATE_GRPC_TARGET` | `clima-service-svc.<REALTIME_NAMESPACE>.svc.cluster.local:9090` | Consultar el clima |
+| `CLIMATE_API_KEY` | Clave del Secret `clima-client-secrets` | Autenticarse ante `clima_service` |
 
-Esa clave debe ser la misma que espera `micro_service`. Si no coincide, las rutas
-nuevas responden 502.
+La clave de `micro_service` debe ser la misma que él espera. Si no coincide, las
+rutas nuevas responden 502.
+
+### Requisitos de la ocupación y el clima
+
+| Dato | Necesita | Si falta |
+|---|---|---|
+| Ocupación | Micros publicando su posición en el Hub de backend-go, de la simulación o de conductores | Las rutas se calculan sin ocupación |
+| Clima | `clima_service` funcionando en `<REALTIME_NAMESPACE>`, con `clima_simulator` enviándole lecturas | Las rutas se calculan sin clima |
+
+La ocupación no requiere otro servicio: se calcula dentro de backend-go. El clima
+depende de que `clima_simulator` pueda consultar Open-Meteo, así que ese pod
+necesita salida a internet. Si `clima_service` tiene la clave equivocada o no
+responde, backend-go registra `weather_fetch_failed` en sus logs y sigue
+entregando rutas.
 
 ### Comprobación
 
