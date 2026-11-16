@@ -750,15 +750,34 @@ nombres de campo. En gRPC son los mensajes `CostBreakdown` y `CostWeights`.
 | `campus` | No | `san-francisco` o `san-juan-pablo-ii`; sin él, considera ambos |
 | `limit` | No | Entre 1 y 5; por defecto, 3 |
 | `occupancy` | No, y solo en `micro_service` | Ocupación por línea, como `L7A:0.95,L7B:0.3` |
+| `temperature_c`, `wind_speed_kmh` y `pm25` | No, y solo en `micro_service` | Clima de la consulta; van los tres juntos o ninguno |
 
 En gRPC, `latitude` y `longitude` son `optional`, para distinguir una coordenada
 en 0 de una que no se envió. Un `limit` en 0 usa el valor por defecto. La
-ocupación va en el campo `line_occupancy`.
+ocupación va en el campo `line_occupancy`, y el clima en el mensaje `weather`, que
+puede faltar: así se distingue "sin clima" de un clima a 0 °C.
 
 La app no envía la ocupación: backend-go la agrega sola, con las micros en vivo
 (ver la sección Ocupación). El parámetro `occupancy` sirve para probar
 `micro_service` directamente. Se rechaza con 400 si tiene una línea repetida, un
 valor que no es número o un formato mal escrito.
+
+Tampoco envía el clima: backend-go lo consulta a `clima_service` (ver la sección
+Clima). Los parámetros del clima también sirven para probar `micro_service`:
+
+```text
+GET /routes/university?from_stop=PAR-PORTAL-01&temperature_c=3&wind_speed_kmh=10&pm25=60
+```
+
+Los tres deben venir juntos: con uno solo no se sabría si los otros faltan o valen
+0. Se rechazan con 400 si falta alguno, si no son números o si están fuera de estos
+rangos:
+
+| Dato | Rango aceptado |
+|---|---|
+| Temperatura | −50 a 60 °C |
+| Viento | 0 a 300 km/h |
+| PM2.5 | 0 a 1000 µg/m³ |
 
 ### Ejemplo
 
