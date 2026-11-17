@@ -99,3 +99,34 @@ func TestMaxWalkPreferenceNeverExceedsNetworkLimit(t *testing.T) {
 		t.Fatalf("error message = %q, want the limits", errInvalidMaxWalk.Error())
 	}
 }
+
+func TestParseMaxWalkMetersUsesDefaultWhenEmpty(t *testing.T) {
+	for _, text := range []string{"", "  "} {
+		meters, err := parseMaxWalkMeters(text)
+		if err != nil {
+			t.Fatalf("parseMaxWalkMeters(%q) returned error: %v", text, err)
+		}
+		if meters != defaultPreferredWalkMeters {
+			t.Fatalf("parseMaxWalkMeters(%q) = %d, want %d", text, meters, defaultPreferredWalkMeters)
+		}
+	}
+}
+
+func TestParseMaxWalkMetersReadsNumbers(t *testing.T) {
+	meters, err := parseMaxWalkMeters(" 400 ")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if meters != 400 {
+		t.Fatalf("meters = %d, want 400", meters)
+	}
+}
+
+// Un "0" escrito no significa "sin preferencia": es una caminata imposible.
+func TestParseMaxWalkMetersRejectsInvalidText(t *testing.T) {
+	for _, text := range []string{"0", "abc", "500m", "400.5", "-200", "1001", "99999999999999999999"} {
+		if _, err := parseMaxWalkMeters(text); !errors.Is(err, errInvalidMaxWalk) {
+			t.Fatalf("parseMaxWalkMeters(%q) error = %v, want errInvalidMaxWalk", text, err)
+		}
+	}
+}

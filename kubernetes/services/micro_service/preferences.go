@@ -6,6 +6,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -73,4 +74,19 @@ func resolveMaxWalkMeters(requestedMeters int) (int, error) {
 		return 0, errInvalidMaxWalk
 	}
 	return requestedMeters, nil
+}
+
+// parseMaxWalkMeters lee la caminata máxima enviada como texto, por ejemplo en
+// la URL. Un texto vacío significa que no se indicó. A diferencia de
+// resolveMaxWalkMeters, un "0" escrito sí se envió, así que se rechaza.
+func parseMaxWalkMeters(text string) (int, error) {
+	trimmedText := strings.TrimSpace(text)
+	if trimmedText == "" {
+		return defaultPreferredWalkMeters, nil
+	}
+	requestedMeters, err := strconv.Atoi(trimmedText)
+	if err != nil || requestedMeters == 0 {
+		return 0, errInvalidMaxWalk
+	}
+	return resolveMaxWalkMeters(requestedMeters)
 }
