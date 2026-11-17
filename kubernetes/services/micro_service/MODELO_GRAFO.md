@@ -719,6 +719,27 @@ en una micro llena pesa más que una espera extra y un transbordo. También conv
 cambiar en `PAR-CSF-01` y no en `PAR-DPORT-01`: seguir en la 1C hasta
 `PAR-DPORT-01` agregaría 30 de recargo por ocupación.
 
+### Supuestos del costo
+
+Estos valores no salen de datos medidos: son decisiones de diseño o valores típicos.
+Si el equipo consigue datos reales, se cambian en el lugar indicado.
+
+| Supuesto | Valor | Dónde se cambia |
+|---|---|---|
+| Peso del viaje en micro | 1,0 | `defaultCostWeights`, en `cost.go` |
+| Peso de caminar | 2,0 | `defaultCostWeights`, en `cost.go` |
+| Peso de esperar | 2,0 | `defaultCostWeights`, en `cost.go` |
+| Penalización por cambio de línea | 300 s | `defaultCostWeights`, en `cost.go` |
+| Intervalo entre micros | 600 s | `defaultHeadwaySeconds`, en `cost.go` |
+| Frecuencia real de una línea | Sin datos | `lineHeadwaySeconds`, en `cost.go` |
+| Velocidad al caminar | 1,2 m/s | `walkingSpeedMps`, en `location.go` |
+| Caminata máxima | 1000 m | `maxWalkDistanceMeters`, en `alternatives.go` |
+| Paraderos de partida probados | 3 | `maxOriginStops`, en `location.go` |
+| Rutas revisadas por alternativa | 10 | `maxRankedPathsPerAlternative`, en `cost_alternatives.go` |
+
+Al cambiar un peso hay que respetar `validate`: los pesos deben ser al menos 1 y la
+penalización no puede ser negativa.
+
 ## Ocupación
 
 Un minuto de pie en una micro llena se percibe más largo que uno sentado. Por eso
