@@ -683,6 +683,42 @@ Para cada alternativa pedida, Yen revisa hasta 10 rutas
 (`maxRankedPathsPerAlternative`). Si muchas líneas compartieran los mismos tramos,
 podría entregar menos alternativas de las pedidas. En la red actual no ocurre.
 
+### Ejemplo completo
+
+Un viaje con los seis componentes. Usa la ocupación y el clima, que se explican en
+las secciones siguientes.
+
+- **Origen:** unos 100 m al norte de `PAR-PORTAL-01`.
+- **Destino:** Campus San Juan Pablo II.
+- **Ocupación:** 7B al 95 %, llena; 1C al 50 %, media; 7A al 20 %, baja.
+- **Clima:** 3 °C, viento de 10 km/h y PM2.5 de 60. El factor de caminar es 1,4.
+
+El planificador entrega primero esta ruta: caminar 84 s hasta `PAR-PORTAL-01`,
+tomar la 1C hasta `PAR-CSF-01` (240 s), cambiar a la 7A y seguir hasta
+`PAR-CJP-02` (300 s + 1500 s).
+
+| Componente | Cálculo | Costo |
+|---|---|---|
+| `ride` | 240 + 300 + 1500 | 2040 |
+| `walk` | 84 × 2 | 168 |
+| `wait` | Dos subidas: 300 × 2 + 300 × 2 | 1200 |
+| `transfer` | Un cambio de línea | 300 |
+| `crowding` | 1C media: 240 × (1,1 − 1); 7A baja: 0 | 24 |
+| `weather` | 168 × (1,4 − 1) | 67,2 |
+| **`total`** | | **3799,2** |
+
+La 7B haría el viaje directo y en 3 minutos menos, pero va llena:
+
+| Ruta | Tiempo | Cambios | Recargo por ocupación | Costo |
+|---|---|---|---|---|
+| **1C y luego 7A** | 2124 s | 1 | 24 | **3799,2** |
+| 7B directa | 1944 s | 0 | 1860 × 0,6 = 1116 | 3811,2 |
+
+La ruta elegida es **más lenta, pero más barata**: el recargo de viajar 31 minutos
+en una micro llena pesa más que una espera extra y un transbordo. También conviene
+cambiar en `PAR-CSF-01` y no en `PAR-DPORT-01`: seguir en la 1C hasta
+`PAR-DPORT-01` agregaría 30 de recargo por ocupación.
+
 ## Ocupación
 
 Un minuto de pie en una micro llena se percibe más largo que uno sentado. Por eso
