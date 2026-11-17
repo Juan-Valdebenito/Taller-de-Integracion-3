@@ -740,6 +740,31 @@ Si el equipo consigue datos reales, se cambian en el lugar indicado.
 Al cambiar un peso hay que respetar `validate`: los pesos deben ser al menos 1 y la
 penalización no puede ser negativa.
 
+### Supuestos de la ocupación y el clima
+
+Los de la ocupación y el clima están en `micro_service`, salvo los tiempos de
+backend-go, que se indican con su ruta.
+
+| Supuesto | Valor | Dónde se cambia |
+|---|---|---|
+| Límites de ocupación media, alta y llena | 40 %, 70 % y 90 % | `mediumOccupancyRatio`, `highOccupancyRatio` y `fullOccupancyRatio`, en `occupancy.go` |
+| Factores por ocupación | 1,0; 1,1; 1,3 y 1,6 | Constantes `...CrowdingFactor`, en `occupancy.go` |
+| Antigüedad máxima de una micro en vivo | 2 minutos | `defaultMaxReadingAge`, en `backend-go/internal/liveoccupancy/tracker.go` |
+| Frío y frío intenso | Bajo 5 °C y bajo 0 °C | `coldTemperatureC` y `freezingTemperatureC`, en `weather.go` |
+| Calor | Sobre 30 °C | `hotTemperatureC`, en `weather.go` |
+| Viento y viento fuerte | Sobre 30 y sobre 50 km/h | `strongWindKmh` y `veryStrongWindKmh`, en `weather.go` |
+| Aire sobre la norma y en alerta | PM2.5 sobre 50 y sobre 80 | `poorAirPM25` y `alertAirPM25`, en `weather.go` |
+| Recargos del clima | +0,2 y +0,4 | `moderateWeatherSurcharge` y `severeWeatherSurcharge`, en `weather.go` |
+| Factor máximo del clima | 2,0 | `maxWalkWeatherFactor`, en `weather.go` |
+| Lecturas de clima consideradas | Últimos 30 minutos | `recentWindow`, en `backend-go/internal/currentweather/provider.go` |
+| Renovación, tolerancia y espera del clima | 5 minutos, 30 minutos y 2 segundos | `refreshInterval`, `maxStaleAge` y `fetchTimeout`, en `backend-go/internal/currentweather/cache.go` |
+
+Los límites de ocupación deben coincidir con los de `OccupancyService` en backend-go.
+Si se cambian en un servicio, hay que cambiarlos también en el otro.
+
+Los factores deben seguir siendo al menos 1, para que A* siga encontrando la ruta
+óptima.
+
 ## Ocupación
 
 Un minuto de pie en una micro llena se percibe más largo que uno sentado. Por eso
