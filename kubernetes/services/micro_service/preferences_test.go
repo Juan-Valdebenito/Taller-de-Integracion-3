@@ -130,3 +130,74 @@ func TestParseMaxWalkMetersRejectsInvalidText(t *testing.T) {
 		}
 	}
 }
+
+func TestParseAvoidCrowdingReadsValues(t *testing.T) {
+	expectedValues := map[string]bool{
+		"":        defaultAvoidCrowding,
+		"true":    true,
+		" TRUE ":  true,
+		"1":       true,
+		"false":   false,
+		" False ": false,
+		"0":       false,
+	}
+	for text, expectedValue := range expectedValues {
+		avoidCrowding, err := parseAvoidCrowding(text)
+		if err != nil {
+			t.Fatalf("parseAvoidCrowding(%q) returned error: %v", text, err)
+		}
+		if avoidCrowding != expectedValue {
+			t.Fatalf("parseAvoidCrowding(%q) = %v, want %v", text, avoidCrowding, expectedValue)
+		}
+	}
+}
+
+func TestParseAvoidCrowdingRejectsOtherText(t *testing.T) {
+	for _, text := range []string{"yes", "no", "2", "verdadero"} {
+		if _, err := parseAvoidCrowding(text); !errors.Is(err, errInvalidAvoidCrowding) {
+			t.Fatalf("parseAvoidCrowding(%q) error = %v, want errInvalidAvoidCrowding", text, err)
+		}
+	}
+}
+
+func TestParseRoutePreferencesUsesDefaultsWhenEmpty(t *testing.T) {
+	preferences, err := parseRoutePreferences("", "", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if preferences != defaultRoutePreferences() {
+		t.Fatalf("preferences = %+v, want %+v", preferences, defaultRoutePreferences())
+	}
+}
+
+func TestParseRoutePreferencesReadsEveryPreference(t *testing.T) {
+	preferences, err := parseRoutePreferences("least_walking", "300", "false")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	expectedPreferences := RoutePreferences{Priority: priorityLeastWalking, MaxWalkMeters: 300, AvoidCrowding: false}
+	if preferences != expectedPreferences {
+		t.Fatalf("preferences = %+v, want %+v", preferences, expectedPreferences)
+	}
+}
+
+func TestParseRoutePreferencesReportsInvalidPreference(t *testing.T) {
+	testCases := []struct {
+		name              string
+		priorityText      string
+		maxWalkText       string
+		avoidCrowdingText string
+		expectedError     error
+	}{
+		{"priority", "cheapest", "", "", errInvalidRoutePriority},
+		{"max walk", "", "50", "", errInvalidMaxWalk},
+		{"avoid crowding", "", "", "maybe", errInvalidAvoidCrowding},
+		{"first invalid wins", "cheapest", "50", "maybe", errInvalidRoutePriority},
+	}
+	for _, testCase := range testCases {
+		_, err := parseRoutePreferences(testCase.priorityText, testCase.maxWalkText, testCase.avoidCrowdingText)
+		if !errors.Is(err, testCase.expectedError) {
+			t.Fatalf("%s: error = %v, want %v", testCase.name, err, testCase.expectedError)
+		}
+	}
+}

@@ -90,3 +90,65 @@ func parseMaxWalkMeters(text string) (int, error) {
 	}
 	return resolveMaxWalkMeters(requestedMeters)
 }
+
+// defaultAvoidCrowding mantiene el comportamiento actual: si hay datos de
+// ocupación, las micros llenas se penalizan.
+const defaultAvoidCrowding = true
+
+// errInvalidAvoidCrowding indica un valor que no es verdadero ni falso.
+var errInvalidAvoidCrowding = errors.New("avoid_crowding must be true or false")
+
+// parseAvoidCrowding lee si el pasajero quiere evitar micros llenas. Acepta
+// true/false y 1/0, sin importar mayúsculas ni espacios. Vacío significa que no
+// se indicó.
+func parseAvoidCrowding(text string) (bool, error) {
+	switch strings.ToLower(strings.TrimSpace(text)) {
+	case "":
+		return defaultAvoidCrowding, nil
+	case "true", "1":
+		return true, nil
+	case "false", "0":
+		return false, nil
+	}
+	return false, errInvalidAvoidCrowding
+}
+
+// RoutePreferences junta todo lo que el pasajero puede elegir al pedir una
+// recomendación de ruta.
+type RoutePreferences struct {
+	// Priority es lo que se prioriza al ordenar las rutas.
+	Priority RoutePriority
+	// MaxWalkMeters es la caminata más larga que el pasajero acepta para llegar a
+	// un paradero o desde él.
+	MaxWalkMeters int
+	// AvoidCrowding indica si las micros llenas se penalizan.
+	AvoidCrowding bool
+}
+
+// defaultRoutePreferences son las preferencias de quien no indica ninguna.
+func defaultRoutePreferences() RoutePreferences {
+	return RoutePreferences{
+		Priority:      defaultRoutePriority,
+		MaxWalkMeters: defaultPreferredWalkMeters,
+		AvoidCrowding: defaultAvoidCrowding,
+	}
+}
+
+// parseRoutePreferences lee las tres preferencias enviadas como texto. Devuelve
+// el error de la primera que no sea válida, para que el cliente sepa cuál
+// corregir.
+func parseRoutePreferences(priorityText, maxWalkText, avoidCrowdingText string) (RoutePreferences, error) {
+	priority, err := parseRoutePriority(priorityText)
+	if err != nil {
+		return RoutePreferences{}, err
+	}
+	maxWalkMeters, err := parseMaxWalkMeters(maxWalkText)
+	if err != nil {
+		return RoutePreferences{}, err
+	}
+	avoidCrowding, err := parseAvoidCrowding(avoidCrowdingText)
+	if err != nil {
+		return RoutePreferences{}, err
+	}
+	return RoutePreferences{Priority: priority, MaxWalkMeters: maxWalkMeters, AvoidCrowding: avoidCrowding}, nil
+}
