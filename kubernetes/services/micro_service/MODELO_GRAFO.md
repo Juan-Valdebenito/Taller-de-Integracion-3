@@ -486,6 +486,10 @@ Solo se comparan líneas con el mismo tiempo en un tramo. Una línea algo más l
 que evitara un cambio no se elegiría. Con los datos actuales no ocurre, porque los
 tramos compartidos tienen tiempos iguales.
 
+Esta limitación es solo de la versión por tiempo. La versión por costo, que usan las
+rutas a la universidad, no junta las líneas, así que sí puede elegir una línea más
+lenta para evitar un cambio.
+
 ## Rutas a la universidad
 
 `university.go` y `location.go` usan las rutas alternativas para llegar a un campus.
@@ -764,6 +768,21 @@ Si se cambian en un servicio, hay que cambiarlos también en el otro.
 
 Los factores deben seguir siendo al menos 1, para que A* siga encontrando la ruta
 óptima.
+
+### Limitaciones
+
+| Limitación | Detalle |
+|---|---|
+| **Los mismos pesos para todos** | No se ajustan por persona. A alguien con movilidad reducida, caminar le pesa más que 2,0 |
+| **La espera es un supuesto** | Sin horarios, cada línea pasa cada 10 minutos. No usa la posición en vivo de las micros para estimar cuándo llega la próxima |
+| **Todo es del momento de la consulta** | La ocupación y el clima no predicen cómo estarán al llegar al paradero o al caminar |
+| **Faltan tiempos del viaje real** | No incluye el tiempo detenido en cada paradero, y la caminata inicial se mide en línea recta |
+| **El costo no es un tiempo** | 3799 segundos equivalentes no significan 63 minutos. La app debe mostrar el tiempo real junto al costo |
+| **La red es pequeña** | Con 7 paraderos hay pocas opciones. Sin ocupación ni clima, el orden por costo casi siempre coincide con el orden por tiempo |
+
+La espera es la limitación con más margen de mejora. backend-go ya conoce la
+posición de cada micro en vivo, así que podría estimar cuánto falta para la próxima
+en vez de suponer 5 minutos.
 
 ## Ocupación
 
