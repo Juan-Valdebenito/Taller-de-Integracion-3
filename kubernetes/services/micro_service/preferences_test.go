@@ -57,3 +57,45 @@ func TestRoutePriorityErrorNamesEveryPriority(t *testing.T) {
 		}
 	}
 }
+
+func TestResolveMaxWalkMetersUsesDefaultWhenNotSent(t *testing.T) {
+	meters, err := resolveMaxWalkMeters(0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if meters != defaultPreferredWalkMeters {
+		t.Fatalf("meters = %d, want %d", meters, defaultPreferredWalkMeters)
+	}
+}
+
+func TestResolveMaxWalkMetersAcceptsLimits(t *testing.T) {
+	for _, requestedMeters := range []int{minPreferredWalkMeters, 500, maxPreferredWalkMeters} {
+		meters, err := resolveMaxWalkMeters(requestedMeters)
+		if err != nil {
+			t.Fatalf("resolveMaxWalkMeters(%d) returned error: %v", requestedMeters, err)
+		}
+		if meters != requestedMeters {
+			t.Fatalf("resolveMaxWalkMeters(%d) = %d", requestedMeters, meters)
+		}
+	}
+}
+
+func TestResolveMaxWalkMetersRejectsOutOfRange(t *testing.T) {
+	outOfRange := []int{-1, minPreferredWalkMeters - 1, maxPreferredWalkMeters + 1}
+	for _, requestedMeters := range outOfRange {
+		if _, err := resolveMaxWalkMeters(requestedMeters); !errors.Is(err, errInvalidMaxWalk) {
+			t.Fatalf("resolveMaxWalkMeters(%d) error = %v, want errInvalidMaxWalk", requestedMeters, err)
+		}
+	}
+}
+
+// La preferencia no puede permitir caminatas que la red no considera caminables,
+// y el mensaje de error debe indicar los límites.
+func TestMaxWalkPreferenceNeverExceedsNetworkLimit(t *testing.T) {
+	if maxPreferredWalkMeters > maxWalkDistanceMeters {
+		t.Fatalf("maxPreferredWalkMeters = %d exceeds network limit %d", maxPreferredWalkMeters, maxWalkDistanceMeters)
+	}
+	if !strings.Contains(errInvalidMaxWalk.Error(), "100 and 1000") {
+		t.Fatalf("error message = %q, want the limits", errInvalidMaxWalk.Error())
+	}
+}

@@ -5,6 +5,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 )
 
@@ -48,4 +49,28 @@ func parseRoutePriority(text string) (RoutePriority, error) {
 		}
 	}
 	return "", errInvalidRoutePriority
+}
+
+// Límites de la caminata máxima que el pasajero acepta, en metros. El máximo es
+// el mismo de los transbordos a pie: la preferencia puede acortar la caminata,
+// pero no alargarla más allá de lo que la red considera caminable.
+const (
+	minPreferredWalkMeters     = 100
+	maxPreferredWalkMeters     = maxWalkDistanceMeters
+	defaultPreferredWalkMeters = maxWalkDistanceMeters
+)
+
+// errInvalidMaxWalk indica una caminata máxima fuera de los límites.
+var errInvalidMaxWalk = fmt.Errorf("max_walk_meters must be between %d and %d", minPreferredWalkMeters, maxPreferredWalkMeters)
+
+// resolveMaxWalkMeters devuelve la caminata máxima que se usará. Cero significa
+// que la petición no la indicó, y se usa el valor por defecto.
+func resolveMaxWalkMeters(requestedMeters int) (int, error) {
+	if requestedMeters == 0 {
+		return defaultPreferredWalkMeters, nil
+	}
+	if requestedMeters < minPreferredWalkMeters || requestedMeters > maxPreferredWalkMeters {
+		return 0, errInvalidMaxWalk
+	}
+	return requestedMeters, nil
 }
