@@ -52,6 +52,22 @@ func newCostWeightsResponse(weights CostWeights) costWeightsResponse {
 	}
 }
 
+// preferencesResponse informa con qué preferencias se ordenaron las rutas,
+// incluidos los valores por defecto de lo que la petición no indicó.
+type preferencesResponse struct {
+	Priority      RoutePriority `json:"priority"`
+	MaxWalkMeters int           `json:"max_walk_meters"`
+	AvoidCrowding bool          `json:"avoid_crowding"`
+}
+
+func newPreferencesResponse(preferences RoutePreferences) preferencesResponse {
+	return preferencesResponse{
+		Priority:      preferences.Priority,
+		MaxWalkMeters: preferences.MaxWalkMeters,
+		AvoidCrowding: preferences.AvoidCrowding,
+	}
+}
+
 // roundToTenth redondea a un decimal. Las operaciones con decimales dejan
 // diferencias mínimas, como 1140.0000000002, que no aportan nada a la app.
 func roundToTenth(value float64) float64 {

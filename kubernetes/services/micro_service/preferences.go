@@ -134,6 +134,30 @@ func defaultRoutePreferences() RoutePreferences {
 	}
 }
 
+// validate revisa preferencias que no se leyeron desde texto, por ejemplo las
+// que arma gRPC. Usa las mismas reglas del texto: una prioridad vacía o una
+// caminata 0 significan "no se indicó".
+func (preferences RoutePreferences) validate() error {
+	if _, err := parseRoutePriority(string(preferences.Priority)); err != nil {
+		return err
+	}
+	if _, err := resolveMaxWalkMeters(preferences.MaxWalkMeters); err != nil {
+		return err
+	}
+	return nil
+}
+
+// withDefaults completa lo que no se indicó con los valores por defecto.
+func (preferences RoutePreferences) withDefaults() RoutePreferences {
+	if preferences.Priority == "" {
+		preferences.Priority = defaultRoutePriority
+	}
+	if preferences.MaxWalkMeters == 0 {
+		preferences.MaxWalkMeters = defaultPreferredWalkMeters
+	}
+	return preferences
+}
+
 // parseRoutePreferences lee las tres preferencias enviadas como texto. Devuelve
 // el error de la primera que no sea válida, para que el cliente sepa cuál
 // corregir.
