@@ -150,3 +150,121 @@ func TestRequestPreferencesFillDefaults(t *testing.T) {
 		t.Errorf("sin preferencias se esperaban las de por defecto: %+v", defaults)
 	}
 }
+
+// longestWalk devuelve la caminata más larga de las rutas, en metros.
+func longestWalk(routes []UniversityRoute) int {
+	longest := 0
+	for _, route := range routes {
+		for _, step := range route.Path {
+			if step.Edge.RouteID == walkRouteID && step.Edge.DistanceM > longest {
+				longest = step.Edge.DistanceM
+			}
+		}
+	}
+	return longest
+}
+
+// Ningún transbordo a pie supera la caminata máxima del pasajero. Desde
+// PAR-DPORT-01 hay caminatas de 180, 600 y 950 m; con 300 m solo queda la de 180.
+func TestPlanUniversityRoutesRespectMaxWalkInTransfers(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	for _, originStopID := range []string{"PAR-PORTAL-01", "PAR-DPORT-01", "PAR-MRODRI-01"} {
+		for _, maxWalkMeters := range []int{minPreferredWalkMeters, 300, 500, maxPreferredWalkMeters} {
+			routes, err := planUniversityRoutes(graph, universityRouteRequest{
+				OriginStopID: originStopID, Limit: maxUniversityRoutes,
+				Preferences: &RoutePreferences{MaxWalkMeters: maxWalkMeters, AvoidCrowding: true},
+			})
+			if err != nil || len(routes) == 0 {
+				t.Fatalf("%s, %d m: se esperaban rutas: %+v, %v", originStopID, maxWalkMeters, routes, err)
+			}
+			if walk := longestWalk(routes); walk > maxWalkMeters {
+				t.Errorf("%s, %d m: hay una caminata de %d m", originStopID, maxWalkMeters, walk)
+			}
+		}
+	}
+}
+
+// Bajar la caminata máxima quita rutas que antes sí aparecían.
+func TestPlanUniversityRoutesDropLongWalksOnlyWhenAsked(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	plan := func(preferences *RoutePreferences) []UniversityRoute {
+		routes, err := planUniversityRoutes(graph, universityRouteRequest{
+			OriginStopID: "PAR-DPORT-01", Limit: maxUniversityRoutes, Preferences: preferences,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return routes
+	}
+	if walk := longestWalk(plan(nil)); walk <= 300 {
+		t.Fatalf("sin preferencias se esperaba alguna caminata de más de 300 m, y la mayor es de %d m", walk)
+	}
+	if walk := longestWalk(plan(&RoutePreferences{MaxWalkMeters: 300, AvoidCrowding: true})); walk > 300 {
+		t.Errorf("con 300 m hay una caminata de %d m", walk)
+	}
+}
+
+// Desde una posición, la caminata inicial tampoco supera el máximo. En
+// twoStopsTestGraph, NEAR está a unos 100 m y FAR a unos 900 m.
+func TestPlanUniversityRoutesRespectMaxWalkFromLocation(t *testing.T) {
+	graph, campus := twoStopsTestGraph()
+	previousCampuses := universityCampuses
+	t.Cleanup(func() { universityCampuses = previousCampuses })
+	universityCampuses = []Campus{campus}
+	plan := func(maxWalkMeters int) ([]UniversityRoute, error) {
+		return planUniversityRoutes(graph, universityRouteRequest{
+			HasLocation: true, Latitude: testOriginLatitude, Longitude: testOriginLongitude, Limit: 2,
+			Preferences: &RoutePreferences{MaxWalkMeters: maxWalkMeters, AvoidCrowding: true},
+		})
+	}
+	startStops := func(routes []UniversityRoute) map[string]bool {
+		stops := make(map[string]bool)
+		for _, route := range routes {
+			stops[route.Path[0].Edge.ToStopID] = true
+		}
+		return stops
+	}
+
+	routes, err := plan(maxPreferredWalkMeters)
+	if err != nil || !startStops(routes)["NEAR"] || !startStops(routes)["FAR"] {
+		t.Fatalf("con 1000 m se esperaba partir desde NEAR y FAR: %+v, %v", routes, err)
+	}
+	routes, err = plan(500)
+	if err != nil || len(routes) != 1 || !startStops(routes)["NEAR"] {
+		t.Fatalf("con 500 m solo se puede partir desde NEAR: %+v, %v", routes, err)
+	}
+	if _, err := plan(minPreferredWalkMeters); !errors.Is(err, errNoNearbyStops) {
+		t.Errorf("con 100 m no hay paraderos al alcance; se esperaba errNoNearbyStops y se obtuvo %v", err)
+	}
+}
+
+// Por HTTP: desde PAR-DPORT-01, con 300 m ningún tramo a pie supera ese largo.
+func TestUniversityRoutesRespectMaxWalkParameter(t *testing.T) {
+	statusCode, body := getPreferenceRoutes(t, "from_stop=PAR-DPORT-01&limit=5&max_walk_meters=300")
+	if statusCode != http.StatusOK || len(body.Routes) == 0 {
+		t.Fatalf("respuesta inesperada: %d %+v", statusCode, body)
+	}
+	for _, route := range body.Routes {
+		for _, movement := range route.Movements {
+			if movement.Mode == "walk" && movement.DistanceM > 300 {
+				t.Errorf("hay una caminata de %d m: %+v", movement.DistanceM, movement)
+			}
+		}
+	}
+}
+
+// Filtrar las caminatas no debe cambiar el grafo compartido entre peticiones.
+func TestMaxWalkDoesNotChangeSharedGraph(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	edgesBefore := len(graph.Edges["PAR-DPORT-01"])
+	if graphWithMaxWalk(graph, maxWalkDistanceMeters) != graph {
+		t.Error("con la caminata máxima de la red no se debe copiar el grafo")
+	}
+	filtered := graphWithMaxWalk(graph, 300)
+	if len(filtered.Edges["PAR-DPORT-01"]) >= edgesBefore {
+		t.Errorf("el grafo filtrado debe tener menos aristas: %d de %d", len(filtered.Edges["PAR-DPORT-01"]), edgesBefore)
+	}
+	if len(graph.Edges["PAR-DPORT-01"]) != edgesBefore {
+		t.Error("el grafo original cambió")
+	}
+}

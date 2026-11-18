@@ -123,16 +123,27 @@ func planUniversityRoutes(graph *TransitGraph, routeRequest universityRouteReque
 			return nil, err
 		}
 	}
+	maxWalkMeters := routeRequest.preferences().MaxWalkMeters
 	if routeRequest.HasLocation {
 		if !isValidLocation(routeRequest.Latitude, routeRequest.Longitude) {
 			return nil, errInvalidLocation
 		}
-		return routesFromLocation(graph, routeRequest.Latitude, routeRequest.Longitude, routeRequest.CampusID, routeRequest.Limit, routeRequest.costWeights())
+		return routesFromLocation(graphWithMaxWalk(graph, maxWalkMeters), routeRequest.Latitude, routeRequest.Longitude, routeRequest.CampusID, routeRequest.Limit, routeRequest.costWeights(), maxWalkMeters)
 	}
 	if _, exists := graph.Stops[routeRequest.OriginStopID]; !exists {
 		return nil, errUnknownOriginStop
 	}
-	return routesToUniversity(graph, routeRequest.OriginStopID, routeRequest.CampusID, routeRequest.Limit, routeRequest.costWeights())
+	return routesToUniversity(graphWithMaxWalk(graph, maxWalkMeters), routeRequest.OriginStopID, routeRequest.CampusID, routeRequest.Limit, routeRequest.costWeights())
+}
+
+// graphWithMaxWalk deja en el grafo solo los transbordos a pie que el pasajero
+// acepta. Con la caminata máxima de la red no hay nada que quitar, y se evita
+// copiar el grafo.
+func graphWithMaxWalk(graph *TransitGraph, maxWalkMeters int) *TransitGraph {
+	if maxWalkMeters >= maxWalkDistanceMeters {
+		return graph
+	}
+	return withoutWalksLongerThan(graph, maxWalkMeters)
 }
 
 // isValidLocation está escrita en positivo para rechazar también NaN, que no es
