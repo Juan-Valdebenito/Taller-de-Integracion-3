@@ -31,3 +31,17 @@ func priorityCostWeights(priority RoutePriority) CostWeights {
 	}
 	return weights
 }
+
+// preferenceCostWeights arma los pesos de una consulta: parte de los pesos de la
+// prioridad y agrega la ocupación y el clima del momento. La ocupación solo se
+// agrega si el pasajero quiere evitar micros llenas. El clima siempre se agrega:
+// caminar con mal clima pesa igual, sea cual sea la prioridad.
+// La caminata máxima no es un peso: limita qué caminatas se pueden usar.
+func preferenceCostWeights(preferences RoutePreferences, occupancy LineOccupancy, weather *WeatherConditions) CostWeights {
+	weights := priorityCostWeights(preferences.Priority)
+	if preferences.AvoidCrowding {
+		weights.Occupancy = occupancy
+	}
+	weights.Weather = weather
+	return weights
+}
