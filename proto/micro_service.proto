@@ -111,6 +111,25 @@ message PlanUniversityRoutesRequest {
 	// Clima de la consulta. Si no viene, caminar no se penaliza. Es un mensaje para
 	// distinguir "sin clima" de un clima a 0 °C.
 	WeatherConditions weather = 7;
+	// Preferencias del pasajero. Si no viene, se usan las de por defecto, que dan
+	// los mismos pesos que antes de existir las preferencias.
+	RoutePreferences preferences = 8;
+}
+
+// Preferencias del pasajero para ordenar las rutas. Son las mismas que acepta la
+// API REST (priority, max_walk_meters y avoid_crowding) y se validan con las
+// mismas reglas. Un campo no enviado significa "usar el valor por defecto".
+message RoutePreferences {
+	// Qué se prioriza: "balanced", "fastest", "fewest_transfers" o
+	// "least_walking". Es texto, igual que en REST, para que ambas API acepten
+	// los mismos valores y respondan los mismos errores. Vacío es "balanced".
+	string priority = 1;
+	// Caminata más larga que el pasajero acepta, en metros, entre 100 y 1000. 0
+	// es el valor por defecto, 1000.
+	int32 max_walk_meters = 2;
+	// Si las micros llenas se penalizan. Es optional porque el valor por defecto
+	// es true: sin presencia, un bool no enviado se leería como false.
+	optional bool avoid_crowding = 3;
 }
 
 // Clima del momento de la consulta. clima_service no informa lluvia.
@@ -125,6 +144,9 @@ message PlanUniversityRoutesResponse {
 	int32 total = 2;
 	// Pesos con que se calcularon los costos de las rutas.
 	CostWeights cost_weights = 3;
+	// Preferencias con que se ordenaron las rutas, con los valores por defecto ya
+	// aplicados a lo que la petición no indicó.
+	RoutePreferences preferences = 4;
 }
 
 message UniversityRoute {
