@@ -815,6 +815,50 @@ objetivo:
 Todos los pesos son al menos 1, así que A* sigue encontrando la ruta óptima con
 cualquier prioridad.
 
+### Por qué estos valores
+
+Son supuestos ajustables, en las constantes `fewestTransfersPenaltySeconds` y
+`leastWalkingWalkWeight`. Se eligieron por lo que significan en minutos:
+
+- **1800 s por transbordo.** Un transbordo agrega una espera de 300 s, que con peso
+  2 cuesta 600, más la penalización. Con `balanced` suma 900, así que se acepta un
+  transbordo si ahorra más de 15 minutos de viaje. Con `fewest_transfers` suma
+  2400: solo se acepta si ahorra más de 40 minutos.
+- **Caminata con peso 5.** Si dos rutas esperan lo mismo, cada minuto caminando
+  se cambia por hasta 5 minutos en micro. Con `balanced`, solo por 2.
+- **`fastest` con todo en 1.** El costo es el tiempo real, pero con la espera
+  incluida. Por eso no siempre coincide con Dijkstra por tiempo, que no cuenta la
+  espera: si dos rutas tardan casi lo mismo, `fastest` prefiere la que exige
+  subirse menos veces.
+
+### Ejemplos
+
+Las pruebas de `preference_routes_test.go` usan grafos pequeños, calculados para
+que `balanced` elija una ruta y la prioridad probada elija la otra. En todos, cada
+micro espera 300 s en promedio.
+
+| Prioridad | Rutas posibles | `balanced` elige | La prioridad elige |
+|---|---|---|---|
+| `fastest` | L1 600 s + L2 400 s, o L3 directa 1350 s | L3: costo 1950 contra 2500 | L1 + L2: 1600 s reales contra 1650 |
+| `fewest_transfers` | L1 600 s + L2 600 s, o L3 directa 3000 s | L1 + L2: costo 2700 contra 3600 | L3: 3600 contra 4200 |
+| `least_walking` | Caminar 300 s + L1 600 s, o L2 directa 1600 s | Caminar: costo 1800 contra 2200 | L2: 2200 contra 2700 |
+
+Por ejemplo, con `fewest_transfers` la ruta con transbordo cuesta
+600 + 600 + 600 + 600 + 1800 = 4200: dos esperas de 600, los dos viajes y la
+penalización.
+
+### Garantía en la red oficial
+
+Para todos los pares de paraderos se comprueba que:
+
+- `least_walking` nunca camina más que `balanced`.
+- `fewest_transfers` nunca tiene más transbordos que `balanced`.
+
+Esto se cumple en cualquier red, no solo en esta. Si dos pesos solo difieren en la
+caminata, la ruta óptima con la caminata más pesada no puede caminar más: si
+caminara más, la otra ruta sería más barata con esos mismos pesos. Con los
+transbordos ocurre lo mismo.
+
 ### Caminata máxima y micros llenas
 
 La caminata máxima no es un peso, sino un límite. Se aplica de dos formas:
