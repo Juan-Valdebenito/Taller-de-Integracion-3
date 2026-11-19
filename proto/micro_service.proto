@@ -195,6 +195,15 @@ message RecommendRoutesRequest {
 	RoutePoint destination = 2;
 	// Cuántas rutas entregar, entre 1 y 5. 0 es el valor por defecto, 3.
 	int32 limit = 3;
+	// Preferencias del pasajero, con las mismas reglas que en
+	// PlanUniversityRoutes. Si no viene, se usan las de por defecto.
+	RoutePreferences preferences = 4;
+	// Ocupación de cada línea, de 0 a 1, por el route_id de micro_service. Solo se
+	// usa si el pasajero quiere evitar micros llenas. Las líneas que no aparecen no
+	// se penalizan.
+	map<string, double> line_occupancy = 5;
+	// Clima de la consulta. Si no viene, caminar no se penaliza.
+	WeatherConditions weather = 6;
 }
 
 // Origen o destino de una recomendación de ruta: un paradero de la red o una
