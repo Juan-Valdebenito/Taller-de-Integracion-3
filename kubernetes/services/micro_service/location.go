@@ -32,12 +32,19 @@ type NearbyStop struct {
 // más cercano al más lejano. Omite los que no tienen aristas de salida: están en
 // el catálogo, pero desde ellos no se puede iniciar un viaje.
 func nearbyNetworkStops(graph *TransitGraph, latitude, longitude float64, limit, maxWalkMeters int) []NearbyStop {
+	hasDepartures := func(stopID string) bool { return len(graph.Edges[stopID]) > 0 }
+	return nearbyStopsMatching(graph, latitude, longitude, limit, maxWalkMeters, hasDepartures)
+}
+
+// nearbyStopsMatching entrega hasta limit paraderos a no más de maxWalkMeters, del
+// más cercano al más lejano, considerando solo los que cumplen isUsable.
+func nearbyStopsMatching(graph *TransitGraph, latitude, longitude float64, limit, maxWalkMeters int, isUsable func(stopID string) bool) []NearbyStop {
 	if limit <= 0 {
 		return nil
 	}
 	nearbyStops := make([]NearbyStop, 0, limit)
 	for stopID, stop := range graph.Stops {
-		if len(graph.Edges[stopID]) == 0 {
+		if !isUsable(stopID) {
 			continue
 		}
 		straightDistance := haversineMeters(latitude, longitude, stop.Latitude, stop.Longitude)
