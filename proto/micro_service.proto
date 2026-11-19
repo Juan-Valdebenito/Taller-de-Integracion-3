@@ -206,6 +206,32 @@ message RecommendRoutesRequest {
 	WeatherConditions weather = 6;
 }
 
+message RecommendRoutesResponse {
+	// Rutas de menor a mayor costo. Vacía si no hay ninguna.
+	repeated RecommendedRoute routes = 1;
+	int32 total = 2;
+	// Pesos con que se calcularon los costos de las rutas.
+	CostWeights cost_weights = 3;
+	// Preferencias con que se ordenaron las rutas, con los valores por defecto ya
+	// aplicados a lo que la petición no indicó.
+	RoutePreferences preferences = 4;
+}
+
+// Una ruta recomendada. Si el origen es una coordenada, el primer movimiento es
+// una caminata desde USER_LOCATION. Si el destino es una coordenada, el último es
+// una caminata hasta DESTINATION_LOCATION. Si caminar todo el trayecto es la
+// mejor opción, la ruta tiene un solo movimiento a pie.
+message RecommendedRoute {
+	// Suma del tiempo de los movimientos, con las caminatas. No incluye la espera
+	// en el paradero, igual que en UniversityRoute.
+	int32 total_time_seconds = 1;
+	int32 total_distance_meters = 2;
+	int32 transfers = 3;
+	repeated Movement movements = 4;
+	// Costo con que se ordenó la ruta, en segundos equivalentes.
+	CostBreakdown cost = 5;
+}
+
 // Origen o destino de una recomendación de ruta: un paradero de la red o una
 // coordenada, nunca ambos. Con una coordenada, la ruta suma la caminata hasta el
 // paradero más conveniente o desde él.
