@@ -185,6 +185,18 @@ message CostWeights {
 	int32 assumed_headway_seconds = 5;
 }
 
+// Petición de rutas recomendadas entre cualquier origen y cualquier destino. A
+// diferencia de PlanUniversityRoutes, el destino no tiene que ser un campus.
+message RecommendRoutesRequest {
+	// Punto de partida: un paradero o la posición del pasajero. Obligatorio.
+	RoutePoint origin = 1;
+	// Punto de llegada: un paradero o una coordenada. Obligatorio, y distinto del
+	// origen.
+	RoutePoint destination = 2;
+	// Cuántas rutas entregar, entre 1 y 5. 0 es el valor por defecto, 3.
+	int32 limit = 3;
+}
+
 // Origen o destino de una recomendación de ruta: un paradero de la red o una
 // coordenada, nunca ambos. Con una coordenada, la ruta suma la caminata hasta el
 // paradero más conveniente o desde él.
