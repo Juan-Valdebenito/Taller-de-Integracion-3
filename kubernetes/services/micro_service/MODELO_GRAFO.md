@@ -740,6 +740,9 @@ Si el equipo consigue datos reales, se cambian en el lugar indicado.
 | Caminata máxima | 1000 m | `maxWalkDistanceMeters`, en `alternatives.go` |
 | Paraderos de partida probados | 3 | `maxOriginStops`, en `location.go` |
 | Rutas revisadas por alternativa | 10 | `maxRankedPathsPerAlternative`, en `cost_alternatives.go` |
+| Penalización por cambio de línea con `fewest_transfers` | 1800 s | `fewestTransfersPenaltySeconds`, en `preference_weights.go` |
+| Peso de caminar con `least_walking` | 5,0 | `leastWalkingWalkWeight`, en `preference_weights.go` |
+| Caminata máxima más corta que se acepta | 100 m | `minPreferredWalkMeters`, en `preferences.go` |
 
 Al cambiar un peso hay que respetar `validate`: los pesos deben ser al menos 1 y la
 penalización no puede ser negativa.
@@ -1095,6 +1098,9 @@ nombres de campo. En gRPC son los mensajes `CostBreakdown` y `CostWeights`.
 | `limit` | No | Entre 1 y 5; por defecto, 3 |
 | `occupancy` | No, y solo en `micro_service` | Ocupación por línea, como `L7A:0.95,L7B:0.3` |
 | `temperature_c`, `wind_speed_kmh` y `pm25` | No, y solo en `micro_service` | Clima de la consulta; van los tres juntos o ninguno |
+| `priority` | No, y por ahora solo en `micro_service` | `balanced`, `fastest`, `fewest_transfers` o `least_walking`; por defecto, `balanced` |
+| `max_walk_meters` | No, y por ahora solo en `micro_service` | Caminata más larga aceptada, entre 100 y 1000; por defecto, 1000 |
+| `avoid_crowding` | No, y por ahora solo en `micro_service` | `true` o `false` (también `1` o `0`); por defecto, `true` |
 
 En gRPC, `latitude` y `longitude` son `optional`, para distinguir una coordenada
 en 0 de una que no se envió. Un `limit` en 0 usa el valor por defecto. La
@@ -1122,6 +1128,24 @@ rangos:
 | Temperatura | −50 a 60 °C |
 | Viento | 0 a 300 km/h |
 | PM2.5 | 0 a 1000 µg/m³ |
+
+Las preferencias (ver la sección Preferencias del pasajero) ignoran mayúsculas y
+espacios, y la que no se envía toma su valor por defecto:
+
+```text
+GET /routes/university?lat=-38.735&long=-72.612&priority=least_walking&max_walk_meters=400
+```
+
+Se rechazan con 400 si la prioridad no existe, si la caminata no es un número
+entero entre 100 y 1000, o si `avoid_crowding` no es verdadero ni falso. Un
+`max_walk_meters=0` escrito también se rechaza: 0 no es "sin preferencia", sino
+una caminata imposible.
+
+En gRPC van en el mensaje `preferences`, que puede faltar. Ahí `max_walk_meters`
+en 0 sí significa el valor por defecto, y `avoid_crowding` es `optional`: sin él,
+un valor no enviado se leería como `false`, y el valor por defecto es `true`. El
+mensaje ya está en el contrato, pero `PlanUniversityRoutes` todavía no lo aplica,
+y backend-go aún no envía las preferencias.
 
 ### Ejemplo
 
@@ -1185,6 +1209,7 @@ empate se resuelve siempre igual, así que la respuesta no cambia entre consulta
 | `cost.total` | Suma de los demás; es el valor con que se ordenan las rutas |
 | `cost_weights` | Pesos usados en el cálculo |
 | `cost_weights.assumed_headway_seconds` | Intervalo supuesto entre micros: la espera es una estimación |
+| `preferences` | Preferencias usadas, con los valores por defecto ya aplicados. Por ahora solo en `micro_service` REST |
 
 Los costos están en segundos equivalentes y se redondean a un decimal. Este
 ejemplo **tarda 240 s, pero cuesta 840**, por los 5 minutos de espera supuestos.
@@ -1215,9 +1240,9 @@ ocupación o al clima, ignora esos datos. Las rutas llegan con `cost.crowding` y
 
 | Caso | gRPC | HTTP |
 |---|---|---|
-| Falta el origen, vienen dos, o no son válidos el límite, las coordenadas, la ocupación o el clima | `InvalidArgument` | 400 |
+| Falta el origen, vienen dos, o no son válidos el límite, las coordenadas, la ocupación, el clima o las preferencias | `InvalidArgument` | 400 |
 | Sin sesión en backend-go | — | 401 |
-| Paradero o campus inexistente, o sin paraderos a 1000 m | `NotFound` | 404 |
+| Paradero o campus inexistente, o sin paraderos dentro de la caminata máxima | `NotFound` | 404 |
 | `micro_service` rechaza la clave de backend-go | `Unauthenticated` | 502 en backend-go |
 | Grafo sin cargar o servicio sin respuesta | `Unavailable` | 503 |
 
@@ -1390,6 +1415,10 @@ go test ./...
 | Ocupación en vivo | Las micros publicadas en el Hub llegan a `micro_service`, con sus IDs traducidos |
 | Clima actual | Se promedia la última lectura de cada estación, y las fallas no impiden calcular rutas |
 | Sin datos | Sin ocupación o sin clima, no se envía nada; el clima nunca viaja como 0 °C |
+| Lectura de preferencias | Acepta los valores válidos, usa los por defecto en lo no enviado y rechaza el resto con el error de la primera inválida |
+| Pesos por prioridad | Son válidos y cada prioridad solo cambia el peso de su objetivo; sin preferencias, los pesos son los de siempre |
+| Rutas por prioridad | En grafos pequeños, cada prioridad elige la ruta esperada; en la red oficial, nunca empeora su objetivo frente a `balanced` |
+| Caminata máxima | No se usan caminatas más largas, ni al inicio ni entre paraderos |
 
 `PAR-CJP-02` ↔ `PAR-DPORT-01` está registrado en la prueba como excepción conocida
 de velocidad. Si el equipo corrige el dato, se quita esa excepción. Cualquier otro
