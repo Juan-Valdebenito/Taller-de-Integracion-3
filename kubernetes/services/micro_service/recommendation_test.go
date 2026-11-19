@@ -45,6 +45,8 @@ func TestRecommendRoutesBetweenStopsMatchesAlternatives(t *testing.T) {
 // La micro pasa por BOTH y después por ONLY_ARRIVES, que está más cerca del
 // destino. Bajarse en BOTH cuesta 600 + 60 + 278 × 2 = 1216; seguir hasta
 // ONLY_ARRIVES cuesta 600 + 120 + 186 × 2 = 1092. Conviene seguir en la micro.
+// ONLY_DEPARTS está a unos 111 m del destino, así que caminar directo cuesta
+// 93 × 2 = 186 y es la mejor opción; la mejor en micro queda segunda.
 func TestRecommendRoutesToLocationGetsOffNearestUsefulStop(t *testing.T) {
 	graph := arrivalTestGraph()
 	weights := defaultCostWeights()
@@ -53,12 +55,15 @@ func TestRecommendRoutesToLocationGetsOffNearestUsefulStop(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(routes) != 2 {
-		t.Fatalf("got %d routes, want 2", len(routes))
+	if len(routes) != 3 {
+		t.Fatalf("got %d routes, want 3", len(routes))
 	}
-	best := routes[0]
-	if best[len(best)-1].From != "ONLY_ARRIVES" {
-		t.Fatalf("best route gets off at %s, want ONLY_ARRIVES", best[len(best)-1].From)
+	if len(routes[0]) != 1 || routes[0][0].From != "ONLY_DEPARTS" {
+		t.Fatalf("best route = %+v, want the direct walk", routes[0])
+	}
+	bestByBus := routes[1]
+	if bestByBus[len(bestByBus)-1].From != "ONLY_ARRIVES" {
+		t.Fatalf("best bus route gets off at %s, want ONLY_ARRIVES", bestByBus[len(bestByBus)-1].From)
 	}
 	for _, route := range routes {
 		lastStep := route[len(route)-1]
