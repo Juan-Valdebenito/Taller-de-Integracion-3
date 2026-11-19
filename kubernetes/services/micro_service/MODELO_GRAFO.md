@@ -773,7 +773,7 @@ Los factores deben seguir siendo al menos 1, para que A* siga encontrando la rut
 
 | Limitación | Detalle |
 |---|---|
-| **Los mismos pesos para todos** | No se ajustan por persona. A alguien con movilidad reducida, caminar le pesa más que 2,0 |
+| **Pesos fijos por prioridad** | El pasajero elige entre cuatro prioridades (ver Preferencias del pasajero), pero no puede ajustar los valores. A alguien con movilidad reducida, caminar podría pesarle más que 5,0 |
 | **La espera es un supuesto** | Sin horarios, cada línea pasa cada 10 minutos. No usa la posición en vivo de las micros para estimar cuándo llega la próxima |
 | **Todo es del momento de la consulta** | La ocupación y el clima no predicen cómo estarán al llegar al paradero o al caminar |
 | **Faltan tiempos del viaje real** | No incluye el tiempo detenido en cada paradero, y la caminata inicial se mide en línea recta |
@@ -783,6 +783,53 @@ Los factores deben seguir siendo al menos 1, para que A* siga encontrando la rut
 La espera es la limitación con más margen de mejora. backend-go ya conoce la
 posición de cada micro en vivo, así que podría estimar cuánto falta para la próxima
 en vez de suponer 5 minutos.
+
+## Preferencias del pasajero
+
+Cada pasajero puede indicar qué le importa más al elegir una ruta. Las
+preferencias no cambian el grafo ni los tiempos: cambian los pesos de la función de
+costo y qué caminatas se aceptan. El código está en `preferences.go` y
+`preference_weights.go`.
+
+| Preferencia | Valores | Por defecto | Qué cambia |
+|---|---|---|---|
+| Prioridad | `balanced`, `fastest`, `fewest_transfers`, `least_walking` | `balanced` | Los pesos de la función de costo |
+| Caminata máxima | De 100 a 1000 m | 1000 m | Qué caminatas se pueden usar, al inicio y entre paraderos |
+| Evitar micros llenas | `true` o `false` | `true` | Si se aplica el recargo por ocupación |
+
+Sin preferencias, los pesos son los mismos que antes de que existieran, así que
+el orden de las rutas no cambia para quien no las indica.
+
+### Pesos de cada prioridad
+
+Cada prioridad parte de los pesos de siempre y cambia solo lo necesario para su
+objetivo:
+
+| Prioridad | Viaje | Caminata | Espera | Transbordo | Efecto |
+|---|---|---|---|---|---|
+| `balanced` | 1 | 2 | 2 | 300 s | Los pesos de siempre |
+| `fastest` | 1 | 1 | 1 | 0 s | El costo es el tiempo real del viaje, con la espera incluida |
+| `fewest_transfers` | 1 | 2 | 2 | **1800 s** | Cada cambio de línea equivale a 30 minutos de viaje |
+| `least_walking` | 1 | **5** | 2 | 300 s | Un minuto caminando pesa como 5 minutos en micro |
+
+Todos los pesos son al menos 1, así que A* sigue encontrando la ruta óptima con
+cualquier prioridad.
+
+### Caminata máxima y micros llenas
+
+La caminata máxima no es un peso, sino un límite. Se aplica de dos formas:
+
+- **Al inicio:** solo se consideran los paraderos a esa distancia de la ubicación
+  del pasajero.
+- **Entre paraderos:** se quitan los transbordos a pie más largos. Con 1000 m no se
+  quita nada, porque es el mismo límite de la red.
+
+El máximo es 1000 m porque la red no considera caminables los transbordos más
+largos. La preferencia puede acortar la caminata, pero no alargarla.
+
+Evitar micros llenas solo decide si se usa la ocupación. Con `false`, una micro
+llena cuesta lo mismo que una vacía. El clima se aplica siempre, con cualquier
+prioridad: caminar con mal clima pesa igual para todos.
 
 ## Ocupación
 
