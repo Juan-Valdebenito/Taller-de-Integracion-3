@@ -184,3 +184,22 @@ message CostWeights {
 	double transfer_penalty_seconds = 4;
 	int32 assumed_headway_seconds = 5;
 }
+
+// Origen o destino de una recomendación de ruta: un paradero de la red o una
+// coordenada, nunca ambos. Con una coordenada, la ruta suma la caminata hasta el
+// paradero más conveniente o desde él.
+message RoutePoint {
+	// oneof garantiza que venga a lo más una de las dos formas. Si no viene
+	// ninguna, la petición se rechaza.
+	oneof point {
+		string stop_id = 1;
+		Coordinates location = 2;
+	}
+}
+
+// Posición en grados decimales. Es un mensaje para distinguir una coordenada en
+// 0 de una que no se envió.
+message Coordinates {
+	double latitude = 1;
+	double longitude = 2;
+}
