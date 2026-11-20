@@ -26,6 +26,7 @@ const (
 	MicroService_PlanRoute_FullMethodName            = "/transporte.micro.v1.MicroService/PlanRoute"
 	MicroService_ListCampuses_FullMethodName         = "/transporte.micro.v1.MicroService/ListCampuses"
 	MicroService_PlanUniversityRoutes_FullMethodName = "/transporte.micro.v1.MicroService/PlanUniversityRoutes"
+	MicroService_RecommendRoutes_FullMethodName      = "/transporte.micro.v1.MicroService/RecommendRoutes"
 )
 
 // MicroServiceClient is the client API for MicroService service.
@@ -39,6 +40,24 @@ type MicroServiceClient interface {
 	PlanRoute(ctx context.Context, in *PlanRouteRequest, opts ...grpc.CallOption) (*RoutePlan, error)
 	ListCampuses(ctx context.Context, in *ListCampusesRequest, opts ...grpc.CallOption) (*ListCampusesResponse, error)
 	PlanUniversityRoutes(ctx context.Context, in *PlanUniversityRoutesRequest, opts ...grpc.CallOption) (*PlanUniversityRoutesResponse, error)
+	// Rutas recomendadas entre cualquier origen y cualquier destino, ordenadas por
+	// costo según las preferencias del pasajero. Exige x-admin-key, como las demás.
+	//
+	// Errores:
+	//   - InvalidArgument: falta el origen o el destino, son el mismo punto, o no
+	//     son válidos las coordenadas, el límite, las preferencias, la ocupación o
+	//     el clima. El mensaje dice cuál corregir.
+	//   - NotFound: un paradero no existe, o no hay paraderos dentro de la caminata
+	//     máxima del origen o del destino (y tampoco se puede caminar directo).
+	//   - Unauthenticated: falta x-admin-key o no es la correcta.
+	//   - Unavailable: el grafo todavía no está cargado.
+	//   - Unimplemented: la imagen de micro_service es anterior a esta función.
+	//     Quien llama debe tratarlo como servicio no disponible, no como un error
+	//     de la petición.
+	//
+	// Si los puntos son válidos, pero la red no los conecta, no es un error: la
+	// respuesta trae routes vacío y total 0.
+	RecommendRoutes(ctx context.Context, in *RecommendRoutesRequest, opts ...grpc.CallOption) (*RecommendRoutesResponse, error)
 }
 
 type microServiceClient struct {
@@ -112,6 +131,15 @@ func (c *microServiceClient) PlanUniversityRoutes(ctx context.Context, in *PlanU
 	return out, nil
 }
 
+func (c *microServiceClient) RecommendRoutes(ctx context.Context, in *RecommendRoutesRequest, opts ...grpc.CallOption) (*RecommendRoutesResponse, error) {
+	out := new(RecommendRoutesResponse)
+	err := c.cc.Invoke(ctx, MicroService_RecommendRoutes_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MicroServiceServer is the server API for MicroService service.
 // All implementations must embed UnimplementedMicroServiceServer
 // for forward compatibility
@@ -123,6 +151,24 @@ type MicroServiceServer interface {
 	PlanRoute(context.Context, *PlanRouteRequest) (*RoutePlan, error)
 	ListCampuses(context.Context, *ListCampusesRequest) (*ListCampusesResponse, error)
 	PlanUniversityRoutes(context.Context, *PlanUniversityRoutesRequest) (*PlanUniversityRoutesResponse, error)
+	// Rutas recomendadas entre cualquier origen y cualquier destino, ordenadas por
+	// costo según las preferencias del pasajero. Exige x-admin-key, como las demás.
+	//
+	// Errores:
+	//   - InvalidArgument: falta el origen o el destino, son el mismo punto, o no
+	//     son válidos las coordenadas, el límite, las preferencias, la ocupación o
+	//     el clima. El mensaje dice cuál corregir.
+	//   - NotFound: un paradero no existe, o no hay paraderos dentro de la caminata
+	//     máxima del origen o del destino (y tampoco se puede caminar directo).
+	//   - Unauthenticated: falta x-admin-key o no es la correcta.
+	//   - Unavailable: el grafo todavía no está cargado.
+	//   - Unimplemented: la imagen de micro_service es anterior a esta función.
+	//     Quien llama debe tratarlo como servicio no disponible, no como un error
+	//     de la petición.
+	//
+	// Si los puntos son válidos, pero la red no los conecta, no es un error: la
+	// respuesta trae routes vacío y total 0.
+	RecommendRoutes(context.Context, *RecommendRoutesRequest) (*RecommendRoutesResponse, error)
 	mustEmbedUnimplementedMicroServiceServer()
 }
 
@@ -150,6 +196,9 @@ func (UnimplementedMicroServiceServer) ListCampuses(context.Context, *ListCampus
 }
 func (UnimplementedMicroServiceServer) PlanUniversityRoutes(context.Context, *PlanUniversityRoutesRequest) (*PlanUniversityRoutesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PlanUniversityRoutes not implemented")
+}
+func (UnimplementedMicroServiceServer) RecommendRoutes(context.Context, *RecommendRoutesRequest) (*RecommendRoutesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RecommendRoutes not implemented")
 }
 func (UnimplementedMicroServiceServer) mustEmbedUnimplementedMicroServiceServer() {}
 
@@ -290,6 +339,24 @@ func _MicroService_PlanUniversityRoutes_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MicroService_RecommendRoutes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RecommendRoutesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MicroServiceServer).RecommendRoutes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MicroService_RecommendRoutes_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MicroServiceServer).RecommendRoutes(ctx, req.(*RecommendRoutesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // MicroService_ServiceDesc is the grpc.ServiceDesc for MicroService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -324,6 +391,10 @@ var MicroService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "PlanUniversityRoutes",
 			Handler:    _MicroService_PlanUniversityRoutes_Handler,
+		},
+		{
+			MethodName: "RecommendRoutes",
+			Handler:    _MicroService_RecommendRoutes_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -54,16 +54,26 @@ type universityRouteRequest struct {
 	LineOccupancy LineOccupancy
 	// Weather es el clima de la consulta; nil significa sin clima.
 	Weather *WeatherConditions
+	// Preferences son las preferencias del pasajero; nil significa las de por
+	// defecto, que dan los mismos pesos de siempre.
+	Preferences *RoutePreferences
 }
 
-// costWeights son los pesos de esta petición: los de siempre más su ocupación.
-// Se usan para ordenar las rutas y también para informar su costo, así el costo
-// de la respuesta siempre explica el orden.
+// preferences devuelve las preferencias de la petición, con los valores por
+// defecto en lo que no se indicó.
+func (routeRequest universityRouteRequest) preferences() RoutePreferences {
+	if routeRequest.Preferences == nil {
+		return defaultRoutePreferences()
+	}
+	return routeRequest.Preferences.withDefaults()
+}
+
+// costWeights son los pesos de esta petición: los de su prioridad más la
+// ocupación (si quiere evitar micros llenas) y el clima. Se usan para ordenar las
+// rutas y también para informar su costo, así el costo de la respuesta siempre
+// explica el orden.
 func (routeRequest universityRouteRequest) costWeights() CostWeights {
-	weights := defaultCostWeights()
-	weights.Occupancy = routeRequest.LineOccupancy
-	weights.Weather = routeRequest.Weather
-	return weights
+	return preferenceCostWeights(routeRequest.preferences(), routeRequest.LineOccupancy, routeRequest.Weather)
 }
 
 // validateWeather rechaza valores imposibles. Las comparaciones están escritas en
@@ -108,16 +118,32 @@ func planUniversityRoutes(graph *TransitGraph, routeRequest universityRouteReque
 	if err := validateWeather(routeRequest.Weather); err != nil {
 		return nil, err
 	}
+	if routeRequest.Preferences != nil {
+		if err := routeRequest.Preferences.validate(); err != nil {
+			return nil, err
+		}
+	}
+	maxWalkMeters := routeRequest.preferences().MaxWalkMeters
 	if routeRequest.HasLocation {
 		if !isValidLocation(routeRequest.Latitude, routeRequest.Longitude) {
 			return nil, errInvalidLocation
 		}
-		return routesFromLocation(graph, routeRequest.Latitude, routeRequest.Longitude, routeRequest.CampusID, routeRequest.Limit, routeRequest.costWeights())
+		return routesFromLocation(graphWithMaxWalk(graph, maxWalkMeters), routeRequest.Latitude, routeRequest.Longitude, routeRequest.CampusID, routeRequest.Limit, routeRequest.costWeights(), maxWalkMeters)
 	}
 	if _, exists := graph.Stops[routeRequest.OriginStopID]; !exists {
 		return nil, errUnknownOriginStop
 	}
-	return routesToUniversity(graph, routeRequest.OriginStopID, routeRequest.CampusID, routeRequest.Limit, routeRequest.costWeights())
+	return routesToUniversity(graphWithMaxWalk(graph, maxWalkMeters), routeRequest.OriginStopID, routeRequest.CampusID, routeRequest.Limit, routeRequest.costWeights())
+}
+
+// graphWithMaxWalk deja en el grafo solo los transbordos a pie que el pasajero
+// acepta. Con la caminata máxima de la red no hay nada que quitar, y se evita
+// copiar el grafo.
+func graphWithMaxWalk(graph *TransitGraph, maxWalkMeters int) *TransitGraph {
+	if maxWalkMeters >= maxWalkDistanceMeters {
+		return graph
+	}
+	return withoutWalksLongerThan(graph, maxWalkMeters)
 }
 
 // isValidLocation está escrita en positivo para rechazar también NaN, que no es
@@ -177,6 +203,7 @@ func (server *Server) universityRoutes(writer http.ResponseWriter, request *http
 		"routes":       response,
 		"total":        len(response),
 		"cost_weights": newCostWeightsResponse(weights),
+		"preferences":  newPreferencesResponse(routeRequest.preferences()),
 	})
 }
 
@@ -204,6 +231,11 @@ func parseUniversityRouteRequest(request *http.Request) (universityRouteRequest,
 		return routeRequest, err
 	}
 	routeRequest.Weather = weather
+	preferences, err := parseRoutePreferences(query.Get("priority"), query.Get("max_walk_meters"), query.Get("avoid_crowding"))
+	if err != nil {
+		return routeRequest, err
+	}
+	routeRequest.Preferences = &preferences
 	rawLatitude, rawLongitude := query.Get("lat"), query.Get("long")
 	if rawLatitude == "" && rawLongitude == "" {
 		return routeRequest, nil

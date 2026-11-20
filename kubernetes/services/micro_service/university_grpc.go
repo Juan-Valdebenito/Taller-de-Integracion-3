@@ -74,6 +74,30 @@ func universityRouteRequestFromProto(request *microv1.PlanUniversityRoutesReques
 	return routeRequest, nil
 }
 
+// routePreferencesFromProto traduce las preferencias de gRPC con las mismas
+// reglas que REST: la prioridad ignora mayúsculas y espacios, y lo que no se
+// envió toma su valor por defecto. Sin mensaje devuelve nil, y la petición usa
+// las preferencias por defecto. avoid_crowding es optional en el proto: si no
+// viene, vale true, y no false como un bool de proto3 sin presencia.
+func routePreferencesFromProto(message *microv1.RoutePreferences) (*RoutePreferences, error) {
+	if message == nil {
+		return nil, nil
+	}
+	priority, err := parseRoutePriority(message.GetPriority())
+	if err != nil {
+		return nil, err
+	}
+	maxWalkMeters, err := resolveMaxWalkMeters(int(message.GetMaxWalkMeters()))
+	if err != nil {
+		return nil, err
+	}
+	avoidCrowding := defaultAvoidCrowding
+	if message.AvoidCrowding != nil {
+		avoidCrowding = message.GetAvoidCrowding()
+	}
+	return &RoutePreferences{Priority: priority, MaxWalkMeters: maxWalkMeters, AvoidCrowding: avoidCrowding}, nil
+}
+
 func universityRouteErrorCode(err error) codes.Code {
 	switch {
 	case errors.Is(err, errUnknownCampus), errors.Is(err, errUnknownOriginStop), errors.Is(err, errNoNearbyStops):
