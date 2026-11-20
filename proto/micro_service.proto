@@ -23,6 +23,9 @@ service MicroService {
 	//     máxima del origen o del destino (y tampoco se puede caminar directo).
 	//   - Unauthenticated: falta x-admin-key o no es la correcta.
 	//   - Unavailable: el grafo todavía no está cargado.
+	//   - Unimplemented: la imagen de micro_service es anterior a esta función.
+	//     Quien llama debe tratarlo como servicio no disponible, no como un error
+	//     de la petición.
 	//
 	// Si los puntos son válidos, pero la red no los conecta, no es un error: la
 	// respuesta trae routes vacío y total 0.
