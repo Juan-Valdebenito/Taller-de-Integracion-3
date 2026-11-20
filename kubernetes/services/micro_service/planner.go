@@ -155,6 +155,65 @@ func remainingTimeEstimate(graph *TransitGraph, stopID, destinationStopID string
 	return int(math.Floor(straightMeters(graph, stopID, destinationStopID) / maxSpeedMps))
 }
 
+func shortestPath(graph *TransitGraph, from, to string) ([]pathStep, bool) {
+	dist := map[string]int{from: 0}
+	previous := make(map[string]pathStep)
+	queue := &priorityQueue{&dijkstraItem{stop: from}}
+	heap.Init(queue)
+	for queue.Len() > 0 {
+		item := heap.Pop(queue).(*dijkstraItem)
+		if item.time != dist[item.stop] {
+			continue
+		}
+		if item.stop == to {
+			return reconstructPath(previous, from, to), true
+		}
+		for _, edge := range graph.Edges[item.stop] {
+			candidate := item.time + edge.DistanceM
+			best, seen := dist[edge.ToStopID]
+			if !seen || candidate < best {
+				dist[edge.ToStopID] = candidate
+				previous[edge.ToStopID] = pathStep{From: item.stop, Edge: edge}
+				heap.Push(queue, &dijkstraItem{stop: edge.ToStopID, time: candidate})
+			}
+		}
+	}
+	return nil, false
+}
+
+// leastWalkingPath minimiza primero los segundos caminando y, en caso de
+// empate, el tiempo total del viaje.
+func leastWalkingPath(graph *TransitGraph, from, to string) ([]pathStep, bool) {
+	dist := map[string][2]int{from: {0, 0}}
+	previous := make(map[string]pathStep)
+	queue := &priorityQueue{&dijkstraItem{stop: from}}
+	heap.Init(queue)
+	for queue.Len() > 0 {
+		item := heap.Pop(queue).(*dijkstraItem)
+		currentCost, exists := dist[item.stop]
+		if !exists || currentCost != [2]int{item.transfers, item.time} {
+			continue
+		}
+		if item.stop == to {
+			return reconstructPath(previous, from, to), true
+		}
+		for _, edge := range graph.Edges[item.stop] {
+			walkSeconds := 0
+			if edge.RouteID == walkRouteID {
+				walkSeconds = edge.BaseTimeSec
+			}
+			candidate := [2]int{item.transfers + walkSeconds, item.time + edge.BaseTimeSec}
+			best, seen := dist[edge.ToStopID]
+			if !seen || candidate[0] < best[0] || (candidate[0] == best[0] && candidate[1] < best[1]) {
+				dist[edge.ToStopID] = candidate
+				previous[edge.ToStopID] = pathStep{From: item.stop, Edge: edge}
+				heap.Push(queue, &dijkstraItem{stop: edge.ToStopID, transfers: candidate[0], time: candidate[1]})
+			}
+		}
+	}
+	return nil, false
+}
+
 // minimumTransferPath busca la ruta con menos cambios de línea y, si empatan, la
 // de menor tiempo. El estado incluye la línea actual porque llegar a un paradero
 // en una u otra línea cambia si el siguiente tramo cuenta como transbordo.
