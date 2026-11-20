@@ -12,6 +12,9 @@ service MicroService {
 	rpc PlanRoute(PlanRouteRequest) returns (RoutePlan);
 	rpc ListCampuses(ListCampusesRequest) returns (ListCampusesResponse);
 	rpc PlanUniversityRoutes(PlanUniversityRoutesRequest) returns (PlanUniversityRoutesResponse);
+	// Rutas recomendadas entre cualquier origen y cualquier destino, ordenadas por
+	// costo según las preferencias del pasajero.
+	rpc RecommendRoutes(RecommendRoutesRequest) returns (RecommendRoutesResponse);
 }
 
 message HealthRequest {}
