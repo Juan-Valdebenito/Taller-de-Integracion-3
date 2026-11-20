@@ -13,7 +13,19 @@ service MicroService {
 	rpc ListCampuses(ListCampusesRequest) returns (ListCampusesResponse);
 	rpc PlanUniversityRoutes(PlanUniversityRoutesRequest) returns (PlanUniversityRoutesResponse);
 	// Rutas recomendadas entre cualquier origen y cualquier destino, ordenadas por
-	// costo según las preferencias del pasajero.
+	// costo según las preferencias del pasajero. Exige x-admin-key, como las demás.
+	//
+	// Errores:
+	//   - InvalidArgument: falta el origen o el destino, son el mismo punto, o no
+	//     son válidos las coordenadas, el límite, las preferencias, la ocupación o
+	//     el clima. El mensaje dice cuál corregir.
+	//   - NotFound: un paradero no existe, o no hay paraderos dentro de la caminata
+	//     máxima del origen o del destino (y tampoco se puede caminar directo).
+	//   - Unauthenticated: falta x-admin-key o no es la correcta.
+	//   - Unavailable: el grafo todavía no está cargado.
+	//
+	// Si los puntos son válidos, pero la red no los conecta, no es un error: la
+	// respuesta trae routes vacío y total 0.
 	rpc RecommendRoutes(RecommendRoutesRequest) returns (RecommendRoutesResponse);
 }
 
