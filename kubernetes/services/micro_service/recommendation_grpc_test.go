@@ -187,6 +187,60 @@ func TestMicroMovementsMatchUniversityRoutes(t *testing.T) {
 	}
 }
 
+// Caminata, L1C, cambio a L7A y caminata: 1 transbordo. Las caminatas no cuentan
+// como cambio de línea.
+func TestMicroRecommendedRouteReportsTotals(t *testing.T) {
+	path := []pathStep{
+		{From: userLocationID, Edge: Edge{ToStopID: "A", RouteID: walkRouteID, BaseTimeSec: 84, DistanceM: 100}},
+		{From: "A", Edge: Edge{ToStopID: "B", RouteID: "L1C", BaseTimeSec: 240, DistanceM: 950}},
+		{From: "B", Edge: Edge{ToStopID: "C", RouteID: "L7A", BaseTimeSec: 1500, DistanceM: 6000}},
+		{From: "C", Edge: Edge{ToStopID: destinationLocationID, RouteID: walkRouteID, BaseTimeSec: 46, DistanceM: 55}},
+	}
+	route := microRecommendedRoute(path)
+	if route.GetTotalTimeSeconds() != 1870 || route.GetTotalDistanceMeters() != 7105 {
+		t.Fatalf("totals = %d s and %d m, want 1870 s and 7105 m", route.GetTotalTimeSeconds(), route.GetTotalDistanceMeters())
+	}
+	if route.GetTransfers() != 1 {
+		t.Fatalf("transfers = %d, want 1", route.GetTransfers())
+	}
+	if len(route.GetMovements()) != len(path) {
+		t.Fatalf("got %d movements, want %d", len(route.GetMovements()), len(path))
+	}
+}
+
+// Caminar todo el trayecto es una ruta de un solo tramo, sin transbordos.
+func TestMicroRecommendedRouteOfDirectWalk(t *testing.T) {
+	path := []pathStep{{From: userLocationID, Edge: Edge{
+		ToStopID: destinationLocationID, RouteID: walkRouteID, BaseTimeSec: 93, DistanceM: 111,
+	}}}
+	route := microRecommendedRoute(path)
+	if route.GetTotalTimeSeconds() != 93 || route.GetTotalDistanceMeters() != 111 || route.GetTransfers() != 0 {
+		t.Fatalf("route = %v, want 93 s, 111 m and no transfers", route)
+	}
+	if len(route.GetMovements()) != 1 || route.GetMovements()[0].GetMode() != "walk" {
+		t.Fatalf("movements = %v, want one walk", route.GetMovements())
+	}
+}
+
+// Para una misma ruta, las rutas a la universidad y las recomendadas informan los
+// mismos totales y transbordos.
+func TestMicroRecommendedRouteMatchesUniversityRoute(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	routes, err := routesToUniversity(graph, "PAR-PORTAL-01", "", 3, defaultCostWeights())
+	if err != nil || len(routes) == 0 {
+		t.Fatalf("routes = %v, err = %v", routes, err)
+	}
+	for _, universityRoute := range routes {
+		expected := microUniversityRoute(universityRoute, defaultCostWeights())
+		recommended := microRecommendedRoute(universityRoute.Path)
+		if recommended.GetTotalTimeSeconds() != expected.GetTotalTimeSeconds() ||
+			recommended.GetTotalDistanceMeters() != expected.GetTotalDistanceMeters() ||
+			recommended.GetTransfers() != expected.GetTransfers() {
+			t.Fatalf("recommended %v differs from university %v", recommended, expected)
+		}
+	}
+}
+
 func TestWeatherFromProto(t *testing.T) {
 	if weatherFromProto(nil) != nil {
 		t.Fatal("missing weather should be nil, not 0 °C")
