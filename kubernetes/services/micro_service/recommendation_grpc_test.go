@@ -196,7 +196,7 @@ func TestMicroRecommendedRouteReportsTotals(t *testing.T) {
 		{From: "B", Edge: Edge{ToStopID: "C", RouteID: "L7A", BaseTimeSec: 1500, DistanceM: 6000}},
 		{From: "C", Edge: Edge{ToStopID: destinationLocationID, RouteID: walkRouteID, BaseTimeSec: 46, DistanceM: 55}},
 	}
-	route := microRecommendedRoute(path)
+	route := microRecommendedRoute(path, defaultCostWeights())
 	if route.GetTotalTimeSeconds() != 1870 || route.GetTotalDistanceMeters() != 7105 {
 		t.Fatalf("totals = %d s and %d m, want 1870 s and 7105 m", route.GetTotalTimeSeconds(), route.GetTotalDistanceMeters())
 	}
@@ -213,7 +213,7 @@ func TestMicroRecommendedRouteOfDirectWalk(t *testing.T) {
 	path := []pathStep{{From: userLocationID, Edge: Edge{
 		ToStopID: destinationLocationID, RouteID: walkRouteID, BaseTimeSec: 93, DistanceM: 111,
 	}}}
-	route := microRecommendedRoute(path)
+	route := microRecommendedRoute(path, defaultCostWeights())
 	if route.GetTotalTimeSeconds() != 93 || route.GetTotalDistanceMeters() != 111 || route.GetTransfers() != 0 {
 		t.Fatalf("route = %v, want 93 s, 111 m and no transfers", route)
 	}
@@ -223,7 +223,7 @@ func TestMicroRecommendedRouteOfDirectWalk(t *testing.T) {
 }
 
 // Para una misma ruta, las rutas a la universidad y las recomendadas informan los
-// mismos totales y transbordos.
+// mismos totales, transbordos y costo.
 func TestMicroRecommendedRouteMatchesUniversityRoute(t *testing.T) {
 	graph := loadSeedNetwork(t).buildGraph()
 	routes, err := routesToUniversity(graph, "PAR-PORTAL-01", "", 3, defaultCostWeights())
@@ -232,12 +232,53 @@ func TestMicroRecommendedRouteMatchesUniversityRoute(t *testing.T) {
 	}
 	for _, universityRoute := range routes {
 		expected := microUniversityRoute(universityRoute, defaultCostWeights())
-		recommended := microRecommendedRoute(universityRoute.Path)
+		recommended := microRecommendedRoute(universityRoute.Path, defaultCostWeights())
 		if recommended.GetTotalTimeSeconds() != expected.GetTotalTimeSeconds() ||
 			recommended.GetTotalDistanceMeters() != expected.GetTotalDistanceMeters() ||
-			recommended.GetTransfers() != expected.GetTransfers() {
+			recommended.GetTransfers() != expected.GetTransfers() ||
+			!proto.Equal(recommended.GetCost(), expected.GetCost()) {
 			t.Fatalf("recommended %v differs from university %v", recommended, expected)
 		}
+	}
+}
+
+// Caminata de 84 s, L1C de 240 s y caminata de 46 s, con los pesos por defecto:
+// caminar 130 × 2 = 260, viajar 240 y esperar 300 × 2 = 600. Total 1100.
+func TestMicroRecommendedRouteReportsCost(t *testing.T) {
+	path := []pathStep{
+		{From: userLocationID, Edge: Edge{ToStopID: "A", RouteID: walkRouteID, BaseTimeSec: 84}},
+		{From: "A", Edge: Edge{ToStopID: "B", RouteID: "L1C", BaseTimeSec: 240}},
+		{From: "B", Edge: Edge{ToStopID: destinationLocationID, RouteID: walkRouteID, BaseTimeSec: 46}},
+	}
+	cost := microRecommendedRoute(path, defaultCostWeights()).GetCost()
+	expectedCost := &microv1.CostBreakdown{Ride: 240, Walk: 260, Wait: 600, Total: 1100}
+	if !proto.Equal(cost, expectedCost) {
+		t.Fatalf("cost = %v, want %v", cost, expectedCost)
+	}
+}
+
+// El costo usa los pesos recibidos: con fastest, el costo es el tiempo real con
+// la espera, 370 + 300 = 670.
+func TestMicroRecommendedRouteCostUsesWeights(t *testing.T) {
+	path := []pathStep{
+		{From: userLocationID, Edge: Edge{ToStopID: "A", RouteID: walkRouteID, BaseTimeSec: 84}},
+		{From: "A", Edge: Edge{ToStopID: "B", RouteID: "L1C", BaseTimeSec: 240}},
+		{From: "B", Edge: Edge{ToStopID: destinationLocationID, RouteID: walkRouteID, BaseTimeSec: 46}},
+	}
+	cost := microRecommendedRoute(path, priorityCostWeights(priorityFastest)).GetCost()
+	if cost.GetTotal() != 670 {
+		t.Fatalf("total = %v, want 670", cost.GetTotal())
+	}
+}
+
+// microCostBreakdown copia cada componente sin cambiarlo.
+func TestMicroCostBreakdownCopiesEveryComponent(t *testing.T) {
+	cost := microCostBreakdown(costBreakdownResponse{
+		Ride: 1, Walk: 2, Wait: 3, Transfer: 4, Crowding: 5, Weather: 6, Total: 21,
+	})
+	expectedCost := &microv1.CostBreakdown{Ride: 1, Walk: 2, Wait: 3, Transfer: 4, Crowding: 5, Weather: 6, Total: 21}
+	if !proto.Equal(cost, expectedCost) {
+		t.Fatalf("cost = %v, want %v", cost, expectedCost)
 	}
 }
 

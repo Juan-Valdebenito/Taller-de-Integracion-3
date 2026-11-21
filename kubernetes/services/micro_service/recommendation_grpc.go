@@ -46,14 +46,17 @@ func recommendationRequestFromProto(request *microv1.RecommendRoutesRequest) (re
 }
 
 // microRecommendedRoute convierte una ruta recomendada al mensaje gRPC, con sus
-// totales, sus transbordos y sus tramos. Usa las mismas funciones que las rutas a
-// la universidad, así que ambas informan lo mismo para una misma ruta.
-func microRecommendedRoute(path []pathStep) *microv1.RecommendedRoute {
+// totales, sus transbordos, sus tramos y su costo. Usa las mismas funciones que
+// las rutas a la universidad, así que ambas informan lo mismo para una misma ruta.
+// weights deben ser los mismos con que se ordenaron las rutas, para que el costo
+// explique el orden.
+func microRecommendedRoute(path []pathStep, weights CostWeights) *microv1.RecommendedRoute {
 	return &microv1.RecommendedRoute{
 		TotalTimeSeconds:    int32(pathTotalSeconds(path)),
 		TotalDistanceMeters: int32(pathTotalMeters(path)),
 		Transfers:           int32(countTransfers(path)),
 		Movements:           microMovements(path),
+		Cost:                microCostBreakdown(newCostBreakdownResponse(pathCostBreakdown(path, weights))),
 	}
 }
 

@@ -123,21 +123,26 @@ func microUniversityRoute(route UniversityRoute, weights CostWeights) *microv1.U
 		TotalDistanceMeters: int32(routeResponse.TotalDistanceM),
 		Transfers:           int32(routeResponse.Transfers),
 		Movements:           make([]*microv1.Movement, 0, len(routeResponse.Movements)),
-		// Usa el mismo costo redondeado que REST, para que ambas API coincidan.
-		Cost: &microv1.CostBreakdown{
-			Ride:     routeResponse.Cost.Ride,
-			Walk:     routeResponse.Cost.Walk,
-			Wait:     routeResponse.Cost.Wait,
-			Transfer: routeResponse.Cost.Transfer,
-			Crowding: routeResponse.Cost.Crowding,
-			Weather:  routeResponse.Cost.Weather,
-			Total:    routeResponse.Cost.Total,
-		},
+		Cost:                microCostBreakdown(routeResponse.Cost),
 	}
 	for _, movement := range routeResponse.Movements {
 		message.Movements = append(message.Movements, microMovement(movement))
 	}
 	return message
+}
+
+// microCostBreakdown convierte el desglose del costo al mensaje gRPC. Recibe el
+// costo ya redondeado de REST, para que ambas API informen exactamente lo mismo.
+func microCostBreakdown(cost costBreakdownResponse) *microv1.CostBreakdown {
+	return &microv1.CostBreakdown{
+		Ride:     cost.Ride,
+		Walk:     cost.Walk,
+		Wait:     cost.Wait,
+		Transfer: cost.Transfer,
+		Crowding: cost.Crowding,
+		Weather:  cost.Weather,
+		Total:    cost.Total,
+	}
 }
 
 // microMovement convierte un tramo al mensaje gRPC. Parte del mismo formato que
