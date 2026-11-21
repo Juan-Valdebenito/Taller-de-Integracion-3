@@ -63,15 +63,21 @@ func universityRouteRequestFromProto(request *microv1.PlanUniversityRoutesReques
 		routeRequest.HasLocation = true
 		routeRequest.Latitude, routeRequest.Longitude = request.GetLatitude(), request.GetLongitude()
 	}
-	// Si el mensaje no viene, el clima queda en nil: sin clima, no 0 °C.
-	if weather := request.GetWeather(); weather != nil {
-		routeRequest.Weather = &WeatherConditions{
-			TemperatureC: weather.GetTemperatureC(),
-			WindSpeedKmh: weather.GetWindSpeedKmh(),
-			PM25:         weather.GetPm25(),
-		}
-	}
+	routeRequest.Weather = weatherFromProto(request.GetWeather())
 	return routeRequest, nil
+}
+
+// weatherFromProto traduce el clima de una petición. Si el mensaje no viene,
+// devuelve nil: sin clima, no 0 °C.
+func weatherFromProto(message *microv1.WeatherConditions) *WeatherConditions {
+	if message == nil {
+		return nil
+	}
+	return &WeatherConditions{
+		TemperatureC: message.GetTemperatureC(),
+		WindSpeedKmh: message.GetWindSpeedKmh(),
+		PM25:         message.GetPm25(),
+	}
 }
 
 // routePreferencesFromProto traduce las preferencias de gRPC con las mismas

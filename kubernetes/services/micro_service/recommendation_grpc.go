@@ -4,6 +4,47 @@ package main
 
 import microv1 "github.com/Juan-Valdebenito/Taller-de-Integracion-3/proto/gen/go/micro/v1"
 
+// defaultRecommendedRoutes es cuántas rutas se entregan si la petición no lo
+// indica, igual que en las rutas a la universidad.
+const defaultRecommendedRoutes = defaultUniversityRoutes
+
+// recommendationRequest es una petición de rutas recomendadas, ya traducida y sin
+// depender de gRPC ni de HTTP.
+type recommendationRequest struct {
+	Origin      RoutePoint
+	Destination RoutePoint
+	Limit       int
+	// Preferences son las del pasajero; nil significa las de por defecto.
+	Preferences *RoutePreferences
+	// LineOccupancy es la ocupación de cada línea; puede venir vacía.
+	LineOccupancy LineOccupancy
+	// Weather es el clima de la consulta; nil significa sin clima.
+	Weather *WeatherConditions
+}
+
+// recommendationRequestFromProto traduce la petición gRPC. Solo falla si las
+// preferencias no son válidas; el resto se valida después, con las mismas reglas
+// para cualquier API. En proto3 un límite no enviado se lee como 0, y significa
+// el valor por defecto.
+func recommendationRequestFromProto(request *microv1.RecommendRoutesRequest) (recommendationRequest, error) {
+	preferences, err := routePreferencesFromProto(request.GetPreferences())
+	if err != nil {
+		return recommendationRequest{}, err
+	}
+	routeRequest := recommendationRequest{
+		Origin:        routePointFromProto(request.GetOrigin()),
+		Destination:   routePointFromProto(request.GetDestination()),
+		Limit:         int(request.GetLimit()),
+		Preferences:   preferences,
+		LineOccupancy: LineOccupancy(request.GetLineOccupancy()),
+		Weather:       weatherFromProto(request.GetWeather()),
+	}
+	if routeRequest.Limit == 0 {
+		routeRequest.Limit = defaultRecommendedRoutes
+	}
+	return routeRequest, nil
+}
+
 // routePointFromProto traduce un origen o un destino. Si el mensaje falta, no trae
 // ninguna de las dos formas, o trae una coordenada sin contenido, devuelve un punto
 // vacío: la validación lo rechaza con el error del lado que corresponda. El oneof
