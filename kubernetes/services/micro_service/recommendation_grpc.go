@@ -2,7 +2,25 @@ package main
 
 // Traducción de la API gRPC de rutas recomendadas a los tipos del planificador.
 
-import microv1 "github.com/Juan-Valdebenito/Taller-de-Integracion-3/proto/gen/go/micro/v1"
+import (
+	"errors"
+
+	microv1 "github.com/Juan-Valdebenito/Taller-de-Integracion-3/proto/gen/go/micro/v1"
+	"google.golang.org/grpc/codes"
+)
+
+// recommendationErrorCode traduce un error de la petición al código gRPC que
+// documenta el proto. NotFound es para lo que no existe o no tiene paraderos
+// cerca; todo lo demás es un dato de la petición que hay que corregir.
+func recommendationErrorCode(err error) codes.Code {
+	switch {
+	case errors.Is(err, errUnknownOriginStop), errors.Is(err, errUnknownDestinationStop),
+		errors.Is(err, errNoNearbyStops), errors.Is(err, errNoStopsNearDestination):
+		return codes.NotFound
+	default:
+		return codes.InvalidArgument
+	}
+}
 
 // defaultRecommendedRoutes es cuántas rutas se entregan si la petición no lo
 // indica, igual que en las rutas a la universidad.

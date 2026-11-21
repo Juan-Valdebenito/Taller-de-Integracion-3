@@ -2,9 +2,11 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	microv1 "github.com/Juan-Valdebenito/Taller-de-Integracion-3/proto/gen/go/micro/v1"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -405,6 +407,64 @@ func TestMicroRecommendRoutesResponseWithoutRoutes(t *testing.T) {
 	}
 	if !proto.Equal(response.GetPreferences(), microRoutePreferences(defaultRoutePreferences())) {
 		t.Fatalf("preferences = %v, want the defaults", response.GetPreferences())
+	}
+}
+
+// Cada error que puede devolver la petición tiene el código que documenta el
+// proto.
+func TestRecommendationErrorCodes(t *testing.T) {
+	expectedCodes := map[error]codes.Code{
+		errUnknownOriginStop:                codes.NotFound,
+		errUnknownDestinationStop:           codes.NotFound,
+		errNoNearbyStops:                    codes.NotFound,
+		errNoStopsNearDestination:           codes.NotFound,
+		errInvalidRouteLimit:                codes.InvalidArgument,
+		errInvalidRecommendationOrigin:      codes.InvalidArgument,
+		errInvalidRecommendationDestination: codes.InvalidArgument,
+		errInvalidLocation:                  codes.InvalidArgument,
+		errSameOriginAndDestination:         codes.InvalidArgument,
+		errInvalidOccupancy:                 codes.InvalidArgument,
+		errInvalidWeather:                   codes.InvalidArgument,
+		errInvalidRoutePriority:             codes.InvalidArgument,
+		errInvalidMaxWalk:                   codes.InvalidArgument,
+	}
+	for err, expectedCode := range expectedCodes {
+		if code := recommendationErrorCode(err); code != expectedCode {
+			t.Fatalf("%v: code = %v, want %v", err, code, expectedCode)
+		}
+	}
+}
+
+// Un error envuelto con más contexto conserva su código.
+func TestRecommendationErrorCodeOfWrappedError(t *testing.T) {
+	wrapped := fmt.Errorf("planning: %w", errNoStopsNearDestination)
+	if code := recommendationErrorCode(wrapped); code != codes.NotFound {
+		t.Fatalf("code = %v, want NotFound", code)
+	}
+}
+
+// Los errores reales del planificador tienen el código esperado: se prueban con
+// peticiones de verdad, no solo con la lista de errores.
+func TestRecommendationErrorCodesFromRealRequests(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	farAway := locationPoint(-38.0, -72.0)
+	testCases := []struct {
+		name         string
+		change       func(routeRequest *recommendationRequest)
+		expectedCode codes.Code
+	}{
+		{"unknown origin", func(routeRequest *recommendationRequest) { routeRequest.Origin = stopPoint("NOWHERE") }, codes.NotFound},
+		{"no stops near destination", func(routeRequest *recommendationRequest) { routeRequest.Destination = farAway }, codes.NotFound},
+		{"missing destination", func(routeRequest *recommendationRequest) { routeRequest.Destination = RoutePoint{} }, codes.InvalidArgument},
+		{"invalid limit", func(routeRequest *recommendationRequest) { routeRequest.Limit = 9 }, codes.InvalidArgument},
+	}
+	for _, testCase := range testCases {
+		routeRequest := validRecommendationRequest(graph)
+		testCase.change(&routeRequest)
+		_, err := planRecommendations(graph, routeRequest)
+		if err == nil || recommendationErrorCode(err) != testCase.expectedCode {
+			t.Fatalf("%s: err = %v, code = %v, want %v", testCase.name, err, recommendationErrorCode(err), testCase.expectedCode)
+		}
 	}
 }
 
