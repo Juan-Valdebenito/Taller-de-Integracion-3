@@ -301,12 +301,12 @@ func newUniversityRouteResponse(route UniversityRoute, weights CostWeights) univ
 		CampusID:          route.CampusID,
 		CampusName:        route.CampusName,
 		DestinationStopID: route.DestinationStopID,
+		TotalTimeSec:      pathTotalSeconds(route.Path),
 		Transfers:         countTransfers(route.Path),
 		Movements:         make([]Movement, 0, len(route.Path)),
 		Cost:              newCostBreakdownResponse(pathCostBreakdown(route.Path, weights)),
 	}
 	for _, step := range route.Path {
-		response.TotalTimeSec += step.Edge.BaseTimeSec
 		response.TotalDistanceM += step.Edge.DistanceM
 		response.Movements = append(response.Movements, movementFromStep(step))
 	}
