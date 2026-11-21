@@ -45,6 +45,16 @@ func recommendationRequestFromProto(request *microv1.RecommendRoutesRequest) (re
 	return routeRequest, nil
 }
 
+// microMovements convierte los tramos de una ruta recomendada, en orden. Incluye
+// las caminatas desde USER_LOCATION y hasta DESTINATION_LOCATION.
+func microMovements(path []pathStep) []*microv1.Movement {
+	movements := make([]*microv1.Movement, 0, len(path))
+	for _, step := range path {
+		movements = append(movements, microMovement(movementFromStep(step)))
+	}
+	return movements
+}
+
 // routePointFromProto traduce un origen o un destino. Si el mensaje falta, no trae
 // ninguna de las dos formas, o trae una coordenada sin contenido, devuelve un punto
 // vacío: la validación lo rechaza con el error del lado que corresponda. El oneof

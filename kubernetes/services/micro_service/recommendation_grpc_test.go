@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	microv1 "github.com/Juan-Valdebenito/Taller-de-Integracion-3/proto/gen/go/micro/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestRoutePointFromProtoReadsStop(t *testing.T) {
@@ -138,6 +139,51 @@ func TestRecommendationRequestFromProtoRejectsInvalidPreferences(t *testing.T) {
 	})
 	if !errors.Is(err, errInvalidRoutePriority) {
 		t.Fatalf("error = %v, want errInvalidRoutePriority", err)
+	}
+}
+
+// Una ruta desde una coordenada hasta otra: caminata inicial, micro y caminata
+// final. Los tramos a pie no traen línea ni viaje.
+func TestMicroMovementsKeepEveryStepInOrder(t *testing.T) {
+	path := []pathStep{
+		{From: userLocationID, Edge: Edge{ToStopID: "A", RouteID: walkRouteID, BaseTimeSec: 84, DistanceM: 100}},
+		{From: "A", Edge: Edge{ToStopID: "B", RouteID: "L1C", TripID: "L1C-IDA", BaseTimeSec: 240, DistanceM: 950}},
+		{From: "B", Edge: Edge{ToStopID: destinationLocationID, RouteID: walkRouteID, BaseTimeSec: 46, DistanceM: 55}},
+	}
+	movements := microMovements(path)
+	expectedMovements := []*microv1.Movement{
+		{FromStopId: userLocationID, ToStopId: "A", Mode: "walk", TimeSeconds: 84, DistanceMeters: 100},
+		{FromStopId: "A", ToStopId: "B", Mode: "bus", RouteId: "L1C", TripId: "L1C-IDA", TimeSeconds: 240, DistanceMeters: 950},
+		{FromStopId: "B", ToStopId: destinationLocationID, Mode: "walk", TimeSeconds: 46, DistanceMeters: 55},
+	}
+	if len(movements) != len(expectedMovements) {
+		t.Fatalf("got %d movements, want %d", len(movements), len(expectedMovements))
+	}
+	for movementIndex, expectedMovement := range expectedMovements {
+		if !proto.Equal(movements[movementIndex], expectedMovement) {
+			t.Fatalf("movement %d = %v, want %v", movementIndex, movements[movementIndex], expectedMovement)
+		}
+	}
+}
+
+// Las rutas a la universidad y las recomendadas convierten los tramos igual.
+func TestMicroMovementsMatchUniversityRoutes(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	routes, err := routesToUniversity(graph, "PAR-PORTAL-01", "", 3, defaultCostWeights())
+	if err != nil || len(routes) == 0 {
+		t.Fatalf("routes = %v, err = %v", routes, err)
+	}
+	for _, route := range routes {
+		universityMovements := microUniversityRoute(route, defaultCostWeights()).GetMovements()
+		recommendedMovements := microMovements(route.Path)
+		if len(universityMovements) != len(recommendedMovements) {
+			t.Fatalf("got %d and %d movements", len(universityMovements), len(recommendedMovements))
+		}
+		for movementIndex := range universityMovements {
+			if !proto.Equal(universityMovements[movementIndex], recommendedMovements[movementIndex]) {
+				t.Fatalf("movement %d differs: %v and %v", movementIndex, universityMovements[movementIndex], recommendedMovements[movementIndex])
+			}
+		}
 	}
 }
 

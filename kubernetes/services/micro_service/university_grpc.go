@@ -135,17 +135,23 @@ func microUniversityRoute(route UniversityRoute, weights CostWeights) *microv1.U
 		},
 	}
 	for _, movement := range routeResponse.Movements {
-		message.Movements = append(message.Movements, &microv1.Movement{
-			FromStopId:     movement.FromStopID,
-			ToStopId:       movement.ToStopID,
-			Mode:           movement.Mode,
-			RouteId:        movement.RouteID,
-			TripId:         movement.TripID,
-			TimeSeconds:    int32(movement.TimeSec),
-			DistanceMeters: int32(movement.DistanceM),
-		})
+		message.Movements = append(message.Movements, microMovement(movement))
 	}
 	return message
+}
+
+// microMovement convierte un tramo al mensaje gRPC. Parte del mismo formato que
+// REST: los tramos a pie no traen línea ni viaje.
+func microMovement(movement Movement) *microv1.Movement {
+	return &microv1.Movement{
+		FromStopId:     movement.FromStopID,
+		ToStopId:       movement.ToStopID,
+		Mode:           movement.Mode,
+		RouteId:        movement.RouteID,
+		TripId:         movement.TripID,
+		TimeSeconds:    int32(movement.TimeSec),
+		DistanceMeters: int32(movement.DistanceM),
+	}
 }
 
 // microCostWeights convierte los pesos al mensaje gRPC. Parte del mismo formato
