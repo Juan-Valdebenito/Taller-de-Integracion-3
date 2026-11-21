@@ -104,6 +104,19 @@ func routePreferencesFromProto(message *microv1.RoutePreferences) (*RoutePrefere
 	return &RoutePreferences{Priority: priority, MaxWalkMeters: maxWalkMeters, AvoidCrowding: avoidCrowding}, nil
 }
 
+// microRoutePreferences convierte las preferencias usadas al mensaje gRPC de la
+// respuesta. Recibe las preferencias ya completas, así que informa los valores
+// reales y no ceros. avoid_crowding siempre va presente, también cuando es
+// false, para que el cliente no lo confunda con "no enviado".
+func microRoutePreferences(preferences RoutePreferences) *microv1.RoutePreferences {
+	avoidCrowding := preferences.AvoidCrowding
+	return &microv1.RoutePreferences{
+		Priority:      string(preferences.Priority),
+		MaxWalkMeters: int32(preferences.MaxWalkMeters),
+		AvoidCrowding: &avoidCrowding,
+	}
+}
+
 func universityRouteErrorCode(err error) codes.Code {
 	switch {
 	case errors.Is(err, errUnknownCampus), errors.Is(err, errUnknownOriginStop), errors.Is(err, errNoNearbyStops):

@@ -282,6 +282,46 @@ func TestMicroCostBreakdownCopiesEveryComponent(t *testing.T) {
 	}
 }
 
+func TestMicroRoutePreferencesReportsEveryValue(t *testing.T) {
+	message := microRoutePreferences(RoutePreferences{Priority: priorityLeastWalking, MaxWalkMeters: 400, AvoidCrowding: true})
+	if message.GetPriority() != "least_walking" || message.GetMaxWalkMeters() != 400 || !message.GetAvoidCrowding() {
+		t.Fatalf("message = %v, want least_walking, 400 m and avoid_crowding", message)
+	}
+}
+
+// Un false se envía presente, para que no se lea como "no enviado", que vale true.
+func TestMicroRoutePreferencesSendsFalseAvoidCrowding(t *testing.T) {
+	message := microRoutePreferences(RoutePreferences{Priority: priorityBalanced, MaxWalkMeters: 1000, AvoidCrowding: false})
+	if message.AvoidCrowding == nil || message.GetAvoidCrowding() {
+		t.Fatalf("avoid_crowding = %v, want present and false", message.AvoidCrowding)
+	}
+}
+
+// Ida y vuelta: lo que se informa, leído otra vez, da las mismas preferencias.
+func TestMicroRoutePreferencesRoundTrip(t *testing.T) {
+	for _, priority := range routePriorities() {
+		for _, avoidCrowding := range []bool{true, false} {
+			preferences := RoutePreferences{Priority: priority, MaxWalkMeters: 300, AvoidCrowding: avoidCrowding}
+			readBack, err := routePreferencesFromProto(microRoutePreferences(preferences))
+			if err != nil || readBack == nil || *readBack != preferences {
+				t.Fatalf("%+v read back as %+v, err = %v", preferences, readBack, err)
+			}
+		}
+	}
+}
+
+// gRPC informa las mismas preferencias que REST.
+func TestMicroRoutePreferencesMatchREST(t *testing.T) {
+	preferences := defaultRoutePreferences()
+	restResponse := newPreferencesResponse(preferences)
+	message := microRoutePreferences(preferences)
+	if message.GetPriority() != string(restResponse.Priority) ||
+		int(message.GetMaxWalkMeters()) != restResponse.MaxWalkMeters ||
+		message.GetAvoidCrowding() != restResponse.AvoidCrowding {
+		t.Fatalf("gRPC %v differs from REST %+v", message, restResponse)
+	}
+}
+
 func TestWeatherFromProto(t *testing.T) {
 	if weatherFromProto(nil) != nil {
 		t.Fatal("missing weather should be nil, not 0 °C")
