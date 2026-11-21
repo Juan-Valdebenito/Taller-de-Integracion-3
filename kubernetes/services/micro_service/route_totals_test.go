@@ -21,21 +21,39 @@ func TestPathTotalSecondsOfEmptyPath(t *testing.T) {
 	}
 }
 
-// Las rutas a la universidad siguen informando el mismo tiempo que antes: la
-// suma de sus tramos.
-func TestUniversityRoutesUsePathTotalSeconds(t *testing.T) {
+// Caminata inicial de 100 m, micro de 950 m y caminata final de 55 m: 1105 m.
+func TestPathTotalMetersIncludesWalks(t *testing.T) {
+	path := []pathStep{
+		{From: userLocationID, Edge: Edge{ToStopID: "A", RouteID: walkRouteID, DistanceM: 100}},
+		{From: "A", Edge: Edge{ToStopID: "B", RouteID: "L1C", DistanceM: 950}},
+		{From: "B", Edge: Edge{ToStopID: destinationLocationID, RouteID: walkRouteID, DistanceM: 55}},
+	}
+	if totalMeters := pathTotalMeters(path); totalMeters != 1105 {
+		t.Fatalf("total = %d m, want 1105", totalMeters)
+	}
+	if totalMeters := pathTotalMeters(nil); totalMeters != 0 {
+		t.Fatalf("total of empty path = %d m, want 0", totalMeters)
+	}
+}
+
+// Las rutas a la universidad siguen informando el mismo tiempo y la misma
+// distancia que antes: la suma de sus tramos.
+func TestUniversityRoutesUsePathTotals(t *testing.T) {
 	graph := loadSeedNetwork(t).buildGraph()
 	routes, err := routesToUniversity(graph, "PAR-PORTAL-01", "", 3, defaultCostWeights())
 	if err != nil || len(routes) == 0 {
 		t.Fatalf("routes = %v, err = %v", routes, err)
 	}
 	for _, route := range routes {
-		expectedSeconds := 0
+		expectedSeconds, expectedMeters := 0, 0
 		for _, step := range route.Path {
 			expectedSeconds += step.Edge.BaseTimeSec
+			expectedMeters += step.Edge.DistanceM
 		}
-		if response := newUniversityRouteResponse(route, defaultCostWeights()); response.TotalTimeSec != expectedSeconds {
-			t.Fatalf("total = %d s, want %d", response.TotalTimeSec, expectedSeconds)
+		response := newUniversityRouteResponse(route, defaultCostWeights())
+		if response.TotalTimeSec != expectedSeconds || response.TotalDistanceM != expectedMeters {
+			t.Fatalf("totals = %d s and %d m, want %d s and %d m",
+				response.TotalTimeSec, response.TotalDistanceM, expectedSeconds, expectedMeters)
 		}
 	}
 }

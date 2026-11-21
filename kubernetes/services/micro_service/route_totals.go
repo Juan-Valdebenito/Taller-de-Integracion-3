@@ -14,3 +14,14 @@ func pathTotalSeconds(path []pathStep) int {
 	}
 	return totalSeconds
 }
+
+// pathTotalMeters suma la distancia de todos los tramos, caminatas incluidas.
+// Las caminatas desde una coordenada o hasta ella se miden en línea recta, así que
+// el total es un mínimo, igual que el tiempo.
+func pathTotalMeters(path []pathStep) int {
+	totalMeters := 0
+	for _, step := range path {
+		totalMeters += step.Edge.DistanceM
+	}
+	return totalMeters
+}
