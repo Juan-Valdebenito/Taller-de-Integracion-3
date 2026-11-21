@@ -45,6 +45,21 @@ func recommendationRequestFromProto(request *microv1.RecommendRoutesRequest) (re
 	return routeRequest, nil
 }
 
+// microRecommendRoutesResponse arma la respuesta de una petición ya planificada.
+// Los pesos y las preferencias salen de la misma petición que ordenó las rutas,
+// así que el costo informado explica el orden, y las preferencias muestran los
+// valores por defecto que se aplicaron.
+func microRecommendRoutesResponse(paths [][]pathStep, routeRequest recommendationRequest) *microv1.RecommendRoutesResponse {
+	weights := routeRequest.costWeights()
+	routes := microRecommendedRoutes(paths, weights)
+	return &microv1.RecommendRoutesResponse{
+		Routes:      routes,
+		Total:       int32(len(routes)),
+		CostWeights: microCostWeights(weights),
+		Preferences: microRoutePreferences(routeRequest.preferences()),
+	}
+}
+
 // microRecommendedRoutes convierte las rutas en el mismo orden en que llegan, de
 // la más barata a la más cara, todas con los mismos pesos. Sin rutas devuelve una
 // lista vacía.

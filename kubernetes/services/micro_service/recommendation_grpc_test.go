@@ -354,6 +354,60 @@ func TestMicroRecommendedRoutesOfNoPaths(t *testing.T) {
 	}
 }
 
+// La respuesta trae las rutas planificadas, su cantidad, los pesos de la
+// prioridad pedida y las preferencias completas.
+func TestMicroRecommendRoutesResponseReportsEverything(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	routeRequest := validRecommendationRequest(graph)
+	routeRequest.Preferences = &RoutePreferences{Priority: priorityFewestTransfers, AvoidCrowding: true}
+	paths, err := planRecommendations(graph, routeRequest)
+	if err != nil || len(paths) == 0 {
+		t.Fatalf("paths = %d, err = %v", len(paths), err)
+	}
+	response := microRecommendRoutesResponse(paths, routeRequest)
+	if len(response.GetRoutes()) != len(paths) || int(response.GetTotal()) != len(paths) {
+		t.Fatalf("routes = %d and total = %d, want %d", len(response.GetRoutes()), response.GetTotal(), len(paths))
+	}
+	if !proto.Equal(response.GetCostWeights(), microCostWeights(priorityCostWeights(priorityFewestTransfers))) {
+		t.Fatalf("cost weights = %v, want the fewest_transfers weights", response.GetCostWeights())
+	}
+	expectedPreferences := RoutePreferences{Priority: priorityFewestTransfers, MaxWalkMeters: defaultPreferredWalkMeters, AvoidCrowding: true}
+	if !proto.Equal(response.GetPreferences(), microRoutePreferences(expectedPreferences)) {
+		t.Fatalf("preferences = %v, want %+v with the default walk", response.GetPreferences(), expectedPreferences)
+	}
+}
+
+// El costo de cada ruta usa los mismos pesos que informa la respuesta, así que
+// el cliente puede ver por qué quedó en ese lugar.
+func TestMicroRecommendRoutesResponseCostMatchesWeights(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	routeRequest := validRecommendationRequest(graph)
+	routeRequest.Preferences = &RoutePreferences{Priority: priorityFastest, AvoidCrowding: true}
+	paths, _ := planRecommendations(graph, routeRequest)
+	response := microRecommendRoutesResponse(paths, routeRequest)
+	for routeIndex, route := range response.GetRoutes() {
+		expectedCost := microRecommendedRoute(paths[routeIndex], priorityCostWeights(priorityFastest)).GetCost()
+		if !proto.Equal(route.GetCost(), expectedCost) {
+			t.Fatalf("route %d cost = %v, want %v", routeIndex, route.GetCost(), expectedCost)
+		}
+	}
+}
+
+// Sin preferencias ni rutas: routes vacío, total 0, y aun así los pesos y las
+// preferencias por defecto, para que el cliente sepa cómo se habría ordenado.
+func TestMicroRecommendRoutesResponseWithoutRoutes(t *testing.T) {
+	response := microRecommendRoutesResponse(nil, recommendationRequest{})
+	if response.GetRoutes() == nil || len(response.GetRoutes()) != 0 || response.GetTotal() != 0 {
+		t.Fatalf("routes = %v and total = %d, want empty and 0", response.GetRoutes(), response.GetTotal())
+	}
+	if !proto.Equal(response.GetCostWeights(), microCostWeights(defaultCostWeights())) {
+		t.Fatalf("cost weights = %v, want the default weights", response.GetCostWeights())
+	}
+	if !proto.Equal(response.GetPreferences(), microRoutePreferences(defaultRoutePreferences())) {
+		t.Fatalf("preferences = %v, want the defaults", response.GetPreferences())
+	}
+}
+
 func TestWeatherFromProto(t *testing.T) {
 	if weatherFromProto(nil) != nil {
 		t.Fatal("missing weather should be nil, not 0 °C")
