@@ -3,12 +3,25 @@ package main
 // Traducción de la API gRPC de rutas recomendadas a los tipos del planificador.
 
 import (
+	"context"
 	"errors"
 
 	microv1 "github.com/Juan-Valdebenito/Taller-de-Integracion-3/proto/gen/go/micro/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+// RecommendRoutes entrega rutas recomendadas entre cualquier origen y cualquier
+// destino. Toma el grafo una sola vez, así toda la petición usa el mismo aunque se
+// recargue mientras tanto. La clave interna la revisa microAuthInterceptor, igual
+// que en las demás funciones.
+func (server *microGRPCServer) RecommendRoutes(_ context.Context, request *microv1.RecommendRoutesRequest) (*microv1.RecommendRoutesResponse, error) {
+	graph := server.service.store.Get()
+	if graph == nil {
+		return nil, status.Error(codes.Unavailable, "graph is not loaded")
+	}
+	return answerRecommendRoutes(graph, request)
+}
 
 // answerRecommendRoutes responde una petición gRPC con el grafo indicado:
 // traduce la petición, planifica las rutas y arma la respuesta. Los errores

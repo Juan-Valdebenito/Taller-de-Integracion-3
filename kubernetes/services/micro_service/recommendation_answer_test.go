@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"testing"
 
 	microv1 "github.com/Juan-Valdebenito/Taller-de-Integracion-3/proto/gen/go/micro/v1"
@@ -48,6 +49,52 @@ func TestAnswerRecommendRoutesUsesPreferences(t *testing.T) {
 	}
 	if response.GetCostWeights().GetWalkWeight() != leastWalkingWalkWeight || response.GetPreferences().GetPriority() != "least_walking" {
 		t.Fatalf("weights = %v and preferences = %v, want least_walking", response.GetCostWeights(), response.GetPreferences())
+	}
+}
+
+// recommendationServerWith crea el servidor gRPC con el grafo indicado; nil
+// significa que todavía no se cargó.
+func recommendationServerWith(graph *TransitGraph) *microGRPCServer {
+	store := &GraphStore{}
+	store.Replace(graph)
+	return &microGRPCServer{service: &Server{store: store}}
+}
+
+// El método del servidor entrega lo mismo que answerRecommendRoutes con el grafo
+// cargado.
+func TestRecommendRoutesMethodUsesLoadedGraph(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	request := &microv1.RecommendRoutesRequest{Origin: stopMessage("PAR-PORTAL-01"), Destination: stopMessage("PAR-CJP-02")}
+	response, err := recommendationServerWith(graph).RecommendRoutes(context.Background(), request)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	expectedResponse, _ := answerRecommendRoutes(graph, request)
+	if response.GetTotal() == 0 || !proto.Equal(response, expectedResponse) {
+		t.Fatalf("response = %v, want %v", response, expectedResponse)
+	}
+}
+
+// Sin grafo cargado responde Unavailable, también ante una petición inválida:
+// primero hay que saber si el servicio puede responder.
+func TestRecommendRoutesMethodRequiresLoadedGraph(t *testing.T) {
+	server := recommendationServerWith(nil)
+	for _, request := range []*microv1.RecommendRoutesRequest{
+		{Origin: stopMessage("PAR-PORTAL-01"), Destination: stopMessage("PAR-CJP-02")},
+		{},
+	} {
+		_, err := server.RecommendRoutes(context.Background(), request)
+		if status.Code(err) != codes.Unavailable {
+			t.Fatalf("error = %v, want Unavailable", err)
+		}
+	}
+}
+
+// La función ya no responde Unimplemented: el servidor la implementa.
+func TestRecommendRoutesIsImplemented(t *testing.T) {
+	_, err := recommendationServerWith(loadSeedNetwork(t).buildGraph()).RecommendRoutes(context.Background(), &microv1.RecommendRoutesRequest{})
+	if status.Code(err) == codes.Unimplemented {
+		t.Fatal("RecommendRoutes is still unimplemented")
 	}
 }
 
