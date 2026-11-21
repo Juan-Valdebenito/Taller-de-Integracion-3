@@ -41,7 +41,11 @@ export const router = createBrowserRouter([
   // ── Mapa público (acceso directo sin auth) ───────────────
   {
     path: '/map',
-    element: <PassengerMapPage />,
+    element: (<PassengerLayout />)
+    ,
+    children: [
+      { index: true, element: <PassengerMapPage /> },
+    ],
   },
 
   // ── Autenticación (rutas públicas) ───────────────────────
