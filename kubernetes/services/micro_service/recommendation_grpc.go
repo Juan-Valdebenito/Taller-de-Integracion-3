@@ -7,7 +7,24 @@ import (
 
 	microv1 "github.com/Juan-Valdebenito/Taller-de-Integracion-3/proto/gen/go/micro/v1"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
+
+// answerRecommendRoutes responde una petición gRPC con el grafo indicado:
+// traduce la petición, planifica las rutas y arma la respuesta. Los errores
+// vuelven como status de gRPC, con el código documentado en el proto y el mensaje
+// que dice qué corregir.
+func answerRecommendRoutes(graph *TransitGraph, request *microv1.RecommendRoutesRequest) (*microv1.RecommendRoutesResponse, error) {
+	routeRequest, err := recommendationRequestFromProto(request)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+	paths, err := planRecommendations(graph, routeRequest)
+	if err != nil {
+		return nil, status.Error(recommendationErrorCode(err), err.Error())
+	}
+	return microRecommendRoutesResponse(paths, routeRequest), nil
+}
 
 // recommendationErrorCode traduce un error de la petición al código gRPC que
 // documenta el proto. NotFound es para lo que no existe o no tiene paraderos
