@@ -63,6 +63,76 @@ func TestRecommendRoutesOverNetworkStartAndEndAtStops(t *testing.T) {
 	}
 }
 
+// pointMessage convierte un punto del planificador al mensaje gRPC.
+func pointMessage(point RoutePoint) *microv1.RoutePoint {
+	if point.HasLocation {
+		return locationMessage(point)
+	}
+	return stopMessage(point.StopID)
+}
+
+// Las 126 consultas con coordenadas de la red oficial (coordenada a coordenada,
+// paradero a coordenada y coordenada a paradero) llegan por red iguales a las
+// calculadas directo, y cada ruta empieza y termina donde corresponde.
+func TestRecommendRoutesOverNetworkWithLocations(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	for _, testCase := range officialNetworkCases(graph) {
+		request := &microv1.RecommendRoutesRequest{Origin: pointMessage(testCase.origin), Destination: pointMessage(testCase.destination)}
+		response := recommendOverNetwork(t, client, request)
+		expectedResponse, _ := answerRecommendRoutes(graph, request)
+		if response.GetTotal() == 0 || !proto.Equal(response, expectedResponse) {
+			t.Fatalf("%s: the response changed over the network or is empty", testCase.name)
+		}
+		for routeIndex, route := range response.GetRoutes() {
+			movements := route.GetMovements()
+			if movements[0].GetFromStopId() != testCase.expectedStart || movements[len(movements)-1].GetToStopId() != testCase.expectedEnd {
+				t.Fatalf("%s: route %d goes from %s to %s", testCase.name, routeIndex,
+					movements[0].GetFromStopId(), movements[len(movements)-1].GetToStopId())
+			}
+		}
+	}
+}
+
+// Las caminatas desde una coordenada y hasta ella llegan como tramos a pie, sin
+// línea ni viaje, con su tiempo y su distancia.
+func TestRecommendRoutesOverNetworkReportWalks(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	response := recommendOverNetwork(t, client, &microv1.RecommendRoutesRequest{
+		Origin:      locationMessage(pointNearStop(graph, "PAR-PORTAL-01")),
+		Destination: locationMessage(pointNearStop(graph, "PAR-CJP-02")),
+	})
+	for routeIndex, route := range response.GetRoutes() {
+		movements := route.GetMovements()
+		for _, walk := range []*microv1.Movement{movements[0], movements[len(movements)-1]} {
+			if walk.GetMode() != "walk" || walk.GetRouteId() != "" || walk.GetTripId() != "" {
+				t.Fatalf("route %d: end movement %v is not a plain walk", routeIndex, walk)
+			}
+			if walk.GetTimeSeconds() <= 0 || walk.GetDistanceMeters() <= 0 {
+				t.Fatalf("route %d: walk %v has no time or distance", routeIndex, walk)
+			}
+		}
+	}
+}
+
+// Una coordenada en 0,0 es una coordenada enviada, no un punto que falta. Lejos de
+// la red, entre dos puntos a unos 222 m, la única ruta es caminar.
+func TestRecommendRoutesOverNetworkKeepZeroCoordinates(t *testing.T) {
+	client := startUniversityGRPCClient(t, loadSeedNetwork(t).buildGraph())
+	response := recommendOverNetwork(t, client, &microv1.RecommendRoutesRequest{
+		Origin:      locationMessage(locationPoint(0, 0)),
+		Destination: locationMessage(locationPoint(0.002, 0)),
+	})
+	if response.GetTotal() != 1 {
+		t.Fatalf("total = %d, want only the direct walk", response.GetTotal())
+	}
+	walk := response.GetRoutes()[0].GetMovements()
+	if len(walk) != 1 || walk[0].GetFromStopId() != userLocationID || walk[0].GetToStopId() != destinationLocationID {
+		t.Fatalf("movements = %v, want one walk from the user to the destination", walk)
+	}
+}
+
 // Los costos y los pesos llegan con sus decimales, y el total de cada ruta es la
 // suma de sus componentes, redondeada como en REST.
 func TestRecommendRoutesOverNetworkKeepCosts(t *testing.T) {
