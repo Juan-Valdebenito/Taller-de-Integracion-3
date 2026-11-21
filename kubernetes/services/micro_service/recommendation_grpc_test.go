@@ -322,6 +322,38 @@ func TestMicroRoutePreferencesMatchREST(t *testing.T) {
 	}
 }
 
+// Las rutas del planificador se convierten en el mismo orden, así que su costo
+// sigue de menor a mayor, y cada una coincide con su conversión individual.
+func TestMicroRecommendedRoutesKeepPlannerOrder(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	weights := priorityCostWeights(priorityLeastWalking)
+	paths, err := recommendRoutes(graph, pointNearStop(graph, "PAR-PORTAL-01"), pointNearStop(graph, "PAR-CJP-02"), 5, weights, maxWalkDistanceMeters)
+	if err != nil || len(paths) < 2 {
+		t.Fatalf("paths = %d, err = %v; want at least 2 paths", len(paths), err)
+	}
+	routes := microRecommendedRoutes(paths, weights)
+	if len(routes) != len(paths) {
+		t.Fatalf("got %d routes, want %d", len(routes), len(paths))
+	}
+	for routeIndex, route := range routes {
+		if !proto.Equal(route, microRecommendedRoute(paths[routeIndex], weights)) {
+			t.Fatalf("route %d differs from its own conversion", routeIndex)
+		}
+		if routeIndex > 0 && route.GetCost().GetTotal() < routes[routeIndex-1].GetCost().GetTotal() {
+			t.Fatalf("route %d costs less than route %d", routeIndex, routeIndex-1)
+		}
+	}
+}
+
+// Sin rutas, la lista está vacía y no es nil, para que la respuesta traiga
+// routes vacío.
+func TestMicroRecommendedRoutesOfNoPaths(t *testing.T) {
+	routes := microRecommendedRoutes(nil, defaultCostWeights())
+	if routes == nil || len(routes) != 0 {
+		t.Fatalf("routes = %v, want an empty list", routes)
+	}
+}
+
 func TestWeatherFromProto(t *testing.T) {
 	if weatherFromProto(nil) != nil {
 		t.Fatal("missing weather should be nil, not 0 °C")

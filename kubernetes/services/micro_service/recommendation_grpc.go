@@ -45,6 +45,17 @@ func recommendationRequestFromProto(request *microv1.RecommendRoutesRequest) (re
 	return routeRequest, nil
 }
 
+// microRecommendedRoutes convierte las rutas en el mismo orden en que llegan, de
+// la más barata a la más cara, todas con los mismos pesos. Sin rutas devuelve una
+// lista vacía.
+func microRecommendedRoutes(paths [][]pathStep, weights CostWeights) []*microv1.RecommendedRoute {
+	routes := make([]*microv1.RecommendedRoute, 0, len(paths))
+	for _, path := range paths {
+		routes = append(routes, microRecommendedRoute(path, weights))
+	}
+	return routes
+}
+
 // microRecommendedRoute convierte una ruta recomendada al mensaje gRPC, con sus
 // totales, sus transbordos, sus tramos y su costo. Usa las mismas funciones que
 // las rutas a la universidad, así que ambas informan lo mismo para una misma ruta.
