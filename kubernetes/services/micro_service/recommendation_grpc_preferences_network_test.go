@@ -188,6 +188,44 @@ func TestRecommendRoutesOverNetworkMaxWalkDecidesIfThereAreRoutes(t *testing.T) 
 	}
 }
 
+// avoid_crowding es optional: por red se distingue "no enviado" de false. No
+// enviado vale true, el valor por defecto; enviado, vale lo que se envió. En la
+// respuesta siempre va presente, con el valor usado.
+func TestRecommendRoutesOverNetworkReadAvoidCrowding(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	sentTrue, sentFalse := true, false
+	testCases := []struct {
+		name          string
+		avoidCrowding *bool
+		expectedValue bool
+	}{
+		{"not sent", nil, true},
+		{"sent true", &sentTrue, true},
+		{"sent false", &sentFalse, false},
+	}
+	for _, testCase := range testCases {
+		response := recommendOverNetwork(t, client, preferencesTestRequest(graph, &microv1.RoutePreferences{AvoidCrowding: testCase.avoidCrowding}))
+		reported := response.GetPreferences()
+		if reported.AvoidCrowding == nil {
+			t.Fatalf("%s: avoid_crowding is missing from the response", testCase.name)
+		}
+		if reported.GetAvoidCrowding() != testCase.expectedValue {
+			t.Fatalf("%s: reported avoid_crowding = %v, want %v", testCase.name, reported.GetAvoidCrowding(), testCase.expectedValue)
+		}
+	}
+}
+
+// Sin el mensaje de preferencias también se informa avoid_crowding en true.
+func TestRecommendRoutesOverNetworkAvoidCrowdingWithoutPreferences(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	reported := recommendOverNetwork(t, client, preferencesTestRequest(graph, nil)).GetPreferences()
+	if reported.AvoidCrowding == nil || !reported.GetAvoidCrowding() {
+		t.Fatalf("avoid_crowding = %v, want present and true", reported.AvoidCrowding)
+	}
+}
+
 // sameMovements indica si dos rutas recorren los mismos tramos. El costo no se
 // compara: cambia con los pesos aunque la ruta sea la misma.
 func sameMovements(firstRoute, secondRoute *microv1.RecommendedRoute) bool {
