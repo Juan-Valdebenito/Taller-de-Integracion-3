@@ -124,6 +124,17 @@ function getWSUrl(): string {
     }
     return url.toString();
   }
+
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+  if (apiBaseUrl) {
+    const url = new URL(apiBaseUrl, window.location.origin);
+    url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+    url.pathname = '/ws';
+    url.search = '';
+    url.hash = '';
+    return url.toString();
+  }
+
   return `${protocol}//${window.location.hostname}:3001/ws`;
 }
 

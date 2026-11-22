@@ -1,0 +1,65 @@
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 8px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.connecting {
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.error {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.banner strong,
+.banner span {
+  display: block;
+}
+
+.banner strong {
+  color: inherit;
+  font-size: 12px;
+}
+
+.message {
+  display: block;
+  margin-top: 1px;
+  color: #94a3b8;
+}
+
+.icon {
+  display: grid !important;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 14px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  margin-left: auto;
+  border: 2px solid rgba(251, 191, 36, 0.25);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spinnerRotate 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spinnerRotate {
+  to {
+    transform: rotate(360deg);
+  }
+}

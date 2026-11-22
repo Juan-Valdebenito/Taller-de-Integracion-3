@@ -107,7 +107,7 @@ registro DNS (puede tardar unos minutos).
 |---|---|---|
 | `render` | Genera los manifiestos finales en `kubernetes/.rendered/<stack>/` para revisarlos | No |
 | `check` | Verifica kubectl, la sesión, los permisos y la cuota del namespace | Solo lectura |
-| `build` | `docker build` + `push` de las 3 imágenes propias | No (Docker Hub) |
+| `build` | `docker build` + `push` de las imágenes propias; el frontend se compila con `APP_SCHEME://API_HOST` | No (Docker Hub) |
 | `apply` | `render` + `check` + `kubectl apply` en orden + espera a que los pods queden listos | Sí |
 | `status` | Pods, Services e Ingress; en `app`, además, `ingress/check-websocket.sh` | Solo lectura |
 | `delete` | Borra lo aplicado por el stack (pide escribir el namespace para confirmar) | Sí |
@@ -121,6 +121,12 @@ registro DNS (puede tardar unos minutos).
 | `backend-jvaldebenito.dev.censei.cl` / `<HOST>` | `APP_HOST` |
 | `CORS_ORIGIN`, `SOCKET_CORS_ORIGIN` | `APP_SCHEME://APP_HOST` |
 | `<DOCKERHUB_USER>/…:v1` | `DOCKERHUB_USER/…:IMAGE_TAG` |
+
+`build` acepta `foundation`, `app` o `realtime` (por ejemplo,
+`bash kubernetes/deploy.sh app build`). El comando construye y publica todas las
+imágenes propias; la imagen del frontend recibe `VITE_API_BASE_URL` desde
+`APP_SCHEME` y `API_HOST` en `cluster.env`, porque Vite incorpora esa URL al
+compilar los archivos estáticos.
 
 Clima y la telemetría se aplican en `REALTIME_NAMESPACE`. Clima usa
 `clima-db-svc.REALTIME_NAMESPACE.svc.cluster.local:5432` y NATS desde
