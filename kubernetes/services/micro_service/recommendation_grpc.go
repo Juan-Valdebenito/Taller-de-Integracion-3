@@ -148,6 +148,11 @@ func microMovements(path []pathStep) []*microv1.Movement {
 // ninguna de las dos formas, o trae una coordenada sin contenido, devuelve un punto
 // vacío: la validación lo rechaza con el error del lado que corresponda. El oneof
 // del proto ya impide que lleguen ambas formas a la vez.
+//
+// Una coordenada sin contenido solo ocurre dentro del mismo proceso. Por red, una
+// location vacía llega como Coordinates en 0,0, porque en proto3 un mensaje vacío
+// y uno con todo en 0 se codifican igual: es una coordenada válida, no un punto
+// que falta.
 func routePointFromProto(message *microv1.RoutePoint) RoutePoint {
 	switch point := message.GetPoint().(type) {
 	case *microv1.RoutePoint_StopId:

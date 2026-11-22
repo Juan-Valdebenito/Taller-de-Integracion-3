@@ -1143,9 +1143,9 @@ una caminata imposible.
 
 En gRPC van en el mensaje `preferences`, que puede faltar. Ahí `max_walk_meters`
 en 0 sí significa el valor por defecto, y `avoid_crowding` es `optional`: sin él,
-un valor no enviado se leería como `false`, y el valor por defecto es `true`. El
-mensaje ya está en el contrato, pero `PlanUniversityRoutes` todavía no lo aplica,
-y backend-go aún no envía las preferencias.
+un valor no enviado se leería como `false`, y el valor por defecto es `true`.
+`PlanUniversityRoutes` las aplica igual que REST, pero backend-go todavía no las
+envía.
 
 ### Ejemplo
 
@@ -1209,7 +1209,7 @@ empate se resuelve siempre igual, así que la respuesta no cambia entre consulta
 | `cost.total` | Suma de los demás; es el valor con que se ordenan las rutas |
 | `cost_weights` | Pesos usados en el cálculo |
 | `cost_weights.assumed_headway_seconds` | Intervalo supuesto entre micros: la espera es una estimación |
-| `preferences` | Preferencias usadas, con los valores por defecto ya aplicados. Por ahora solo en `micro_service` REST |
+| `preferences` | Preferencias usadas, con los valores por defecto ya aplicados. Por ahora solo en `micro_service`, por REST y gRPC |
 
 Los costos están en segundos equivalentes y se redondean a un decimal. Este
 ejemplo **tarda 240 s, pero cuesta 840**, por los 5 minutos de espera supuestos.
@@ -1248,6 +1248,89 @@ ocupación o al clima, ignora esos datos. Las rutas llegan con `cost.crowding` y
 
 El rechazo de la clave interna responde 502, y no 401, porque la app interpreta
 un 401 como sesión vencida y la cerraría.
+
+## Rutas recomendadas
+
+`RecommendRoutes` entrega rutas entre **cualquier origen y cualquier destino**, no
+solo hacia un campus. Cada uno puede ser un paradero o una coordenada. Por ahora
+solo existe en gRPC; la ruta HTTP de backend-go,
+`GET /api/v1/recommendations/route`, es la Tarea 4.
+
+### Cómo se planifica
+
+1. Se valida la petición, siempre en este orden: límite, origen y destino (y que no
+   sean el mismo punto), ocupación, clima y preferencias.
+2. Con una coordenada, se buscan hasta 3 paraderos dentro de la caminata máxima:
+   en el origen, paraderos de los que salgan micros; en el destino, paraderos a
+   los que lleguen.
+3. Entre cada paradero de salida y cada uno de llegada se buscan rutas por costo,
+   y se les agregan la caminata inicial y la final.
+4. Si caminar todo el trayecto está dentro de la caminata máxima, también es una
+   opción. Entre dos paraderos no se agrega: el grafo ya tiene sus transbordos a
+   pie, medidos por la calle.
+5. Todas las rutas se ordenan por costo, con las caminatas incluidas, y se entregan
+   las `limit` más baratas.
+
+Como el costo incluye la caminata final, a veces conviene quedarse más en la micro
+para bajarse más cerca del destino. El código está en `recommendation.go`,
+`route_points.go`, `destination.go` y `direct_walk.go`.
+
+### Petición
+
+| Campo | Regla |
+|---|---|
+| `origin` | Obligatorio: un `RoutePoint` |
+| `destination` | Obligatorio, y distinto del origen |
+| `limit` | Entre 1 y 5; 0 usa 3 |
+| `preferences` | Las mismas de `PlanUniversityRoutes`; si falta, las de por defecto |
+| `line_occupancy` | Ocupación por línea; solo se usa si `avoid_crowding` es `true` |
+| `weather` | Clima de la consulta; si falta, no hay recargo |
+
+`RoutePoint` es un `oneof`: trae `stop_id` o `location`, nunca ambos. `location`
+es el mensaje `Coordinates`, para que una coordenada en 0,0 no se confunda con una
+que no se envió. Por la misma razón, una `location` vacía llega por red como la
+coordenada 0,0, no como un punto que falta.
+
+### Respuesta
+
+Tiene la misma forma que la de las rutas a la universidad: `routes`, `total`,
+`cost_weights` y `preferences`. Cada `RecommendedRoute` trae el tiempo y la
+distancia total, los transbordos, los tramos y el desglose del costo, calculados
+con las mismas funciones que `UniversityRoute`.
+
+| Caso | Primer tramo | Último tramo |
+|---|---|---|
+| Origen en una coordenada | Caminata desde `USER_LOCATION` | — |
+| Destino en una coordenada | — | Caminata hasta `DESTINATION_LOCATION` |
+| Caminar todo el trayecto | Un solo tramo a pie | El mismo |
+
+Si los puntos son válidos, pero la red no los conecta, no es un error: llega
+`routes` vacío y `total` en 0, con los pesos y las preferencias.
+
+### Ejemplo con clima
+
+Dos paraderos, A y B, a unos 334 m, con una micro de A a B en 60 s. El pasajero
+parte justo en A y va justo a B:
+
+| Opción | Sin clima | Con helada y viento muy fuerte (+0,8) |
+|---|---|---|
+| Caminar: 278 s | 278 × 2 = **556** | 556 × 1,8 = **1000,8** |
+| Micro: espera 300 s y viaje 60 s | 300 × 2 + 60 = **660** | **660** |
+
+Sin clima conviene caminar; con mal clima, la micro.
+
+### Errores
+
+| Código | Cuándo |
+|---|---|
+| `Unauthenticated` | Falta `x-admin-key` o no es la correcta. Se revisa antes que todo |
+| `Unavailable` | El grafo no está cargado. Se revisa antes que la petición |
+| `InvalidArgument` | Falta un punto, son el mismo, o no son válidos el límite, las coordenadas, la ocupación, el clima o las preferencias |
+| `NotFound` | Un paradero no existe, o no hay paraderos dentro de la caminata máxima del origen o del destino (y tampoco se puede caminar directo) |
+| `Unimplemented` | La imagen de `micro_service` es anterior a esta función |
+
+El mensaje de cada error dice qué corregir, y nombra el lado: por ejemplo,
+`origin stop not found` o `no stops near destination`.
 
 ## Despliegue
 
