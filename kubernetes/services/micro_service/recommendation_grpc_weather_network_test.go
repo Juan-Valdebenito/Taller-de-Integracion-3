@@ -173,3 +173,42 @@ func TestRecommendRoutesOverNetworkSevereThresholdsAreModerate(t *testing.T) {
 		assertWeatherSurcharge(t, name, response, moderateWeatherSurcharge)
 	}
 }
+
+// Los recargos de cada factor se suman. El factor de la caminata tiene un máximo
+// de 2,0, así que el recargo nunca pasa de 1,0, aunque los factores sumen más.
+func TestRecommendRoutesOverNetworkWeatherSurchargesAddUp(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	maxSurcharge := maxWalkWeatherFactor - 1
+	testCases := []struct {
+		name                  string
+		weather               *microv1.WeatherConditions
+		expectedSurchargeRate float64
+	}{
+		{"cold and windy", &microv1.WeatherConditions{TemperatureC: 3, WindSpeedKmh: 40, Pm25: 0}, 0.4},
+		{"hot with poor air", &microv1.WeatherConditions{TemperatureC: 33, WindSpeedKmh: 0, Pm25: 60}, 0.4},
+		{"three moderate", &microv1.WeatherConditions{TemperatureC: 3, WindSpeedKmh: 40, Pm25: 60}, 0.6},
+		{"freezing and very windy", &microv1.WeatherConditions{TemperatureC: -3, WindSpeedKmh: 60, Pm25: 0}, 0.8},
+		{"two severe and one moderate", &microv1.WeatherConditions{TemperatureC: -3, WindSpeedKmh: 60, Pm25: 60}, maxSurcharge},
+		{"three severe, capped", &microv1.WeatherConditions{TemperatureC: -3, WindSpeedKmh: 60, Pm25: 90}, maxSurcharge},
+	}
+	for _, testCase := range testCases {
+		response := recommendOverNetwork(t, client, weatherTestRequest(graph, testCase.weather))
+		assertWeatherSurcharge(t, testCase.name, response, testCase.expectedSurchargeRate)
+	}
+}
+
+// Con el máximo, caminar cuesta a lo más el doble que sin clima: el recargo nunca
+// supera el costo de caminar.
+func TestRecommendRoutesOverNetworkWeatherNeverMoreThanDoublesWalk(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	worstWeather := &microv1.WeatherConditions{TemperatureC: minTemperatureC, WindSpeedKmh: maxWindSpeedKmh, Pm25: maxPM25}
+	response := recommendOverNetwork(t, client, weatherTestRequest(graph, worstWeather))
+	assertWeatherSurcharge(t, "worst accepted weather", response, maxWalkWeatherFactor-1)
+	for routeIndex, route := range response.GetRoutes() {
+		if route.GetCost().GetWeather() > route.GetCost().GetWalk()+0.1 {
+			t.Fatalf("route %d: weather surcharge %v exceeds the walk cost %v", routeIndex, route.GetCost().GetWeather(), route.GetCost().GetWalk())
+		}
+	}
+}
