@@ -1349,7 +1349,7 @@ Las rutas a la universidad necesitan imágenes nuevas de dos servicios:
 1. **`clima_service` y `clima_simulator`**, en el stack `realtime`. No es
    obligatorio para las rutas, pero sin ellos no hay clima.
 2. **`micro_service`.** Su imagen nueva incluye las rutas a la universidad, el costo,
-   la ocupación y el clima.
+   la ocupación, el clima, las preferencias y `RecommendRoutes`.
 3. **backend-go.** Su imagen nueva envía la ocupación y el clima, y muestra el costo.
 
 El orden importa porque backend-go depende de lo que sabe hacer `micro_service`:
@@ -1362,6 +1362,12 @@ El orden importa porque backend-go depende de lo que sabe hacer `micro_service`:
 
 Actualizar `micro_service` antes nunca rompe nada: backend-go antiguo simplemente
 no envía la ocupación ni el clima.
+
+Con `RecommendRoutes` pasa lo mismo. Si backend-go ya tiene la ruta
+`/api/v1/recommendations/route`, pero `micro_service` es anterior, la función
+responde `Unimplemented`. backend-go debe convertirlo en **503**, como un servicio
+no disponible: hoy `writeRPCError` lo convierte en 500, y la app lo mostraría como
+un error interno.
 
 ### Comandos
 
@@ -1458,12 +1464,19 @@ con el planificador real. `planner_test.go` compara Dijkstra y A*, y
 `alternatives_test.go` revisa las rutas alternativas. `university_test.go` y
 `location_test.go` revisan las rutas a la universidad. Los archivos que empiezan con
 `cost`, junto con `occupancy_test.go` y `weather_test.go`, revisan la función de
-costo. Ninguno necesita una base de datos.
+costo. Los que empiezan con `preference` revisan las preferencias, y los que
+empiezan con `recommendation`, junto con `route_points_test.go`,
+`destination_test.go` y `direct_walk_test.go`, revisan las rutas recomendadas.
+Ninguno necesita una base de datos.
 
 ```bash
 cd kubernetes/services/micro_service
 go test ./...
 ```
+
+La suite completa tarda unos 17 s, porque varias pruebas recorren por red las 126
+consultas de la red oficial. Con `go test -short ./...` se salta la más larga, que
+prueba cada combinación de preferencias.
 
 En backend-go, `liveoccupancy` y `currentweather` tienen sus propias pruebas, y el
 handler y el router prueban el recorrido completo hasta el JSON:
@@ -1502,6 +1515,14 @@ go test ./...
 | Pesos por prioridad | Son válidos y cada prioridad solo cambia el peso de su objetivo; sin preferencias, los pesos son los de siempre |
 | Rutas por prioridad | En grafos pequeños, cada prioridad elige la ruta esperada; en la red oficial, nunca empeora su objetivo frente a `balanced` |
 | Caminata máxima | No se usan caminatas más largas, ni al inicio ni entre paraderos |
+| Origen y destino | Un paradero o una coordenada; cada lado da su propio error, y en el destino solo sirven paraderos a los que llegan micros |
+| Rutas recomendadas | En las 126 consultas de la red oficial son válidas, ordenadas y deterministas, y la primera es la más barata |
+| Caminata directa | Compite por costo con la micro, no se agrega entre paraderos, y evita el error si no hay paraderos cerca |
+| Preferencias en las recomendaciones | Cada prioridad nunca empeora su objetivo frente a `balanced`, y la caminata máxima más larga nunca da una ruta más cara |
+| `RecommendRoutes` por red | La respuesta es idéntica a la calculada directo, con coordenadas en 0,0, `avoid_crowding=false` y el límite en 0 |
+| Clima por red | Sin clima no hay recargo, 0 °C sí es clima, los umbrales son exactos, los recargos se suman hasta 2,0 y solo afectan las caminatas |
+| Errores por red | Cada código con su mensaje exacto, y el orden: primero la clave, después el grafo y al final la petición |
+| Recargas del grafo | Peticiones simultáneas mientras el grafo se recarga responden siempre rutas válidas |
 
 `PAR-CJP-02` ↔ `PAR-DPORT-01` está registrado en la prueba como excepción conocida
 de velocidad. Si el equipo corrige el dato, se quita esa excepción. Cualquier otro
@@ -1536,3 +1557,7 @@ prueba confirma que el planificador entrega ese tiempo y esa distancia.
 | El clima no considera la lluvia: `clima_service` no la guarda | Que `clima_service` guarde la lluvia de Open-Meteo |
 | El clima depende de que `clima_simulator` pueda salir a internet para consultar Open-Meteo | Confirmar en el cluster |
 | Muchas ubicaciones de Temuco quedan a más de 1000 m de un paradero de la red, porque esta tiene 7 paraderos | Cargar el catálogo y agregar recorridos |
+| `RecommendRoutes` todavía no tiene ruta HTTP: la app no puede usarla | Tarea 4: `GET /api/v1/recommendations/route` en backend-go |
+| `writeRPCError` convierte `Unimplemented` en 500; con una imagen anterior de `micro_service`, la ruta nueva respondería un error interno | Tarea 4: convertirlo en 503 |
+| backend-go no envía las preferencias del pasajero a `PlanUniversityRoutes` | Tarea aparte en backend-go |
+| No se pudo probar con el detector de carreras (`go test -race`), porque necesita gcc | Instalar gcc o probarlo en el CI |
