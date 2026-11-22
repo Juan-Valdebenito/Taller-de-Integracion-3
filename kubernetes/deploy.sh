@@ -12,7 +12,7 @@
 #   bash kubernetes/deploy.sh <foundation|micros|app|realtime> apply
 #   bash kubernetes/deploy.sh <foundation|micros|app|realtime> status
 #   bash kubernetes/deploy.sh <foundation|micros|app|realtime> delete
-#   bash kubernetes/deploy.sh foundation build
+#   bash kubernetes/deploy.sh <foundation|app|realtime> build
 #
 # Orden recomendado: foundation primero; después micros, realtime y app.
 # El inicio de sesión en el cluster NO lo hace este script ni guarda contraseñas.
@@ -257,16 +257,18 @@ cmd_check() {
 
 cmd_build() {
   case "$STACK" in
-    foundation|realtime) ;;
-    *) die "build aplica a foundation o realtime." ;;
+    foundation|app|realtime) ;;
+    *) die "build aplica a foundation, app o realtime." ;;
   esac
   [ -n "$DOCKERHUB_USER" ] || die "Falta DOCKERHUB_USER en cluster.env."
   command -v docker >/dev/null 2>&1 || die "docker no está instalado."
+  local frontend_api_url="$APP_SCHEME://$API_HOST"
   info "Construyendo imágenes en $DOCKERHUB_USER (tag general $IMAGE_TAG, backend-go $BACKEND_GO_IMAGE_TAG)"
+  info "Frontend usará la API en $frontend_api_url"
   cd "$ROOT"
   docker build -f backend-go/Dockerfile -t "$DOCKERHUB_USER/backend-go:$BACKEND_GO_IMAGE_TAG" .
   docker build -t "$DOCKERHUB_USER/transithub-realtime:$IMAGE_TAG" backend/
-  docker build -t "$DOCKERHUB_USER/transithub-frontend:$IMAGE_TAG" frontend/
+  docker build --build-arg "VITE_API_BASE_URL=$frontend_api_url" -t "$DOCKERHUB_USER/transithub-frontend:$IMAGE_TAG" frontend/
   docker build -t "$DOCKERHUB_USER/clima-simulator:$IMAGE_TAG" kubernetes/services/clima_simulator/
   docker push "$DOCKERHUB_USER/backend-go:$BACKEND_GO_IMAGE_TAG"
   docker push "$DOCKERHUB_USER/transithub-realtime:$IMAGE_TAG"
