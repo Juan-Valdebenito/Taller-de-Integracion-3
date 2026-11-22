@@ -111,6 +111,66 @@ func TestRecommendRoutesOverNetworkInvalidArguments(t *testing.T) {
 	}
 }
 
+// farFromNetwork está a unos 80 km de cualquier paradero.
+var farFromNetwork = locationPoint(-38.0, -72.0)
+
+// Lo que no existe o no tiene paraderos cerca responde NotFound, con el mensaje
+// del lado que corresponde: el cliente sabe si corregir el origen o el destino.
+func TestRecommendRoutesOverNetworkNotFound(t *testing.T) {
+	client := startUniversityGRPCClient(t, loadSeedNetwork(t).buildGraph())
+	testCases := []struct {
+		name            string
+		change          func(request *microv1.RecommendRoutesRequest)
+		expectedMessage string
+	}{
+		{"unknown origin stop", func(request *microv1.RecommendRoutesRequest) { request.Origin = stopMessage("PAR-NOWHERE-01") },
+			errUnknownOriginStop.Error()},
+		{"unknown destination stop", func(request *microv1.RecommendRoutesRequest) { request.Destination = stopMessage("PAR-NOWHERE-01") },
+			errUnknownDestinationStop.Error()},
+		// Los ID de paradero distinguen mayúsculas, igual que en el resto de la API.
+		{"stop in lowercase", func(request *microv1.RecommendRoutesRequest) { request.Origin = stopMessage("par-portal-01") },
+			errUnknownOriginStop.Error()},
+		{"no stops near origin", func(request *microv1.RecommendRoutesRequest) { request.Origin = locationMessage(farFromNetwork) },
+			errNoNearbyStops.Error()},
+		{"no stops near destination", func(request *microv1.RecommendRoutesRequest) { request.Destination = locationMessage(farFromNetwork) },
+			errNoStopsNearDestination.Error()},
+		// Si los dos lados fallan, se informa el origen, que se revisa primero.
+		{"both stops unknown", func(request *microv1.RecommendRoutesRequest) {
+			request.Origin, request.Destination = stopMessage("PAR-NOWHERE-01"), stopMessage("PAR-NOWHERE-02")
+		}, errUnknownOriginStop.Error()},
+		{"unknown origin and far destination", func(request *microv1.RecommendRoutesRequest) {
+			request.Origin, request.Destination = stopMessage("PAR-NOWHERE-01"), locationMessage(farFromNetwork)
+		}, errUnknownOriginStop.Error()},
+	}
+	for _, testCase := range testCases {
+		request := validErrorTestRequest()
+		testCase.change(request)
+		assertRecommendError(t, client, testCase.name, request, codes.NotFound, testCase.expectedMessage)
+	}
+}
+
+// Un dato inválido se informa antes que un paradero inexistente: primero se
+// revisa que la petición esté bien escrita, después si lo pedido existe.
+func TestRecommendRoutesOverNetworkInvalidArgumentBeforeNotFound(t *testing.T) {
+	client := startUniversityGRPCClient(t, loadSeedNetwork(t).buildGraph())
+	request := &microv1.RecommendRoutesRequest{Origin: stopMessage("PAR-NOWHERE-01"), Destination: stopMessage("PAR-CJP-02"), Limit: 9}
+	assertRecommendError(t, client, "invalid limit and unknown stop", request, codes.InvalidArgument, errInvalidRouteLimit.Error())
+}
+
+// Si los paraderos existen, pero la red no los conecta, no es un error: llega
+// routes vacío y total 0, como dice el proto. En el grafo del ejemplo la micro
+// solo va de A a B, así que de B a A no hay ruta.
+func TestRecommendRoutesOverNetworkUnconnectedStopsAreNotAnError(t *testing.T) {
+	client := startUniversityGRPCClient(t, weatherExampleGraph())
+	response := recommendOverNetwork(t, client, &microv1.RecommendRoutesRequest{Origin: stopMessage("B"), Destination: stopMessage("A")})
+	if response.GetTotal() != 0 || len(response.GetRoutes()) != 0 {
+		t.Fatalf("response = %v, want no routes", response)
+	}
+	if response.GetCostWeights() == nil || response.GetPreferences() == nil {
+		t.Fatalf("response = %v, want the weights and preferences even without routes", response)
+	}
+}
+
 // Por red, una location vacía viaja igual que una location en 0,0: en proto3 un
 // mensaje vacío y uno con todo en 0 se codifican igual. Por eso no es un punto que
 // falta, sino la coordenada 0,0, que está lejos de la red. routePointFromProto
