@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
+import { useEffect, useRef } from 'react';
 import { Platform, StyleSheet, Text, useWindowDimensions, View, type StyleProp, type ViewStyle } from 'react-native';
 import MapView, { UrlTile } from 'react-native-maps';
 
+import type { Coordinates } from '../../location/geo';
 import { makeStyles, spacing } from '../../theme';
 import { DEFAULT_ZOOM, MAX_ZOOM, OSM_ATTRIBUTION, OSM_TILE_URL, regionForZoom } from './mapConfig';
 
@@ -9,6 +11,8 @@ export interface TransitMapProps {
   /** Capas sobre el mapa (rutas, micros, ubicación). */
   children?: ReactNode;
   style?: StyleProp<ViewStyle>;
+  /** Coordenadas a encuadrar cuando se calcula una ruta recomendada. */
+  fitCoordinates?: readonly Coordinates[];
 }
 
 /**
@@ -19,12 +23,24 @@ export interface TransitMapProps {
  * El web oscurece los mosaicos con un filtro CSS (brightness 0.72). Aquí no hay
  * filtros: se dibujan con opacidad 0.72 sobre el fondo oscuro del mapa.
  */
-export function TransitMap({ children, style }: TransitMapProps) {
+export function TransitMap({ children, style, fitCoordinates }: TransitMapProps) {
   const styles = useStyles();
   const { width, height } = useWindowDimensions();
+  const mapRef = useRef<MapView>(null);
+  useEffect(() => {
+    if (!fitCoordinates || fitCoordinates.length < 2) return;
+    const timeout = setTimeout(() => {
+      mapRef.current?.fitToCoordinates([...fitCoordinates], {
+        animated: true,
+        edgePadding: { top: 56, right: 36, bottom: Math.min(260, Math.round(height * 0.34)), left: 36 },
+      });
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [fitCoordinates, height]);
   return (
     <View style={[styles.container, style]}>
       <MapView
+        ref={mapRef}
         style={StyleSheet.absoluteFill}
         accessibilityLabel="Mapa de Temuco"
         initialRegion={regionForZoom(DEFAULT_ZOOM, width, height)}

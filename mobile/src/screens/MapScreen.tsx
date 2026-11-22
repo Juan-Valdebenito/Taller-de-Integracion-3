@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { View } from 'react-native';
 
 import { liveBusesToPositions } from '../alerts/proximityAlerts';
@@ -14,6 +14,9 @@ import { MapStatusBar } from '../components/map/MapStatusBar';
 import { TripPlanner } from '../components/map/TripPlanner';
 import { filterBusesByRoute, RouteFilter } from '../components/map/RouteFilter';
 import { RouteNodesLayer } from '../components/map/RouteNodesLayer';
+import { RecommendedTripLayer } from '../components/map/RecommendedTripLayer';
+import type { RoutePlan } from '../api/tripPlannerApi';
+import type { Stop } from '../location/geo';
 import type { RouteFilterValue } from '../components/map/routeNodes';
 import { TransitMap } from '../components/map/TransitMap';
 import { UserLocationLayer } from '../components/map/UserLocationLayer';
@@ -43,6 +46,19 @@ export function MapScreen() {
   const [selectedBusId, setSelectedBusId] = useState<string | null>(null);
   const selectBus = (id: string) => setSelectedBusId((current) => (current === id ? null : id));
   const [routeFilter, setRouteFilter] = useState<RouteFilterValue>('all');
+  const [recommendedTrip, setRecommendedTrip] = useState<{ plan: RoutePlan | null; stops: readonly Stop[] }>({ plan: null, stops: [] });
+  const updateRecommendedTrip = useCallback((plan: RoutePlan | null, stops: readonly Stop[]) => {
+    setRecommendedTrip((current) => current.plan === plan && current.stops === stops ? current : { plan, stops });
+  }, []);
+  const recommendedCoordinates = useMemo(() => {
+    const plan = recommendedTrip.plan;
+    if (!plan) return [];
+    const stopsById = new Map(recommendedTrip.stops.map((stop) => [stop.id, stop]));
+    return [plan.origin_stop_id, ...plan.movements.map((movement) => movement.to_stop_id)]
+      .map((id) => stopsById.get(id))
+      .filter((stop): stop is Stop => Boolean(stop))
+      .map(({ latitude, longitude }) => ({ latitude, longitude }));
+  }, [recommendedTrip]);
   const visibleBuses = filterBusesByRoute(buses, routeFilter);
   // La ficha se cierra sola si la micro elegida queda fuera del filtro o deja de existir.
   const selectedBus = visibleBuses.find((bus) => bus.id === selectedBusId) ?? null;
@@ -71,8 +87,9 @@ export function MapScreen() {
       <MapStatusBar buses={buses} realtime={realtime} routeFilter={routeFilter} />
       <RouteFilter buses={buses} value={routeFilter} onChange={setRouteFilter} />
       <View style={styles.mapArea}>
-        <TransitMap>
+        <TransitMap fitCoordinates={recommendedCoordinates}>
           <RouteNodesLayer routeFilter={routeFilter} />
+          <RecommendedTripLayer plan={recommendedTrip.plan} stops={recommendedTrip.stops} />
           <BusMarkersLayer buses={visibleBuses} selectedId={selectedBusId} onSelect={selectBus} live={live} />
           <UserLocationLayer position={location.position} />
         </TransitMap>
@@ -96,7 +113,7 @@ export function MapScreen() {
               open={openPanel === 'planner'}
               onOpenChange={(open) => setOpenPanel(open ? 'planner' : null)}
             >
-              <TripPlanner buses={live ? buses : []} />
+              <TripPlanner buses={live ? buses : []} onRecommendationChange={updateRecommendedTrip} />
             </MapPanel>
             <MapPanel
               title="📍 Tu ubicación y alertas"

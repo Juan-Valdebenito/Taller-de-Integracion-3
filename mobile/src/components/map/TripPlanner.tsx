@@ -101,7 +101,7 @@ function RouteOption({ plan, index, routeLabels, occupancyRatio }: { plan: Route
   );
 }
 
-export function TripPlanner({ buses = [] }: { buses?: readonly LiveBus[] }) {
+export function TripPlanner({ buses = [], onRecommendationChange }: { buses?: readonly LiveBus[]; onRecommendationChange?: (plan: RoutePlan | null, stops: readonly Stop[]) => void }) {
   const { colors } = useTheme();
   const styles = useStyles();
   const [stops, setStops] = useState<Stop[]>([]);
@@ -141,8 +141,9 @@ export function TripPlanner({ buses = [] }: { buses?: readonly LiveBus[] }) {
 
   useEffect(() => {
     mounted.current = true;
-    loadStops();
+    const loadTimer = setTimeout(loadStops, 0);
     return () => {
+      clearTimeout(loadTimer);
       mounted.current = false;
       stopsRequestId.current += 1;
     };
@@ -187,6 +188,10 @@ export function TripPlanner({ buses = [] }: { buses?: readonly LiveBus[] }) {
     () => recommendationFor(plans ?? [], preference, buses, routeLabels),
     [buses, plans, preference, routeLabels],
   );
+
+  useEffect(() => {
+    onRecommendationChange?.(recommendation.recommended, stops);
+  }, [onRecommendationChange, recommendation.recommended, stops]);
 
   return (
     <View>

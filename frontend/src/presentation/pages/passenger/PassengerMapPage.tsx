@@ -31,6 +31,7 @@ import { MapStatusBar } from '../../components/map/MapStatusBar';
 import { ConnectionOverlay } from '../../components/map/ConnectionOverlay';
 import { RouteNodesLayer } from '../../components/map/RouteNodesLayer';
 import { SimulationDevTools, type SimEventType } from '../../components/passenger/SimulationDevTools';
+import { RecommendedTripPlanner } from '../../components/passenger/RecommendedTripPlanner';
 
 // El simulador es una herramienta de desarrollo: no se muestra en producción.
 const SHOW_DEVTOOLS = import.meta.env.DEV;
@@ -145,6 +146,7 @@ export function PassengerMapPage() {
             />
 
             <RouteNodesLayer routeFilter={routeFilter} />
+            <RecommendedTripPlanner />
 
             {/* Marcadores de micros con animación */}
             {visibleBuses.map((bus) => (
