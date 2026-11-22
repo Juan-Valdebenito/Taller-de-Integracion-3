@@ -136,6 +136,58 @@ func TestZeroMaxWalkDiffersBetweenRESTAndGRPC(t *testing.T) {
 	}
 }
 
+// La caminata máxima decide si hay ruta. El punto está unos 400 m al norte del
+// Portal. La prueba calcula a qué distancia queda el paradero útil más cercano,
+// y pide un máximo un poco menor y otro un poco mayor: con el menor no hay
+// paraderos a distancia caminable, y con el mayor sí hay rutas.
+func TestRecommendRoutesOverNetworkMaxWalkDecidesIfThereAreRoutes(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	portal := graph.Stops["PAR-PORTAL-01"]
+	farPoint := locationPoint(portal.Latitude+0.0036, portal.Longitude)
+	testCases := []struct {
+		side          string
+		nearestStops  []NearbyStop
+		request       func(maxWalkMeters int32) *microv1.RecommendRoutesRequest
+		expectedError error
+	}{
+		{"origin", nearbyNetworkStops(graph, farPoint.Latitude, farPoint.Longitude, 1, maxPreferredWalkMeters),
+			func(maxWalkMeters int32) *microv1.RecommendRoutesRequest {
+				return &microv1.RecommendRoutesRequest{Origin: locationMessage(farPoint), Destination: stopMessage("PAR-CJP-02"),
+					Preferences: &microv1.RoutePreferences{MaxWalkMeters: maxWalkMeters}}
+			}, errNoNearbyStops},
+		{"destination", nearbyArrivalStops(graph, farPoint.Latitude, farPoint.Longitude, 1, maxPreferredWalkMeters),
+			func(maxWalkMeters int32) *microv1.RecommendRoutesRequest {
+				return &microv1.RecommendRoutesRequest{Origin: stopMessage("PAR-CJP-02"), Destination: locationMessage(farPoint),
+					Preferences: &microv1.RoutePreferences{MaxWalkMeters: maxWalkMeters}}
+			}, errNoStopsNearDestination},
+	}
+	for _, testCase := range testCases {
+		if len(testCase.nearestStops) != 1 || testCase.nearestStops[0].DistanceMeters < 150 || testCase.nearestStops[0].DistanceMeters > 900 {
+			t.Fatalf("%s: nearest stops = %+v; the test point must be between 150 and 900 m from a stop", testCase.side, testCase.nearestStops)
+		}
+		nearestMeters := int32(testCase.nearestStops[0].DistanceMeters)
+
+		_, err := client.RecommendRoutes(authorizedContext(t), testCase.request(nearestMeters-20))
+		errorStatus, _ := status.FromError(err)
+		if errorStatus.Code() != codes.NotFound || errorStatus.Message() != testCase.expectedError.Error() {
+			t.Fatalf("%s with %d m: error = %v, want NotFound %q", testCase.side, nearestMeters-20, err, testCase.expectedError)
+		}
+
+		response := recommendOverNetwork(t, client, testCase.request(nearestMeters+20))
+		if response.GetTotal() == 0 {
+			t.Fatalf("%s with %d m: no routes", testCase.side, nearestMeters+20)
+		}
+		for _, route := range response.GetRoutes() {
+			for _, movement := range route.GetMovements() {
+				if movement.GetMode() == "walk" && movement.GetDistanceMeters() > nearestMeters+20 {
+					t.Fatalf("%s: walk of %d m exceeds %d m", testCase.side, movement.GetDistanceMeters(), nearestMeters+20)
+				}
+			}
+		}
+	}
+}
+
 // sameMovements indica si dos rutas recorren los mismos tramos. El costo no se
 // compara: cambia con los pesos aunque la ruta sea la misma.
 func sameMovements(firstRoute, secondRoute *microv1.RecommendedRoute) bool {
