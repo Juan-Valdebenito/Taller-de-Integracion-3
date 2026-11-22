@@ -37,6 +37,7 @@ func (server *microGRPCServer) PlanUniversityRoutes(_ context.Context, request *
 		Routes:      make([]*microv1.UniversityRoute, 0, len(routes)),
 		Total:       int32(len(routes)),
 		CostWeights: microCostWeights(routeRequest.costWeights()),
+		Preferences: microRoutePreferences(routeRequest.preferences()),
 	}
 	for _, route := range routes {
 		response.Routes = append(response.Routes, microUniversityRoute(route, routeRequest.costWeights()))
@@ -45,9 +46,15 @@ func (server *microGRPCServer) PlanUniversityRoutes(_ context.Context, request *
 }
 
 // universityRouteRequestFromProto aplica el límite por defecto cuando no viene:
-// en proto3, un entero no enviado se lee como 0.
+// en proto3, un entero no enviado se lee como 0. Las preferencias se leen con las
+// mismas reglas que REST; si no vienen, se usan las de por defecto.
 func universityRouteRequestFromProto(request *microv1.PlanUniversityRoutesRequest) (universityRouteRequest, error) {
+	preferences, err := routePreferencesFromProto(request.GetPreferences())
+	if err != nil {
+		return universityRouteRequest{}, err
+	}
 	routeRequest := universityRouteRequest{
+		Preferences:   preferences,
 		OriginStopID:  request.GetOriginStopId(),
 		CampusID:      request.GetCampusId(),
 		Limit:         int(request.GetLimit()),
@@ -63,15 +70,58 @@ func universityRouteRequestFromProto(request *microv1.PlanUniversityRoutesReques
 		routeRequest.HasLocation = true
 		routeRequest.Latitude, routeRequest.Longitude = request.GetLatitude(), request.GetLongitude()
 	}
-	// Si el mensaje no viene, el clima queda en nil: sin clima, no 0 °C.
-	if weather := request.GetWeather(); weather != nil {
-		routeRequest.Weather = &WeatherConditions{
-			TemperatureC: weather.GetTemperatureC(),
-			WindSpeedKmh: weather.GetWindSpeedKmh(),
-			PM25:         weather.GetPm25(),
-		}
-	}
+	routeRequest.Weather = weatherFromProto(request.GetWeather())
 	return routeRequest, nil
+}
+
+// weatherFromProto traduce el clima de una petición. Si el mensaje no viene,
+// devuelve nil: sin clima, no 0 °C.
+func weatherFromProto(message *microv1.WeatherConditions) *WeatherConditions {
+	if message == nil {
+		return nil
+	}
+	return &WeatherConditions{
+		TemperatureC: message.GetTemperatureC(),
+		WindSpeedKmh: message.GetWindSpeedKmh(),
+		PM25:         message.GetPm25(),
+	}
+}
+
+// routePreferencesFromProto traduce las preferencias de gRPC con las mismas
+// reglas que REST: la prioridad ignora mayúsculas y espacios, y lo que no se
+// envió toma su valor por defecto. Sin mensaje devuelve nil, y la petición usa
+// las preferencias por defecto. avoid_crowding es optional en el proto: si no
+// viene, vale true, y no false como un bool de proto3 sin presencia.
+func routePreferencesFromProto(message *microv1.RoutePreferences) (*RoutePreferences, error) {
+	if message == nil {
+		return nil, nil
+	}
+	priority, err := parseRoutePriority(message.GetPriority())
+	if err != nil {
+		return nil, err
+	}
+	maxWalkMeters, err := resolveMaxWalkMeters(int(message.GetMaxWalkMeters()))
+	if err != nil {
+		return nil, err
+	}
+	avoidCrowding := defaultAvoidCrowding
+	if message.AvoidCrowding != nil {
+		avoidCrowding = message.GetAvoidCrowding()
+	}
+	return &RoutePreferences{Priority: priority, MaxWalkMeters: maxWalkMeters, AvoidCrowding: avoidCrowding}, nil
+}
+
+// microRoutePreferences convierte las preferencias usadas al mensaje gRPC de la
+// respuesta. Recibe las preferencias ya completas, así que informa los valores
+// reales y no ceros. avoid_crowding siempre va presente, también cuando es
+// false, para que el cliente no lo confunda con "no enviado".
+func microRoutePreferences(preferences RoutePreferences) *microv1.RoutePreferences {
+	avoidCrowding := preferences.AvoidCrowding
+	return &microv1.RoutePreferences{
+		Priority:      string(preferences.Priority),
+		MaxWalkMeters: int32(preferences.MaxWalkMeters),
+		AvoidCrowding: &avoidCrowding,
+	}
 }
 
 func universityRouteErrorCode(err error) codes.Code {
@@ -93,29 +143,40 @@ func microUniversityRoute(route UniversityRoute, weights CostWeights) *microv1.U
 		TotalDistanceMeters: int32(routeResponse.TotalDistanceM),
 		Transfers:           int32(routeResponse.Transfers),
 		Movements:           make([]*microv1.Movement, 0, len(routeResponse.Movements)),
-		// Usa el mismo costo redondeado que REST, para que ambas API coincidan.
-		Cost: &microv1.CostBreakdown{
-			Ride:     routeResponse.Cost.Ride,
-			Walk:     routeResponse.Cost.Walk,
-			Wait:     routeResponse.Cost.Wait,
-			Transfer: routeResponse.Cost.Transfer,
-			Crowding: routeResponse.Cost.Crowding,
-			Weather:  routeResponse.Cost.Weather,
-			Total:    routeResponse.Cost.Total,
-		},
+		Cost:                microCostBreakdown(routeResponse.Cost),
 	}
 	for _, movement := range routeResponse.Movements {
-		message.Movements = append(message.Movements, &microv1.Movement{
-			FromStopId:     movement.FromStopID,
-			ToStopId:       movement.ToStopID,
-			Mode:           movement.Mode,
-			RouteId:        movement.RouteID,
-			TripId:         movement.TripID,
-			TimeSeconds:    int32(movement.TimeSec),
-			DistanceMeters: int32(movement.DistanceM),
-		})
+		message.Movements = append(message.Movements, microMovement(movement))
 	}
 	return message
+}
+
+// microCostBreakdown convierte el desglose del costo al mensaje gRPC. Recibe el
+// costo ya redondeado de REST, para que ambas API informen exactamente lo mismo.
+func microCostBreakdown(cost costBreakdownResponse) *microv1.CostBreakdown {
+	return &microv1.CostBreakdown{
+		Ride:     cost.Ride,
+		Walk:     cost.Walk,
+		Wait:     cost.Wait,
+		Transfer: cost.Transfer,
+		Crowding: cost.Crowding,
+		Weather:  cost.Weather,
+		Total:    cost.Total,
+	}
+}
+
+// microMovement convierte un tramo al mensaje gRPC. Parte del mismo formato que
+// REST: los tramos a pie no traen línea ni viaje.
+func microMovement(movement Movement) *microv1.Movement {
+	return &microv1.Movement{
+		FromStopId:     movement.FromStopID,
+		ToStopId:       movement.ToStopID,
+		Mode:           movement.Mode,
+		RouteId:        movement.RouteID,
+		TripId:         movement.TripID,
+		TimeSeconds:    int32(movement.TimeSec),
+		DistanceMeters: int32(movement.DistanceM),
+	}
 }
 
 // microCostWeights convierte los pesos al mensaje gRPC. Parte del mismo formato

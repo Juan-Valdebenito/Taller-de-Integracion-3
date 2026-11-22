@@ -89,10 +89,17 @@ func rideStateAfter(path []pathStep) rideState {
 
 // withoutLongWalks quita las caminatas que superan el máximo de un transbordo.
 func withoutLongWalks(graph *TransitGraph) *TransitGraph {
+	return withoutWalksLongerThan(graph, maxWalkDistanceMeters)
+}
+
+// withoutWalksLongerThan quita las caminatas de más de maxMeters metros. El
+// grafo original no cambia: la copia comparte los paraderos y tiene sus propias
+// listas de aristas.
+func withoutWalksLongerThan(graph *TransitGraph, maxMeters int) *TransitGraph {
 	filtered := &TransitGraph{Stops: graph.Stops, Edges: make(map[string][]Edge, len(graph.Edges))}
 	for fromStopID, edges := range graph.Edges {
 		for _, edge := range edges {
-			if edge.RouteID == walkRouteID && edge.DistanceM > maxWalkDistanceMeters {
+			if edge.RouteID == walkRouteID && edge.DistanceM > maxMeters {
 				continue
 			}
 			filtered.Edges[fromStopID] = append(filtered.Edges[fromStopID], edge)

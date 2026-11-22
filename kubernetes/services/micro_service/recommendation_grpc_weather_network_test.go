@@ -1,0 +1,478 @@
+package main
+
+// Pruebas del clima en RecommendRoutes por red (bufconn). El clima es un mensaje
+// para que "sin clima" no se confunda con un clima a 0 °C: estas pruebas
+// comprueban que esa diferencia sobrevive a la serialización.
+
+import (
+	"math"
+	"testing"
+
+	microv1 "github.com/Juan-Valdebenito/Taller-de-Integracion-3/proto/gen/go/micro/v1"
+	"google.golang.org/protobuf/proto"
+)
+
+// weatherTestRequest va entre dos coordenadas cerca del Portal y del campus San
+// Juan Pablo II, así cada ruta tiene al menos una caminata al inicio y al final.
+func weatherTestRequest(graph *TransitGraph, weather *microv1.WeatherConditions) *microv1.RecommendRoutesRequest {
+	return &microv1.RecommendRoutesRequest{
+		Origin:      locationMessage(pointNearStop(graph, "PAR-PORTAL-01")),
+		Destination: locationMessage(pointNearStop(graph, "PAR-CJP-02")),
+		Weather:     weather,
+	}
+}
+
+// Sin el mensaje de clima no hay recargo: caminar cuesta lo mismo que siempre.
+func TestRecommendRoutesOverNetworkWithoutWeather(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	request := weatherTestRequest(graph, nil)
+	response := recommendOverNetwork(t, client, request)
+	if response.GetTotal() == 0 {
+		t.Fatal("no routes; the test checks nothing")
+	}
+	for routeIndex, route := range response.GetRoutes() {
+		if route.GetCost().GetWeather() != 0 {
+			t.Fatalf("route %d has a weather surcharge of %v without weather", routeIndex, route.GetCost().GetWeather())
+		}
+	}
+	expectedResponse, _ := answerRecommendRoutes(graph, request)
+	if !proto.Equal(response, expectedResponse) {
+		t.Fatal("the response changed over the network")
+	}
+}
+
+// Un clima con todo en 0 sí es un clima enviado: 0 °C está bajo los 5 °C, así que
+// cada caminata recibe el recargo moderado de 0,2. Si se leyera como "sin clima",
+// el recargo sería 0.
+func TestRecommendRoutesOverNetworkZeroWeatherIsSentWeather(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	response := recommendOverNetwork(t, client, weatherTestRequest(graph, &microv1.WeatherConditions{}))
+	if response.GetTotal() == 0 {
+		t.Fatal("no routes; the test checks nothing")
+	}
+	for routeIndex, route := range response.GetRoutes() {
+		cost := route.GetCost()
+		expectedSurcharge := cost.GetWalk() * moderateWeatherSurcharge
+		if cost.GetWeather() <= 0 || math.Abs(cost.GetWeather()-expectedSurcharge) > 0.1 {
+			t.Fatalf("route %d: weather surcharge = %v, want about %v (walk %v × 0.2)",
+				routeIndex, cost.GetWeather(), expectedSurcharge, cost.GetWalk())
+		}
+	}
+}
+
+// Con un clima templado se envía clima, pero no hay recargo: la respuesta es
+// idéntica a no enviarlo. También en los valores límite, porque las reglas
+// penalizan solo lo que pasa el umbral: 5 °C no es frío, 30 °C no es calor, 30
+// km/h no es viento fuerte y 50 de PM2.5 no es mal aire.
+func TestRecommendRoutesOverNetworkMildWeatherHasNoSurcharge(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	withoutWeather := recommendOverNetwork(t, client, weatherTestRequest(graph, nil))
+	mildWeathers := map[string]*microv1.WeatherConditions{
+		"mild day":         {TemperatureC: 18, WindSpeedKmh: 10, Pm25: 20},
+		"lowest mild":      {TemperatureC: coldTemperatureC, WindSpeedKmh: 0, Pm25: 0},
+		"highest mild":     {TemperatureC: hotTemperatureC, WindSpeedKmh: strongWindKmh, Pm25: poorAirPM25},
+		"between extremes": {TemperatureC: 12.5, WindSpeedKmh: 29.9, Pm25: 49.9},
+	}
+	for name, weather := range mildWeathers {
+		response := recommendOverNetwork(t, client, weatherTestRequest(graph, weather))
+		for routeIndex, route := range response.GetRoutes() {
+			if route.GetCost().GetWeather() != 0 {
+				t.Fatalf("%s: route %d has a weather surcharge of %v", name, routeIndex, route.GetCost().GetWeather())
+			}
+		}
+		if response.GetTotal() == 0 || !proto.Equal(response, withoutWeather) {
+			t.Fatalf("%s: the response differs from the one without weather", name)
+		}
+	}
+}
+
+// Justo pasando cada umbral sí hay recargo: así se confirma que la prueba
+// anterior usa los límites correctos.
+func TestRecommendRoutesOverNetworkJustPastThresholdsHaveSurcharge(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	pastThresholds := map[string]*microv1.WeatherConditions{
+		"cold":     {TemperatureC: coldTemperatureC - 0.1, WindSpeedKmh: 0, Pm25: 0},
+		"hot":      {TemperatureC: hotTemperatureC + 0.1, WindSpeedKmh: 0, Pm25: 0},
+		"windy":    {TemperatureC: 18, WindSpeedKmh: strongWindKmh + 0.1, Pm25: 0},
+		"poor air": {TemperatureC: 18, WindSpeedKmh: 0, Pm25: poorAirPM25 + 0.1},
+	}
+	for name, weather := range pastThresholds {
+		response := recommendOverNetwork(t, client, weatherTestRequest(graph, weather))
+		if response.GetTotal() == 0 || response.GetRoutes()[0].GetCost().GetWeather() <= 0 {
+			t.Fatalf("%s: best route = %v, want a weather surcharge", name, response.GetRoutes())
+		}
+	}
+}
+
+// El mismo viaje cuesta más con clima a 0 °C que sin clima, y la diferencia es
+// justamente el recargo por clima.
+func TestRecommendRoutesOverNetworkZeroWeatherCostsMore(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	withoutWeather := recommendOverNetwork(t, client, weatherTestRequest(graph, nil)).GetRoutes()[0]
+	withZeroWeather := recommendOverNetwork(t, client, weatherTestRequest(graph, &microv1.WeatherConditions{})).GetRoutes()[0]
+	if !sameMovements(withoutWeather, withZeroWeather) {
+		t.Skip("the best route changed with the weather; the cost comparison does not apply")
+	}
+	difference := withZeroWeather.GetCost().GetTotal() - withoutWeather.GetCost().GetTotal()
+	if difference <= 0 || math.Abs(difference-withZeroWeather.GetCost().GetWeather()) > 0.1 {
+		t.Fatalf("cost difference = %v, want the weather surcharge %v", difference, withZeroWeather.GetCost().GetWeather())
+	}
+}
+
+// assertWeatherSurcharge revisa que cada ruta reciba, por clima, la fracción
+// indicada de su costo de caminar.
+func assertWeatherSurcharge(t *testing.T, name string, response *microv1.RecommendRoutesResponse, expectedSurchargeRate float64) {
+	t.Helper()
+	if response.GetTotal() == 0 {
+		t.Fatalf("%s: no routes; the test checks nothing", name)
+	}
+	for routeIndex, route := range response.GetRoutes() {
+		cost := route.GetCost()
+		expectedSurcharge := cost.GetWalk() * expectedSurchargeRate
+		if math.Abs(cost.GetWeather()-expectedSurcharge) > 0.1 {
+			t.Fatalf("%s: route %d weather surcharge = %v, want %v (walk %v × %v)",
+				name, routeIndex, cost.GetWeather(), expectedSurcharge, cost.GetWalk(), expectedSurchargeRate)
+		}
+	}
+}
+
+// Cada factor severo suma 0,4 por separado: helada bajo 0 °C, viento sobre 50
+// km/h y aire en alerta sobre 80 de PM2.5. Los demás valores son templados, para
+// que solo cuente el factor probado.
+func TestRecommendRoutesOverNetworkSevereWeatherSurcharges(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	severeWeathers := map[string]*microv1.WeatherConditions{
+		"freezing":          {TemperatureC: freezingTemperatureC - 0.1, WindSpeedKmh: 0, Pm25: 0},
+		"very strong wind":  {TemperatureC: 18, WindSpeedKmh: veryStrongWindKmh + 0.1, Pm25: 0},
+		"alert air quality": {TemperatureC: 18, WindSpeedKmh: 0, Pm25: alertAirPM25 + 0.1},
+	}
+	for name, weather := range severeWeathers {
+		response := recommendOverNetwork(t, client, weatherTestRequest(graph, weather))
+		assertWeatherSurcharge(t, name, response, severeWeatherSurcharge)
+	}
+}
+
+// Justo en cada umbral severo el recargo sigue siendo moderado: exactamente 0 °C,
+// 50 km/h o 80 de PM2.5 todavía no son severos.
+func TestRecommendRoutesOverNetworkSevereThresholdsAreModerate(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	atSevereThresholds := map[string]*microv1.WeatherConditions{
+		"exactly 0 °C":       {TemperatureC: freezingTemperatureC, WindSpeedKmh: 0, Pm25: 0},
+		"exactly 50 km/h":    {TemperatureC: 18, WindSpeedKmh: veryStrongWindKmh, Pm25: 0},
+		"exactly 80 of PM25": {TemperatureC: 18, WindSpeedKmh: 0, Pm25: alertAirPM25},
+	}
+	for name, weather := range atSevereThresholds {
+		response := recommendOverNetwork(t, client, weatherTestRequest(graph, weather))
+		assertWeatherSurcharge(t, name, response, moderateWeatherSurcharge)
+	}
+}
+
+// Los recargos de cada factor se suman. El factor de la caminata tiene un máximo
+// de 2,0, así que el recargo nunca pasa de 1,0, aunque los factores sumen más.
+func TestRecommendRoutesOverNetworkWeatherSurchargesAddUp(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	maxSurcharge := maxWalkWeatherFactor - 1
+	testCases := []struct {
+		name                  string
+		weather               *microv1.WeatherConditions
+		expectedSurchargeRate float64
+	}{
+		{"cold and windy", &microv1.WeatherConditions{TemperatureC: 3, WindSpeedKmh: 40, Pm25: 0}, 0.4},
+		{"hot with poor air", &microv1.WeatherConditions{TemperatureC: 33, WindSpeedKmh: 0, Pm25: 60}, 0.4},
+		{"three moderate", &microv1.WeatherConditions{TemperatureC: 3, WindSpeedKmh: 40, Pm25: 60}, 0.6},
+		{"freezing and very windy", &microv1.WeatherConditions{TemperatureC: -3, WindSpeedKmh: 60, Pm25: 0}, 0.8},
+		{"two severe and one moderate", &microv1.WeatherConditions{TemperatureC: -3, WindSpeedKmh: 60, Pm25: 60}, maxSurcharge},
+		{"three severe, capped", &microv1.WeatherConditions{TemperatureC: -3, WindSpeedKmh: 60, Pm25: 90}, maxSurcharge},
+	}
+	for _, testCase := range testCases {
+		response := recommendOverNetwork(t, client, weatherTestRequest(graph, testCase.weather))
+		assertWeatherSurcharge(t, testCase.name, response, testCase.expectedSurchargeRate)
+	}
+}
+
+// badWeather es una helada con viento muy fuerte: recargo de 0,8 al caminar.
+var badWeather = &microv1.WeatherConditions{TemperatureC: -3, WindSpeedKmh: 60, Pm25: 0}
+
+// El clima solo cambia las caminatas. Para la misma ruta, con y sin mal clima,
+// el viaje, la caminata base, la espera, el transbordo y la ocupación cuestan lo
+// mismo; solo aparece el recargo por clima, y el total sube en ese monto.
+func TestRecommendRoutesOverNetworkWeatherOnlyAffectsWalks(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	comparedRoutes := 0
+	for _, testCase := range officialNetworkCases(graph) {
+		request := &microv1.RecommendRoutesRequest{Origin: pointMessage(testCase.origin), Destination: pointMessage(testCase.destination), Limit: 1}
+		withoutWeather := recommendOverNetwork(t, client, request).GetRoutes()[0]
+		request.Weather = badWeather
+		withBadWeather := recommendOverNetwork(t, client, request).GetRoutes()[0]
+		if !sameMovements(withoutWeather, withBadWeather) {
+			continue
+		}
+		comparedRoutes++
+		calm, stormy := withoutWeather.GetCost(), withBadWeather.GetCost()
+		if calm.GetRide() != stormy.GetRide() || calm.GetWalk() != stormy.GetWalk() || calm.GetWait() != stormy.GetWait() ||
+			calm.GetTransfer() != stormy.GetTransfer() || calm.GetCrowding() != stormy.GetCrowding() {
+			t.Fatalf("%s: a component other than weather changed: %v and %v", testCase.name, calm, stormy)
+		}
+		if math.Abs(stormy.GetTotal()-calm.GetTotal()-stormy.GetWeather()) > 0.1 {
+			t.Fatalf("%s: total rose %v, but the weather surcharge is %v", testCase.name, stormy.GetTotal()-calm.GetTotal(), stormy.GetWeather())
+		}
+	}
+	if comparedRoutes == 0 {
+		t.Fatal("no route kept its movements; the test compares nothing")
+	}
+}
+
+// Una ruta sin caminatas, de paradero a paradero en micro, no tiene recargo por
+// clima, aunque el clima sea malo.
+func TestRecommendRoutesOverNetworkBusOnlyRouteHasNoWeatherSurcharge(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	response := recommendOverNetwork(t, client, &microv1.RecommendRoutesRequest{
+		Origin: stopMessage("PAR-PORTAL-01"), Destination: stopMessage("PAR-CSF-01"), Weather: badWeather,
+	})
+	busOnlyRoutes := 0
+	for routeIndex, route := range response.GetRoutes() {
+		if route.GetCost().GetWalk() != 0 {
+			continue
+		}
+		busOnlyRoutes++
+		if route.GetCost().GetWeather() != 0 {
+			t.Fatalf("route %d has no walks but a weather surcharge of %v", routeIndex, route.GetCost().GetWeather())
+		}
+	}
+	if busOnlyRoutes == 0 {
+		t.Fatal("no route without walks; the test checks nothing")
+	}
+}
+
+// Caminar todo el trayecto con mal clima: todo el costo es caminata y su
+// recargo; no hay viaje, espera ni transbordo.
+func TestRecommendRoutesOverNetworkDirectWalkInBadWeather(t *testing.T) {
+	client := startUniversityGRPCClient(t, loadSeedNetwork(t).buildGraph())
+	response := recommendOverNetwork(t, client, &microv1.RecommendRoutesRequest{
+		Origin: locationMessage(locationPoint(0, 0)), Destination: locationMessage(locationPoint(0.002, 0)), Weather: badWeather,
+	})
+	cost := response.GetRoutes()[0].GetCost()
+	if cost.GetRide() != 0 || cost.GetWait() != 0 || cost.GetTransfer() != 0 || cost.GetCrowding() != 0 {
+		t.Fatalf("cost = %v, want only walking and weather", cost)
+	}
+	if math.Abs(cost.GetWeather()-cost.GetWalk()*0.8) > 0.1 || math.Abs(cost.GetTotal()-cost.GetWalk()*1.8) > 0.1 {
+		t.Fatalf("cost = %v, want weather = walk × 0.8 and total = walk × 1.8", cost)
+	}
+}
+
+// walkSecondsOf suma el tiempo caminando de una ruta recibida por red.
+func walkSecondsOf(route *microv1.RecommendedRoute) int32 {
+	walkSeconds := int32(0)
+	for _, movement := range route.GetMovements() {
+		if movement.GetMode() == "walk" {
+			walkSeconds += movement.GetTimeSeconds()
+		}
+	}
+	return walkSeconds
+}
+
+// El mal clima cambia de verdad las rutas por red: en la red oficial, al menos
+// una consulta recibe otra mejor ruta. Y nunca una que camine más, porque el
+// clima solo encarece caminar: si la ruta con mal clima caminara más, la otra
+// sería más barata también con ese clima. Además, al menos un cambio debe caminar
+// menos: si todos caminaran lo mismo, el cambio no serviría de nada.
+func TestRecommendRoutesOverNetworkBadWeatherChangesRoutes(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	changedRoutes, walkedLess := 0, 0
+	for _, testCase := range officialNetworkCases(graph) {
+		request := &microv1.RecommendRoutesRequest{Origin: pointMessage(testCase.origin), Destination: pointMessage(testCase.destination), Limit: 1}
+		withoutWeather := recommendOverNetwork(t, client, request).GetRoutes()[0]
+		request.Weather = badWeather
+		withBadWeather := recommendOverNetwork(t, client, request).GetRoutes()[0]
+		if walkSecondsOf(withBadWeather) > walkSecondsOf(withoutWeather) {
+			t.Fatalf("%s: with bad weather the best route walks %d s, without weather %d s",
+				testCase.name, walkSecondsOf(withBadWeather), walkSecondsOf(withoutWeather))
+		}
+		if !sameMovements(withoutWeather, withBadWeather) {
+			changedRoutes++
+		}
+		if walkSecondsOf(withBadWeather) < walkSecondsOf(withoutWeather) {
+			walkedLess++
+		}
+	}
+	if changedRoutes == 0 || walkedLess == 0 {
+		t.Fatalf("bad weather changed %d routes and %d walk less; want at least one of each", changedRoutes, walkedLess)
+	}
+	t.Logf("bad weather changed the best route in %d of %d requests; %d walk less",
+		changedRoutes, len(officialNetworkCases(graph)), walkedLess)
+}
+
+// weatherExampleGraph tiene dos paraderos a 0,003 grados de latitud, unos 334 m:
+// la micro L1 va de A a B en 60 s.
+func weatherExampleGraph() *TransitGraph {
+	graph := NewTransitGraph()
+	graph.Stops["A"] = Stop{ID: "A", Latitude: -38.7400, Longitude: -72.6000}
+	graph.Stops["B"] = Stop{ID: "B", Latitude: -38.7370, Longitude: -72.6000}
+	graph.Edges["A"] = []Edge{{ToStopID: "B", RouteID: "L1", TripID: "L1-IDA", BaseTimeSec: 60, DistanceM: 334}}
+	return graph
+}
+
+// Ejemplo calculado a mano. El pasajero parte justo en A y va justo en B, así
+// que las caminatas hasta los paraderos son de 0 m.
+//
+//	Caminar todo:  278 s × 2 = 556 sin clima;  556 × 1,8 = 1000,8 con mal clima
+//	Micro L1:      espera 300 × 2 + viaje 60 = 660, con o sin clima
+//
+// Sin clima conviene caminar; con mal clima conviene la micro.
+func TestRecommendRoutesOverNetworkBadWeatherPrefersBus(t *testing.T) {
+	graph := weatherExampleGraph()
+	client := startUniversityGRPCClient(t, graph)
+	request := &microv1.RecommendRoutesRequest{
+		Origin:      locationMessage(locationPoint(graph.Stops["A"].Latitude, graph.Stops["A"].Longitude)),
+		Destination: locationMessage(locationPoint(graph.Stops["B"].Latitude, graph.Stops["B"].Longitude)),
+	}
+	withoutWeather := recommendOverNetwork(t, client, request).GetRoutes()
+	request.Weather = badWeather
+	withBadWeather := recommendOverNetwork(t, client, request).GetRoutes()
+	if len(withoutWeather) != 2 || len(withBadWeather) != 2 {
+		t.Fatalf("got %d and %d routes, want the walk and the bus in both", len(withoutWeather), len(withBadWeather))
+	}
+
+	isDirectWalk := func(route *microv1.RecommendedRoute) bool { return len(route.GetMovements()) == 1 }
+	if !isDirectWalk(withoutWeather[0]) || withoutWeather[0].GetCost().GetTotal() != 556 {
+		t.Fatalf("without weather the best should be walking for 556, got %v", withoutWeather[0])
+	}
+	if withoutWeather[1].GetCost().GetTotal() != 660 {
+		t.Fatalf("without weather the bus should cost 660, got %v", withoutWeather[1].GetCost())
+	}
+	if isDirectWalk(withBadWeather[0]) || withBadWeather[0].GetCost().GetTotal() != 660 {
+		t.Fatalf("with bad weather the best should be the bus for 660, got %v", withBadWeather[0])
+	}
+	if withBadWeather[1].GetCost().GetTotal() != 1000.8 || withBadWeather[1].GetCost().GetWeather() != 444.8 {
+		t.Fatalf("with bad weather walking should cost 1000.8 with 444.8 of weather, got %v", withBadWeather[1].GetCost())
+	}
+}
+
+// El clima se aplica con todas las prioridades. Su recargo multiplica la caminata
+// ya ponderada por la prioridad: con mal clima (0,8), cada ruta recibe
+// segundos caminando × peso de caminar × 0,8. Con least_walking, que pesa 5, el
+// recargo es mayor que con balanced, que pesa 2.
+func TestRecommendRoutesOverNetworkWeatherWithEveryPriority(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	for _, priority := range routePriorities() {
+		request := weatherTestRequest(graph, badWeather)
+		request.Preferences = &microv1.RoutePreferences{Priority: string(priority)}
+		response := recommendOverNetwork(t, client, request)
+		if response.GetTotal() == 0 {
+			t.Fatalf("%s: no routes; the test checks nothing", priority)
+		}
+		walkWeight := priorityCostWeights(priority).WalkWeight
+		for routeIndex, route := range response.GetRoutes() {
+			expectedSurcharge := float64(walkSecondsOf(route)) * walkWeight * 0.8
+			if math.Abs(route.GetCost().GetWeather()-expectedSurcharge) > 0.1 {
+				t.Fatalf("%s: route %d weather surcharge = %v, want %d s × %v × 0.8 = %v",
+					priority, routeIndex, route.GetCost().GetWeather(), walkSecondsOf(route), walkWeight, expectedSurcharge)
+			}
+		}
+	}
+}
+
+// El ejemplo a mano también funciona con fastest, donde todo pesa 1:
+//
+//	Caminar todo:  278 sin clima;  278 × 1,8 = 500,4 con mal clima
+//	Micro L1:      espera 300 + viaje 60 = 360, con o sin clima
+//
+// Sin clima conviene caminar; con mal clima conviene la micro.
+func TestRecommendRoutesOverNetworkBadWeatherPrefersBusWhenFastest(t *testing.T) {
+	graph := weatherExampleGraph()
+	client := startUniversityGRPCClient(t, graph)
+	request := &microv1.RecommendRoutesRequest{
+		Origin:      locationMessage(locationPoint(graph.Stops["A"].Latitude, graph.Stops["A"].Longitude)),
+		Destination: locationMessage(locationPoint(graph.Stops["B"].Latitude, graph.Stops["B"].Longitude)),
+		Preferences: &microv1.RoutePreferences{Priority: string(priorityFastest)},
+	}
+	withoutWeather := recommendOverNetwork(t, client, request).GetRoutes()
+	request.Weather = badWeather
+	withBadWeather := recommendOverNetwork(t, client, request).GetRoutes()
+	if len(withoutWeather) != 2 || len(withBadWeather) != 2 {
+		t.Fatalf("got %d and %d routes, want the walk and the bus in both", len(withoutWeather), len(withBadWeather))
+	}
+	if len(withoutWeather[0].GetMovements()) != 1 || withoutWeather[0].GetCost().GetTotal() != 278 {
+		t.Fatalf("without weather the best should be walking for 278, got %v", withoutWeather[0])
+	}
+	if len(withBadWeather[0].GetMovements()) == 1 || withBadWeather[0].GetCost().GetTotal() != 360 {
+		t.Fatalf("with bad weather the best should be the bus for 360, got %v", withBadWeather[0])
+	}
+	if withBadWeather[1].GetCost().GetTotal() != 500.4 {
+		t.Fatalf("with bad weather walking should cost 500.4, got %v", withBadWeather[1].GetCost())
+	}
+}
+
+// El clima no depende de avoid_crowding: con micros llenas y mal clima, el
+// recargo por clima de cada ruta es el mismo con true y con false. Con false no
+// hay recargo por ocupación, pero el clima sigue aplicándose.
+func TestRecommendRoutesOverNetworkWeatherDoesNotDependOnAvoidCrowding(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	occupancy := fullLinesOccupancy(graph, "L1C")
+	walkWeight := defaultCostWeights().WalkWeight
+	for _, avoidCrowding := range []bool{true, false} {
+		request := weatherTestRequest(graph, badWeather)
+		request.LineOccupancy = occupancy
+		request.Preferences = &microv1.RoutePreferences{AvoidCrowding: &avoidCrowding}
+		response := recommendOverNetwork(t, client, request)
+		if response.GetTotal() == 0 {
+			t.Fatalf("avoid_crowding=%v: no routes; the test checks nothing", avoidCrowding)
+		}
+		for routeIndex, route := range response.GetRoutes() {
+			expectedSurcharge := float64(walkSecondsOf(route)) * walkWeight * 0.8
+			if math.Abs(route.GetCost().GetWeather()-expectedSurcharge) > 0.1 {
+				t.Fatalf("avoid_crowding=%v: route %d weather surcharge = %v, want %v",
+					avoidCrowding, routeIndex, route.GetCost().GetWeather(), expectedSurcharge)
+			}
+			if !avoidCrowding && route.GetCost().GetCrowding() != 0 {
+				t.Fatalf("avoid_crowding=false: route %d has a crowding surcharge of %v", routeIndex, route.GetCost().GetCrowding())
+			}
+		}
+	}
+}
+
+// Con avoid_crowding en false, enviar ocupación no cambia nada aunque haya mal
+// clima: la respuesta es idéntica a enviar solo el clima.
+func TestRecommendRoutesOverNetworkWeatherWithIgnoredOccupancy(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	notAvoiding := false
+	onlyWeather := weatherTestRequest(graph, badWeather)
+	onlyWeather.Preferences = &microv1.RoutePreferences{AvoidCrowding: &notAvoiding}
+	weatherAndOccupancy := weatherTestRequest(graph, badWeather)
+	weatherAndOccupancy.Preferences = &microv1.RoutePreferences{AvoidCrowding: &notAvoiding}
+	weatherAndOccupancy.LineOccupancy = fullLinesOccupancy(graph, "L1C")
+	withOnlyWeather := recommendOverNetwork(t, client, onlyWeather)
+	withBoth := recommendOverNetwork(t, client, weatherAndOccupancy)
+	if withOnlyWeather.GetTotal() == 0 || !proto.Equal(withOnlyWeather, withBoth) {
+		t.Fatal("occupancy changed the response although avoid_crowding is false")
+	}
+}
+
+// Con el máximo, caminar cuesta a lo más el doble que sin clima: el recargo nunca
+// supera el costo de caminar.
+func TestRecommendRoutesOverNetworkWeatherNeverMoreThanDoublesWalk(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	worstWeather := &microv1.WeatherConditions{TemperatureC: minTemperatureC, WindSpeedKmh: maxWindSpeedKmh, Pm25: maxPM25}
+	response := recommendOverNetwork(t, client, weatherTestRequest(graph, worstWeather))
+	assertWeatherSurcharge(t, "worst accepted weather", response, maxWalkWeatherFactor-1)
+	for routeIndex, route := range response.GetRoutes() {
+		if route.GetCost().GetWeather() > route.GetCost().GetWalk()+0.1 {
+			t.Fatalf("route %d: weather surcharge %v exceeds the walk cost %v", routeIndex, route.GetCost().GetWeather(), route.GetCost().GetWalk())
+		}
+	}
+}
