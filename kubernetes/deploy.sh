@@ -281,9 +281,9 @@ cmd_apply() {
   if [ "$STACK" != "micros" ] && [ -z "$DOCKERHUB_USER" ]; then
     die "Falta DOCKERHUB_USER en cluster.env (necesario para las imágenes del stack $STACK)."
   fi
-  if [ "$STACK" = "app" ] && [ "$BACKEND_GO_IP" = "<BACKEND_GO_IP>" ]; then
-    die "Falta BACKEND_GO_IP en cluster.env para el bridge hacia backend-go."
-  fi
+  #if [ "$STACK" = "app" ] && [ "$BACKEND_GO_IP" = "<BACKEND_GO_IP>" ]; then
+  #  die "Falta BACKEND_GO_IP en cluster.env para el bridge hacia backend-go."
+  #fi
   if [ "$STACK" = "foundation" ] && [ -z "$REDIS_PASSWORD" ]; then
     die "Falta REDIS_PASSWORD en cluster.env o en el entorno para sincronizar Redis y backend-go."
   fi
