@@ -5,12 +5,14 @@ package main
 // sin una respuesta parcial.
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"testing"
 
 	microv1 "github.com/Juan-Valdebenito/Taller-de-Integracion-3/proto/gen/go/micro/v1"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -168,6 +170,63 @@ func TestRecommendRoutesOverNetworkUnconnectedStopsAreNotAnError(t *testing.T) {
 	}
 	if response.GetCostWeights() == nil || response.GetPreferences() == nil {
 		t.Fatalf("response = %v, want the weights and preferences even without routes", response)
+	}
+}
+
+// Sin grafo cargado responde Unavailable, también ante una petición inválida o
+// con un paradero inexistente: sin grafo no se puede saber si existe.
+func TestRecommendRoutesOverNetworkWithoutGraph(t *testing.T) {
+	client := startUniversityGRPCClient(t, nil)
+	invalidLimit := validErrorTestRequest()
+	invalidLimit.Limit = 9
+	unknownStop := validErrorTestRequest()
+	unknownStop.Origin = stopMessage("PAR-NOWHERE-01")
+	for name, request := range map[string]*microv1.RecommendRoutesRequest{
+		"valid request": validErrorTestRequest(),
+		"invalid limit": invalidLimit,
+		"unknown stop":  unknownStop,
+		"empty request": {},
+	} {
+		assertRecommendError(t, client, name, request, codes.Unavailable, "graph is not loaded")
+	}
+}
+
+// requestWithoutKey pide rutas sin la clave interna, o con una incorrecta.
+func requestWithoutKey(t *testing.T, client microv1.MicroServiceClient, request *microv1.RecommendRoutesRequest, wrongKey bool) error {
+	t.Helper()
+	requestContext, cancel := context.WithTimeout(context.Background(), testRequestDuration)
+	t.Cleanup(cancel)
+	if wrongKey {
+		requestContext = metadata.AppendToOutgoingContext(requestContext, "x-admin-key", "clave-incorrecta")
+	}
+	_, err := client.RecommendRoutes(requestContext, request)
+	return err
+}
+
+// El orden de las revisiones es: primero la clave, después el grafo y al final la
+// petición. Sin la clave correcta siempre responde Unauthenticated, haya o no
+// grafo y sea o no válida la petición: quien no tiene la clave no recibe pistas.
+func TestRecommendRoutesOverNetworkCheckOrder(t *testing.T) {
+	withGraph := startUniversityGRPCClient(t, loadSeedNetwork(t).buildGraph())
+	withoutGraph := startUniversityGRPCClient(t, nil)
+	invalidRequest := &microv1.RecommendRoutesRequest{Limit: 9}
+	testCases := []struct {
+		name     string
+		client   microv1.MicroServiceClient
+		request  *microv1.RecommendRoutesRequest
+		wrongKey bool
+	}{
+		{"no key, no graph", withoutGraph, validErrorTestRequest(), false},
+		{"wrong key, no graph", withoutGraph, validErrorTestRequest(), true},
+		{"no key, invalid request", withGraph, invalidRequest, false},
+		{"wrong key, invalid request", withGraph, invalidRequest, true},
+		{"no key, no graph, invalid request", withoutGraph, invalidRequest, false},
+	}
+	for _, testCase := range testCases {
+		err := requestWithoutKey(t, testCase.client, testCase.request, testCase.wrongKey)
+		if status.Code(err) != codes.Unauthenticated {
+			t.Fatalf("%s: error = %v, want Unauthenticated", testCase.name, err)
+		}
 	}
 }
 
