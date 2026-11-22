@@ -415,6 +415,53 @@ func TestRecommendRoutesOverNetworkBadWeatherPrefersBusWhenFastest(t *testing.T)
 	}
 }
 
+// El clima no depende de avoid_crowding: con micros llenas y mal clima, el
+// recargo por clima de cada ruta es el mismo con true y con false. Con false no
+// hay recargo por ocupación, pero el clima sigue aplicándose.
+func TestRecommendRoutesOverNetworkWeatherDoesNotDependOnAvoidCrowding(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	occupancy := fullLinesOccupancy(graph, "L1C")
+	walkWeight := defaultCostWeights().WalkWeight
+	for _, avoidCrowding := range []bool{true, false} {
+		request := weatherTestRequest(graph, badWeather)
+		request.LineOccupancy = occupancy
+		request.Preferences = &microv1.RoutePreferences{AvoidCrowding: &avoidCrowding}
+		response := recommendOverNetwork(t, client, request)
+		if response.GetTotal() == 0 {
+			t.Fatalf("avoid_crowding=%v: no routes; the test checks nothing", avoidCrowding)
+		}
+		for routeIndex, route := range response.GetRoutes() {
+			expectedSurcharge := float64(walkSecondsOf(route)) * walkWeight * 0.8
+			if math.Abs(route.GetCost().GetWeather()-expectedSurcharge) > 0.1 {
+				t.Fatalf("avoid_crowding=%v: route %d weather surcharge = %v, want %v",
+					avoidCrowding, routeIndex, route.GetCost().GetWeather(), expectedSurcharge)
+			}
+			if !avoidCrowding && route.GetCost().GetCrowding() != 0 {
+				t.Fatalf("avoid_crowding=false: route %d has a crowding surcharge of %v", routeIndex, route.GetCost().GetCrowding())
+			}
+		}
+	}
+}
+
+// Con avoid_crowding en false, enviar ocupación no cambia nada aunque haya mal
+// clima: la respuesta es idéntica a enviar solo el clima.
+func TestRecommendRoutesOverNetworkWeatherWithIgnoredOccupancy(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	notAvoiding := false
+	onlyWeather := weatherTestRequest(graph, badWeather)
+	onlyWeather.Preferences = &microv1.RoutePreferences{AvoidCrowding: &notAvoiding}
+	weatherAndOccupancy := weatherTestRequest(graph, badWeather)
+	weatherAndOccupancy.Preferences = &microv1.RoutePreferences{AvoidCrowding: &notAvoiding}
+	weatherAndOccupancy.LineOccupancy = fullLinesOccupancy(graph, "L1C")
+	withOnlyWeather := recommendOverNetwork(t, client, onlyWeather)
+	withBoth := recommendOverNetwork(t, client, weatherAndOccupancy)
+	if withOnlyWeather.GetTotal() == 0 || !proto.Equal(withOnlyWeather, withBoth) {
+		t.Fatal("occupancy changed the response although avoid_crowding is false")
+	}
+}
+
 // Con el máximo, caminar cuesta a lo más el doble que sin clima: el recargo nunca
 // supera el costo de caminar.
 func TestRecommendRoutesOverNetworkWeatherNeverMoreThanDoublesWalk(t *testing.T) {
