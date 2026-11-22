@@ -226,6 +226,72 @@ func TestRecommendRoutesOverNetworkAvoidCrowdingWithoutPreferences(t *testing.T)
 	}
 }
 
+// crowdingTestRequest va del Portal al campus San Juan Pablo II con todas las
+// líneas muy llenas salvo la 1C.
+func crowdingTestRequest(graph *TransitGraph, avoidCrowding bool, withOccupancy bool) *microv1.RecommendRoutesRequest {
+	request := &microv1.RecommendRoutesRequest{
+		Origin: stopMessage("PAR-PORTAL-01"), Destination: stopMessage("PAR-CJP-02"),
+		Preferences: &microv1.RoutePreferences{AvoidCrowding: &avoidCrowding},
+	}
+	if withOccupancy {
+		request.LineOccupancy = fullLinesOccupancy(graph, "L1C")
+	}
+	return request
+}
+
+// Con avoid_crowding en false, la ocupación enviada no cambia nada: la respuesta
+// es idéntica a no enviarla, y ninguna ruta tiene recargo por ocupación.
+func TestRecommendRoutesOverNetworkIgnoreOccupancyWhenNotAvoiding(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	withFullLines := recommendOverNetwork(t, client, crowdingTestRequest(graph, false, true))
+	withoutOccupancy := recommendOverNetwork(t, client, crowdingTestRequest(graph, false, false))
+	if withFullLines.GetTotal() == 0 || !proto.Equal(withFullLines, withoutOccupancy) {
+		t.Fatal("occupancy changed the response although avoid_crowding is false")
+	}
+	for routeIndex, route := range withFullLines.GetRoutes() {
+		if route.GetCost().GetCrowding() != 0 {
+			t.Fatalf("route %d has a crowding surcharge of %v", routeIndex, route.GetCost().GetCrowding())
+		}
+	}
+}
+
+// Con avoid_crowding en true, el recargo llega en el costo: del Portal al campus
+// San Juan Pablo II solo llegan las líneas 7, que van llenas.
+func TestRecommendRoutesOverNetworkApplyOccupancyWhenAvoiding(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	response := recommendOverNetwork(t, client, crowdingTestRequest(graph, true, true))
+	if response.GetTotal() == 0 || response.GetRoutes()[0].GetCost().GetCrowding() <= 0 {
+		t.Fatalf("best route = %v, want a crowding surcharge", response.GetRoutes())
+	}
+}
+
+// Evitar micros llenas cambia de verdad las rutas por red: en la red oficial, al
+// menos una consulta recibe otra mejor ruta que sin evitarlas.
+func TestRecommendRoutesOverNetworkAvoidingCrowdingChangesRoutes(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	occupancy := fullLinesOccupancy(graph, "L1C")
+	changedRoutes := 0
+	for _, testCase := range officialNetworkCases(graph) {
+		bestRoute := func(avoidCrowding bool) *microv1.RecommendedRoute {
+			response := recommendOverNetwork(t, client, &microv1.RecommendRoutesRequest{
+				Origin: pointMessage(testCase.origin), Destination: pointMessage(testCase.destination), Limit: 1,
+				Preferences: &microv1.RoutePreferences{AvoidCrowding: &avoidCrowding}, LineOccupancy: occupancy,
+			})
+			return response.GetRoutes()[0]
+		}
+		if !sameMovements(bestRoute(true), bestRoute(false)) {
+			changedRoutes++
+		}
+	}
+	if changedRoutes == 0 {
+		t.Fatal("avoiding crowding never changed the best route over the network")
+	}
+	t.Logf("avoiding crowding changed the best route in %d of %d requests", changedRoutes, len(officialNetworkCases(graph)))
+}
+
 // sameMovements indica si dos rutas recorren los mismos tramos. El costo no se
 // compara: cambia con los pesos aunque la ruta sea la misma.
 func sameMovements(firstRoute, secondRoute *microv1.RecommendedRoute) bool {
