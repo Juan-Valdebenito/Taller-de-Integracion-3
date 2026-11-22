@@ -359,6 +359,62 @@ func TestRecommendRoutesOverNetworkBadWeatherPrefersBus(t *testing.T) {
 	}
 }
 
+// El clima se aplica con todas las prioridades. Su recargo multiplica la caminata
+// ya ponderada por la prioridad: con mal clima (0,8), cada ruta recibe
+// segundos caminando × peso de caminar × 0,8. Con least_walking, que pesa 5, el
+// recargo es mayor que con balanced, que pesa 2.
+func TestRecommendRoutesOverNetworkWeatherWithEveryPriority(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	for _, priority := range routePriorities() {
+		request := weatherTestRequest(graph, badWeather)
+		request.Preferences = &microv1.RoutePreferences{Priority: string(priority)}
+		response := recommendOverNetwork(t, client, request)
+		if response.GetTotal() == 0 {
+			t.Fatalf("%s: no routes; the test checks nothing", priority)
+		}
+		walkWeight := priorityCostWeights(priority).WalkWeight
+		for routeIndex, route := range response.GetRoutes() {
+			expectedSurcharge := float64(walkSecondsOf(route)) * walkWeight * 0.8
+			if math.Abs(route.GetCost().GetWeather()-expectedSurcharge) > 0.1 {
+				t.Fatalf("%s: route %d weather surcharge = %v, want %d s × %v × 0.8 = %v",
+					priority, routeIndex, route.GetCost().GetWeather(), walkSecondsOf(route), walkWeight, expectedSurcharge)
+			}
+		}
+	}
+}
+
+// El ejemplo a mano también funciona con fastest, donde todo pesa 1:
+//
+//	Caminar todo:  278 sin clima;  278 × 1,8 = 500,4 con mal clima
+//	Micro L1:      espera 300 + viaje 60 = 360, con o sin clima
+//
+// Sin clima conviene caminar; con mal clima conviene la micro.
+func TestRecommendRoutesOverNetworkBadWeatherPrefersBusWhenFastest(t *testing.T) {
+	graph := weatherExampleGraph()
+	client := startUniversityGRPCClient(t, graph)
+	request := &microv1.RecommendRoutesRequest{
+		Origin:      locationMessage(locationPoint(graph.Stops["A"].Latitude, graph.Stops["A"].Longitude)),
+		Destination: locationMessage(locationPoint(graph.Stops["B"].Latitude, graph.Stops["B"].Longitude)),
+		Preferences: &microv1.RoutePreferences{Priority: string(priorityFastest)},
+	}
+	withoutWeather := recommendOverNetwork(t, client, request).GetRoutes()
+	request.Weather = badWeather
+	withBadWeather := recommendOverNetwork(t, client, request).GetRoutes()
+	if len(withoutWeather) != 2 || len(withBadWeather) != 2 {
+		t.Fatalf("got %d and %d routes, want the walk and the bus in both", len(withoutWeather), len(withBadWeather))
+	}
+	if len(withoutWeather[0].GetMovements()) != 1 || withoutWeather[0].GetCost().GetTotal() != 278 {
+		t.Fatalf("without weather the best should be walking for 278, got %v", withoutWeather[0])
+	}
+	if len(withBadWeather[0].GetMovements()) == 1 || withBadWeather[0].GetCost().GetTotal() != 360 {
+		t.Fatalf("with bad weather the best should be the bus for 360, got %v", withBadWeather[0])
+	}
+	if withBadWeather[1].GetCost().GetTotal() != 500.4 {
+		t.Fatalf("with bad weather walking should cost 500.4, got %v", withBadWeather[1].GetCost())
+	}
+}
+
 // Con el máximo, caminar cuesta a lo más el doble que sin clima: el recargo nunca
 // supera el costo de caminar.
 func TestRecommendRoutesOverNetworkWeatherNeverMoreThanDoublesWalk(t *testing.T) {
