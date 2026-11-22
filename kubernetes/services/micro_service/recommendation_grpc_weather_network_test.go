@@ -123,3 +123,53 @@ func TestRecommendRoutesOverNetworkZeroWeatherCostsMore(t *testing.T) {
 		t.Fatalf("cost difference = %v, want the weather surcharge %v", difference, withZeroWeather.GetCost().GetWeather())
 	}
 }
+
+// assertWeatherSurcharge revisa que cada ruta reciba, por clima, la fracción
+// indicada de su costo de caminar.
+func assertWeatherSurcharge(t *testing.T, name string, response *microv1.RecommendRoutesResponse, expectedSurchargeRate float64) {
+	t.Helper()
+	if response.GetTotal() == 0 {
+		t.Fatalf("%s: no routes; the test checks nothing", name)
+	}
+	for routeIndex, route := range response.GetRoutes() {
+		cost := route.GetCost()
+		expectedSurcharge := cost.GetWalk() * expectedSurchargeRate
+		if math.Abs(cost.GetWeather()-expectedSurcharge) > 0.1 {
+			t.Fatalf("%s: route %d weather surcharge = %v, want %v (walk %v × %v)",
+				name, routeIndex, cost.GetWeather(), expectedSurcharge, cost.GetWalk(), expectedSurchargeRate)
+		}
+	}
+}
+
+// Cada factor severo suma 0,4 por separado: helada bajo 0 °C, viento sobre 50
+// km/h y aire en alerta sobre 80 de PM2.5. Los demás valores son templados, para
+// que solo cuente el factor probado.
+func TestRecommendRoutesOverNetworkSevereWeatherSurcharges(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	severeWeathers := map[string]*microv1.WeatherConditions{
+		"freezing":          {TemperatureC: freezingTemperatureC - 0.1, WindSpeedKmh: 0, Pm25: 0},
+		"very strong wind":  {TemperatureC: 18, WindSpeedKmh: veryStrongWindKmh + 0.1, Pm25: 0},
+		"alert air quality": {TemperatureC: 18, WindSpeedKmh: 0, Pm25: alertAirPM25 + 0.1},
+	}
+	for name, weather := range severeWeathers {
+		response := recommendOverNetwork(t, client, weatherTestRequest(graph, weather))
+		assertWeatherSurcharge(t, name, response, severeWeatherSurcharge)
+	}
+}
+
+// Justo en cada umbral severo el recargo sigue siendo moderado: exactamente 0 °C,
+// 50 km/h o 80 de PM2.5 todavía no son severos.
+func TestRecommendRoutesOverNetworkSevereThresholdsAreModerate(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	atSevereThresholds := map[string]*microv1.WeatherConditions{
+		"exactly 0 °C":       {TemperatureC: freezingTemperatureC, WindSpeedKmh: 0, Pm25: 0},
+		"exactly 50 km/h":    {TemperatureC: 18, WindSpeedKmh: veryStrongWindKmh, Pm25: 0},
+		"exactly 80 of PM25": {TemperatureC: 18, WindSpeedKmh: 0, Pm25: alertAirPM25},
+	}
+	for name, weather := range atSevereThresholds {
+		response := recommendOverNetwork(t, client, weatherTestRequest(graph, weather))
+		assertWeatherSurcharge(t, name, response, moderateWeatherSurcharge)
+	}
+}
