@@ -37,6 +37,7 @@ func (server *microGRPCServer) PlanUniversityRoutes(_ context.Context, request *
 		Routes:      make([]*microv1.UniversityRoute, 0, len(routes)),
 		Total:       int32(len(routes)),
 		CostWeights: microCostWeights(routeRequest.costWeights()),
+		Preferences: microRoutePreferences(routeRequest.preferences()),
 	}
 	for _, route := range routes {
 		response.Routes = append(response.Routes, microUniversityRoute(route, routeRequest.costWeights()))
@@ -45,9 +46,15 @@ func (server *microGRPCServer) PlanUniversityRoutes(_ context.Context, request *
 }
 
 // universityRouteRequestFromProto aplica el límite por defecto cuando no viene:
-// en proto3, un entero no enviado se lee como 0.
+// en proto3, un entero no enviado se lee como 0. Las preferencias se leen con las
+// mismas reglas que REST; si no vienen, se usan las de por defecto.
 func universityRouteRequestFromProto(request *microv1.PlanUniversityRoutesRequest) (universityRouteRequest, error) {
+	preferences, err := routePreferencesFromProto(request.GetPreferences())
+	if err != nil {
+		return universityRouteRequest{}, err
+	}
 	routeRequest := universityRouteRequest{
+		Preferences:   preferences,
 		OriginStopID:  request.GetOriginStopId(),
 		CampusID:      request.GetCampusId(),
 		Limit:         int(request.GetLimit()),
