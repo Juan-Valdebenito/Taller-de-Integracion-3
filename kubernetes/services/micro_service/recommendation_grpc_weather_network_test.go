@@ -270,6 +270,49 @@ func TestRecommendRoutesOverNetworkDirectWalkInBadWeather(t *testing.T) {
 	}
 }
 
+// walkSecondsOf suma el tiempo caminando de una ruta recibida por red.
+func walkSecondsOf(route *microv1.RecommendedRoute) int32 {
+	walkSeconds := int32(0)
+	for _, movement := range route.GetMovements() {
+		if movement.GetMode() == "walk" {
+			walkSeconds += movement.GetTimeSeconds()
+		}
+	}
+	return walkSeconds
+}
+
+// El mal clima cambia de verdad las rutas por red: en la red oficial, al menos
+// una consulta recibe otra mejor ruta. Y nunca una que camine más, porque el
+// clima solo encarece caminar: si la ruta con mal clima caminara más, la otra
+// sería más barata también con ese clima. Además, al menos un cambio debe caminar
+// menos: si todos caminaran lo mismo, el cambio no serviría de nada.
+func TestRecommendRoutesOverNetworkBadWeatherChangesRoutes(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	changedRoutes, walkedLess := 0, 0
+	for _, testCase := range officialNetworkCases(graph) {
+		request := &microv1.RecommendRoutesRequest{Origin: pointMessage(testCase.origin), Destination: pointMessage(testCase.destination), Limit: 1}
+		withoutWeather := recommendOverNetwork(t, client, request).GetRoutes()[0]
+		request.Weather = badWeather
+		withBadWeather := recommendOverNetwork(t, client, request).GetRoutes()[0]
+		if walkSecondsOf(withBadWeather) > walkSecondsOf(withoutWeather) {
+			t.Fatalf("%s: with bad weather the best route walks %d s, without weather %d s",
+				testCase.name, walkSecondsOf(withBadWeather), walkSecondsOf(withoutWeather))
+		}
+		if !sameMovements(withoutWeather, withBadWeather) {
+			changedRoutes++
+		}
+		if walkSecondsOf(withBadWeather) < walkSecondsOf(withoutWeather) {
+			walkedLess++
+		}
+	}
+	if changedRoutes == 0 || walkedLess == 0 {
+		t.Fatalf("bad weather changed %d routes and %d walk less; want at least one of each", changedRoutes, walkedLess)
+	}
+	t.Logf("bad weather changed the best route in %d of %d requests; %d walk less",
+		changedRoutes, len(officialNetworkCases(graph)), walkedLess)
+}
+
 // Con el máximo, caminar cuesta a lo más el doble que sin clima: el recargo nunca
 // supera el costo de caminar.
 func TestRecommendRoutesOverNetworkWeatherNeverMoreThanDoublesWalk(t *testing.T) {
