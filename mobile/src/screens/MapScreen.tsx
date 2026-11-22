@@ -99,7 +99,7 @@ export function MapScreen() {
         ) : (
           <View style={styles.panels}>
             <MapPanel
-              title="🚌 Micros activas"
+              title="Micros activas"
               summary={busListSummary(visibleBuses.length)}
               open={openPanel === 'buses'}
               onOpenChange={(open) => setOpenPanel(open ? 'buses' : null)}

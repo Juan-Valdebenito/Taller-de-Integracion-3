@@ -7,6 +7,7 @@ import type { LiveBus } from '../../realtime/liveBuses';
 import type { OccupancyInfo } from '../../realtime/types';
 import { BUS_STATUS, makeStyles, radius, spacing } from '../../theme';
 import { busColor } from './busIcon';
+import { BusGlyph } from './BusGlyph';
 import { formatClock } from './MapStatusBar';
 
 /** Porcentaje de ocupación redondeado, como el web. */
@@ -54,7 +55,9 @@ export function BusDetailCard({ bus, live, onClose }: BusDetailCardProps) {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <View style={styles.headerTitle}>
-            <Text style={styles.busEmoji}>🚌</Text>
+            <View style={[styles.busIcon, { backgroundColor: `${color}25`, borderColor: `${color}60` }]}>
+              <BusGlyph color={color} size={20} />
+            </View>
             <View style={styles.headerText}>
               <Text style={styles.busId}>{bus.id}</Text>
               <Text style={styles.routeName} numberOfLines={2}>{bus.routeName}</Text>
@@ -177,7 +180,7 @@ const useStyles = makeStyles((_colors, font) => ({
   header: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   headerTitle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
   headerText: { flexShrink: 1 },
-  busEmoji: { fontSize: font(20) },
+  busIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: radius.md },
   busId: { fontSize: font(14), fontWeight: '700', color: '#f1f5f9' },
   routeName: { fontSize: font(11), color: '#94a3b8' },
   close: { padding: 2 },
