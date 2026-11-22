@@ -198,6 +198,78 @@ func TestRecommendRoutesOverNetworkWeatherSurchargesAddUp(t *testing.T) {
 	}
 }
 
+// badWeather es una helada con viento muy fuerte: recargo de 0,8 al caminar.
+var badWeather = &microv1.WeatherConditions{TemperatureC: -3, WindSpeedKmh: 60, Pm25: 0}
+
+// El clima solo cambia las caminatas. Para la misma ruta, con y sin mal clima,
+// el viaje, la caminata base, la espera, el transbordo y la ocupación cuestan lo
+// mismo; solo aparece el recargo por clima, y el total sube en ese monto.
+func TestRecommendRoutesOverNetworkWeatherOnlyAffectsWalks(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	comparedRoutes := 0
+	for _, testCase := range officialNetworkCases(graph) {
+		request := &microv1.RecommendRoutesRequest{Origin: pointMessage(testCase.origin), Destination: pointMessage(testCase.destination), Limit: 1}
+		withoutWeather := recommendOverNetwork(t, client, request).GetRoutes()[0]
+		request.Weather = badWeather
+		withBadWeather := recommendOverNetwork(t, client, request).GetRoutes()[0]
+		if !sameMovements(withoutWeather, withBadWeather) {
+			continue
+		}
+		comparedRoutes++
+		calm, stormy := withoutWeather.GetCost(), withBadWeather.GetCost()
+		if calm.GetRide() != stormy.GetRide() || calm.GetWalk() != stormy.GetWalk() || calm.GetWait() != stormy.GetWait() ||
+			calm.GetTransfer() != stormy.GetTransfer() || calm.GetCrowding() != stormy.GetCrowding() {
+			t.Fatalf("%s: a component other than weather changed: %v and %v", testCase.name, calm, stormy)
+		}
+		if math.Abs(stormy.GetTotal()-calm.GetTotal()-stormy.GetWeather()) > 0.1 {
+			t.Fatalf("%s: total rose %v, but the weather surcharge is %v", testCase.name, stormy.GetTotal()-calm.GetTotal(), stormy.GetWeather())
+		}
+	}
+	if comparedRoutes == 0 {
+		t.Fatal("no route kept its movements; the test compares nothing")
+	}
+}
+
+// Una ruta sin caminatas, de paradero a paradero en micro, no tiene recargo por
+// clima, aunque el clima sea malo.
+func TestRecommendRoutesOverNetworkBusOnlyRouteHasNoWeatherSurcharge(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	response := recommendOverNetwork(t, client, &microv1.RecommendRoutesRequest{
+		Origin: stopMessage("PAR-PORTAL-01"), Destination: stopMessage("PAR-CSF-01"), Weather: badWeather,
+	})
+	busOnlyRoutes := 0
+	for routeIndex, route := range response.GetRoutes() {
+		if route.GetCost().GetWalk() != 0 {
+			continue
+		}
+		busOnlyRoutes++
+		if route.GetCost().GetWeather() != 0 {
+			t.Fatalf("route %d has no walks but a weather surcharge of %v", routeIndex, route.GetCost().GetWeather())
+		}
+	}
+	if busOnlyRoutes == 0 {
+		t.Fatal("no route without walks; the test checks nothing")
+	}
+}
+
+// Caminar todo el trayecto con mal clima: todo el costo es caminata y su
+// recargo; no hay viaje, espera ni transbordo.
+func TestRecommendRoutesOverNetworkDirectWalkInBadWeather(t *testing.T) {
+	client := startUniversityGRPCClient(t, loadSeedNetwork(t).buildGraph())
+	response := recommendOverNetwork(t, client, &microv1.RecommendRoutesRequest{
+		Origin: locationMessage(locationPoint(0, 0)), Destination: locationMessage(locationPoint(0.002, 0)), Weather: badWeather,
+	})
+	cost := response.GetRoutes()[0].GetCost()
+	if cost.GetRide() != 0 || cost.GetWait() != 0 || cost.GetTransfer() != 0 || cost.GetCrowding() != 0 {
+		t.Fatalf("cost = %v, want only walking and weather", cost)
+	}
+	if math.Abs(cost.GetWeather()-cost.GetWalk()*0.8) > 0.1 || math.Abs(cost.GetTotal()-cost.GetWalk()*1.8) > 0.1 {
+		t.Fatalf("cost = %v, want weather = walk × 0.8 and total = walk × 1.8", cost)
+	}
+}
+
 // Con el máximo, caminar cuesta a lo más el doble que sin clima: el recargo nunca
 // supera el costo de caminar.
 func TestRecommendRoutesOverNetworkWeatherNeverMoreThanDoublesWalk(t *testing.T) {
