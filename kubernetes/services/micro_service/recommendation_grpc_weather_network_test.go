@@ -62,6 +62,52 @@ func TestRecommendRoutesOverNetworkZeroWeatherIsSentWeather(t *testing.T) {
 	}
 }
 
+// Con un clima templado se envía clima, pero no hay recargo: la respuesta es
+// idéntica a no enviarlo. También en los valores límite, porque las reglas
+// penalizan solo lo que pasa el umbral: 5 °C no es frío, 30 °C no es calor, 30
+// km/h no es viento fuerte y 50 de PM2.5 no es mal aire.
+func TestRecommendRoutesOverNetworkMildWeatherHasNoSurcharge(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	withoutWeather := recommendOverNetwork(t, client, weatherTestRequest(graph, nil))
+	mildWeathers := map[string]*microv1.WeatherConditions{
+		"mild day":         {TemperatureC: 18, WindSpeedKmh: 10, Pm25: 20},
+		"lowest mild":      {TemperatureC: coldTemperatureC, WindSpeedKmh: 0, Pm25: 0},
+		"highest mild":     {TemperatureC: hotTemperatureC, WindSpeedKmh: strongWindKmh, Pm25: poorAirPM25},
+		"between extremes": {TemperatureC: 12.5, WindSpeedKmh: 29.9, Pm25: 49.9},
+	}
+	for name, weather := range mildWeathers {
+		response := recommendOverNetwork(t, client, weatherTestRequest(graph, weather))
+		for routeIndex, route := range response.GetRoutes() {
+			if route.GetCost().GetWeather() != 0 {
+				t.Fatalf("%s: route %d has a weather surcharge of %v", name, routeIndex, route.GetCost().GetWeather())
+			}
+		}
+		if response.GetTotal() == 0 || !proto.Equal(response, withoutWeather) {
+			t.Fatalf("%s: the response differs from the one without weather", name)
+		}
+	}
+}
+
+// Justo pasando cada umbral sí hay recargo: así se confirma que la prueba
+// anterior usa los límites correctos.
+func TestRecommendRoutesOverNetworkJustPastThresholdsHaveSurcharge(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	pastThresholds := map[string]*microv1.WeatherConditions{
+		"cold":     {TemperatureC: coldTemperatureC - 0.1, WindSpeedKmh: 0, Pm25: 0},
+		"hot":      {TemperatureC: hotTemperatureC + 0.1, WindSpeedKmh: 0, Pm25: 0},
+		"windy":    {TemperatureC: 18, WindSpeedKmh: strongWindKmh + 0.1, Pm25: 0},
+		"poor air": {TemperatureC: 18, WindSpeedKmh: 0, Pm25: poorAirPM25 + 0.1},
+	}
+	for name, weather := range pastThresholds {
+		response := recommendOverNetwork(t, client, weatherTestRequest(graph, weather))
+		if response.GetTotal() == 0 || response.GetRoutes()[0].GetCost().GetWeather() <= 0 {
+			t.Fatalf("%s: best route = %v, want a weather surcharge", name, response.GetRoutes())
+		}
+	}
+}
+
 // El mismo viaje cuesta más con clima a 0 °C que sin clima, y la diferencia es
 // justamente el recargo por clima.
 func TestRecommendRoutesOverNetworkZeroWeatherCostsMore(t *testing.T) {
