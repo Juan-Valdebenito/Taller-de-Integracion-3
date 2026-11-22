@@ -313,6 +313,52 @@ func TestRecommendRoutesOverNetworkBadWeatherChangesRoutes(t *testing.T) {
 		changedRoutes, len(officialNetworkCases(graph)), walkedLess)
 }
 
+// weatherExampleGraph tiene dos paraderos a 0,003 grados de latitud, unos 334 m:
+// la micro L1 va de A a B en 60 s.
+func weatherExampleGraph() *TransitGraph {
+	graph := NewTransitGraph()
+	graph.Stops["A"] = Stop{ID: "A", Latitude: -38.7400, Longitude: -72.6000}
+	graph.Stops["B"] = Stop{ID: "B", Latitude: -38.7370, Longitude: -72.6000}
+	graph.Edges["A"] = []Edge{{ToStopID: "B", RouteID: "L1", TripID: "L1-IDA", BaseTimeSec: 60, DistanceM: 334}}
+	return graph
+}
+
+// Ejemplo calculado a mano. El pasajero parte justo en A y va justo en B, así
+// que las caminatas hasta los paraderos son de 0 m.
+//
+//	Caminar todo:  278 s × 2 = 556 sin clima;  556 × 1,8 = 1000,8 con mal clima
+//	Micro L1:      espera 300 × 2 + viaje 60 = 660, con o sin clima
+//
+// Sin clima conviene caminar; con mal clima conviene la micro.
+func TestRecommendRoutesOverNetworkBadWeatherPrefersBus(t *testing.T) {
+	graph := weatherExampleGraph()
+	client := startUniversityGRPCClient(t, graph)
+	request := &microv1.RecommendRoutesRequest{
+		Origin:      locationMessage(locationPoint(graph.Stops["A"].Latitude, graph.Stops["A"].Longitude)),
+		Destination: locationMessage(locationPoint(graph.Stops["B"].Latitude, graph.Stops["B"].Longitude)),
+	}
+	withoutWeather := recommendOverNetwork(t, client, request).GetRoutes()
+	request.Weather = badWeather
+	withBadWeather := recommendOverNetwork(t, client, request).GetRoutes()
+	if len(withoutWeather) != 2 || len(withBadWeather) != 2 {
+		t.Fatalf("got %d and %d routes, want the walk and the bus in both", len(withoutWeather), len(withBadWeather))
+	}
+
+	isDirectWalk := func(route *microv1.RecommendedRoute) bool { return len(route.GetMovements()) == 1 }
+	if !isDirectWalk(withoutWeather[0]) || withoutWeather[0].GetCost().GetTotal() != 556 {
+		t.Fatalf("without weather the best should be walking for 556, got %v", withoutWeather[0])
+	}
+	if withoutWeather[1].GetCost().GetTotal() != 660 {
+		t.Fatalf("without weather the bus should cost 660, got %v", withoutWeather[1].GetCost())
+	}
+	if isDirectWalk(withBadWeather[0]) || withBadWeather[0].GetCost().GetTotal() != 660 {
+		t.Fatalf("with bad weather the best should be the bus for 660, got %v", withBadWeather[0])
+	}
+	if withBadWeather[1].GetCost().GetTotal() != 1000.8 || withBadWeather[1].GetCost().GetWeather() != 444.8 {
+		t.Fatalf("with bad weather walking should cost 1000.8 with 444.8 of weather, got %v", withBadWeather[1].GetCost())
+	}
+}
+
 // Con el máximo, caminar cuesta a lo más el doble que sin clima: el recargo nunca
 // supera el costo de caminar.
 func TestRecommendRoutesOverNetworkWeatherNeverMoreThanDoublesWalk(t *testing.T) {
