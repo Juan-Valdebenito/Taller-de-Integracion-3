@@ -133,6 +133,52 @@ func TestRecommendRoutesOverNetworkKeepZeroCoordinates(t *testing.T) {
 	}
 }
 
+// limitTestRequest va entre dos coordenadas cerca del Portal y del campus San
+// Juan Pablo II, que tienen al menos cinco rutas posibles.
+func limitTestRequest(graph *TransitGraph, limit int32) *microv1.RecommendRoutesRequest {
+	return &microv1.RecommendRoutesRequest{
+		Origin:      locationMessage(pointNearStop(graph, "PAR-PORTAL-01")),
+		Destination: locationMessage(pointNearStop(graph, "PAR-CJP-02")),
+		Limit:       limit,
+	}
+}
+
+// En proto3 un límite no enviado llega como 0, y significa el valor por defecto:
+// la respuesta es la misma que pedir 3.
+func TestRecommendRoutesOverNetworkDefaultLimit(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	withoutLimit := recommendOverNetwork(t, client, limitTestRequest(graph, 0))
+	withDefaultLimit := recommendOverNetwork(t, client, limitTestRequest(graph, defaultRecommendedRoutes))
+	if withoutLimit.GetTotal() != defaultRecommendedRoutes || !proto.Equal(withoutLimit, withDefaultLimit) {
+		t.Fatalf("without limit: total = %d, want the same %d routes as limit %d",
+			withoutLimit.GetTotal(), defaultRecommendedRoutes, defaultRecommendedRoutes)
+	}
+}
+
+// Con cada límite de 1 a 5 llegan exactamente esa cantidad de rutas, y son las
+// primeras de la lista más larga: pedir menos rutas no cambia cuáles son las
+// mejores.
+func TestRecommendRoutesOverNetworkRespectEveryLimit(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	longestList := recommendOverNetwork(t, client, limitTestRequest(graph, maxRecommendedRoutes)).GetRoutes()
+	if len(longestList) != maxRecommendedRoutes {
+		t.Fatalf("got %d routes with limit %d; the test needs a full list", len(longestList), maxRecommendedRoutes)
+	}
+	for limit := int32(1); limit <= maxRecommendedRoutes; limit++ {
+		response := recommendOverNetwork(t, client, limitTestRequest(graph, limit))
+		if response.GetTotal() != limit || len(response.GetRoutes()) != int(limit) {
+			t.Fatalf("limit %d: total = %d and %d routes", limit, response.GetTotal(), len(response.GetRoutes()))
+		}
+		for routeIndex, route := range response.GetRoutes() {
+			if !proto.Equal(route, longestList[routeIndex]) {
+				t.Fatalf("limit %d: route %d differs from the longest list", limit, routeIndex)
+			}
+		}
+	}
+}
+
 // Los costos y los pesos llegan con sus decimales, y el total de cada ruta es la
 // suma de sus componentes, redondeada como en REST.
 func TestRecommendRoutesOverNetworkKeepCosts(t *testing.T) {
