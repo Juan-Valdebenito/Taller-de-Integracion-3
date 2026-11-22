@@ -4,6 +4,7 @@ package main
 // que las preferencias enviadas por gRPC llegan, se aplican y se informan.
 
 import (
+	"errors"
 	"testing"
 
 	microv1 "github.com/Juan-Valdebenito/Taller-de-Integracion-3/proto/gen/go/micro/v1"
@@ -103,6 +104,35 @@ func TestRecommendRoutesOverNetworkRespectMaxWalk(t *testing.T) {
 		if answeredRequests == 0 {
 			t.Fatalf("with %d m no request was answered", maxWalkMeters)
 		}
+	}
+}
+
+// En proto3 un entero no enviado llega como 0, así que en gRPC max_walk_meters en
+// 0 significa el valor por defecto. La respuesta es la misma que sin preferencias
+// y que pedir 1000 m, e informa 1000.
+func TestRecommendRoutesOverNetworkZeroMaxWalkMeansDefault(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	client := startUniversityGRPCClient(t, graph)
+	withZero := recommendOverNetwork(t, client, preferencesTestRequest(graph, &microv1.RoutePreferences{MaxWalkMeters: 0}))
+	withoutPreferences := recommendOverNetwork(t, client, preferencesTestRequest(graph, nil))
+	withDefault := recommendOverNetwork(t, client, preferencesTestRequest(graph, &microv1.RoutePreferences{MaxWalkMeters: defaultPreferredWalkMeters}))
+	if withZero.GetPreferences().GetMaxWalkMeters() != defaultPreferredWalkMeters {
+		t.Fatalf("reported max walk = %d, want %d", withZero.GetPreferences().GetMaxWalkMeters(), defaultPreferredWalkMeters)
+	}
+	if withZero.GetTotal() == 0 || !proto.Equal(withZero, withoutPreferences) || !proto.Equal(withZero, withDefault) {
+		t.Fatal("max walk 0 should answer the same as no preferences and as 1000 m")
+	}
+}
+
+// La diferencia con REST es a propósito: en la URL, un "0" escrito sí se envió,
+// así que REST lo rechaza; en gRPC no se distingue de "no enviado".
+func TestZeroMaxWalkDiffersBetweenRESTAndGRPC(t *testing.T) {
+	if _, err := parseMaxWalkMeters("0"); !errors.Is(err, errInvalidMaxWalk) {
+		t.Fatalf("REST \"0\" error = %v, want errInvalidMaxWalk", err)
+	}
+	preferences, err := routePreferencesFromProto(&microv1.RoutePreferences{MaxWalkMeters: 0})
+	if err != nil || preferences.MaxWalkMeters != defaultPreferredWalkMeters {
+		t.Fatalf("gRPC 0 = %+v, err = %v; want the default", preferences, err)
 	}
 }
 
