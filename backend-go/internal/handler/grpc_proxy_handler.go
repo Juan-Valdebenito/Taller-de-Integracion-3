@@ -24,6 +24,7 @@ type MicroRPC interface {
 	PlanRoute(ctx context.Context, request *microv1.PlanRouteRequest) (*microv1.RoutePlan, error)
 	ListCampuses(ctx context.Context) (*microv1.ListCampusesResponse, error)
 	PlanUniversityRoutes(ctx context.Context, request *microv1.PlanUniversityRoutesRequest) (*microv1.PlanUniversityRoutesResponse, error)
+	RecommendRoutes(ctx context.Context, request *microv1.RecommendRoutesRequest) (*microv1.RecommendRoutesResponse, error)
 }
 
 type GRPCProxyHandler struct {
