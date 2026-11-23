@@ -28,20 +28,27 @@ type NearbyStop struct {
 	WalkSeconds    int
 }
 
-// nearbyNetworkStops entrega hasta limit paraderos a una distancia caminable, del
+// nearbyNetworkStops entrega hasta limit paraderos a no más de maxWalkMeters, del
 // más cercano al más lejano. Omite los que no tienen aristas de salida: están en
 // el catálogo, pero desde ellos no se puede iniciar un viaje.
-func nearbyNetworkStops(graph *TransitGraph, latitude, longitude float64, limit int) []NearbyStop {
+func nearbyNetworkStops(graph *TransitGraph, latitude, longitude float64, limit, maxWalkMeters int) []NearbyStop {
+	hasDepartures := func(stopID string) bool { return len(graph.Edges[stopID]) > 0 }
+	return nearbyStopsMatching(graph, latitude, longitude, limit, maxWalkMeters, hasDepartures)
+}
+
+// nearbyStopsMatching entrega hasta limit paraderos a no más de maxWalkMeters, del
+// más cercano al más lejano, considerando solo los que cumplen isUsable.
+func nearbyStopsMatching(graph *TransitGraph, latitude, longitude float64, limit, maxWalkMeters int, isUsable func(stopID string) bool) []NearbyStop {
 	if limit <= 0 {
 		return nil
 	}
 	nearbyStops := make([]NearbyStop, 0, limit)
 	for stopID, stop := range graph.Stops {
-		if len(graph.Edges[stopID]) == 0 {
+		if !isUsable(stopID) {
 			continue
 		}
 		straightDistance := haversineMeters(latitude, longitude, stop.Latitude, stop.Longitude)
-		if straightDistance > maxWalkDistanceMeters {
+		if straightDistance > float64(maxWalkMeters) {
 			continue
 		}
 		nearbyStops = append(nearbyStops, NearbyStop{
@@ -67,12 +74,13 @@ func nearbyNetworkStops(graph *TransitGraph, latitude, longitude float64, limit 
 // pasajero. Cada ruta parte con la caminata al paradero, así que su costo ya la
 // incluye con el peso de caminar. Por eso un paradero lejano con una micro rápida
 // puede perder frente a uno cercano. Con campusID vacío considera todos los campus.
-func routesFromLocation(graph *TransitGraph, latitude, longitude float64, campusID string, limit int, weights CostWeights) ([]UniversityRoute, error) {
+// La caminata inicial no supera maxWalkMeters, la caminata máxima del pasajero.
+func routesFromLocation(graph *TransitGraph, latitude, longitude float64, campusID string, limit int, weights CostWeights, maxWalkMeters int) ([]UniversityRoute, error) {
 	campuses, err := selectCampuses(campusID)
 	if err != nil {
 		return nil, err
 	}
-	nearbyStops := nearbyNetworkStops(graph, latitude, longitude, maxOriginStops)
+	nearbyStops := nearbyNetworkStops(graph, latitude, longitude, maxOriginStops, maxWalkMeters)
 	if len(nearbyStops) == 0 {
 		return nil, errNoNearbyStops
 	}

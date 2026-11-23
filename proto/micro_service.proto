@@ -12,6 +12,24 @@ service MicroService {
 	rpc PlanRoute(PlanRouteRequest) returns (RoutePlan);
 	rpc ListCampuses(ListCampusesRequest) returns (ListCampusesResponse);
 	rpc PlanUniversityRoutes(PlanUniversityRoutesRequest) returns (PlanUniversityRoutesResponse);
+	// Rutas recomendadas entre cualquier origen y cualquier destino, ordenadas por
+	// costo según las preferencias del pasajero. Exige x-admin-key, como las demás.
+	//
+	// Errores:
+	//   - InvalidArgument: falta el origen o el destino, son el mismo punto, o no
+	//     son válidos las coordenadas, el límite, las preferencias, la ocupación o
+	//     el clima. El mensaje dice cuál corregir.
+	//   - NotFound: un paradero no existe, o no hay paraderos dentro de la caminata
+	//     máxima del origen o del destino (y tampoco se puede caminar directo).
+	//   - Unauthenticated: falta x-admin-key o no es la correcta.
+	//   - Unavailable: el grafo todavía no está cargado.
+	//   - Unimplemented: la imagen de micro_service es anterior a esta función.
+	//     Quien llama debe tratarlo como servicio no disponible, no como un error
+	//     de la petición.
+	//
+	// Si los puntos son válidos, pero la red no los conecta, no es un error: la
+	// respuesta trae routes vacío y total 0.
+	rpc RecommendRoutes(RecommendRoutesRequest) returns (RecommendRoutesResponse);
 }
 
 message HealthRequest {}
@@ -111,6 +129,25 @@ message PlanUniversityRoutesRequest {
 	// Clima de la consulta. Si no viene, caminar no se penaliza. Es un mensaje para
 	// distinguir "sin clima" de un clima a 0 °C.
 	WeatherConditions weather = 7;
+	// Preferencias del pasajero. Si no viene, se usan las de por defecto, que dan
+	// los mismos pesos que antes de existir las preferencias.
+	RoutePreferences preferences = 8;
+}
+
+// Preferencias del pasajero para ordenar las rutas. Son las mismas que acepta la
+// API REST (priority, max_walk_meters y avoid_crowding) y se validan con las
+// mismas reglas. Un campo no enviado significa "usar el valor por defecto".
+message RoutePreferences {
+	// Qué se prioriza: "balanced", "fastest", "fewest_transfers" o
+	// "least_walking". Es texto, igual que en REST, para que ambas API acepten
+	// los mismos valores y respondan los mismos errores. Vacío es "balanced".
+	string priority = 1;
+	// Caminata más larga que el pasajero acepta, en metros, entre 100 y 1000. 0
+	// es el valor por defecto, 1000.
+	int32 max_walk_meters = 2;
+	// Si las micros llenas se penalizan. Es optional porque el valor por defecto
+	// es true: sin presencia, un bool no enviado se leería como false.
+	optional bool avoid_crowding = 3;
 }
 
 // Clima del momento de la consulta. clima_service no informa lluvia.
@@ -125,6 +162,9 @@ message PlanUniversityRoutesResponse {
 	int32 total = 2;
 	// Pesos con que se calcularon los costos de las rutas.
 	CostWeights cost_weights = 3;
+	// Preferencias con que se ordenaron las rutas, con los valores por defecto ya
+	// aplicados a lo que la petición no indicó.
+	RoutePreferences preferences = 4;
 }
 
 message UniversityRoute {
@@ -161,4 +201,70 @@ message CostWeights {
 	double wait_weight = 3;
 	double transfer_penalty_seconds = 4;
 	int32 assumed_headway_seconds = 5;
+}
+
+// Petición de rutas recomendadas entre cualquier origen y cualquier destino. A
+// diferencia de PlanUniversityRoutes, el destino no tiene que ser un campus.
+message RecommendRoutesRequest {
+	// Punto de partida: un paradero o la posición del pasajero. Obligatorio.
+	RoutePoint origin = 1;
+	// Punto de llegada: un paradero o una coordenada. Obligatorio, y distinto del
+	// origen.
+	RoutePoint destination = 2;
+	// Cuántas rutas entregar, entre 1 y 5. 0 es el valor por defecto, 3.
+	int32 limit = 3;
+	// Preferencias del pasajero, con las mismas reglas que en
+	// PlanUniversityRoutes. Si no viene, se usan las de por defecto.
+	RoutePreferences preferences = 4;
+	// Ocupación de cada línea, de 0 a 1, por el route_id de micro_service. Solo se
+	// usa si el pasajero quiere evitar micros llenas. Las líneas que no aparecen no
+	// se penalizan.
+	map<string, double> line_occupancy = 5;
+	// Clima de la consulta. Si no viene, caminar no se penaliza.
+	WeatherConditions weather = 6;
+}
+
+message RecommendRoutesResponse {
+	// Rutas de menor a mayor costo. Vacía si no hay ninguna.
+	repeated RecommendedRoute routes = 1;
+	int32 total = 2;
+	// Pesos con que se calcularon los costos de las rutas.
+	CostWeights cost_weights = 3;
+	// Preferencias con que se ordenaron las rutas, con los valores por defecto ya
+	// aplicados a lo que la petición no indicó.
+	RoutePreferences preferences = 4;
+}
+
+// Una ruta recomendada. Si el origen es una coordenada, el primer movimiento es
+// una caminata desde USER_LOCATION. Si el destino es una coordenada, el último es
+// una caminata hasta DESTINATION_LOCATION. Si caminar todo el trayecto es la
+// mejor opción, la ruta tiene un solo movimiento a pie.
+message RecommendedRoute {
+	// Suma del tiempo de los movimientos, con las caminatas. No incluye la espera
+	// en el paradero, igual que en UniversityRoute.
+	int32 total_time_seconds = 1;
+	int32 total_distance_meters = 2;
+	int32 transfers = 3;
+	repeated Movement movements = 4;
+	// Costo con que se ordenó la ruta, en segundos equivalentes.
+	CostBreakdown cost = 5;
+}
+
+// Origen o destino de una recomendación de ruta: un paradero de la red o una
+// coordenada, nunca ambos. Con una coordenada, la ruta suma la caminata hasta el
+// paradero más conveniente o desde él.
+message RoutePoint {
+	// oneof garantiza que venga a lo más una de las dos formas. Si no viene
+	// ninguna, la petición se rechaza.
+	oneof point {
+		string stop_id = 1;
+		Coordinates location = 2;
+	}
+}
+
+// Posición en grados decimales. Es un mensaje para distinguir una coordenada en
+// 0 de una que no se envió.
+message Coordinates {
+	double latitude = 1;
+	double longitude = 2;
 }

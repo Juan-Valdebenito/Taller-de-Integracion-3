@@ -33,14 +33,14 @@ func nearbyTestGraph() *TransitGraph {
 }
 
 func TestNearbyStopsAreSortedByDistance(t *testing.T) {
-	nearbyStops := nearbyNetworkStops(nearbyTestGraph(), testOriginLatitude, testOriginLongitude, 3)
+	nearbyStops := nearbyNetworkStops(nearbyTestGraph(), testOriginLatitude, testOriginLongitude, 3, maxWalkDistanceMeters)
 	if len(nearbyStops) != 2 || nearbyStops[0].StopID != "NEAR" || nearbyStops[1].StopID != "MIDDLE" {
 		t.Fatalf("paraderos inesperados: %+v", nearbyStops)
 	}
 }
 
 func TestNearbyStopsSkipCatalogOnlyAndFarStops(t *testing.T) {
-	for _, nearbyStop := range nearbyNetworkStops(nearbyTestGraph(), testOriginLatitude, testOriginLongitude, 10) {
+	for _, nearbyStop := range nearbyNetworkStops(nearbyTestGraph(), testOriginLatitude, testOriginLongitude, 10, maxWalkDistanceMeters) {
 		if nearbyStop.StopID == "CATALOG-ONLY" {
 			t.Error("un paradero sin aristas no sirve para iniciar un viaje")
 		}
@@ -52,17 +52,17 @@ func TestNearbyStopsSkipCatalogOnlyAndFarStops(t *testing.T) {
 
 func TestNearbyStopsRespectLimit(t *testing.T) {
 	graph := nearbyTestGraph()
-	nearbyStops := nearbyNetworkStops(graph, testOriginLatitude, testOriginLongitude, 1)
+	nearbyStops := nearbyNetworkStops(graph, testOriginLatitude, testOriginLongitude, 1, maxWalkDistanceMeters)
 	if len(nearbyStops) != 1 || nearbyStops[0].StopID != "NEAR" {
 		t.Errorf("debe quedar solo el más cercano: %+v", nearbyStops)
 	}
-	if nearbyStops := nearbyNetworkStops(graph, testOriginLatitude, testOriginLongitude, 0); nearbyStops != nil {
+	if nearbyStops := nearbyNetworkStops(graph, testOriginLatitude, testOriginLongitude, 0, maxWalkDistanceMeters); nearbyStops != nil {
 		t.Errorf("con límite 0 no debe haber paraderos: %+v", nearbyStops)
 	}
 }
 
 func TestNearbyStopEstimatesWalk(t *testing.T) {
-	nearbyStops := nearbyNetworkStops(nearbyTestGraph(), testOriginLatitude, testOriginLongitude, 1)
+	nearbyStops := nearbyNetworkStops(nearbyTestGraph(), testOriginLatitude, testOriginLongitude, 1, maxWalkDistanceMeters)
 	if len(nearbyStops) != 1 {
 		t.Fatalf("se esperaba un paradero: %+v", nearbyStops)
 	}
@@ -80,7 +80,7 @@ func TestNearbyStopsOnOfficialNetwork(t *testing.T) {
 	network := loadSeedNetwork(t)
 	graph := network.buildGraph()
 	campusStop := graph.Stops["PAR-CSF-01"]
-	nearbyStops := nearbyNetworkStops(graph, campusStop.Latitude, campusStop.Longitude, 1)
+	nearbyStops := nearbyNetworkStops(graph, campusStop.Latitude, campusStop.Longitude, 1, maxWalkDistanceMeters)
 	if len(nearbyStops) != 1 || nearbyStops[0].StopID != "PAR-CSF-01" || nearbyStops[0].DistanceMeters != 0 {
 		t.Errorf("sobre un paradero, ese debe ser el más cercano: %+v", nearbyStops)
 	}
@@ -88,7 +88,7 @@ func TestNearbyStopsOnOfficialNetwork(t *testing.T) {
 
 func TestNearbyStopsFarFromNetwork(t *testing.T) {
 	const distantLatitude, distantLongitude = -38.0, -72.0
-	if nearbyStops := nearbyNetworkStops(nearbyTestGraph(), distantLatitude, distantLongitude, 3); len(nearbyStops) != 0 {
+	if nearbyStops := nearbyNetworkStops(nearbyTestGraph(), distantLatitude, distantLongitude, 3, maxWalkDistanceMeters); len(nearbyStops) != 0 {
 		t.Errorf("no debe haber paraderos cercanos: %+v", nearbyStops)
 	}
 }
@@ -102,7 +102,7 @@ func locationNearStop(graph *TransitGraph, stopID string) (latitude, longitude f
 func TestRoutesFromLocationIncludeInitialWalk(t *testing.T) {
 	graph := loadSeedNetwork(t).buildGraph()
 	latitude, longitude := locationNearStop(graph, "PAR-PORTAL-01")
-	routes, err := routesFromLocation(graph, latitude, longitude, "", 3, defaultCostWeights())
+	routes, err := routesFromLocation(graph, latitude, longitude, "", 3, defaultCostWeights(), maxWalkDistanceMeters)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +127,7 @@ func TestRoutesFromLocationIncludeInitialWalk(t *testing.T) {
 func TestRoutesFromLocationIncludeEveryCampus(t *testing.T) {
 	graph := loadSeedNetwork(t).buildGraph()
 	latitude, longitude := locationNearStop(graph, "PAR-PORTAL-01")
-	routes, err := routesFromLocation(graph, latitude, longitude, "", 3, defaultCostWeights())
+	routes, err := routesFromLocation(graph, latitude, longitude, "", 3, defaultCostWeights(), maxWalkDistanceMeters)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +139,7 @@ func TestRoutesFromLocationIncludeEveryCampus(t *testing.T) {
 func TestRoutesFromLocationNextToCampusOnlyWalk(t *testing.T) {
 	graph := loadSeedNetwork(t).buildGraph()
 	latitude, longitude := locationNearStop(graph, "PAR-CSF-01")
-	routes, err := routesFromLocation(graph, latitude, longitude, "san-francisco", 3, defaultCostWeights())
+	routes, err := routesFromLocation(graph, latitude, longitude, "san-francisco", 3, defaultCostWeights(), maxWalkDistanceMeters)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,11 +151,11 @@ func TestRoutesFromLocationNextToCampusOnlyWalk(t *testing.T) {
 func TestRoutesFromLocationReportInvalidRequests(t *testing.T) {
 	graph := loadSeedNetwork(t).buildGraph()
 	latitude, longitude := locationNearStop(graph, "PAR-PORTAL-01")
-	if _, err := routesFromLocation(graph, latitude, longitude, "campus-inexistente", 3, defaultCostWeights()); !errors.Is(err, errUnknownCampus) {
+	if _, err := routesFromLocation(graph, latitude, longitude, "campus-inexistente", 3, defaultCostWeights(), maxWalkDistanceMeters); !errors.Is(err, errUnknownCampus) {
 		t.Errorf("se esperaba errUnknownCampus y se obtuvo %v", err)
 	}
 	const distantLatitude, distantLongitude = -38.0, -72.0
-	if _, err := routesFromLocation(graph, distantLatitude, distantLongitude, "", 3, defaultCostWeights()); !errors.Is(err, errNoNearbyStops) {
+	if _, err := routesFromLocation(graph, distantLatitude, distantLongitude, "", 3, defaultCostWeights(), maxWalkDistanceMeters); !errors.Is(err, errNoNearbyStops) {
 		t.Errorf("se esperaba errNoNearbyStops y se obtuvo %v", err)
 	}
 }
@@ -186,7 +186,7 @@ func routesFromTestOrigin(t *testing.T, weights CostWeights) []UniversityRoute {
 	t.Cleanup(func() { universityCampuses = previousCampuses })
 	universityCampuses = []Campus{campus}
 
-	routes, err := routesFromLocation(graph, testOriginLatitude, testOriginLongitude, "", 2, weights)
+	routes, err := routesFromLocation(graph, testOriginLatitude, testOriginLongitude, "", 2, weights, maxWalkDistanceMeters)
 	if err != nil || len(routes) != 2 {
 		t.Fatalf("se esperaban 2 rutas: %+v, %v", routes, err)
 	}
@@ -230,7 +230,7 @@ func TestRoutesRejectNonPositiveLimits(t *testing.T) {
 	graph := loadSeedNetwork(t).buildGraph()
 	latitude, longitude := locationNearStop(graph, "PAR-PORTAL-01")
 	for _, limit := range []int{0, -1} {
-		routes, err := routesFromLocation(graph, latitude, longitude, "", limit, defaultCostWeights())
+		routes, err := routesFromLocation(graph, latitude, longitude, "", limit, defaultCostWeights(), maxWalkDistanceMeters)
 		if err != nil || len(routes) != 0 {
 			t.Errorf("con límite %d no debe haber rutas: %+v, %v", limit, routes, err)
 		}

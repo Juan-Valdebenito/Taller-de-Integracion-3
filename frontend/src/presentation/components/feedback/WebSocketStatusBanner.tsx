@@ -1,4 +1,5 @@
 import { useWebSocketStatus } from '../../context/WebSocketStatusContext';
+import styles from './WebSocketStatusBanner.module.css';
 
 export function WebSocketStatusBanner() {
   const { status } = useWebSocketStatus();
@@ -9,22 +10,22 @@ export function WebSocketStatusBanner() {
 
   return (
     <div
-      className={`websocket-status-banner ${isConnecting ? 'is-connecting' : 'is-error'}`}
+      className={`${styles.banner} ${isConnecting ? styles.connecting : styles.error}`}
       role={isConnecting ? 'status' : 'alert'}
       aria-live="polite"
     >
-      <span className="websocket-status-icon" aria-hidden="true">
+      <span className={styles.icon} aria-hidden="true">
         {isConnecting ? '↻' : '!'}
       </span>
       <div>
         <strong>{isConnecting ? 'Conectando al tiempo real' : 'Sin conexión en tiempo real'}</strong>
-        <span>
+        <span className={styles.message}>
           {isConnecting
             ? 'Los datos se actualizarán cuando el servidor responda.'
             : 'Mostrando datos de respaldo. Intentaremos reconectar automáticamente.'}
         </span>
       </div>
-      {isConnecting && <span className="websocket-status-spinner" aria-hidden="true" />}
+      {isConnecting && <span className={styles.spinner} aria-hidden="true" />}
     </div>
   );
 }
