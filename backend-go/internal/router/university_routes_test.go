@@ -12,7 +12,6 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/handler"
-	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/token"
 )
 
 // fakeMicroService solo implementa lo que usan las rutas a la universidad y las
@@ -44,9 +43,7 @@ func (fakeMicroService) PlanUniversityRoutes(context.Context, *microv1.PlanUnive
 }
 
 func universityRoutesEngine() *gin.Engine {
-	proxyHandler := handler.NewGRPCProxyHandler(nil, fakeMicroService{})
-	return Setup([]string{"http://localhost:5173"}, testSecret, nil, token.NewMemoryStore(),
-		nil, nil, nil, nil, nil, nil, nil, nil, proxyHandler)
+	return engineWithMicro(fakeMicroService{})
 }
 
 // Recorre el router real con una sesión de pasajero: autenticación, handler y
