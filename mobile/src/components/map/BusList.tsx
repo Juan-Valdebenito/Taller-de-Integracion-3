@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, Text, View } from 'react-native';
 
 import { useEta } from '../../hooks/useEta';
@@ -6,6 +6,7 @@ import type { LiveBus } from '../../realtime/liveBuses';
 import { BUS_STATUS, makeStyles, occupancyColor } from '../../theme';
 import { freshnessColor, occupancyPercent } from './BusDetailCard';
 import { busColor } from './busIcon';
+import { BusGlyph } from './BusGlyph';
 
 /** Micros ordenadas por ocupación, la más llena primero (como BusSidePanel del web). */
 export function sortByOccupancy(buses: readonly LiveBus[]): LiveBus[] {
@@ -32,18 +33,24 @@ export interface BusListProps {
  */
 export function BusList({ buses, selectedId, onSelect, live, loading = false }: BusListProps) {
   const styles = useStyles();
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    if (!live) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [live]);
   if (loading) return <BusListSkeleton />;
   if (buses.length === 0) return <Text style={styles.empty}>No hay micros en esta ruta</Text>;
   return (
     <View>
       {sortByOccupancy(buses).map((bus) => (
-        <BusRow key={bus.id} bus={bus} selected={bus.id === selectedId} onSelect={onSelect} live={live} />
+        <BusRow key={bus.id} bus={bus} selected={bus.id === selectedId} onSelect={onSelect} live={live} now={now} />
       ))}
     </View>
   );
 }
 
-function BusRow({ bus, selected, onSelect, live }: { bus: LiveBus; selected: boolean; onSelect: (id: string) => void; live: boolean }) {
+function BusRow({ bus, selected, onSelect, live, now }: { bus: LiveBus; selected: boolean; onSelect: (id: string) => void; live: boolean; now: number }) {
   const styles = useStyles();
   const pct = occupancyPercent(bus);
   const status = BUS_STATUS[bus.status];
@@ -51,7 +58,7 @@ function BusRow({ bus, selected, onSelect, live }: { bus: LiveBus; selected: boo
   const { nextStop, isStopped } = useEta(bus);
 
   // Destello cuando llega un dato nuevo del tiempo real (bus-row-flash del web).
-  const flash = useRef(new Animated.Value(0)).current;
+  const [flash] = useState(() => new Animated.Value(0));
   const lastUpdate = useRef(bus.lastUpdate);
   useEffect(() => {
     if (!live || bus.lastUpdate === lastUpdate.current) return;
@@ -60,7 +67,7 @@ function BusRow({ bus, selected, onSelect, live }: { bus: LiveBus; selected: boo
     Animated.timing(flash, { toValue: 0, duration: 600, useNativeDriver: false }).start();
   }, [bus.lastUpdate, live, flash]);
 
-  const freshColor = live ? freshnessColor(Math.round((Date.now() - bus.lastUpdate) / 1000)) : '#475569';
+  const freshColor = live && now > 0 ? freshnessColor(Math.round((now - bus.lastUpdate) / 1000)) : '#475569';
 
   return (
     <Pressable
@@ -76,7 +83,9 @@ function BusRow({ bus, selected, onSelect, live }: { bus: LiveBus; selected: boo
       />
       <View style={styles.top}>
         <View style={styles.inline}>
-          <Text style={styles.emoji}>🚌</Text>
+          <View style={[styles.busIcon, { backgroundColor: `${occColor}20` }]}>
+            <BusGlyph color={occColor} size={14} />
+          </View>
           <Text style={styles.busId}>{bus.id}</Text>
           <View style={[styles.dot, { backgroundColor: freshColor }]} />
         </View>
@@ -147,7 +156,7 @@ const useStyles = makeStyles((colors, font) => ({
   flash: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(99, 102, 241, 0.15)' },
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   inline: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  emoji: { fontSize: font(14) },
+  busIcon: { width: 26, height: 26, alignItems: 'center', justifyContent: 'center', borderRadius: 7 },
   busId: { fontSize: font(13), fontWeight: '700', color: colors.text },
   dot: { width: 6, height: 6, borderRadius: 3 },
   status: { fontSize: font(10), color: colors.muted },

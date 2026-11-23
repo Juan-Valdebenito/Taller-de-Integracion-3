@@ -25,7 +25,7 @@ export function AdminLayout() {
     : 'AD';
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--color-bg)' }}>
+    <div className="app-accessible admin-layout" style={{ display: 'flex', minHeight: '100vh', background: 'var(--color-bg)' }}>
       {/* ── Sidebar ──────────────────────────────────────────── */}
       <aside
         style={{

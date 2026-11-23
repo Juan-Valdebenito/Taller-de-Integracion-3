@@ -31,6 +31,7 @@ import { microStopsApi, type MicroStop } from '../../../infrastructure/api/micro
 import { climateTelemetryApi, type ClimateTelemetryRecord } from '../../../infrastructure/api/climateTelemetryApi';
 import { LiveMap } from '../../components/passenger/LiveMap';
 import { SimulationDevTools, type SimEventType } from '../../components/passenger/SimulationDevTools';
+import { RecommendedTripPlanner } from '../../components/passenger/RecommendedTripPlanner';
 
 // El simulador es una herramienta de desarrollo: no se muestra en producción.
 const SHOW_DEVTOOLS = import.meta.env.DEV;
@@ -203,7 +204,22 @@ export function PassengerMapPage() {
       <div className="map-content">
         {/* Mapa Leaflet */}
         <div className="map-leaflet-wrapper">
-          <LiveMap stops={stops} climateTelemetry={climateTelemetry}>
+          <MapContainer
+            center={TEMUCO_CENTER}
+            zoom={DEFAULT_ZOOM}
+            style={{ height: '100%', width: '100%' }}
+            zoomControl={true}
+          >
+            {/* Tiles de OpenStreetMap */}
+            <TileLayer
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              maxZoom={19}
+            />
+
+            <RouteNodesLayer routeFilter={routeFilter} />
+            <RecommendedTripPlanner />
+
             {/* Marcadores de micros con animación */}
             {visibleBuses.map((bus) => (
               <BusMarker

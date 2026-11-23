@@ -213,38 +213,33 @@
   overflow: hidden;
 }
 
-.map-stops-notice {
+.trip-planner-control {
   position: absolute;
-  z-index: 1000;
+  z-index: 700;
   top: 12px;
-  left: 50%;
-  max-width: calc(100% - 24px);
-  padding: 8px 12px;
-  transform: translateX(-50%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 6px;
-  background: rgba(15, 20, 30, 0.9);
-  color: #e2e8f0;
-  font-size: 12px;
-  text-align: center;
-  pointer-events: none;
-}
-
-.map-climate-notice {
-  position: absolute;
-  z-index: 1000;
   right: 12px;
-  bottom: 12px;
-  max-width: min(360px, calc(100% - 24px));
-  padding: 8px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 6px;
-  background: rgba(15, 20, 30, 0.92);
-  color: #e2e8f0;
-  font-size: 12px;
-  text-align: left;
-  pointer-events: none;
+  display: grid;
+  gap: 7px;
+  width: min(290px, calc(100% - 24px));
+  padding: 12px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 12px;
+  background: rgba(20, 23, 31, .94);
+  color: #f1f5f9;
+  box-shadow: 0 8px 24px rgba(0,0,0,.3);
 }
+.trip-planner-control select,
+.trip-planner-control button {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 7px;
+  background: #202633;
+  color: #f1f5f9;
+}
+.trip-planner-control button { cursor: pointer; background: #ea580c; font-weight: 700; }
+.trip-planner-control button:disabled { cursor: not-allowed; opacity: .55; }
+.trip-planner-control small { color: #cbd5e1; }
 
 /* ── Panel lateral ────────────────────────────────────────────── */
 .map-side-panel {

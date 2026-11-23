@@ -7,6 +7,7 @@
  */
 
 import { useRef, useEffect } from 'react';
+import { FaBus } from 'react-icons/fa';
 import { BusState, getOccupancyColor, getOccupancyLevel } from '../../../hooks/useSimulatedBuses';
 import { useEta } from '../../../hooks/useEta';
 import { BusListSkeleton } from '../feedback/LoadingSkeleton';
@@ -163,7 +164,7 @@ function BusRow({ bus, isSelected, onSelect }: {
       {/* Fila superior: ID + frescura + estado */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ fontSize: '14px' }}>🚌</span>
+          <FaBus size={14} color="#38bdf8" aria-hidden="true" />
           <span style={{ fontWeight: 700, fontSize: '13px', color: '#f1f5f9' }}>{bus.id}</span>
           <FreshDot lastWsUpdate={bus.lastWsUpdate} />
         </div>
