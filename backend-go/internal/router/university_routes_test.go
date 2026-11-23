@@ -15,7 +15,8 @@ import (
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/token"
 )
 
-// fakeMicroService solo implementa lo que usan las rutas a la universidad.
+// fakeMicroService solo implementa lo que usan las rutas a la universidad y las
+// recomendadas (recommendation_fake_test.go).
 type fakeMicroService struct{ handler.MicroRPC }
 
 func (fakeMicroService) ListCampuses(context.Context) (*microv1.ListCampusesResponse, error) {
