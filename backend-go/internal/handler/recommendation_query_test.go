@@ -119,3 +119,29 @@ func TestRoutePointsFromQueryReportsOriginFirst(t *testing.T) {
 		}
 	}
 }
+
+// Los valores fuera de rango pasan tal cual: los rechaza micro_service.
+func TestRouteLimitFromQueryReadsLimit(t *testing.T) {
+	for rawQuery, expectedLimit := range map[string]int32{
+		"": 0, "limit=": 0, "limit=1": 1, "limit=5": 5, "limit=6": 6, "limit=-1": -1,
+	} {
+		limit, err := routeLimitFromQuery(parseTestQuery(t, rawQuery))
+		if err != nil || limit != expectedLimit {
+			t.Fatalf("%q: limit = %d, err = %v; want %d", rawQuery, limit, err, expectedLimit)
+		}
+	}
+}
+
+// 4294967297 no cabe en un int32: sin revisarlo se convertiría en 1.
+func TestRouteLimitFromQueryRejectsInvalidText(t *testing.T) {
+	const notInteger, notZero = "limit debe ser un número entero", "limit no puede ser 0"
+	for rawQuery, expectedMessage := range map[string]string{
+		"limit=tres": notInteger, "limit=2.5": notInteger, "limit=%202": notInteger, "limit=4294967297": notInteger,
+		"limit=0": notZero, "limit=-0": notZero, "limit=00": notZero,
+	} {
+		limit, err := routeLimitFromQuery(parseTestQuery(t, rawQuery))
+		if limit != 0 || err == nil || err.Error() != expectedMessage {
+			t.Fatalf("%q: limit = %d, err = %v; want %q", rawQuery, limit, err, expectedMessage)
+		}
+	}
+}

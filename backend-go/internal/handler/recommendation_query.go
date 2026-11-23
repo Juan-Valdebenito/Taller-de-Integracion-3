@@ -55,3 +55,21 @@ func routePointsFromQuery(query url.Values) (origin, destination *microv1.RouteP
 	}
 	return origin, destination, nil
 }
+
+// routeLimitFromQuery lee cuántas rutas se piden. Sin el parámetro devuelve 0, que
+// en gRPC significa el valor por defecto. Por eso un "0" escrito se rechaza aquí:
+// micro_service no podría distinguirlo. El rango lo revisa micro_service.
+func routeLimitFromQuery(query url.Values) (int32, error) {
+	rawLimit := query.Get("limit")
+	if rawLimit == "" {
+		return 0, nil
+	}
+	limit, err := strconv.ParseInt(rawLimit, 10, 32)
+	if err != nil {
+		return 0, &queryError{"limit debe ser un número entero"}
+	}
+	if limit == 0 {
+		return 0, &queryError{"limit no puede ser 0"}
+	}
+	return int32(limit), nil
+}
