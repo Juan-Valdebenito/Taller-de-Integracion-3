@@ -43,3 +43,15 @@ func routePointFromQuery(query url.Values, prefix string) (*microv1.RoutePoint, 
 		Location: &microv1.Coordinates{Latitude: latitude, Longitude: longitude},
 	}}, nil
 }
+
+// routePointsFromQuery lee el origen y el destino. Si los dos tienen errores
+// informa el del origen, en el mismo orden en que los revisa micro_service.
+func routePointsFromQuery(query url.Values) (origin, destination *microv1.RoutePoint, err error) {
+	if origin, err = routePointFromQuery(query, "origin"); err != nil {
+		return nil, nil, err
+	}
+	if destination, err = routePointFromQuery(query, "destination"); err != nil {
+		return nil, nil, err
+	}
+	return origin, destination, nil
+}
