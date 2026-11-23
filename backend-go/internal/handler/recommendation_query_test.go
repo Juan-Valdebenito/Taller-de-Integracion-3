@@ -145,3 +145,38 @@ func TestRouteLimitFromQueryRejectsInvalidText(t *testing.T) {
 		}
 	}
 }
+
+// La prioridad pasa sin cambios, también si no existe: la revisa micro_service.
+func TestPriorityFromQueryKeepsText(t *testing.T) {
+	for rawQuery, expectedPriority := range map[string]string{
+		"": "", "priority=": "", "priority=fastest": "fastest", "priority=%20Least_Walking%20": " Least_Walking ", "priority=cheapest": "cheapest",
+	} {
+		if priority := priorityFromQuery(parseTestQuery(t, rawQuery)); priority != expectedPriority {
+			t.Fatalf("%q: priority = %q, want %q", rawQuery, priority, expectedPriority)
+		}
+	}
+}
+
+func TestMaxWalkMetersFromQueryReadsMeters(t *testing.T) {
+	for rawQuery, expectedMeters := range map[string]int32{
+		"": 0, "max_walk_meters=": 0, "max_walk_meters=400": 400, "max_walk_meters=50": 50, "max_walk_meters=5000": 5000, "max_walk_meters=-1": -1, "limit=3": 0,
+	} {
+		meters, err := maxWalkMetersFromQuery(parseTestQuery(t, rawQuery))
+		if err != nil || meters != expectedMeters {
+			t.Fatalf("%q: meters = %d, err = %v; want %d", rawQuery, meters, err, expectedMeters)
+		}
+	}
+}
+
+func TestMaxWalkMetersFromQueryRejectsInvalidText(t *testing.T) {
+	const notInteger, notZero = "max_walk_meters debe ser un número entero", "max_walk_meters no puede ser 0"
+	for rawQuery, expectedMessage := range map[string]string{
+		"max_walk_meters=lejos": notInteger, "max_walk_meters=400.5": notInteger, "max_walk_meters=400m": notInteger,
+		"max_walk_meters=4294967696": notInteger, "max_walk_meters=0": notZero,
+	} {
+		meters, err := maxWalkMetersFromQuery(parseTestQuery(t, rawQuery))
+		if meters != 0 || err == nil || err.Error() != expectedMessage {
+			t.Fatalf("%q: meters = %d, err = %v; want %q", rawQuery, meters, err, expectedMessage)
+		}
+	}
+}

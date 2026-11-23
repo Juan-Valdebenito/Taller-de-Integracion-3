@@ -56,20 +56,38 @@ func routePointsFromQuery(query url.Values) (origin, destination *microv1.RouteP
 	return origin, destination, nil
 }
 
-// routeLimitFromQuery lee cuántas rutas se piden. Sin el parámetro devuelve 0, que
-// en gRPC significa el valor por defecto. Por eso un "0" escrito se rechaza aquí:
-// micro_service no podría distinguirlo. El rango lo revisa micro_service.
+// routeLimitFromQuery lee cuántas rutas se piden. El rango lo revisa micro_service.
 func routeLimitFromQuery(query url.Values) (int32, error) {
-	rawLimit := query.Get("limit")
-	if rawLimit == "" {
+	return optionalIntegerFromQuery(query, "limit")
+}
+
+// priorityFromQuery entrega la prioridad tal como viene. micro_service ignora
+// mayúsculas y espacios, usa balanced si está vacía y rechaza las que no existen,
+// así que la lista de prioridades se mantiene en un solo lugar.
+func priorityFromQuery(query url.Values) string {
+	return query.Get("priority")
+}
+
+// maxWalkMetersFromQuery lee la caminata máxima, en metros. El rango lo revisa
+// micro_service.
+func maxWalkMetersFromQuery(query url.Values) (int32, error) {
+	return optionalIntegerFromQuery(query, "max_walk_meters")
+}
+
+// optionalIntegerFromQuery lee un entero opcional. Sin el parámetro devuelve 0, que
+// en gRPC significa el valor por defecto. Por eso un "0" escrito se rechaza aquí:
+// micro_service no podría distinguirlo de uno que no se envió.
+func optionalIntegerFromQuery(query url.Values, name string) (int32, error) {
+	rawValue := query.Get(name)
+	if rawValue == "" {
 		return 0, nil
 	}
-	limit, err := strconv.ParseInt(rawLimit, 10, 32)
+	value, err := strconv.ParseInt(rawValue, 10, 32)
 	if err != nil {
-		return 0, &queryError{"limit debe ser un número entero"}
+		return 0, &queryError{name + " debe ser un número entero"}
 	}
-	if limit == 0 {
-		return 0, &queryError{"limit no puede ser 0"}
+	if value == 0 {
+		return 0, &queryError{name + " no puede ser 0"}
 	}
-	return int32(limit), nil
+	return int32(value), nil
 }
