@@ -111,3 +111,22 @@ func avoidCrowdingFromQuery(query url.Values) (*bool, error) {
 	}
 	return &avoidCrowding, nil
 }
+
+// routePreferencesFromQuery junta las tres preferencias. Si no viene ninguna
+// devuelve nil, y micro_service usa las de por defecto. Si hay varias con errores
+// informa la primera, en el mismo orden en que las revisa micro_service.
+func routePreferencesFromQuery(query url.Values) (*microv1.RoutePreferences, error) {
+	priority := priorityFromQuery(query)
+	maxWalkMeters, err := maxWalkMetersFromQuery(query)
+	if err != nil {
+		return nil, err
+	}
+	avoidCrowding, err := avoidCrowdingFromQuery(query)
+	if err != nil {
+		return nil, err
+	}
+	if priority == "" && maxWalkMeters == 0 && avoidCrowding == nil {
+		return nil, nil
+	}
+	return &microv1.RoutePreferences{Priority: priority, MaxWalkMeters: maxWalkMeters, AvoidCrowding: avoidCrowding}, nil
+}

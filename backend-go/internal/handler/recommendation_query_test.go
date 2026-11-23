@@ -207,3 +207,36 @@ func TestAvoidCrowdingFromQueryRejectsOtherText(t *testing.T) {
 		}
 	}
 }
+
+// Lo que no se envía queda sin valor, para que micro_service use el de por
+// defecto. Sin ninguna preferencia no hay mensaje.
+func TestRoutePreferencesFromQueryJoinsPreferences(t *testing.T) {
+	for rawQuery, expectedPreferences := range map[string]*microv1.RoutePreferences{
+		"":                                   nil,
+		"priority=&max_walk_meters=&limit=3": nil,
+		"priority=fastest":                   {Priority: "fastest"},
+		"max_walk_meters=400":                {MaxWalkMeters: 400},
+		"avoid_crowding=true":                {AvoidCrowding: proto.Bool(true)},
+		"avoid_crowding=false":               {AvoidCrowding: proto.Bool(false)},
+		"priority=least_walking&max_walk_meters=300&avoid_crowding=0": {Priority: "least_walking", MaxWalkMeters: 300, AvoidCrowding: proto.Bool(false)},
+	} {
+		preferences, err := routePreferencesFromQuery(parseTestQuery(t, rawQuery))
+		if err != nil || (preferences == nil) != (expectedPreferences == nil) || !proto.Equal(preferences, expectedPreferences) {
+			t.Fatalf("%q: preferences = %v, err = %v; want %v", rawQuery, preferences, err, expectedPreferences)
+		}
+	}
+}
+
+// Con un error no entrega preferencias, y si hay dos informa la caminata.
+func TestRoutePreferencesFromQueryReportsFirstError(t *testing.T) {
+	for rawQuery, expectedMessage := range map[string]string{
+		"priority=fastest&max_walk_meters=0":       "max_walk_meters no puede ser 0",
+		"priority=fastest&avoid_crowding=yes":      "avoid_crowding debe ser true o false",
+		"avoid_crowding=yes&max_walk_meters=lejos": "max_walk_meters debe ser un número entero",
+	} {
+		preferences, err := routePreferencesFromQuery(parseTestQuery(t, rawQuery))
+		if preferences != nil || err == nil || err.Error() != expectedMessage {
+			t.Fatalf("%q: preferences = %v, err = %v; want %q", rawQuery, preferences, err, expectedMessage)
+		}
+	}
+}
