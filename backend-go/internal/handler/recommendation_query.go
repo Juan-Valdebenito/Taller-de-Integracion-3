@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 
 	microv1 "github.com/Juan-Valdebenito/Taller-de-Integracion-3/proto/gen/go/micro/v1"
 )
@@ -90,4 +91,23 @@ func optionalIntegerFromQuery(query url.Values, name string) (int32, error) {
 		return 0, &queryError{name + " no puede ser 0"}
 	}
 	return int32(value), nil
+}
+
+// avoidCrowdingFromQuery lee si el pasajero quiere evitar micros llenas. Acepta
+// true/false y 1/0, sin importar mayúsculas ni espacios, igual que micro_service.
+// Sin el parámetro devuelve nil y micro_service usa su valor por defecto, true. No
+// basta con un bool: "no enviado" se confundiría con false.
+func avoidCrowdingFromQuery(query url.Values) (*bool, error) {
+	var avoidCrowding bool
+	switch strings.ToLower(strings.TrimSpace(query.Get("avoid_crowding"))) {
+	case "":
+		return nil, nil
+	case "true", "1":
+		avoidCrowding = true
+	case "false", "0":
+		avoidCrowding = false
+	default:
+		return nil, &queryError{"avoid_crowding debe ser true o false"}
+	}
+	return &avoidCrowding, nil
 }

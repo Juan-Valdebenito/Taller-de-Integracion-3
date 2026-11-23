@@ -180,3 +180,30 @@ func TestMaxWalkMetersFromQueryRejectsInvalidText(t *testing.T) {
 		}
 	}
 }
+
+// Un false y "no enviado" son distintos: el primero es un puntero a false y el
+// segundo es nil.
+func TestAvoidCrowdingFromQueryReadsValue(t *testing.T) {
+	for rawQuery, expectedValue := range map[string]*bool{
+		"": nil, "avoid_crowding=": nil, "avoid_crowding=%20": nil,
+		"avoid_crowding=true": proto.Bool(true), "avoid_crowding=1": proto.Bool(true), "avoid_crowding=%20TRUE%20": proto.Bool(true),
+		"avoid_crowding=false": proto.Bool(false), "avoid_crowding=0": proto.Bool(false), "avoid_crowding=False": proto.Bool(false),
+	} {
+		avoidCrowding, err := avoidCrowdingFromQuery(parseTestQuery(t, rawQuery))
+		if err != nil || (avoidCrowding == nil) != (expectedValue == nil) {
+			t.Fatalf("%q: value = %v, err = %v", rawQuery, avoidCrowding, err)
+		}
+		if expectedValue != nil && *avoidCrowding != *expectedValue {
+			t.Fatalf("%q: value = %v, want %v", rawQuery, *avoidCrowding, *expectedValue)
+		}
+	}
+}
+
+func TestAvoidCrowdingFromQueryRejectsOtherText(t *testing.T) {
+	for _, rawQuery := range []string{"avoid_crowding=yes", "avoid_crowding=no", "avoid_crowding=2", "avoid_crowding=verdadero", "avoid_crowding=t"} {
+		avoidCrowding, err := avoidCrowdingFromQuery(parseTestQuery(t, rawQuery))
+		if avoidCrowding != nil || err == nil || err.Error() != "avoid_crowding debe ser true o false" {
+			t.Fatalf("%q: value = %v, err = %v; want only the error", rawQuery, avoidCrowding, err)
+		}
+	}
+}
