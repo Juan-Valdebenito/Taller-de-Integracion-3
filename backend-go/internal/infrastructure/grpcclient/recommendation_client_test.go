@@ -79,3 +79,43 @@ func TestRecommendRoutesStopsWaitingAfterTimeout(t *testing.T) {
 	waitForSignal(t, slowServer.requestArrived, "the request to reach micro_service")
 	waitForSignal(t, slowServer.clientLeft, "micro_service to notice that the client left")
 }
+
+// Si quien llama cancela, por ejemplo porque el pasajero cerró la app, el cliente
+// deja de esperar enseguida, aunque a su tiempo máximo le falte mucho.
+func TestRecommendRoutesStopsWhenCallerCancels(t *testing.T) {
+	microClient, slowServer := startSlowMicroService(t, time.Minute)
+	callerContext, cancelCall := context.WithCancel(context.Background())
+	defer cancelCall()
+	callResult := make(chan error, 1)
+	go func() {
+		_, err := microClient.RecommendRoutes(callerContext, &microv1.RecommendRoutesRequest{})
+		callResult <- err
+	}()
+	// Se cancela con la petición ya en micro_service, no antes de enviarla.
+	waitForSignal(t, slowServer.requestArrived, "the request to reach micro_service")
+	cancelCall()
+	select {
+	case err := <-callResult:
+		if status.Code(err) != codes.Canceled {
+			t.Fatalf("err = %v, want Canceled", err)
+		}
+	case <-time.After(maxTestWait):
+		t.Fatal("the client kept waiting after the caller canceled")
+	}
+	waitForSignal(t, slowServer.clientLeft, "micro_service to notice that the client left")
+}
+
+// Si quien llama tiene un plazo más corto que el del cliente, manda el más corto.
+func TestRecommendRoutesRespectsShorterCallerDeadline(t *testing.T) {
+	microClient, _ := startSlowMicroService(t, time.Minute)
+	callerContext, cancelCall := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancelCall()
+	startTime := time.Now()
+	_, err := microClient.RecommendRoutes(callerContext, &microv1.RecommendRoutesRequest{})
+	if status.Code(err) != codes.DeadlineExceeded {
+		t.Fatalf("err = %v, want DeadlineExceeded", err)
+	}
+	if elapsed := time.Since(startTime); elapsed > maxTestWait {
+		t.Fatalf("the client waited %v although the caller had a shorter deadline", elapsed)
+	}
+}
