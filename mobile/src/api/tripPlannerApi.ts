@@ -23,6 +23,32 @@ export interface RoutePlan {
   movements: PlannedMovement[];
 }
 
+export interface WeatherTelemetry {
+  time: string;
+  station_id: string;
+  sector: string;
+  temperature_c: number;
+  humidity_pct: number;
+  wind_speed_kmh: number;
+  pm25_ug_m3: number;
+  pm10_ug_m3: number;
+  status: string;
+  latitude: number;
+  longitude: number;
+}
+
+export async function fetchWeatherTelemetry(): Promise<WeatherTelemetry[]> {
+  const to = new Date();
+  const from = new Date(to.getTime() - 60 * 60 * 1000);
+  const params = new URLSearchParams({
+    from: from.toISOString(),
+    to: to.toISOString(),
+    limit: '20',
+  });
+  const response = await apiRequest<{ data?: WeatherTelemetry[] }>(`/integrations/climate/telemetry?${params.toString()}`);
+  return response?.data ?? [];
+}
+
 interface TransitRoutesResponse {
   routes?: Array<{ id?: string; short_name?: string; long_name?: string }>;
 }

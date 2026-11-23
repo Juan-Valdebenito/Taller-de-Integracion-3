@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
-import { fetchAllStops, fetchRouteAlternatives, fetchTransitRouteLabels, type RoutePlan } from '../../api/tripPlannerApi';
+import { fetchAllStops, fetchRouteAlternatives, fetchTransitRouteLabels, fetchWeatherTelemetry, type RoutePlan, type WeatherTelemetry } from '../../api/tripPlannerApi';
 import type { Stop } from '../../location/geo';
 import type { LiveBus } from '../../realtime/liveBuses';
 import { Button } from '../Button';
@@ -11,12 +11,13 @@ import { LoadingState } from '../LoadingState';
 import { makeStyles, radius, spacing, useTheme } from '../../theme';
 
 type Selection = 'origin' | 'destination' | null;
-type Preference = 'fastest' | 'least_walking' | 'least_occupied';
+type Preference = 'fastest' | 'least_walking' | 'least_occupied' | 'weather_exposure';
 
 const PREFERENCE_OPTIONS: readonly { id: Preference; label: string; description: string }[] = [
   { id: 'fastest', label: 'Llegar antes', description: 'Prioriza el menor tiempo total.' },
   { id: 'least_walking', label: 'Caminar menos', description: 'Reduce el tiempo de los tramos a pie.' },
   { id: 'least_occupied', label: 'Menor ocupación', description: 'Usa la ocupación reciente de micros activas.' },
+  { id: 'weather_exposure', label: 'Reducir exposición climática', description: 'Prioriza menos caminata ante clima desfavorable.' },
 ];
 
 function formatDuration(seconds: number): string {
@@ -36,6 +37,21 @@ function busSeconds(plan: RoutePlan): number {
 
 function formatDistance(meters: number): string {
   return meters < 1000 ? `${Math.round(meters)} m` : `${(meters / 1000).toFixed(1).replace('.', ',')} km`;
+}
+
+function latestWeather(records: readonly WeatherTelemetry[]): WeatherTelemetry | null {
+  return [...records].sort((left, right) => right.time.localeCompare(left.time))[0] ?? null;
+}
+
+function weatherAlerts(weather: WeatherTelemetry): string[] {
+  const alerts: string[] = [];
+  if (weather.humidity_pct >= 85) alerts.push('Alta humedad: posible lluvia o ambiente muy húmedo.');
+  if (weather.temperature_c >= 30) alerts.push(`Calor elevado (${Math.round(weather.temperature_c)} °C): lleva agua.`);
+  if (weather.temperature_c <= 8) alerts.push(`Temperatura baja (${Math.round(weather.temperature_c)} °C): considera abrigo.`);
+  if (weather.wind_speed_kmh >= 30) alerts.push(`Viento fuerte (${Math.round(weather.wind_speed_kmh)} km/h): precaución al esperar.`);
+  if (weather.pm25_ug_m3 >= 35) alerts.push(`PM2.5 elevado (${Math.round(weather.pm25_ug_m3)} µg/m³): reduce exposición.`);
+  if (alerts.length === 0) alerts.push('Condiciones favorables para iniciar el recorrido.');
+  return alerts;
 }
 
 function formatSegmentDuration(seconds: number): string {
@@ -144,6 +160,7 @@ function recommendationFor(
   preference: Preference,
   buses: readonly LiveBus[],
   routeLabels: Record<string, string>,
+  weather: WeatherTelemetry | null,
 ): { recommended: RoutePlan | null; alternatives: RoutePlan[]; occupancyAvailable: boolean } {
   const byTime = [...plans].sort((left, right) => left.total_time_seconds - right.total_time_seconds);
   const occupancyByPlan = new Map(plans.map((plan) => [plan, occupancyScore(plan, buses, routeLabels)]));
@@ -151,6 +168,11 @@ function recommendationFor(
   let recommended = byTime[0] ?? null;
   if (preference === 'least_walking') {
     recommended = [...plans].sort((left, right) => walkingSeconds(left) - walkingSeconds(right) || left.total_time_seconds - right.total_time_seconds)[0] ?? null;
+  } else if (preference === 'weather_exposure') {
+    const unfavorable = Boolean(weather && (weather.humidity_pct >= 85 || weather.temperature_c >= 30 || weather.temperature_c <= 8 || weather.wind_speed_kmh >= 30 || weather.pm25_ug_m3 >= 35));
+    recommended = unfavorable
+      ? [...plans].sort((left, right) => walkingSeconds(left) - walkingSeconds(right) || left.total_time_seconds - right.total_time_seconds)[0] ?? null
+      : byTime[0] ?? null;
   } else if (preference === 'least_occupied' && occupancyAvailable) {
     recommended = [...plans].sort((left, right) => {
       const leftScore = occupancyByPlan.get(left) ?? Number.POSITIVE_INFINITY;
@@ -267,6 +289,8 @@ export function TripPlanner({ buses = [], onRecommendationChange }: { buses?: re
   const [query, setQuery] = useState('');
   const [plans, setPlans] = useState<RoutePlan[] | null>(null);
   const [preference, setPreference] = useState<Preference>('fastest');
+  const [weather, setWeather] = useState<WeatherTelemetry[]>([]);
+  const [weatherError, setWeatherError] = useState<string | null>(null);
   const [planning, setPlanning] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
   const mounted = useRef(false);
@@ -295,6 +319,9 @@ export function TripPlanner({ buses = [], onRecommendationChange }: { buses?: re
   useEffect(() => {
     mounted.current = true;
     const loadTimer = setTimeout(loadStops, 0);
+    fetchWeatherTelemetry()
+      .then(setWeather)
+      .catch(() => setWeatherError('No se pudo consultar el clima actual.'));
     return () => {
       clearTimeout(loadTimer);
       mounted.current = false;
@@ -337,9 +364,11 @@ export function TripPlanner({ buses = [], onRecommendationChange }: { buses?: re
   };
 
   const selectionTitle = selection === 'origin' ? 'origen' : 'destino';
+  const currentWeather = latestWeather(weather);
+  const weatherAlertsList = currentWeather ? weatherAlerts(currentWeather) : [];
   const recommendation = useMemo(
-    () => recommendationFor(plans ?? [], preference, buses, routeLabels),
-    [buses, plans, preference, routeLabels],
+    () => recommendationFor(plans ?? [], preference, buses, routeLabels, currentWeather),
+    [buses, currentWeather, plans, preference, routeLabels],
   );
 
   useEffect(() => {
@@ -349,6 +378,21 @@ export function TripPlanner({ buses = [], onRecommendationChange }: { buses?: re
   return (
     <View>
       <Text style={styles.intro}>Elige dos paraderos y compara las opciones por tiempo total.</Text>
+      {currentWeather ? (
+        <View style={styles.weatherSection}>
+          <View style={styles.weatherGrid}>
+            <View style={styles.weatherCard}><Text style={styles.weatherLabel}>🌡️ Temperatura</Text><Text style={styles.weatherValue}>{Math.round(currentWeather.temperature_c)} °C</Text></View>
+            <View style={styles.weatherCard}><Text style={styles.weatherLabel}>💧 Humedad</Text><Text style={styles.weatherValue}>{Math.round(currentWeather.humidity_pct)}%</Text></View>
+            <View style={styles.weatherCard}><Text style={styles.weatherLabel}>🌬️ Viento</Text><Text style={styles.weatherValue}>{Math.round(currentWeather.wind_speed_kmh)} km/h</Text></View>
+            <View style={styles.weatherCard}><Text style={styles.weatherLabel}>PM2.5</Text><Text style={styles.weatherValue}>{Math.round(currentWeather.pm25_ug_m3)} µg/m³</Text></View>
+          </View>
+          <View style={styles.weatherAlerts}>
+            {weatherAlertsList.map((alert) => <Text key={alert} style={styles.weatherAlertText}>{alert}</Text>)}
+          </View>
+        </View>
+      ) : weatherError ? (
+        <Text style={styles.weatherUnavailable}>{weatherError}</Text>
+      ) : null}
       {loadingStops ? (
         <LoadingState message="Cargando paraderos…" size="small" />
       ) : stopsError ? (
@@ -408,13 +452,6 @@ export function TripPlanner({ buses = [], onRecommendationChange }: { buses?: re
                 </Pressable>
               );
             })}
-            <View style={[styles.preference, styles.preferenceDisabled]} accessibilityState={{ disabled: true }}>
-              <View style={styles.radio} />
-              <View style={styles.preferenceText}>
-                <Text style={styles.preferenceTitle}>Evitar lluvia · Próximamente</Text>
-                <Text style={styles.helper}>Se activará cuando la app tenga pronóstico meteorológico.</Text>
-              </View>
-            </View>
           </View>
 
           <View style={styles.action}>
@@ -440,6 +477,14 @@ export function TripPlanner({ buses = [], onRecommendationChange }: { buses?: re
 
 const useStyles = makeStyles((colors, font) => ({
   intro: { color: colors.muted, fontSize: font(13), lineHeight: font(19) },
+  weatherSection: { marginTop: spacing.sm, gap: spacing.xs, padding: spacing.sm, borderWidth: 1, borderColor: 'rgba(56,189,248,0.24)', borderRadius: radius.md, backgroundColor: 'rgba(56,189,248,0.07)' },
+  weatherGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: spacing.xs },
+  weatherCard: { width: '48.5%', minHeight: 48, justifyContent: 'center', paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, backgroundColor: colors.background },
+  weatherLabel: { color: colors.muted, fontSize: font(10), lineHeight: font(14) },
+  weatherValue: { color: colors.text, fontSize: font(13), lineHeight: font(18), fontWeight: '700' },
+  weatherAlerts: { gap: 2 },
+  weatherAlertText: { color: '#fbbf24', fontSize: font(10), lineHeight: font(15) },
+  weatherUnavailable: { marginTop: spacing.sm, color: colors.muted, fontSize: font(11), lineHeight: font(16) },
   loading: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.md },
   helper: { color: colors.muted, fontSize: font(12), lineHeight: font(18), marginTop: spacing.xs },
   error: { color: colors.danger, fontSize: font(13), lineHeight: font(19), marginTop: spacing.sm },
