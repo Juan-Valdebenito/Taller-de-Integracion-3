@@ -234,18 +234,24 @@ func writeUniversityRPCError(ginContext *gin.Context, err error) {
 }
 
 func newUniversityRouteJSON(route *microv1.UniversityRoute) universityRouteJSON {
-	routeJSON := universityRouteJSON{
+	return universityRouteJSON{
 		CampusID:            route.GetCampusId(),
 		CampusName:          route.GetCampusName(),
 		DestinationStopID:   route.GetDestinationStopId(),
 		TotalTimeSeconds:    route.GetTotalTimeSeconds(),
 		TotalDistanceMeters: route.GetTotalDistanceMeters(),
 		Transfers:           route.GetTransfers(),
-		Movements:           make([]movementJSON, 0, len(route.GetMovements())),
+		Movements:           newMovementsJSON(route.GetMovements()),
 		Cost:                newCostBreakdownJSON(route.GetCost()),
 	}
-	for _, movement := range route.GetMovements() {
-		routeJSON.Movements = append(routeJSON.Movements, movementJSON{
+}
+
+// newMovementsJSON convierte los tramos en orden. Sin tramos devuelve una lista
+// vacía, que en el JSON es [] y no null.
+func newMovementsJSON(movements []*microv1.Movement) []movementJSON {
+	movementsJSON := make([]movementJSON, 0, len(movements))
+	for _, movement := range movements {
+		movementsJSON = append(movementsJSON, movementJSON{
 			FromStopID:     movement.GetFromStopId(),
 			ToStopID:       movement.GetToStopId(),
 			Mode:           movement.GetMode(),
@@ -255,5 +261,5 @@ func newUniversityRouteJSON(route *microv1.UniversityRoute) universityRouteJSON 
 			DistanceMeters: movement.GetDistanceMeters(),
 		})
 	}
-	return routeJSON
+	return movementsJSON
 }
