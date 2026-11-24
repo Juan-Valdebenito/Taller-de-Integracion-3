@@ -27,3 +27,50 @@ func newRecommendedRouteJSON(route *microv1.RecommendedRoute) recommendedRouteJS
 		Cost:                newCostBreakdownJSON(route.GetCost()),
 	}
 }
+
+// routePreferencesJSON son las preferencias con que micro_service ordenó las
+// rutas, con los valores por defecto ya aplicados.
+type routePreferencesJSON struct {
+	Priority      string `json:"priority"`
+	MaxWalkMeters int32  `json:"max_walk_meters"`
+	// AvoidCrowding es un puntero porque el campo es optional en el proto: si no
+	// viniera, null es más honesto que false, que tiene otro significado.
+	AvoidCrowding *bool `json:"avoid_crowding"`
+}
+
+// newRoutePreferencesJSON devuelve nil si micro_service no informó las
+// preferencias. En el JSON queda null, igual que con los pesos.
+func newRoutePreferencesJSON(preferences *microv1.RoutePreferences) *routePreferencesJSON {
+	if preferences == nil {
+		return nil
+	}
+	return &routePreferencesJSON{
+		Priority:      preferences.GetPriority(),
+		MaxWalkMeters: preferences.GetMaxWalkMeters(),
+		AvoidCrowding: preferences.AvoidCrowding,
+	}
+}
+
+// recommendationsJSON es la respuesta completa, con las rutas de menor a mayor
+// costo.
+type recommendationsJSON struct {
+	Routes      []recommendedRouteJSON `json:"routes"`
+	Total       int                    `json:"total"`
+	CostWeights *costWeightsJSON       `json:"cost_weights"`
+	Preferences *routePreferencesJSON  `json:"preferences"`
+}
+
+// newRecommendationsJSON conserva el orden de micro_service. Sin rutas, routes es
+// una lista vacía y no null.
+func newRecommendationsJSON(response *microv1.RecommendRoutesResponse) recommendationsJSON {
+	routes := make([]recommendedRouteJSON, 0, len(response.GetRoutes()))
+	for _, route := range response.GetRoutes() {
+		routes = append(routes, newRecommendedRouteJSON(route))
+	}
+	return recommendationsJSON{
+		Routes:      routes,
+		Total:       len(routes),
+		CostWeights: newCostWeightsJSON(response.GetCostWeights()),
+		Preferences: newRoutePreferencesJSON(response.GetPreferences()),
+	}
+}

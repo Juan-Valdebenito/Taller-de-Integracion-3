@@ -63,3 +63,48 @@ func TestRecommendedRouteJSONMatchesUniversityRoute(t *testing.T) {
 	}
 	assertJSONText(t, newRecommendedRouteJSON(recommended), string(expectedText))
 }
+
+func TestRoutePreferencesJSON(t *testing.T) {
+	avoiding, notAvoiding := true, false
+	for expectedText, preferences := range map[string]*microv1.RoutePreferences{
+		`null`: nil,
+		`{"priority":"balanced","max_walk_meters":1000,"avoid_crowding":true}`:      {Priority: "balanced", MaxWalkMeters: 1000, AvoidCrowding: &avoiding},
+		`{"priority":"least_walking","max_walk_meters":300,"avoid_crowding":false}`: {Priority: "least_walking", MaxWalkMeters: 300, AvoidCrowding: &notAvoiding},
+		// Si micro_service no informara el valor, null no se confunde con false.
+		`{"priority":"fastest","max_walk_meters":1000,"avoid_crowding":null}`: {Priority: "fastest", MaxWalkMeters: 1000},
+	} {
+		assertJSONText(t, newRoutePreferencesJSON(preferences), expectedText)
+	}
+}
+
+// Las claves del JSON y el orden de las rutas, que decide micro_service: no se
+// reordenan por tiempo ni por costo.
+func TestRecommendationsJSONKeepsOrder(t *testing.T) {
+	response := recommendationSampleResponse()
+	response.Routes = []*microv1.RecommendedRoute{{TotalTimeSeconds: 300}, {TotalTimeSeconds: 100}, {TotalTimeSeconds: 200}}
+	recommendations := newRecommendationsJSON(response)
+	if recommendations.Total != 3 {
+		t.Fatalf("total = %d, want 3", recommendations.Total)
+	}
+	for routeIndex, expectedSeconds := range []int32{300, 100, 200} {
+		if recommendations.Routes[routeIndex].TotalTimeSeconds != expectedSeconds {
+			t.Fatalf("route %d takes %d s, want %d", routeIndex, recommendations.Routes[routeIndex].TotalTimeSeconds, expectedSeconds)
+		}
+	}
+	assertJSONText(t, recommendations.CostWeights,
+		`{"ride_weight":1,"walk_weight":2,"wait_weight":2,"transfer_penalty_seconds":300,"assumed_headway_seconds":600}`)
+	assertJSONText(t, recommendations.Preferences, `{"priority":"balanced","max_walk_meters":1000,"avoid_crowding":true}`)
+}
+
+// Sin rutas, la app igual recibe una lista, los pesos y las preferencias. Sin
+// pesos ni preferencias llegan null.
+func TestRecommendationsJSONWithoutRoutes(t *testing.T) {
+	response := recommendationSampleResponse()
+	response.Routes, response.Total = nil, 0
+	assertJSONText(t, newRecommendationsJSON(response), `{"routes":[],"total":0,`+
+		`"cost_weights":{"ride_weight":1,"walk_weight":2,"wait_weight":2,"transfer_penalty_seconds":300,"assumed_headway_seconds":600},`+
+		`"preferences":{"priority":"balanced","max_walk_meters":1000,"avoid_crowding":true}}`)
+	const emptyResponse = `{"routes":[],"total":0,"cost_weights":null,"preferences":null}`
+	assertJSONText(t, newRecommendationsJSON(&microv1.RecommendRoutesResponse{}), emptyResponse)
+	assertJSONText(t, newRecommendationsJSON(nil), emptyResponse)
+}
