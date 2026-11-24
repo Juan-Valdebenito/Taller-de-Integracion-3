@@ -1,11 +1,14 @@
 import axios, { type AxiosRequestConfig } from 'axios';
 
+const apiBaseURL = import.meta.env.VITE_API_BASE_URL ?? '';
+const apiV1URL = `${apiBaseURL.replace(/\/$/, '')}/api/v1`;
+
 /**
  * Instancia de Axios preconfigurada para el backend.
  * Agrega automáticamente el token JWT de localStorage.
  */
 export const apiClient = axios.create({
-  baseURL: '/api/v1',
+  baseURL: apiV1URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -35,7 +38,7 @@ const refreshAccessToken = (): Promise<string> => {
   if (!refreshPromise) {
     const refreshToken = localStorage.getItem('refreshToken');
     refreshPromise = (refreshToken
-      ? axios.post('/api/v1/auth/refresh', { refreshToken })
+      ? axios.post(`${apiV1URL}/auth/refresh`, { refreshToken })
       : Promise.reject(new Error('Sin refresh token'))
     )
       .then((res) => {

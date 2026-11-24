@@ -30,8 +30,8 @@ import { makeStyles, spacing } from '../theme';
 /**
  * Pestaña Mapa del pasajero, como PassengerMapPage del web en un teléfono: el
  * mapa de Temuco ocupa toda la pantalla (el web oculta su panel lateral bajo
- * 640 px) con las paradas, las micros (en tiempo real o simuladas, como el
- * web) y tu ubicación, con la barra de estado de la conexión y el filtro por
+ * 640 px) con las paradas, las micros en tiempo real
+ * y tu ubicación, con la barra de estado de la conexión y el filtro por
  * línea (micros y paradas de la línea elegida) arriba, y el
  * aviso de conexión perdida sobre el mapa. Abajo van paneles plegables
  * (al abrir uno se pliega el otro): "Micros activas", la lista lateral del
@@ -41,7 +41,7 @@ import { makeStyles, spacing } from '../theme';
 export function MapScreen() {
   const styles = useStyles();
   const location = useLocation();
-  const { buses, source, realtime } = useMapBuses();
+  const { buses, live, realtime } = useMapBuses();
   // Tocar una micro la selecciona; tocarla de nuevo la deselecciona (como el web).
   const [selectedBusId, setSelectedBusId] = useState<string | null>(null);
   const selectBus = (id: string) => setSelectedBusId((current) => (current === id ? null : id));
@@ -62,7 +62,6 @@ export function MapScreen() {
   const visibleBuses = filterBusesByRoute(buses, routeFilter);
   // La ficha se cierra sola si la micro elegida queda fuera del filtro o deja de existir.
   const selectedBus = visibleBuses.find((bus) => bus.id === selectedBusId) ?? null;
-  const live = source === 'realtime';
   // Como el web: la lista muestra filas de carga mientras se conecta por primera vez.
   const loadingBuses = realtime.status === 'connecting' && realtime.totalMessages === 0;
   // Paneles de abajo como acordeón: abrir uno pliega el otro.
@@ -70,7 +69,7 @@ export function MapScreen() {
   const nearby = useNearestStop(location.position);
   const { settings } = useSettings();
   // Las alertas usan las micros del tiempo real; sin conexión consultan al
-  // servidor (nunca las simuladas, que no son micros reales).
+  // servidor.
   const liveBuses = useMemo(() => (live ? liveBusesToPositions(buses) : null), [live, buses]);
   const alerts = useProximityAlerts(nearby.proximity, {
     vibrate: settings.vibrationEnabled,

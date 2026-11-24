@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
+import { apiClient } from '../../../infrastructure/api/apiClient';
 import { useAuth } from '../../context/AuthContext';
 
 export function LoginPage() {
@@ -18,7 +18,7 @@ export function LoginPage() {
     setIsLoading(true);
 
     try {
-      const res = await axios.post('/api/v1/auth/login', {
+      const res = await apiClient.post('/auth/login', {
         email,
         password,
       });

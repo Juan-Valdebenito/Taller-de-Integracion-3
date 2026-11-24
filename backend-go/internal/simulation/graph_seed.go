@@ -1,8 +1,8 @@
 package simulation
 
 // graph_seed.go contiene el subconjunto de nodos y aristas usado por el seed
-// de micros-db-init-scripts.yaml. El trazado GPS detallado de routes.go sigue
-// siendo la geometria de la simulacion; estos datos aportan tiempos base.
+// de micros-db-init-scripts.yaml. La geometria de la simulacion son los tramos por las
+// calles; estos datos aportan el orden de los paraderos y los tiempos base.
 
 var temucoGraphNodes = []RouteNode{
 	{ID: "PAR-CJP-01", Name: "Campus San Juan Pablo II", Position: Waypoint{Lat: -38.703959, Lng: -72.550509}},
@@ -40,5 +40,12 @@ func init() {
 	for index := range Routes {
 		Routes[index].Nodes = append([]RouteNode(nil), temucoGraphNodes...)
 		Routes[index].Segments = append([]RouteSegment(nil), temucoGraphSegments[Routes[index].ID]...)
+		Routes[index].followLegs(temucoRouteLegs[Routes[index].ID])
 	}
+}
+
+var temucoRouteLegs = map[string][]RouteLeg{
+	"route-7A": route7ALegs,
+	"route-7B": route7BLegs,
+	"route-1C": route1CLegs,
 }

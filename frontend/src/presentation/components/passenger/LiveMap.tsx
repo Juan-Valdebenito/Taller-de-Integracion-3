@@ -1,9 +1,13 @@
-import React from 'react';
+import React, { type ReactNode } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './LiveMap.css';
 import { HazardMarker } from './HazardMarker';
+import { StopMarker } from '../map/StopMarker';
+import { ClimateMarker } from './ClimateMarker';
+import type { ClimateTelemetryRecord } from '../../../infrastructure/api/climateTelemetryApi';
+import type { MicroStop } from '../../../infrastructure/api/microStopsApi';
 
 // Fix for default Leaflet icon paths in React
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -44,13 +48,16 @@ export interface HazardData {
 }
 
 interface LiveMapProps {
-  buses: BusData[];
-  hazards: HazardData[];
-  onBusClick: (busId: string, lineName: string) => void;
-  onMapClick: (lat: number, lng: number) => void;
-  onHazardUseful: (id: string) => boolean;
-  onHazardResolve: (id: string) => void;
+  buses?: BusData[];
+  stops?: MicroStop[];
+  climateTelemetry?: ClimateTelemetryRecord[];
+  hazards?: HazardData[];
+  onBusClick?: (busId: string, lineName: string) => void;
+  onMapClick?: (lat: number, lng: number) => void;
+  onHazardUseful?: (id: string) => boolean;
+  onHazardResolve?: (id: string) => void;
   selectedBusId?: string;
+  children?: ReactNode;
 }
 
 // Centro de Temuco
@@ -151,18 +158,21 @@ const createBusIcon = (
 };
 
 export const LiveMap: React.FC<LiveMapProps> = ({
-  buses,
-  hazards,
+  buses = [],
+  stops = [],
+  climateTelemetry = [],
+  hazards = [],
   onBusClick,
   onMapClick,
   onHazardUseful,
   onHazardResolve,
   selectedBusId,
+  children,
 }) => {
   const MapClickHandler = () => {
     useMapEvents({
       click(e) {
-        onMapClick(e.latlng.lat, e.latlng.lng);
+        onMapClick?.(e.latlng.lat, e.latlng.lng);
       },
     });
     return null;
@@ -179,9 +189,18 @@ export const LiveMap: React.FC<LiveMapProps> = ({
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          maxZoom={19}
         />
         
-        <MapClickHandler />
+        {onMapClick ? <MapClickHandler /> : null}
+
+        {stops.map((stop) => (
+          <StopMarker key={stop.id} stop={stop} />
+        ))}
+
+        {climateTelemetry.map((record) => (
+          <ClimateMarker key={record.station_id} record={record} />
+        ))}
         
         {buses.map((bus) => {
           const pass = bus.currentPassengers ?? 0;
@@ -196,9 +215,7 @@ export const LiveMap: React.FC<LiveMapProps> = ({
               position={[bus.lat, bus.lng]} 
               icon={icon}
               bubblingMouseEvents={false}
-              eventHandlers={{
-                click: () => onBusClick(bus.id, bus.line)
-              }}
+              eventHandlers={onBusClick ? { click: () => onBusClick(bus.id, bus.line) } : undefined}
             >
               <Popup>
                 <div className="bus-popup">
@@ -215,29 +232,35 @@ export const LiveMap: React.FC<LiveMapProps> = ({
                       {bus.lastEvent.description}
                     </p>
                   )}
-                  <button 
-                    className="popup-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onBusClick(bus.id, bus.line);
-                    }}
-                  >
-                    Dejar Reclamo
-                  </button>
+                  {onBusClick ? (
+                    <button
+                      className="popup-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onBusClick(bus.id, bus.line);
+                      }}
+                    >
+                      Dejar Reclamo
+                    </button>
+                  ) : null}
                 </div>
               </Popup>
             </Marker>
           );
         })}
 
-        {hazards.map((hazard) => (
-          <HazardMarker
-            key={hazard.id}
-            hazard={hazard}
-            onUseful={onHazardUseful}
-            onResolve={onHazardResolve}
-          />
-        ))}
+        {onHazardUseful && onHazardResolve
+          ? hazards.map((hazard) => (
+              <HazardMarker
+                key={hazard.id}
+                hazard={hazard}
+                onUseful={onHazardUseful}
+                onResolve={onHazardResolve}
+              />
+            ))
+          : null}
+
+        {children}
       </MapContainer>
     </div>
   );

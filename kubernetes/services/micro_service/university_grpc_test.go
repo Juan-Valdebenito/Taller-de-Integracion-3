@@ -1,0 +1,162 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	microv1 "github.com/Juan-Valdebenito/Taller-de-Integracion-3/proto/gen/go/micro/v1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/proto"
+)
+
+func TestListCampusesReturnsCatalog(t *testing.T) {
+	response, err := (&microGRPCServer{}).ListCampuses(context.Background(), &microv1.ListCampusesRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(response.GetCampuses()) != len(universityCampuses) {
+		t.Fatalf("se esperaban %d campus y se obtuvieron %d", len(universityCampuses), len(response.GetCampuses()))
+	}
+	for campusIndex, campus := range universityCampuses {
+		message := response.GetCampuses()[campusIndex]
+		if message.GetId() != campus.ID || message.GetName() != campus.Name || len(message.GetStopIds()) != len(campus.StopIDs) {
+			t.Errorf("campus inesperado: %+v", message)
+		}
+	}
+}
+
+func TestProtoRequestUsesDefaultLimit(t *testing.T) {
+	routeRequest, err := universityRouteRequestFromProto(&microv1.PlanUniversityRoutesRequest{OriginStopId: "PAR-PORTAL-01"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if routeRequest.Limit != defaultUniversityRoutes || routeRequest.HasLocation {
+		t.Errorf("petición inesperada: %+v", routeRequest)
+	}
+}
+
+func TestProtoRequestKeepsLocationAndCampus(t *testing.T) {
+	routeRequest, err := universityRouteRequestFromProto(&microv1.PlanUniversityRoutesRequest{
+		Latitude:  proto.Float64(-38.7),
+		Longitude: proto.Float64(-72.6),
+		CampusId:  "san-francisco",
+		Limit:     2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !routeRequest.HasLocation || routeRequest.Latitude != -38.7 || routeRequest.Longitude != -72.6 ||
+		routeRequest.CampusID != "san-francisco" || routeRequest.Limit != 2 {
+		t.Errorf("petición inesperada: %+v", routeRequest)
+	}
+}
+
+// Una coordenada en 0 es un valor enviado, no una coordenada ausente.
+func TestProtoRequestTreatsZeroAsSentCoordinate(t *testing.T) {
+	routeRequest, err := universityRouteRequestFromProto(&microv1.PlanUniversityRoutesRequest{
+		Latitude:  proto.Float64(0),
+		Longitude: proto.Float64(0),
+	})
+	if err != nil || !routeRequest.HasLocation {
+		t.Errorf("la posición 0, 0 debe contar como enviada: %+v, %v", routeRequest, err)
+	}
+}
+
+func TestProtoRequestRejectsHalfLocation(t *testing.T) {
+	_, err := universityRouteRequestFromProto(&microv1.PlanUniversityRoutesRequest{Latitude: proto.Float64(-38.7)})
+	if !errors.Is(err, errInvalidLocation) {
+		t.Errorf("se esperaba errInvalidLocation y se obtuvo %v", err)
+	}
+}
+
+func TestUniversityRouteErrorCodes(t *testing.T) {
+	testCases := []struct {
+		err          error
+		expectedCode codes.Code
+	}{
+		{errUnknownCampus, codes.NotFound},
+		{errUnknownOriginStop, codes.NotFound},
+		{errNoNearbyStops, codes.NotFound},
+		{errInvalidRouteLimit, codes.InvalidArgument},
+		{errInvalidOrigin, codes.InvalidArgument},
+		{errInvalidLocation, codes.InvalidArgument},
+	}
+	for _, testCase := range testCases {
+		if code := universityRouteErrorCode(testCase.err); code != testCase.expectedCode {
+			t.Errorf("%v: se esperaba %s y se obtuvo %s", testCase.err, testCase.expectedCode, code)
+		}
+	}
+}
+
+func TestMicroUniversityRouteIncludesCost(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	routes, err := routesToUniversity(graph, "PAR-PORTAL-01", "san-francisco", 1, defaultCostWeights())
+	if err != nil || len(routes) != 1 {
+		t.Fatalf("se esperaba una ruta: %+v, %v", routes, err)
+	}
+	cost := microUniversityRoute(routes[0], defaultCostWeights()).GetCost()
+	// 240 s en micro y 300 s de espera con peso 2, igual que en REST.
+	if cost.GetRide() != 240 || cost.GetWalk() != 0 || cost.GetWait() != 600 || cost.GetTransfer() != 0 || cost.GetTotal() != 840 {
+		t.Errorf("costo inesperado: %+v", cost)
+	}
+}
+
+func TestMicroCostWeightsMatchesREST(t *testing.T) {
+	weights := CostWeights{RideWeight: 1.5, WalkWeight: 3, WaitWeight: 2.5, TransferPenaltySeconds: 450}
+	message := microCostWeights(weights)
+	restWeights := newCostWeightsResponse(weights)
+	if message.GetRideWeight() != restWeights.RideWeight || message.GetWalkWeight() != restWeights.WalkWeight ||
+		message.GetWaitWeight() != restWeights.WaitWeight || message.GetTransferPenaltySeconds() != restWeights.TransferPenaltySeconds ||
+		int(message.GetAssumedHeadwaySeconds()) != restWeights.AssumedHeadwaySeconds {
+		t.Errorf("gRPC %+v y REST %+v deben coincidir", message, restWeights)
+	}
+	if message.GetAssumedHeadwaySeconds() != defaultHeadwaySeconds {
+		t.Errorf("se esperaba el intervalo supuesto de %d s: %d", defaultHeadwaySeconds, message.GetAssumedHeadwaySeconds())
+	}
+}
+
+func planUniversityRoutesForTest(t *testing.T, request *microv1.PlanUniversityRoutesRequest) *microv1.PlanUniversityRoutesResponse {
+	t.Helper()
+	store := &GraphStore{}
+	store.Replace(loadSeedNetwork(t).buildGraph())
+	response, err := (&microGRPCServer{service: &Server{store: store}}).PlanUniversityRoutes(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return response
+}
+
+func TestPlanUniversityRoutesReportsCostWeights(t *testing.T) {
+	response := planUniversityRoutesForTest(t, &microv1.PlanUniversityRoutesRequest{OriginStopId: "PAR-PORTAL-01"})
+	weights := response.GetCostWeights()
+	if weights == nil || weights.GetWalkWeight() != 2 || weights.GetTransferPenaltySeconds() != 300 ||
+		weights.GetAssumedHeadwaySeconds() != defaultHeadwaySeconds {
+		t.Errorf("pesos inesperados: %+v", weights)
+	}
+	if response.GetTotal() == 0 || response.GetRoutes()[0].GetCost() == nil {
+		t.Errorf("cada ruta debe traer su costo: %+v", response.GetRoutes())
+	}
+}
+
+func TestPlanUniversityRoutesReportsWeightsWhenEmpty(t *testing.T) {
+	response := planUniversityRoutesForTest(t, &microv1.PlanUniversityRoutesRequest{OriginStopId: "PAR-CSF-01", CampusId: "san-francisco"})
+	if response.GetTotal() != 0 || response.GetCostWeights() == nil {
+		t.Errorf("una lista vacía también debe informar los pesos: %+v", response)
+	}
+}
+
+func TestMicroUniversityRouteKeepsTotals(t *testing.T) {
+	graph := loadSeedNetwork(t).buildGraph()
+	routes, err := routesToUniversity(graph, "PAR-PORTAL-01", "san-juan-pablo-ii", 1, defaultCostWeights())
+	if err != nil || len(routes) != 1 {
+		t.Fatalf("se esperaba una ruta: %+v, %v", routes, err)
+	}
+	message := microUniversityRoute(routes[0], defaultCostWeights())
+	if message.GetCampusId() != "san-juan-pablo-ii" || int(message.GetTotalTimeSeconds()) != pathSeconds(routes[0].Path) {
+		t.Errorf("mensaje inesperado: %+v", message)
+	}
+	if len(message.GetMovements()) != len(routes[0].Path) || message.GetMovements()[0].GetMode() != "bus" {
+		t.Errorf("tramos inesperados: %+v", message.GetMovements())
+	}
+}

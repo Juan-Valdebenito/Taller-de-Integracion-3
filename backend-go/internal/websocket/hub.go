@@ -2,6 +2,7 @@ package websocket
 
 import (
 	"encoding/json"
+	"sync"
 	"time"
 
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain/service"
@@ -10,10 +11,13 @@ import (
 
 // Hub es el motor central del patrón Pub/Sub.
 // Gestiona clientes conectados, suscripciones a topics y fan-out de mensajes.
-// Solo la goroutine Run modifica clients y topics. El resto del sistema envía
-// operaciones por canales, de modo que todas las conexiones se procesan en un
-// único orden y no hay escrituras concurrentes a estos mapas.
+// Run atiende registros y publicaciones por canales, pero cada cliente se suscribe
+// desde su propia goroutine. Por eso clients, topics y los topics de cada cliente
+// solo se usan con mutex tomado: en Go, dos escrituras simultáneas a un mapa
+// terminan el proceso completo.
 type Hub struct {
+	mutex sync.Mutex
+
 	// Clientes registrados.
 	clients map[*Client]bool
 
@@ -32,6 +36,21 @@ type Hub struct {
 
 	// Servicio de ocupación para enriquecer broadcasts.
 	occupancySvc *service.OccupancyService
+
+	// occupancyRecorder guarda los pasajeros de cada micro publicada. Es opcional:
+	// sin él, el Hub funciona igual que antes.
+	occupancyRecorder OccupancyRecorder
+}
+
+// OccupancyRecorder lo implementa liveoccupancy.Tracker.
+type OccupancyRecorder interface {
+	Record(busID, routeID string, currentPassengers, capacity int)
+}
+
+// SetOccupancyRecorder conecta el registro de ocupación. Debe llamarse antes de
+// iniciar Run, porque Run lee el campo sin sincronización.
+func (h *Hub) SetOccupancyRecorder(recorder OccupancyRecorder) {
+	h.occupancyRecorder = recorder
 }
 
 // NewHub crea un nuevo Hub con el servicio de ocupación inyectado.
@@ -55,19 +74,19 @@ func (h *Hub) Run() {
 	for {
 		select {
 		case client := <-h.register:
+			h.mutex.Lock()
 			h.clients[client] = true
 			log.Debug().Str("event", "websocket_client_connected").Int("clients", len(h.clients)).Msg("WebSocket client connected")
+			h.mutex.Unlock()
 
 		case client := <-h.unregister:
-			if _, ok := h.clients[client]; ok {
-				// Remover de todos los topics
-				for topic := range client.topics {
-					h.removeFromTopic(client, topic)
-				}
-				delete(h.clients, client)
-				close(client.send)
+			h.mutex.Lock()
+			_, wasConnected := h.clients[client]
+			h.removeClient(client)
+			if wasConnected {
 				log.Debug().Str("event", "websocket_client_disconnected").Int("clients", len(h.clients)).Msg("WebSocket client disconnected")
 			}
+			h.mutex.Unlock()
 
 		case msg := <-h.publish:
 			h.handlePublish(msg)
@@ -75,8 +94,11 @@ func (h *Hub) Run() {
 	}
 }
 
-// Subscribe agrega un cliente a un topic.
+// Subscribe agrega un cliente a un topic. Es seguro llamarlo desde varias
+// goroutines.
 func (h *Hub) Subscribe(client *Client, topicKey string) {
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
 	if h.topics[topicKey] == nil {
 		h.topics[topicKey] = make(map[*Client]bool)
 	}
@@ -85,8 +107,11 @@ func (h *Hub) Subscribe(client *Client, topicKey string) {
 	log.Debug().Str("event", "websocket_subscribed").Str("topic", topicKey).Int("subscribers", len(h.topics[topicKey])).Msg("WebSocket client subscribed")
 }
 
-// Unsubscribe remueve un cliente de un topic.
+// Unsubscribe remueve un cliente de un topic. Es seguro llamarlo desde varias
+// goroutines.
 func (h *Hub) Unsubscribe(client *Client, topicKey string) {
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
 	h.removeFromTopic(client, topicKey)
 	delete(client.topics, topicKey)
 	log.Debug().Str("event", "websocket_unsubscribed").Str("topic", topicKey).Msg("WebSocket client unsubscribed")
@@ -98,6 +123,9 @@ func (h *Hub) handlePublish(msg *PublishMessage) {
 	// Una publicación se convierte en un evento enriquecido (por ejemplo, con
 	// nivel de ocupación) y se entrega a quienes siguen la ruta o la micro.
 	data := msg.Data
+	if h.occupancyRecorder != nil {
+		h.occupancyRecorder.Record(data.BusID, data.RouteID, data.CurrentPassengers, data.Capacity)
+	}
 
 	// Construir predicción de ocupación
 	var occupancy *OccupancyInfo
@@ -166,27 +194,30 @@ func (h *Hub) handlePublish(msg *PublishMessage) {
 // broadcastToTopic envía un payload a todos los clientes suscritos a un topic.
 func (h *Hub) broadcastToTopic(topicKey string, payload []byte) {
 	// Un cliente lento nunca debe bloquear a los demás. Si su canal de salida
-	// está lleno, se quita su suscripción y se cierra esa conexión.
-	subscribers, ok := h.topics[topicKey]
-	if !ok {
-		return
-	}
-
-	for client := range subscribers {
-		select {
-		case client.send <- payload:
-		default:
-			// Buffer del cliente lleno — desconectarlo
-			h.removeFromTopic(client, topicKey)
-			delete(h.clients, client)
-			close(client.send)
+	// está lleno, se quitan todas sus suscripciones y se cierra esa conexión.
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+	for client := range h.topics[topicKey] {
+		if !client.trySend(payload) {
+			h.removeClient(client)
 			log.Warn().Str("event", "websocket_client_removed").Str("topic", topicKey).Msg("WebSocket client removed because its buffer is full")
 		}
 	}
 }
 
+// removeClient quita un cliente de todos sus topics y cierra su canal. Si quedara
+// en alguno, el siguiente envío usaría un canal cerrado. Requiere mutex tomado.
+func (h *Hub) removeClient(client *Client) {
+	for topicKey := range client.topics {
+		h.removeFromTopic(client, topicKey)
+		delete(client.topics, topicKey)
+	}
+	delete(h.clients, client)
+	client.closeSend()
+}
+
 // removeFromTopic remueve un cliente de un topic específico.
-// Limpia el topic si queda vacío.
+// Limpia el topic si queda vacío. Requiere mutex tomado.
 func (h *Hub) removeFromTopic(client *Client, topicKey string) {
 	if subscribers, ok := h.topics[topicKey]; ok {
 		delete(subscribers, client)

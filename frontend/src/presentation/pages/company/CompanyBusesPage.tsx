@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import axios from 'axios';
+import { apiClient } from '../../../infrastructure/api/apiClient';
 import {
   FaBus,
   FaPlus,
@@ -138,7 +138,7 @@ export function CompanyBusesPage() {
   const fetchBuses = async () => {
     setIsLoading(true);
     try {
-      const res = await axios.get('http://localhost:3001/api/v1/buses', {
+      const res = await apiClient.get('/buses', {
         headers: getHeaders(),
       });
       const list = Array.isArray(res.data) ? res.data : (res.data?.data || []);
@@ -199,8 +199,8 @@ export function CompanyBusesPage() {
     try {
       if (editingBus) {
         // Actualizar micro existente
-        await axios.put(
-          `http://localhost:3001/api/v1/buses/${editingBus.id}`,
+        await apiClient.put(
+          `/buses/${editingBus.id}`,
           {
             patente: formattedPatente,
             capacity: Number(formCapacity),
@@ -227,8 +227,8 @@ export function CompanyBusesPage() {
         setToastMessage(`Micro ${formattedPatente} actualizada exitosamente`);
       } else {
         // Crear nueva micro
-        const res = await axios.post(
-          'http://localhost:3001/api/v1/buses',
+        const res = await apiClient.post(
+          '/buses',
           {
             patente: formattedPatente,
             capacity: Number(formCapacity),
@@ -265,7 +265,7 @@ export function CompanyBusesPage() {
   const handleDeleteBus = async () => {
     if (!busToDelete) return;
     try {
-      await axios.delete(`http://localhost:3001/api/v1/buses/${busToDelete.id}`, {
+      await apiClient.delete(`/buses/${busToDelete.id}`, {
         headers: getHeaders(),
       });
       setBuses((prev) => prev.filter((b) => b.id !== busToDelete.id));

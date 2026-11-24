@@ -14,6 +14,156 @@
   z-index: 10;
 }
 
+/* ── Stop Marker ──────────────────────────────────────────────── */
+.stop-marker-container {
+  background: transparent;
+  border: none;
+}
+
+.stop-marker-icon {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0f766e;
+  background: #ecfeff;
+  border: 3px solid #0f766e;
+  border-radius: 50%;
+  box-shadow: 0 2px 7px rgba(15, 118, 110, 0.45);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.stop-marker-icon:hover {
+  transform: scale(1.12);
+  box-shadow: 0 3px 10px rgba(15, 118, 110, 0.6);
+}
+
+.stop-popup {
+  min-width: 190px;
+  color: #1e293b;
+}
+
+.stop-popup strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #0f766e;
+  font-size: 15px;
+}
+
+.stop-popup dl {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.stop-popup dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.stop-popup dt {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.stop-popup dd {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* ── Climate Station Marker ──────────────────────────────────── */
+.climate-marker-container {
+  background: transparent;
+  border: none;
+}
+
+.climate-marker-icon {
+  display: flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid var(--climate-color);
+  border-radius: 50%;
+  background: #f8fafc;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  color: var(--climate-color);
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.climate-popup {
+  display: grid;
+  min-width: 190px;
+  gap: 5px;
+  color: #e2e8f0;
+}
+
+.climate-popup strong {
+  color: #f8fafc;
+  font-size: 14px;
+}
+
+.climate-popup > span,
+.climate-popup time {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.climate-popup .climate-popup-level {
+  width: fit-content;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(22, 163, 74, 0.16);
+  color: #4ade80;
+  font-weight: 700;
+}
+
+.climate-popup .climate-popup-level.is-warning {
+  background: rgba(217, 119, 6, 0.18);
+  color: #fbbf24;
+}
+
+.climate-popup .climate-popup-level.is-critical {
+  background: rgba(220, 38, 38, 0.18);
+  color: #f87171;
+}
+
+.climate-popup dl {
+  display: grid;
+  gap: 4px;
+  margin: 3px 0 0;
+}
+
+.climate-popup dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.climate-popup dt {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.climate-popup dd {
+  margin: 0;
+  color: #f1f5f9;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: right;
+}
+
 /* Custom Bus Marker */
 .bus-marker {
   font-size: 32px;

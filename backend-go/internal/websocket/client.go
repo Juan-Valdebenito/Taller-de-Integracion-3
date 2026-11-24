@@ -3,6 +3,7 @@ package websocket
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -41,7 +42,12 @@ type Client struct {
 	conn *gorillaWS.Conn
 	send chan []byte
 
-	// Topics a los que está suscrito este cliente (set).
+	// sendMutex protege el cierre de send: el Hub puede cerrarlo mientras esta
+	// conexión todavía quiere responder un error.
+	sendMutex  sync.Mutex
+	sendClosed bool
+
+	// Topics a los que está suscrito este cliente (set). Lo protege hub.mutex.
 	topics map[string]bool
 
 	// Secreto JWT para validar mensajes de publicación.
@@ -291,9 +297,32 @@ func (c *Client) sendError(code, message string) {
 		return
 	}
 
+	// Si el buffer está lleno o la conexión se cerró, el error se descarta.
+	c.trySend(data)
+}
+
+// trySend encola un mensaje sin bloquear. Devuelve false si el buffer está lleno o
+// el canal ya se cerró.
+func (c *Client) trySend(data []byte) bool {
+	c.sendMutex.Lock()
+	defer c.sendMutex.Unlock()
+	if c.sendClosed {
+		return false
+	}
 	select {
 	case c.send <- data:
+		return true
 	default:
-		// Buffer lleno — el writePump eventualmente lo detectará
+		return false
+	}
+}
+
+// closeSend cierra el canal de salida una sola vez.
+func (c *Client) closeSend() {
+	c.sendMutex.Lock()
+	defer c.sendMutex.Unlock()
+	if !c.sendClosed {
+		c.sendClosed = true
+		close(c.send)
 	}
 }

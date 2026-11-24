@@ -188,12 +188,7 @@ export function RecommendedTripPlanner() {
 
   // Cargar paraderos al montar
   useEffect(() => {
-    fetchAllStops()
-      .then((data) => setStops(data.sort((a, b) => a.name.localeCompare(b.name, 'es'))))
-      .catch(() => setStopsError('No se pudieron cargar los paraderos.'));
-    fetchWeatherTelemetry()
-      .then(setWeather)
-      .catch(() => setWeatherError('No se pudo consultar el clima actual.'));
+    apiClient.get('/mapinfo/micro/stops?limit=1000').then(({ data }) => setStops(data?.stops ?? [])).catch(() => setError('No se pudieron cargar los paraderos.'));
   }, []);
 
   const findRoute = async () => {

@@ -160,11 +160,19 @@ func Setup(
 	if grpcH != nil {
 		grpcGroup := api.Group("/integrations", auth())
 		{
-			grpcGroup.GET("/climate/telemetry", grpcH.ListTelemetry)
-			grpcGroup.GET("/micro/stops", grpcH.ListStops)
-			grpcGroup.GET("/micro/stops/:id", grpcH.GetStop)
+			//grpcGroup.GET("/climate/telemetry", grpcH.ListTelemetry)
+			//grpcGroup.GET("/micro/stops", grpcH.ListStops)
+			//grpcGroup.GET("/micro/stops/:id", grpcH.GetStop)
 			grpcGroup.GET("/micro/routes", grpcH.ListRoutes)
 			grpcGroup.GET("/micro/routes/plan", grpcH.PlanRoute)
+			grpcGroup.GET("/micro/campuses", grpcH.ListCampuses)
+			grpcGroup.GET("/micro/routes/university", grpcH.PlanUniversityRoutes)
+		}
+		grpcNoAuth := api.Group("/mapinfo")
+		{
+			grpcNoAuth.GET("/climate/telemetry", grpcH.ListTelemetry)
+			grpcNoAuth.GET("/micro/stops", grpcH.ListStops)
+			grpcNoAuth.GET("/micro/stops/:id", grpcH.GetStop)
 		}
 	}
 

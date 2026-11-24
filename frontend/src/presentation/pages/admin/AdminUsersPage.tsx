@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import axios from 'axios';
+import { apiClient } from '../../../infrastructure/api/apiClient';
 
 // -- Tipos -----------------------------------------------------
 type UserRole = 'ADMIN' | 'COMPANY' | 'PASSENGER';
@@ -196,7 +196,7 @@ export function AdminUsersPage() {
 
   const fetchUsers = async () => {
     try {
-      const res = await axios.get('http://localhost:3001/api/v1/users', { headers: getHeaders() });
+      const res = await apiClient.get('/users', { headers: getHeaders() });
       const data = Array.isArray(res.data) ? res.data : (res.data?.data || []);
       if (data.length > 0) {
         const mapped: AdminUser[] = data.map((u: any) => ({
@@ -235,7 +235,7 @@ export function AdminUsersPage() {
     if (targetUser.isActive) {
       // Soft Delete: Desactivar usuario (isActive = false)
       try {
-        await axios.delete(`http://localhost:3001/api/v1/users/${id}`, { headers: getHeaders() });
+        await apiClient.delete(`/users/${id}`, { headers: getHeaders() });
       } catch {
         // Fallback local
       }
@@ -243,7 +243,7 @@ export function AdminUsersPage() {
     } else {
       // Reactivar usuario vía PATCH
       try {
-        await axios.patch(`http://localhost:3001/api/v1/users/${id}`, { isActive: true }, { headers: getHeaders() });
+        await apiClient.patch(`/users/${id}`, { isActive: true }, { headers: getHeaders() });
       } catch {
         // Fallback local
       }
@@ -263,7 +263,7 @@ export function AdminUsersPage() {
         createdAt: new Date().toISOString().split('T')[0],
       };
       try {
-        await axios.post('http://localhost:3001/api/v1/auth/register', {
+        await apiClient.post('/auth/register', {
           name: newUser.name,
           email: newUser.email,
           password: 'Password123!',
@@ -276,8 +276,8 @@ export function AdminUsersPage() {
     } else if (modal && typeof modal === 'object') {
       try {
         // Actualizar vía PUT /api/v1/users/:id con soporte para isActive
-        await axios.put(
-          `http://localhost:3001/api/v1/users/${modal.id}`,
+        await apiClient.put(
+          `/users/${modal.id}`,
           {
             name: data.name,
             role: data.role,

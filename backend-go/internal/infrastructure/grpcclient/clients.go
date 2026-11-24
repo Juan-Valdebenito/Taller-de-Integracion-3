@@ -90,3 +90,28 @@ func (c *MicroClient) PlanRoute(ctx context.Context, request *microv1.PlanRouteR
 	defer cancel()
 	return c.client.PlanRoute(ctx, request)
 }
+
+// ListCampuses lista los campus universitarios y sus paraderos.
+func (microClient *MicroClient) ListCampuses(requestContext context.Context) (*microv1.ListCampusesResponse, error) {
+	requestContext, cancel := microClient.withContext(requestContext)
+	defer cancel()
+	return microClient.client.ListCampuses(requestContext, &microv1.ListCampusesRequest{})
+}
+
+// PlanUniversityRoutes pide rutas hacia la universidad desde un paradero o una posición.
+func (microClient *MicroClient) PlanUniversityRoutes(requestContext context.Context, request *microv1.PlanUniversityRoutesRequest) (*microv1.PlanUniversityRoutesResponse, error) {
+	requestContext, cancel := microClient.withContext(requestContext)
+	defer cancel()
+	return microClient.client.PlanUniversityRoutes(requestContext, request)
+}
+
+// RecommendRoutes pide rutas recomendadas entre cualquier origen y cualquier
+// destino, cada uno un paradero o una coordenada. Envía la clave interna y aplica
+// el tiempo máximo de espera, igual que las demás llamadas. Los errores vuelven
+// tal cual llegan de micro_service, con su código gRPC: traducirlos a HTTP es
+// trabajo del handler.
+func (microClient *MicroClient) RecommendRoutes(requestContext context.Context, request *microv1.RecommendRoutesRequest) (*microv1.RecommendRoutesResponse, error) {
+	requestContext, cancel := microClient.withContext(requestContext)
+	defer cancel()
+	return microClient.client.RecommendRoutes(requestContext, request)
+}

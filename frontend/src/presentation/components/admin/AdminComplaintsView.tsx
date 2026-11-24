@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import axios from 'axios';
+import { apiClient } from '../../../infrastructure/api/apiClient';
 import {
   FaStar,
   FaCheckCircle,
@@ -93,7 +93,7 @@ export const AdminComplaintsView: React.FC = () => {
   const fetchStats = async () => {
     setIsStatsLoading(true);
     try {
-      const res = await axios.get('http://localhost:3001/api/v1/complaints/stats', {
+      const res = await apiClient.get('/complaints/stats', {
         headers: getHeaders(),
       });
       if (res.data) {
@@ -109,7 +109,7 @@ export const AdminComplaintsView: React.FC = () => {
   const fetchComplaints = async () => {
     setIsLoading(true);
     try {
-      const res = await axios.get('http://localhost:3001/api/v1/complaints', {
+      const res = await apiClient.get('/complaints', {
         headers: getHeaders(),
       });
       const list = Array.isArray(res.data) ? res.data : (res.data?.data || []);
@@ -147,8 +147,8 @@ export const AdminComplaintsView: React.FC = () => {
 
     setIsSubmittingResolution(true);
     try {
-      await axios.patch(
-        `http://localhost:3001/api/v1/complaints/${managingComplaint.id}/status`,
+      await apiClient.patch(
+        `/complaints/${managingComplaint.id}/status`,
         {
           status: targetStatus,
           adminResponse: adminResponseText.trim() || 'Resolución registrada por la administración.',

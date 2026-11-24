@@ -51,4 +51,4 @@ Cada lectura se guarda en su histórico y actualiza el estado de `bus_id` solo s
 
 La configuración de ejecución está en `micro-telemetry-configmap.yaml` y los secretos de ejemplo en `micro-telemetry-secrets.yaml`. En producción, reemplaza los valores de `stringData` antes de aplicar los recursos.
 
-La base de datos usa `micro-telemetry-db.yml` y el esquema de `micro-telemetry-db-init-scripts.yaml`. Como las bases actuales del proyecto usan `emptyDir`, este despliegue también debe recibir un volumen persistente antes de considerarse productivo.
+La base de datos usa `micro-telemetry-db.yml` y el esquema de `micro-telemetry-db-init-scripts.yaml`. El manifiesto declara el PVC `micro-telemetry-pvc` de 1 GiB con acceso `ReadWriteOnce` y lo monta en `/home/postgres/pgdata`. Al no fijar `storageClassName`, Kubernetes usa la StorageClass por defecto del clúster. Comprueba que el PVC quede `Bound` después de aplicar el stack `realtime`.
