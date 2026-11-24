@@ -70,3 +70,7 @@ func assertRouteLegs(t *testing.T, routeID string, legs []RouteLeg) {
 func TestRoute7BLegsFollowOfficialStops(t *testing.T) {
 	assertRouteLegs(t, "route-7B", route7BLegs)
 }
+
+func TestRoute1CLegsFollowOfficialStops(t *testing.T) {
+	assertRouteLegs(t, "route-1C", route1CLegs)
+}
