@@ -47,6 +47,8 @@ spec:
       labels:
         app: clima-db
     spec:
+      securityContext:
+        fsGroup: 999
       containers:
         - name: timescaledb
           image: timescale/timescaledb-ha:pg16
