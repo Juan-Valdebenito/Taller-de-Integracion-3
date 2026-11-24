@@ -20,7 +20,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import './PassengerMapPage.css';
 
-import { useSimulatedBuses, BusState } from '../../../hooks/useSimulatedBuses';
+import type { BusState } from '../../../hooks/useSimulatedBuses';
 import { useSocketBuses } from '../../../hooks/useSocketBuses';
 import { BusMarker } from '../../components/map/BusMarker';
 import { BusSidePanel } from '../../components/map/BusSidePanel';
@@ -31,6 +31,8 @@ import { microStopsApi, type MicroStop } from '../../../infrastructure/api/micro
 import { climateTelemetryApi, type ClimateTelemetryRecord } from '../../../infrastructure/api/climateTelemetryApi';
 import { LiveMap } from '../../components/passenger/LiveMap';
 import { SimulationDevTools, type SimEventType } from '../../components/passenger/SimulationDevTools';
+
+const NO_BUSES: BusState[] = [];
 
 // El simulador es una herramienta de desarrollo: no se muestra en producción.
 const SHOW_DEVTOOLS = import.meta.env.DEV;
@@ -136,11 +138,9 @@ export function PassengerMapPage() {
     };
   }, []);
 
-  // ── Buses simulados (fallback cuando WS no está conectado) ────
-  const simulatedBuses = useSimulatedBuses(2000);
   const [buses, setBuses] = useState<BusState[]>([]);
 
-  // ── WebSocket (fuente primaria) ────────────────────────────────
+  // ── WebSocket (única fuente) ────────────────────────────────
   const setBusesCallback = useCallback(
     (updater: (prev: BusState[]) => BusState[]) => {
       setBuses(updater);
@@ -153,8 +153,8 @@ export function PassengerMapPage() {
   // rechaza). Duran hasta que llega un dato nuevo de esa micro (base distinta).
   const [localPassengers, setLocalPassengers] = useState<Record<string, { base: number; value: number }>>({});
 
-  // WebSocket es la fuente primaria; simulación es fallback
-  const sourceBuses = wsState.status === 'connected' && wsState.totalMessages > 0 ? buses : simulatedBuses;
+  // Sin conexión no se muestran micros: su posición ya no sería la actual.
+  const sourceBuses = wsState.status === 'connected' ? buses : NO_BUSES;
   const activeBuses = sourceBuses.map((bus) => {
     const local = localPassengers[bus.id];
     return local && local.base === bus.currentPassengers ? { ...bus, currentPassengers: local.value } : bus;
