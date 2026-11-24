@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	microv1 "github.com/Juan-Valdebenito/Taller-de-Integracion-3/proto/gen/go/micro/v1"
 )
@@ -129,4 +130,39 @@ func routePreferencesFromQuery(query url.Values) (*microv1.RoutePreferences, err
 		return nil, nil
 	}
 	return &microv1.RoutePreferences{Priority: priority, MaxWalkMeters: maxWalkMeters, AvoidCrowding: avoidCrowding}, nil
+}
+
+// recommendationRequestFromQuery arma la petición completa desde la URL. Con
+// varios errores informa el primero, en el mismo orden en que los revisa
+// micro_service: límite, origen, destino y preferencias. La ocupación y el clima
+// no vienen en la URL: los agrega el handler.
+func recommendationRequestFromQuery(query url.Values) (*microv1.RecommendRoutesRequest, error) {
+	if err := validateQueryText(query); err != nil {
+		return nil, err
+	}
+	limit, err := routeLimitFromQuery(query)
+	if err != nil {
+		return nil, err
+	}
+	origin, destination, err := routePointsFromQuery(query)
+	if err != nil {
+		return nil, err
+	}
+	preferences, err := routePreferencesFromQuery(query)
+	if err != nil {
+		return nil, err
+	}
+	return &microv1.RecommendRoutesRequest{Origin: origin, Destination: destination, Limit: limit, Preferences: preferences}, nil
+}
+
+// validateQueryText revisa los parámetros que viajan como texto. gRPC no puede
+// enviar un texto con bytes inválidos: la llamada fallaría como un error interno,
+// aunque el problema es de la petición.
+func validateQueryText(query url.Values) error {
+	for _, name := range []string{"origin_stop", "destination_stop", "priority"} {
+		if !utf8.ValidString(query.Get(name)) {
+			return &queryError{name + " tiene caracteres inválidos"}
+		}
+	}
+	return nil
 }
