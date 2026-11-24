@@ -31,6 +31,7 @@ import { microStopsApi, type MicroStop } from '../../../infrastructure/api/micro
 import { climateTelemetryApi, type ClimateTelemetryRecord } from '../../../infrastructure/api/climateTelemetryApi';
 import { LiveMap } from '../../components/passenger/LiveMap';
 import { SimulationDevTools, type SimEventType } from '../../components/passenger/SimulationDevTools';
+import { RecommendedTripPlanner } from '../../components/passenger/RecommendedTripPlanner';
 
 const NO_BUSES: BusState[] = [];
 
@@ -204,6 +205,8 @@ export function PassengerMapPage() {
         {/* Mapa Leaflet */}
         <div className="map-leaflet-wrapper">
           <LiveMap stops={stops} climateTelemetry={climateTelemetry}>
+            <RecommendedTripPlanner />
+
             {/* Marcadores de micros con animación */}
             {visibleBuses.map((bus) => (
               <BusMarker

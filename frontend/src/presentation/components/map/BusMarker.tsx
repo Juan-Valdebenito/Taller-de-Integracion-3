@@ -9,6 +9,7 @@
 import { useMemo } from 'react';
 import { Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
+import { FaBus } from 'react-icons/fa';
 import { BusState, getOccupancyColor, getOccupancyLevel } from '../../../hooks/useSimulatedBuses';
 import { useAnimatedPosition } from '../../../hooks/useAnimatedPosition';
 import { useEta } from '../../../hooks/useEta';
@@ -56,8 +57,16 @@ function createBusIcon(color: string, heading: number, isSelected: boolean, isRe
         <polygon points="${half},${arrowY} ${half - arrowSize},${arrowY + arrowSize + 2} ${half + arrowSize},${arrowY + arrowSize + 2}"
           fill="rgba(255,255,255,0.9)" stroke="none"/>
       </g>
-      <!-- Emoji bus -->
-      <text x="${half}" y="${half + 5}" text-anchor="middle" font-size="${isSelected ? 16 : 13}" font-family="system-ui">🚌</text>
+      <!-- Pictograma vectorial frontal de micro -->
+      <svg x="${half - 10}" y="${half - 10}" width="20" height="20" viewBox="0 0 24 24" aria-label="Micro">
+        <path d="M7.5 2.5h9c2 0 3.5 1.6 3.5 3.6v11.5c0 1-.4 1.9-1.2 2.7l-1.2 1.2H6.4l-1.2-1.2C4.4 19.5 4 18.6 4 17.6V6.1c0-2 1.5-3.6 3.5-3.6Z" fill="${color}" stroke="#fff" stroke-width="1.2"/>
+        <path d="M7.2 5.2a1.4 1.4 0 0 1 1.4-1.3h6.8a1.4 1.4 0 0 1 1.4 1.3v4.4H7.2Z" fill="#172033"/>
+        <rect x="7.2" y="11" width="4.3" height="4.3" rx=".8" fill="#e0f2fe"/>
+        <rect x="12.5" y="11" width="4.3" height="4.3" rx=".8" fill="#e0f2fe"/>
+        <path d="M9.3 17h5.4v1.5H9.3z" fill="#172033"/>
+        <path d="M2.7 6.8h2v4h-2zm16.6 0h2v4h-2zM2.7 14.2h2v4h-2zm16.6 0h2v4h-2z" fill="#0f172a"/>
+        <circle cx="7.4" cy="5.2" r=".75" fill="#fef3c7"/><circle cx="16.6" cy="5.2" r=".75" fill="#fef3c7"/>
+      </svg>
     </svg>
   `;
 
@@ -220,7 +229,9 @@ export function BusMarker({ bus, isSelected, onSelect }: BusMarkerProps) {
           {/* Header */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '20px' }}>🚌</span>
+              <span style={{ display: 'grid', placeItems: 'center', width: 30, height: 30, borderRadius: 8, background: `${color}22`, color }}>
+                <FaBus size={17} aria-hidden="true" />
+              </span>
               <div>
                 <div style={{ fontWeight: 700, fontSize: '14px', color: '#f1f5f9' }}>{bus.id}</div>
                 <div style={{ fontSize: '11px', color: '#94a3b8' }}>{bus.routeName}</div>

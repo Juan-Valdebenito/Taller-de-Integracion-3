@@ -65,12 +65,13 @@ describe('ícono de micro', () => {
     expect([busIconSize(false), busIconSize(true)]).toEqual([36, 46]);
   });
 
-  it('el SVG (versión web) es el del web: halo, cuerpo, flecha girada y 🚌', () => {
+  it('el SVG (versión web) muestra halo, cuerpo, flecha girada y pictograma vectorial', () => {
     const svg = busIconSvg('#22c55e', 90, false, false);
     expect(svg).toContain('width="36"');
     expect(svg).toContain('fill="#22c55e" opacity="0.18"');
     expect(svg).toContain('rotate(90, 18, 18)');
-    expect(svg).toContain('🚌');
+    expect(svg).toContain('aria-label="Micro"');
+    expect(svg).toContain('viewBox="0 0 24 24"');
     expect(svg).not.toContain('<animate');
     expect(busIconSvg('#22c55e', 0, true, true).match(/<animate /g)).toHaveLength(3);
   });

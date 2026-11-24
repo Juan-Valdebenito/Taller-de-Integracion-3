@@ -1,9 +1,11 @@
-import { Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View } from 'react-native';
 import { Marker } from 'react-native-maps';
 
 import { useAnimatedPosition } from '../../hooks/useAnimatedPosition';
 import type { LiveBus } from '../../realtime/liveBuses';
 import { busColor, busIconSize, RECENT_MS } from './busIcon';
+import { BusGlyph } from './BusGlyph';
 import { ROUTE_LABELS, type RouteId } from './routeNodes';
 
 export interface BusMarkersLayerProps {
@@ -27,6 +29,11 @@ export function busAccessibilityLabel(bus: LiveBus): string {
  * versión web (Leaflet, con el SVG del web) está en BusMarkersLayer.web.tsx.
  */
 export function BusMarkersLayer({ buses, selectedId = null, onSelect, live = false }: BusMarkersLayerProps) {
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
   return (
     <>
       {buses.map((bus) => (
@@ -34,7 +41,7 @@ export function BusMarkersLayer({ buses, selectedId = null, onSelect, live = fal
           key={bus.id}
           bus={bus}
           selected={bus.id === selectedId}
-          recent={live && Date.now() - bus.lastUpdate < RECENT_MS}
+          recent={live && now > 0 && now - bus.lastUpdate < RECENT_MS}
           onSelect={onSelect}
         />
       ))}
@@ -59,7 +66,7 @@ function BusMarker({ bus, selected, recent, onSelect }: { bus: LiveBus; selected
   );
 }
 
-/** El ícono del web armado con Views (sin SVG): halo, cuerpo, flecha y 🚌. */
+/** Ícono nativo: halo de ocupación, flecha de rumbo y pictograma vectorial. */
 export function BusIcon({ color, heading, selected, recent }: { color: string; heading: number; selected: boolean; recent: boolean }) {
   const size = busIconSize(selected);
   const half = size / 2;
@@ -97,9 +104,9 @@ export function BusIcon({ color, heading, selected, recent }: { color: string; h
           }}
         />
       </View>
-      <Text style={{ position: 'absolute', width: size, top: half - (selected ? 11 : 9), textAlign: 'center', fontSize: selected ? 16 : 13 }}>
-        🚌
-      </Text>
+      <View style={{ position: 'absolute', width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+        <BusGlyph color={color} size={selected ? 20 : 17} />
+      </View>
     </View>
   );
 }

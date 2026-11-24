@@ -11,7 +11,7 @@ export function CompanyLayout() {
   };
 
   return (
-    <div className="company-layout" style={{ display: 'flex', minHeight: '100vh' }}>
+    <div className="company-layout app-accessible" style={{ display: 'flex', minHeight: '100vh' }}>
       {/* Sidebar */}
       <aside style={{
         width: '240px',

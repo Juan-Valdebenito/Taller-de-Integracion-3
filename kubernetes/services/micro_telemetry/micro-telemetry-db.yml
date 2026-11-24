@@ -29,6 +29,8 @@ spec:
       labels:
         app: micro-telemetry-db
     spec:
+      securityContext:
+        fsGroup: 999
       containers:
         - name: micro-telemetry-db
           image: timescale/timescaledb-ha:pg16
