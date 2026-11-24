@@ -128,7 +128,7 @@ func (s *BusSimulator) tick() {
 	for s.segmentElapsed >= segmentDuration {
 		s.segmentElapsed -= segmentDuration
 		s.index = (s.index + 1) % n
-		if s.passengerFlow != nil {
+		if s.passengerFlow != nil && s.routeDef.isStop(s.index) {
 			s.lastFlow = s.passengerFlow.ProcessStop(service.PassengerFlowInput{
 				BusID:             s.busID,
 				RouteID:           s.routeDef.ID,
@@ -176,6 +176,10 @@ func clampInt(v, min, max int) int {
 }
 
 func (s *BusSimulator) segmentDurationSeconds(index int) float64 {
+	if len(s.routeDef.waypointSeconds) == len(s.routeDef.Waypoints) {
+		return s.routeDef.waypointSeconds[index]
+	}
+
 	if len(s.routeDef.Segments) == len(s.routeDef.Waypoints) {
 		if duration := s.routeDef.Segments[index].TravelSeconds; duration > 0 {
 			return float64(duration)

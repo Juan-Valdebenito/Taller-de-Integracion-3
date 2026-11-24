@@ -29,10 +29,14 @@ func waypointDistance(start, end Waypoint) float64 {
 }
 
 // assertRouteLegs revisa que el camino de una línea siga sus paraderos oficiales,
-// en orden y cerrando el circuito, sin saltos ni rodeos absurdos.
+// en orden y cerrando el circuito, sin saltos ni rodeos absurdos. Si los datos
+// oficiales no cierran el circuito, como en la 7A, el camino agrega el regreso.
 func assertRouteLegs(t *testing.T, routeID string, legs []RouteLeg) {
 	t.Helper()
 	segments := temucoGraphSegments[routeID]
+	if firstStop, lastStop := segments[0].FromStopID, segments[len(segments)-1].ToStopID; firstStop != lastStop {
+		segments = append(append([]RouteSegment(nil), segments...), RouteSegment{FromStopID: lastStop, ToStopID: firstStop})
+	}
 	if len(legs) != len(segments) {
 		t.Fatalf("%s has %d legs, want %d", routeID, len(legs), len(segments))
 	}
@@ -73,4 +77,8 @@ func TestRoute7BLegsFollowOfficialStops(t *testing.T) {
 
 func TestRoute1CLegsFollowOfficialStops(t *testing.T) {
 	assertRouteLegs(t, "route-1C", route1CLegs)
+}
+
+func TestRoute7ALegsFollowOfficialStops(t *testing.T) {
+	assertRouteLegs(t, "route-7A", route7ALegs)
 }
