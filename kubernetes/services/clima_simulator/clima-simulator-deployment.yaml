@@ -54,3 +54,22 @@ spec:
             limits:
               memory: "64Mi"
               cpu: "75m"
+          # Probes propuestas, todavía no integradas:
+          # clima-simulator no expone un endpoint HTTP de health/readiness;
+          # estas comprobaciones exec solo verificarían que el proceso PID 1
+          # sigue activo, no que obtiene datos meteorológicos o envía telemetría.
+          # Se dejan comentadas hasta implementar una señal de salud útil en la app.
+          # livenessProbe:
+          #   exec:
+          #     command: ["/bin/sh", "-c", "kill -0 1"]
+          #   initialDelaySeconds: 10
+          #   periodSeconds: 20
+          #   timeoutSeconds: 3
+          #   failureThreshold: 3
+          # readinessProbe:
+          #   exec:
+          #     command: ["/bin/sh", "-c", "kill -0 1"]
+          #   initialDelaySeconds: 5
+          #   periodSeconds: 10
+          #   timeoutSeconds: 3
+          #   failureThreshold: 3

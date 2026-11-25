@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: micros-service
-          image: tpenroz/micro_service:v1.2
+          image: tpenroz/micro_service:recommend-routes-v1
           imagePullPolicy: Always
           resources:
             requests:
