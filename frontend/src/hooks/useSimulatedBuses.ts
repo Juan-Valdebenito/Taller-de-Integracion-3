@@ -29,6 +29,8 @@ export interface BusState {
   totalStudents?: number;
   status: 'ACTIVE' | 'STOPPED' | 'DELAYED';
   lastUpdate: Date;
+  /** Fuente del evento publicado al WebSocket por el backend. */
+  dataSource: 'live' | 'simulation';
   /** Datos de predicción de ocupación del WebSocket (backend Go). */
   wsOccupancy?: OccupancyInfo;
   /** Timestamp del último update recibido vía WebSocket. */

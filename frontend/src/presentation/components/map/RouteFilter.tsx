@@ -9,24 +9,22 @@ import { BusState } from '../../../hooks/useSimulatedBuses';
 
 interface RouteFilterProps {
   buses: BusState[];
+  routes: { id: string; label: string }[];
   value: string;
   onChange: (routeId: string) => void;
 }
 
-const ROUTE_OPTIONS = [
-  { id: 'all',     label: 'Todas las rutas' },
-  { id: 'route-7A', label: 'Línea 7A' },
-  { id: 'route-7B', label: 'Línea 7B' },
-  { id: 'route-1C', label: 'Línea 1C' },
-];
-
-export function RouteFilter({ buses, value, onChange }: RouteFilterProps) {
+export function RouteFilter({ buses, routes, value, onChange }: RouteFilterProps) {
   const countFor = (routeId: string) =>
     routeId === 'all' ? buses.length : buses.filter((b) => b.routeId === routeId).length;
+  const routeOptions = [
+    { id: 'all', label: 'Todas las rutas' },
+    ...routes,
+  ];
 
   return (
     <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
-      {ROUTE_OPTIONS.map((opt) => {
+      {routeOptions.map((opt) => {
         const isActive = value === opt.id;
         const count = countFor(opt.id);
         return (

@@ -167,12 +167,14 @@ function StatusBadge({ status }: { status: BusState['status'] }) {
 }
 
 /** Indicador de frescura del dato */
-function FreshnessDot({ lastWsUpdate }: { lastWsUpdate?: Date }) {
+function FreshnessDot({ lastWsUpdate, dataSource }: { lastWsUpdate?: Date; dataSource: BusState['dataSource'] }) {
+  if (dataSource === 'simulation') {
+    return <span style={{ fontSize: '10px', color: '#fbbf24' }}>Respaldo simulado</span>;
+  }
+
   if (!lastWsUpdate) {
     return (
-      <span style={{ fontSize: '10px', color: '#475569' }}>
-        Simulación
-      </span>
+      <span style={{ fontSize: '10px', color: '#475569' }}>Sin evento reciente</span>
     );
   }
 
@@ -237,7 +239,7 @@ export function BusMarker({ bus, isSelected, onSelect }: BusMarkerProps) {
                 <div style={{ fontSize: '11px', color: '#94a3b8' }}>{bus.routeName}</div>
               </div>
             </div>
-            <FreshnessDot lastWsUpdate={bus.lastWsUpdate} />
+            <FreshnessDot lastWsUpdate={bus.lastWsUpdate} dataSource={bus.dataSource} />
           </div>
 
           <StatusBadge status={bus.status} />

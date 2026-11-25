@@ -15,6 +15,7 @@ import {
   disconnectWS,
   onMessage,
   subscribe,
+  unsubscribe,
   isConnected,
   type BusUpdatePayload,
   type OccupancyInfo,
@@ -111,6 +112,7 @@ export function useSocketBuses(
             bus.id === data.busId
               ? {
                   ...bus,
+                  routeId: data.routeId,
                   latitude: data.latitude,
                   longitude: data.longitude,
                   heading: data.heading ?? bus.heading,
@@ -126,6 +128,7 @@ export function useSocketBuses(
                   totalStudents: data.totalStudents ?? bus.totalStudents,
                   status: 'ACTIVE' as const,
                   lastUpdate: now,
+                  dataSource: data.busId.startsWith('sim-') ? 'simulation' : 'live',
                   wsOccupancy,
                   lastWsUpdate: now,
                 }
@@ -152,6 +155,7 @@ export function useSocketBuses(
             totalStudents: data.totalStudents ?? 0,
             status: 'ACTIVE',
             lastUpdate: now,
+            dataSource: data.busId.startsWith('sim-') ? 'simulation' : 'live',
             wsOccupancy,
             lastWsUpdate: now,
           };
@@ -180,11 +184,6 @@ export function useSocketBuses(
 
       // Conectar
       connectWS();
-
-      // Suscribirse a las rutas
-      for (const routeId of routeIds) {
-        subscribe('route', routeId);
-      }
 
       // Polling de estado de conexión
       const statusInterval = setInterval(() => {
@@ -218,7 +217,23 @@ export function useSocketBuses(
       setStatus('disconnected');
       return undefined;
     }
-  }, [enabled, handleBusUpdate, routeIds, setGlobalStatus]);
+  }, [enabled, handleBusUpdate, setGlobalStatus]);
+
+  // La lista de rutas llega después de cargar el catálogo REST. Actualizar las
+  // suscripciones no debe reiniciar el socket ni perder eventos ya recibidos.
+  useEffect(() => {
+    if (!enabled) return;
+
+    for (const routeId of routeIds) {
+      subscribe('route', routeId);
+    }
+
+    return () => {
+      for (const routeId of routeIds) {
+        unsubscribe('route', routeId);
+      }
+    };
+  }, [enabled, routeIds]);
 
   useEffect(() => {
     setGlobalStatus(status);

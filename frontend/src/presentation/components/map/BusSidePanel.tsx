@@ -47,9 +47,12 @@ function MiniOccupancyBar({ current, capacity }: { current: number; capacity: nu
 }
 
 /** Dot de frescura */
-function FreshDot({ lastWsUpdate }: { lastWsUpdate?: Date }) {
+function FreshDot({ lastWsUpdate, dataSource }: { lastWsUpdate?: Date; dataSource: BusState['dataSource'] }) {
+  if (dataSource === 'simulation') {
+    return <span style={{ fontSize: '9px', color: '#fbbf24', whiteSpace: 'nowrap' }}>respaldo</span>;
+  }
   if (!lastWsUpdate) {
-    return <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#475569', display: 'inline-block' }} />;
+    return <span style={{ fontSize: '9px', color: '#475569' }}>sin evento</span>;
   }
   const ageSec = Math.round((Date.now() - lastWsUpdate.getTime()) / 1000);
   const color = ageSec < 5 ? '#22c55e' : ageSec < 15 ? '#f59e0b' : '#ef4444';
@@ -166,7 +169,7 @@ function BusRow({ bus, isSelected, onSelect }: {
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <FaBus size={14} color="#38bdf8" aria-hidden="true" />
           <span style={{ fontWeight: 700, fontSize: '13px', color: '#f1f5f9' }}>{bus.id}</span>
-          <FreshDot lastWsUpdate={bus.lastWsUpdate} />
+          <FreshDot lastWsUpdate={bus.lastWsUpdate} dataSource={bus.dataSource} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           <div style={{
