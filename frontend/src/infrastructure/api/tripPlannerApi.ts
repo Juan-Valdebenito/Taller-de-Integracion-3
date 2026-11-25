@@ -50,7 +50,7 @@ export interface WeatherTelemetry {
 export async function fetchWeatherTelemetry(): Promise<WeatherTelemetry[]> {
   const to = new Date();
   const from = new Date(to.getTime() - 60 * 60 * 1000);
-  const { data } = await apiClient.get<{ data?: WeatherTelemetry[] }>('/integrations/climate/telemetry', {
+  const { data } = await apiClient.get<{ data?: WeatherTelemetry[] }>('/mapinfo/climate/telemetry', {
     params: { from: from.toISOString(), to: to.toISOString(), limit: 20 },
   });
   return data?.data ?? [];
@@ -66,7 +66,7 @@ function pathKey(plan: RoutePlan): string {
 }
 
 export async function fetchAllStops(): Promise<Stop[]> {
-  const { data } = await apiClient.get<{ stops?: Stop[] }>('/integrations/micro/stops?limit=1000');
+  const { data } = await apiClient.get<{ stops?: Stop[] }>('/mapinfo/micro/stops?limit=1000');
   return data?.stops ?? [];
 }
 
