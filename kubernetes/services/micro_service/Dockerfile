@@ -10,6 +10,7 @@ RUN go mod download
 
 # Copiar código fuente y compilar
 COPY kubernetes/services/micro_service/*.go ./
+COPY kubernetes/services/micro_service/migrations ./migrations
 RUN CGO_ENABLED=0 GOOS=linux go build -o transit-service .
 
 # ETAPA 2: Imagen de ejecución ligera

@@ -453,6 +453,9 @@ func main() {
 	if err := pool.Ping(ctx); err != nil {
 		log.Fatalf("could not connect to database: %v", err)
 	}
+	if err := prepareSchema(config.DatabaseURL, os.Getenv("MIGRATIONS_ENABLED")); err != nil {
+		log.Fatalf("could not apply migrations (MIGRATIONS_ENABLED=false skips them): %v", err)
+	}
 	store := &GraphStore{}
 	graph := NewTransitGraph()
 	if err := graph.LoadFromDB(ctx, pool); err != nil {

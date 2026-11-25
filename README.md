@@ -70,7 +70,8 @@ backend-go/
     └── migrations/
         ├── 000001_init.up.sql / .down.sql                    (esquema base)
         ├── 000002_complaint_attachments.up.sql / .down.sql   (imágenes de reclamos)
-        └── 000003_sync_database_setup.up.sql / .down.sql     (valoración y línea en reclamos, recaudo)
+        ├── 000003_sync_database_setup.up.sql / .down.sql     (valoración y línea en reclamos, recaudo)
+        └── 000004_push_tokens.up.sql / .down.sql             (tokens de notificaciones)
 ```
 
 Al ejecutar el backend:
@@ -82,7 +83,7 @@ go run ./cmd/server
 las migraciones pendientes se ejecutan automáticamente antes de iniciar el servidor HTTP.
 
 En el log aparece el evento `migrations_ready` con la versión de la que partió y a la
-que llegó (`"from":1,"to":3,"changed":true`). Si la base ya está al día, `changed` es
+que llegó (`"from":1,"to":4,"changed":true`). Si la base ya está al día, `changed` es
 `false` y no se ejecuta nada.
 
 Si una migración falla, el backend **no arranca** (evento `migrations_failed`) para no
@@ -100,9 +101,9 @@ Se debe crear una nueva migración:
 ```text
 internal/migrations/
 ├── ...
-├── 000003_sync_database_setup.down.sql
-├── 000004_nombre_del_cambio.up.sql
-└── 000004_nombre_del_cambio.down.sql
+├── 000004_push_tokens.down.sql
+├── 000005_nombre_del_cambio.up.sql
+└── 000005_nombre_del_cambio.down.sql
 ```
 
 El archivo `.up.sql` contiene los cambios que se aplicarán:

@@ -94,11 +94,25 @@ ellos.
 
 ## Fuente oficial del esquema
 
-El esquema oficial es
-`kubernetes/services/micro_db/micros-db-init-scripts.yaml`, porque es el que usa
-la base desplegada.
+El esquema oficial son las migraciones de `kubernetes/services/micro_service/migrations`.
+`micro_service` aplica las pendientes al iniciar, antes de cargar el grafo.
 
-`init-scripts/01_schema.sql` debe mantenerse igual a ese esquema.
+| Regla | Detalle |
+|---|---|
+| Base vacía | Se crean las cinco tablas. Los datos se cargan aparte |
+| Base creada con los scripts iniciales | No cambia nada y conserva sus datos: solo se registra la versión 1 |
+| Versión aplicada | Se guarda en `micro_schema_migrations`, distinta de la de backend-go |
+| Varias réplicas | Un candado de PostgreSQL evita que migren a la vez |
+| Falla | `micro_service` no inicia, para no trabajar con un esquema a medias |
+| Desactivarlas | `MIGRATIONS_ENABLED=false` |
+
+Para cambiar el esquema se agrega un par `000002_nombre.up.sql` y
+`000002_nombre.down.sql`. **No se modifica una migración ya aplicada.**
+El usuario de la base debe poder crear tablas, y la extensión PostGIS si falta.
+
+`micro_db/micros-db-init-scripts.yaml` y `init-scripts/01_schema.sql` siguen creando
+la base nueva con el esquema de la 000001, y una prueba comprueba que sean iguales.
+Los cambios posteriores van solo en migraciones.
 `init-scripts/02_seed.sql` contiene datos de prueba antiguos y no es fuente de
 datos.
 
@@ -1686,6 +1700,7 @@ go test ./...
 | Cadena de recomendaciones | De la petición HTTP a gRPC real y de vuelta: datos en vivo, errores, cancelación y 20 pasajeros a la vez |
 | Tiempos con GPS | Los promedios a mano, qué lecturas se ignoran, que venzan en una hora y que la búsqueda siga coincidiendo con la fuerza bruta |
 | Posiciones por red | Del Hub a gRPC real con la clave y la línea traducida, sin micros simuladas, y cómo cambian la recomendación |
+| Migraciones | Pares y numeración, igualdad con los scripts iniciales, base vacía, base existente con sus datos, varias réplicas y una migración con errores. Las de base necesitan `TEST_DATABASE_URL` |
 | Datos en vivo imposibles | No se envían, y los demás sí |
 
 `PAR-CJP-02` ↔ `PAR-DPORT-01` está registrado en la prueba como excepción conocida
@@ -1725,4 +1740,5 @@ prueba confirma que el planificador entrega ese tiempo y esa distancia.
 | backend-go no envía las preferencias del pasajero a `PlanUniversityRoutes` | Tarea aparte en backend-go |
 | La ocupación en vivo no traduce la ruta de los conductores reales, que publican con el ID de la base | Tarea aparte: usar el código de la ruta, como en `gpsreport` |
 | Los tiempos con GPS no guardan historia | Consultar las posiciones guardadas por `micro_telemetry` |
+| Las migraciones se probaron en PostgreSQL 17 sin PostGIS, con texto en lugar de geometrías | Ejecutar las pruebas con `TEST_DATABASE_URL` en un servidor con PostGIS |
 | No se pudo probar con el detector de carreras (`go test -race`), porque necesita gcc | Instalar gcc o probarlo en el CI |

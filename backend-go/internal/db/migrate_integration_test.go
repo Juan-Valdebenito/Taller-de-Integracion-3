@@ -22,7 +22,7 @@ import (
 //
 //	TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres go test ./internal/db
 
-const lastMigration = 3
+const lastMigration = 4
 
 func TestRunMigrationsFreshDatabase(t *testing.T) {
 	ctx, dbURL, conn := tempDatabase(t)
