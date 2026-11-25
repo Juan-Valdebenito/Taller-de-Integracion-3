@@ -38,6 +38,26 @@ function latestWeather(records: WeatherTelemetry[]): WeatherTelemetry | null {
   return [...records].sort((left, right) => right.time.localeCompare(left.time))[0] ?? null;
 }
 
+function distanceInMeters(from: Stop, to: Pick<WeatherTelemetry, 'latitude' | 'longitude'>): number {
+  const earthRadius = 6371000;
+  const toRadians = (degrees: number) => degrees * Math.PI / 180;
+  const latitudeDistance = toRadians(to.latitude - from.latitude);
+  const longitudeDistance = toRadians(to.longitude - from.longitude);
+  const fromLatitude = toRadians(from.latitude);
+  const toLatitude = toRadians(to.latitude);
+  const a = Math.sin(latitudeDistance / 2) ** 2
+    + Math.cos(fromLatitude) * Math.cos(toLatitude) * Math.sin(longitudeDistance / 2) ** 2;
+  return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(Math.max(0, 1 - a)));
+}
+
+function weatherForStop(records: WeatherTelemetry[], stop: Stop | null): WeatherTelemetry | null {
+  if (!records.length) return null;
+  if (!stop) return latestWeather(records);
+  return [...records]
+    .sort((left, right) => distanceInMeters(stop, left) - distanceInMeters(stop, right))
+    [0] ?? null;
+}
+
 function weatherAlerts(weather: WeatherTelemetry): string[] {
   const alerts: string[] = [];
   if (weather.humidity_pct >= 85) alerts.push('Alta humedad: posible lluvia o ambiente muy húmedo.');
@@ -47,6 +67,22 @@ function weatherAlerts(weather: WeatherTelemetry): string[] {
   if (weather.pm25_ug_m3 >= 35) alerts.push(`PM2.5 elevado (${Math.round(weather.pm25_ug_m3)} µg/m³): reduce tiempos de exposición.`);
   if (alerts.length === 0) alerts.push('Condiciones favorables para iniciar el recorrido.');
   return alerts;
+}
+
+function routeWeatherAlert(plan: RoutePlan, weather: WeatherTelemetry): string | null {
+  const walkingSeconds = plan.movements
+    .filter((movement) => movement.mode === 'walk')
+    .reduce((total, movement) => total + movement.time_seconds, 0);
+  const unfavorable = weather.humidity_pct >= 85
+    || weather.temperature_c >= 30
+    || weather.temperature_c <= 8
+    || weather.wind_speed_kmh >= 30
+    || weather.pm25_ug_m3 >= 35;
+  if (!unfavorable) return null;
+  if (walkingSeconds > 0) {
+    return `Contexto de clima: esta opción incluye ${formatDuration(walkingSeconds)} a pie. Evalúa abrigo, agua o una alternativa con menos caminata.`;
+  }
+  return 'Contexto de clima: esta opción evita caminatas, útil con las condiciones climáticas actuales.';
 }
 
 // ── Sub-componente: selector de paradero con búsqueda ─────────────────────────
@@ -186,9 +222,14 @@ export function RecommendedTripPlanner() {
   const [planError, setPlanError] = useState('');
   const [collapsed, setCollapsed] = useState(false);
 
-  // Cargar paraderos al montar
+  // Cargar paraderos y clima al montar
   useEffect(() => {
-    apiClient.get('/mapinfo/micro/stops?limit=1000').then(({ data }) => setStops(data?.stops ?? [])).catch(() => setError('No se pudieron cargar los paraderos.'));
+    fetchAllStops()
+      .then(setStops)
+      .catch(() => setStopsError('No se pudieron cargar los paraderos.'));
+    fetchWeatherTelemetry()
+      .then(setWeather)
+      .catch(() => setWeatherError('No se pudo cargar la información climática.'));
   }, []);
 
   const findRoute = async () => {
@@ -219,8 +260,11 @@ export function RecommendedTripPlanner() {
   };
 
   const activePlan = plans?.[selectedIndex] ?? null;
-  const currentWeather = latestWeather(weather);
+  const currentWeather = weatherForStop(weather, origin);
   const alerts = currentWeather ? weatherAlerts(currentWeather) : [];
+  const activeRouteWeatherAlert = activePlan && currentWeather
+    ? routeWeatherAlert(activePlan, currentWeather)
+    : null;
   const canSearch = Boolean(origin && destination && origin.id !== destination.id);
 
   return (
@@ -317,6 +361,11 @@ export function RecommendedTripPlanner() {
                 <p className="tpp-results-label">
                   {plans.length} recorrido{plans.length !== 1 ? 's' : ''} encontrado{plans.length !== 1 ? 's' : ''}
                 </p>
+                {activeRouteWeatherAlert && (
+                  <p className="tpp-route-weather-alert" role="status">
+                    {activeRouteWeatherAlert}
+                  </p>
+                )}
                 {plans.map((plan, idx) => (
                   <button
                     key={`${plan.origin_stop_id}-${plan.destination_stop_id}-${idx}`}

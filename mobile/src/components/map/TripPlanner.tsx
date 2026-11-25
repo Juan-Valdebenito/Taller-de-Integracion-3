@@ -43,6 +43,25 @@ function latestWeather(records: readonly WeatherTelemetry[]): WeatherTelemetry |
   return [...records].sort((left, right) => right.time.localeCompare(left.time))[0] ?? null;
 }
 
+function distanceInMeters(from: Stop, to: Pick<WeatherTelemetry, 'latitude' | 'longitude'>): number {
+  const earthRadius = 6371000;
+  const toRadians = (degrees: number) => degrees * Math.PI / 180;
+  const latitudeDistance = toRadians(to.latitude - from.latitude);
+  const longitudeDistance = toRadians(to.longitude - from.longitude);
+  const fromLatitude = toRadians(from.latitude);
+  const toLatitude = toRadians(to.latitude);
+  const a = Math.sin(latitudeDistance / 2) ** 2
+    + Math.cos(fromLatitude) * Math.cos(toLatitude) * Math.sin(longitudeDistance / 2) ** 2;
+  return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(Math.max(0, 1 - a)));
+}
+
+function weatherForStop(records: readonly WeatherTelemetry[], stop: Stop | null): WeatherTelemetry | null {
+  if (!records.length) return null;
+  if (!stop) return latestWeather(records);
+  return [...records]
+    .sort((left, right) => distanceInMeters(stop, left) - distanceInMeters(stop, right))[0] ?? null;
+}
+
 function weatherAlerts(weather: WeatherTelemetry): string[] {
   const alerts: string[] = [];
   if (weather.humidity_pct >= 85) alerts.push('Alta humedad: posible lluvia o ambiente muy húmedo.');
@@ -187,10 +206,37 @@ function recommendationFor(
   };
 }
 
-function RouteOption({ plan, index, routeLabels, occupancyRatio, stops }: { plan: RoutePlan; index: number; routeLabels: Record<string, string>; occupancyRatio: number | null; stops: readonly Stop[] }) {
+function RouteOption({
+  plan,
+  index,
+  routeLabels,
+  occupancyRatio,
+  stops,
+  weather,
+}: {
+  plan: RoutePlan;
+  index: number;
+  routeLabels: Record<string, string>;
+  occupancyRatio: number | null;
+  stops: readonly Stop[];
+  weather: WeatherTelemetry | null;
+}) {
   const styles = useStyles();
   const timeline = buildTimeline(plan, stops, routeLabels);
   const recommended = index === 0;
+  const walkingTime = walkingSeconds(plan);
+  const unfavorableWeather = Boolean(weather && (
+    weather.humidity_pct >= 85
+    || weather.temperature_c >= 30
+    || weather.temperature_c <= 8
+    || weather.wind_speed_kmh >= 30
+    || weather.pm25_ug_m3 >= 35
+  ));
+  const routeWeatherAlert = unfavorableWeather
+    ? walkingTime > 0
+      ? `Contexto de clima: esta opción incluye ${formatDuration(walkingTime)} a pie. Evalúa abrigo, agua o una alternativa con menos caminata.`
+      : 'Contexto de clima: esta opción evita caminatas, útil con las condiciones climáticas actuales.'
+    : null;
   return (
     <View style={[styles.option, recommended ? styles.recommended : null]}>
       <View style={styles.optionHeader}>
@@ -215,6 +261,7 @@ function RouteOption({ plan, index, routeLabels, occupancyRatio, stops }: { plan
         <Metric icon="swap-horizontal-outline" color="#a78bfa" label="Transbordos" value={String(plan.transfers)} />
         <Metric icon="time-outline" color="#fbbf24" label="Espera" value="Sin estimación" />
       </View>
+      {routeWeatherAlert ? <Text style={styles.routeWeatherAlert}>{routeWeatherAlert}</Text> : null}
       <Text style={styles.timeNote}>La espera no se incluye en el total porque el servicio no la calcula.</Text>
 
       <View style={styles.timelineHeader}><Text style={styles.timelineTitle}>Detalle del recorrido</Text></View>
@@ -364,7 +411,7 @@ export function TripPlanner({ buses = [], onRecommendationChange }: { buses?: re
   };
 
   const selectionTitle = selection === 'origin' ? 'origen' : 'destino';
-  const currentWeather = latestWeather(weather);
+  const currentWeather = weatherForStop(weather, origin);
   const weatherAlertsList = currentWeather ? weatherAlerts(currentWeather) : [];
   const recommendation = useMemo(
     () => recommendationFor(plans ?? [], preference, buses, routeLabels, currentWeather),
@@ -464,8 +511,8 @@ export function TripPlanner({ buses = [], onRecommendationChange }: { buses?: re
               {preference === 'least_occupied' && !recommendation.occupancyAvailable ? (
                 <Text style={styles.helper}>No hay ocupación reciente disponible; mostramos la ruta más rápida.</Text>
               ) : null}
-              {recommendation.recommended ? <RouteOption plan={recommendation.recommended} index={0} routeLabels={routeLabels} occupancyRatio={occupancyScore(recommendation.recommended, buses, routeLabels)} stops={stops} /> : null}
-              {recommendation.alternatives.map((plan, index) => <RouteOption key={`${plan.origin_stop_id}-${plan.destination_stop_id}-${index}`} plan={plan} index={index + 1} routeLabels={routeLabels} occupancyRatio={occupancyScore(plan, buses, routeLabels)} stops={stops} />)}
+              {recommendation.recommended ? <RouteOption plan={recommendation.recommended} index={0} routeLabels={routeLabels} occupancyRatio={occupancyScore(recommendation.recommended, buses, routeLabels)} stops={stops} weather={currentWeather} /> : null}
+              {recommendation.alternatives.map((plan, index) => <RouteOption key={`${plan.origin_stop_id}-${plan.destination_stop_id}-${index}`} plan={plan} index={index + 1} routeLabels={routeLabels} occupancyRatio={occupancyScore(plan, buses, routeLabels)} stops={stops} weather={currentWeather} />)}
               {plans.length < 3 ? <Text style={styles.helper}>El planificador encontró {plans.length} recorrido{plans.length === 1 ? '' : 's'} distinto{plans.length === 1 ? '' : 's'}.</Text> : null}
             </View>
           ) : null}
@@ -485,6 +532,7 @@ const useStyles = makeStyles((colors, font) => ({
   weatherAlerts: { gap: 2 },
   weatherAlertText: { color: '#fbbf24', fontSize: font(10), lineHeight: font(15) },
   weatherUnavailable: { marginTop: spacing.sm, color: colors.muted, fontSize: font(11), lineHeight: font(16) },
+  routeWeatherAlert: { color: '#fbbf24', fontSize: font(11), lineHeight: font(16), paddingHorizontal: spacing.xs, paddingVertical: spacing.xs, borderRadius: radius.sm, backgroundColor: 'rgba(251,191,36,0.08)' },
   loading: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.md },
   helper: { color: colors.muted, fontSize: font(12), lineHeight: font(18), marginTop: spacing.xs },
   error: { color: colors.danger, fontSize: font(13), lineHeight: font(19), marginTop: spacing.sm },
