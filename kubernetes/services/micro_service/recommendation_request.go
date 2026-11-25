@@ -21,7 +21,9 @@ func (routeRequest recommendationRequest) preferences() RoutePreferences {
 // si quiere evitar micros llenas, y el clima. Se usan para ordenar las rutas y
 // también para informar su costo, así el costo de la respuesta explica el orden.
 func (routeRequest recommendationRequest) costWeights() CostWeights {
-	return preferenceCostWeights(routeRequest.preferences(), routeRequest.LineOccupancy, routeRequest.Weather)
+	weights := preferenceCostWeights(routeRequest.preferences(), routeRequest.LineOccupancy, routeRequest.Weather)
+	weights.HeadwaySeconds = routeRequest.HeadwaySeconds
+	return weights
 }
 
 // validate revisa la petición en un orden fijo, para que el cliente reciba siempre

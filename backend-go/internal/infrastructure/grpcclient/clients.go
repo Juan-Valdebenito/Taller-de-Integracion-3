@@ -115,3 +115,11 @@ func (microClient *MicroClient) RecommendRoutes(requestContext context.Context, 
 	defer cancel()
 	return microClient.client.RecommendRoutes(requestContext, request)
 }
+
+// ReportPositions envía posiciones de micros reales, para que micro_service corrija
+// los tiempos de las rutas recomendadas.
+func (microClient *MicroClient) ReportPositions(requestContext context.Context, request *microv1.ReportPositionsRequest) (*microv1.ReportPositionsResponse, error) {
+	requestContext, cancel := microClient.withContext(requestContext)
+	defer cancel()
+	return microClient.client.ReportPositions(requestContext, request)
+}

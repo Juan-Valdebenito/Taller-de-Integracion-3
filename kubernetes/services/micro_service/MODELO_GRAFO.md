@@ -613,7 +613,8 @@ costo de la espera = 300 s × 2,0 = 600
 
 Si se conoce la frecuencia real de una línea, se agrega a `lineHeadwaySeconds`. Por
 ejemplo, con la 7B cada 4 minutos, su espera baja a 2 minutos y las demás líneas
-siguen con el supuesto. Cada respuesta informa el supuesto en
+siguen con el supuesto. Las rutas recomendadas lo corrigen con el GPS (ver Tiempos
+con GPS). Cada respuesta informa el supuesto en
 `cost_weights.assumed_headway_seconds`.
 
 ### Cuándo se espera y cuándo hay transbordo
@@ -777,7 +778,7 @@ Los factores deben seguir siendo al menos 1, para que A* siga encontrando la rut
 | Limitación | Detalle |
 |---|---|
 | **Pesos fijos por prioridad** | El pasajero elige entre cuatro prioridades (ver Preferencias del pasajero), pero no puede ajustar los valores. A alguien con movilidad reducida, caminar podría pesarle más que 5,0 |
-| **La espera es un supuesto** | Sin horarios, cada línea pasa cada 10 minutos. No usa la posición en vivo de las micros para estimar cuándo llega la próxima |
+| **La espera es un supuesto** | Sin horarios, cada línea pasa cada 10 minutos; el GPS corrige ese intervalo solo en las rutas recomendadas. No usa la posición en vivo de las micros para estimar cuándo llega la próxima |
 | **Todo es del momento de la consulta** | La ocupación y el clima no predicen cómo estarán al llegar al paradero o al caminar |
 | **Faltan tiempos del viaje real** | No incluye el tiempo detenido en cada paradero, y la caminata inicial se mide en línea recta |
 | **El costo no es un tiempo** | 3799 segundos equivalentes no significan 63 minutos. La app debe mostrar el tiempo real junto al costo |
@@ -1430,6 +1431,55 @@ descarta antes (`live_data_limits.go`), también para las rutas a la universidad
 línea con más del doble de su capacidad no se envía, y las demás sí. Si un valor del
 clima es imposible, no se envía el clima.
 
+### Tiempos con GPS
+
+Las rutas recomendadas corrigen los tiempos oficiales con las posiciones de las
+micros reales. Sin posiciones, la respuesta es la de siempre.
+
+1. El Hub de backend-go recibe la posición de una micro.
+2. `gpsreport` traduce su línea y cada 5 segundos envía la última posición de cada
+   micro con el gRPC `ReportPositions`. Los conductores publican con el ID de su ruta
+   en la base, así que se traduce con el código de esa ruta.
+3. `micro_service` (`gps_times.go`) mide cuánto tarda cada tramo y cada cuánto pasa
+   cada línea.
+4. `RecommendRoutes` usa esos valores en el costo, el tiempo y la explicación.
+
+```text
+tiempo = (oficial × 2 + suma de observados) / (2 + cantidad de observados)
+Oficial 300 s, una micro tardó 600 s: (300 × 2 + 600) / 3 = 400 s
+```
+
+El intervalo entre micros se corrige igual, desde los 600 s supuestos.
+
+| Regla | Valor | Constante |
+|---|---|---|
+| Pasar por un paradero | A 80 m o menos | `stopRadiusMeters` |
+| Corte de señal aceptado | 5 minutos | `maxGPSGap` |
+| Duración de una observación | 1 hora | `observationMaxAge` |
+| Observaciones guardadas | 20 por tramo y por línea | `maxObservations` |
+| Peso de lo oficial | 2 observaciones | `officialTimeWeight` |
+| Tramo aceptado | De 0,4 a 3 veces lo oficial | `minObservedFactor` y `maxObservedFactor` |
+| Intervalo aceptado | De 1 minuto a 1 hora | `minObservedHeadway` y `maxObservedHeadway` |
+| Hora adelantada aceptada | 1 minuto | `maxFutureGPS` |
+| Posiciones por petición | 500 | `maxReportedPositions` |
+
+Estos valores son supuestos del equipo.
+
+- Una micro se mide desde que pasa por dos paraderos seguidos de su línea. Así no
+  cuenta una que va por la calzada contraria.
+- Las micros simuladas (`sim-`) no se envían: usan los tiempos oficiales o acelerados.
+- Si el envío falla, se registra `gps_report_failed` una vez y las rutas mantienen lo
+  que sabían hasta que venza.
+- Una posición inválida se ignora sin rechazar las demás. Más de 500 dan
+  `InvalidArgument`, y sin grafo se responde `Unavailable`.
+- `cost_weights.assumed_headway_seconds` sigue informando los 600 s supuestos, aunque
+  una línea tenga un intervalo observado.
+
+Limitaciones: los tiempos están en la memoria de `micro_service`, así que se pierden
+al reiniciarlo y cada réplica tiene los suyos. Solo reflejan la última hora, no la
+historia por día y hora. No se usan en las rutas a la universidad ni en
+`/routes/plan`.
+
 ## Despliegue
 
 Las rutas a la universidad necesitan imágenes nuevas de dos servicios:
@@ -1634,6 +1684,8 @@ go test ./...
 | Errores HTTP de recomendaciones | Cada estado, sin detalles internos y nunca 401 por la clave interna |
 | Ruta de recomendaciones | Con sesión responde 200; sin ella, 401 sin llamar a `micro_service` |
 | Cadena de recomendaciones | De la petición HTTP a gRPC real y de vuelta: datos en vivo, errores, cancelación y 20 pasajeros a la vez |
+| Tiempos con GPS | Los promedios a mano, qué lecturas se ignoran, que venzan en una hora y que la búsqueda siga coincidiendo con la fuerza bruta |
+| Posiciones por red | Del Hub a gRPC real con la clave y la línea traducida, sin micros simuladas, y cómo cambian la recomendación |
 | Datos en vivo imposibles | No se envían, y los demás sí |
 
 `PAR-CJP-02` ↔ `PAR-DPORT-01` está registrado en la prueba como excepción conocida
@@ -1671,4 +1723,6 @@ prueba confirma que el planificador entrega ese tiempo y esa distancia.
 | Muchas ubicaciones de Temuco quedan a más de 1000 m de un paradero de la red, porque esta tiene 7 paraderos | Cargar el catálogo y agregar recorridos |
 | La app y la web todavía no usan `/recommendations/route`: piden `/integrations/micro/routes/plan` y calculan las preferencias por su cuenta | Tarea de frontend y móvil |
 | backend-go no envía las preferencias del pasajero a `PlanUniversityRoutes` | Tarea aparte en backend-go |
+| La ocupación en vivo no traduce la ruta de los conductores reales, que publican con el ID de la base | Tarea aparte: usar el código de la ruta, como en `gpsreport` |
+| Los tiempos con GPS no guardan historia | Consultar las posiciones guardadas por `micro_telemetry` |
 | No se pudo probar con el detector de carreras (`go test -race`), porque necesita gcc | Instalar gcc o probarlo en el CI |

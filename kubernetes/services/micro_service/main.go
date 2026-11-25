@@ -159,6 +159,8 @@ type Server struct {
 	pool  *pgxpool.Pool
 	store *GraphStore
 	admin string
+	// gpsTimes son los tiempos observados con el GPS; nil significa sin GPS.
+	gpsTimes *GPSTimes
 }
 type errorResponse struct {
 	Error string `json:"error"`
@@ -459,7 +461,7 @@ func main() {
 		store.Replace(graph)
 		log.Printf("graph loaded: %d stops, %d edges", len(graph.Stops), graph.EdgeCount())
 	}
-	service := &Server{pool: pool, store: store, admin: config.AdminKey}
+	service := &Server{pool: pool, store: store, admin: config.AdminKey, gpsTimes: NewGPSTimes()}
 	server := &http.Server{Addr: ":" + config.Port, Handler: service.routes(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second}
 	grpcListener, err := net.Listen("tcp", ":"+env("GRPC_PORT", "9091"))
 	if err != nil {

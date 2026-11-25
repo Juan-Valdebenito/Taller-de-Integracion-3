@@ -27,6 +27,7 @@ const (
 	MicroService_ListCampuses_FullMethodName         = "/transporte.micro.v1.MicroService/ListCampuses"
 	MicroService_PlanUniversityRoutes_FullMethodName = "/transporte.micro.v1.MicroService/PlanUniversityRoutes"
 	MicroService_RecommendRoutes_FullMethodName      = "/transporte.micro.v1.MicroService/RecommendRoutes"
+	MicroService_ReportPositions_FullMethodName      = "/transporte.micro.v1.MicroService/ReportPositions"
 )
 
 // MicroServiceClient is the client API for MicroService service.
@@ -58,6 +59,9 @@ type MicroServiceClient interface {
 	// Si los puntos son válidos, pero la red no los conecta, no es un error: la
 	// respuesta trae routes vacío y total 0.
 	RecommendRoutes(ctx context.Context, in *RecommendRoutesRequest, opts ...grpc.CallOption) (*RecommendRoutesResponse, error)
+	// Posiciones GPS de micros reales, para corregir los tiempos de las rutas
+	// recomendadas. Las que no sirven se ignoran. Acepta hasta 500 por petición.
+	ReportPositions(ctx context.Context, in *ReportPositionsRequest, opts ...grpc.CallOption) (*ReportPositionsResponse, error)
 }
 
 type microServiceClient struct {
@@ -140,6 +144,15 @@ func (c *microServiceClient) RecommendRoutes(ctx context.Context, in *RecommendR
 	return out, nil
 }
 
+func (c *microServiceClient) ReportPositions(ctx context.Context, in *ReportPositionsRequest, opts ...grpc.CallOption) (*ReportPositionsResponse, error) {
+	out := new(ReportPositionsResponse)
+	err := c.cc.Invoke(ctx, MicroService_ReportPositions_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MicroServiceServer is the server API for MicroService service.
 // All implementations must embed UnimplementedMicroServiceServer
 // for forward compatibility
@@ -169,6 +182,9 @@ type MicroServiceServer interface {
 	// Si los puntos son válidos, pero la red no los conecta, no es un error: la
 	// respuesta trae routes vacío y total 0.
 	RecommendRoutes(context.Context, *RecommendRoutesRequest) (*RecommendRoutesResponse, error)
+	// Posiciones GPS de micros reales, para corregir los tiempos de las rutas
+	// recomendadas. Las que no sirven se ignoran. Acepta hasta 500 por petición.
+	ReportPositions(context.Context, *ReportPositionsRequest) (*ReportPositionsResponse, error)
 	mustEmbedUnimplementedMicroServiceServer()
 }
 
@@ -199,6 +215,9 @@ func (UnimplementedMicroServiceServer) PlanUniversityRoutes(context.Context, *Pl
 }
 func (UnimplementedMicroServiceServer) RecommendRoutes(context.Context, *RecommendRoutesRequest) (*RecommendRoutesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RecommendRoutes not implemented")
+}
+func (UnimplementedMicroServiceServer) ReportPositions(context.Context, *ReportPositionsRequest) (*ReportPositionsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReportPositions not implemented")
 }
 func (UnimplementedMicroServiceServer) mustEmbedUnimplementedMicroServiceServer() {}
 
@@ -357,6 +376,24 @@ func _MicroService_RecommendRoutes_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MicroService_ReportPositions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReportPositionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MicroServiceServer).ReportPositions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MicroService_ReportPositions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MicroServiceServer).ReportPositions(ctx, req.(*ReportPositionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // MicroService_ServiceDesc is the grpc.ServiceDesc for MicroService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -395,6 +432,10 @@ var MicroService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RecommendRoutes",
 			Handler:    _MicroService_RecommendRoutes_Handler,
+		},
+		{
+			MethodName: "ReportPositions",
+			Handler:    _MicroService_ReportPositions_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

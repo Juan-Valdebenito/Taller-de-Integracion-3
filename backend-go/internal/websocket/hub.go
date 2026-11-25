@@ -40,6 +40,21 @@ type Hub struct {
 	// occupancyRecorder guarda los pasajeros de cada micro publicada. Es opcional:
 	// sin él, el Hub funciona igual que antes.
 	occupancyRecorder OccupancyRecorder
+
+	// positionRecorder recibe la posición de cada micro publicada. Es opcional.
+	positionRecorder PositionRecorder
+}
+
+// PositionRecorder lo implementa gpsreport.Reporter. No debe bloquear: lo llama el
+// Hub, que además reparte los mensajes del mapa.
+type PositionRecorder interface {
+	RecordPosition(busID, routeID string, latitude, longitude float64)
+}
+
+// SetPositionRecorder conecta el registro de posiciones. Debe llamarse antes de
+// iniciar Run, porque Run lee el campo sin sincronización.
+func (h *Hub) SetPositionRecorder(recorder PositionRecorder) {
+	h.positionRecorder = recorder
 }
 
 // OccupancyRecorder lo implementa liveoccupancy.Tracker.
@@ -125,6 +140,9 @@ func (h *Hub) handlePublish(msg *PublishMessage) {
 	data := msg.Data
 	if h.occupancyRecorder != nil {
 		h.occupancyRecorder.Record(data.BusID, data.RouteID, data.CurrentPassengers, data.Capacity)
+	}
+	if h.positionRecorder != nil {
+		h.positionRecorder.RecordPosition(data.BusID, data.RouteID, data.Latitude, data.Longitude)
 	}
 
 	// Construir predicción de ocupación

@@ -14,6 +14,11 @@ const (
 	microLinePrefix    = "L"
 )
 
+// MicroLineID expone la traducción para conectar otros servicios en main.go.
+func MicroLineID(backendRouteID string) (string, bool) {
+	return microLineID(backendRouteID)
+}
+
 // microLineID traduce un ID de backend-go al de micro_service. Responde false si
 // el ID no sigue el formato "route-<código>", para no enviar líneas inventadas.
 func microLineID(backendRouteID string) (string, bool) {

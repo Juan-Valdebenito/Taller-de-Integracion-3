@@ -12,6 +12,7 @@ import (
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/domain/service"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/filestore"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/currentweather"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/gpsreport"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/handler"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/infrastructure/grpcclient"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/liveoccupancy"
@@ -183,7 +184,28 @@ func main() {
 	// cada línea al planificar rutas. Se conecta antes de iniciar el Hub.
 	liveOccupancy := liveoccupancy.NewTracker()
 	hub.SetOccupancyRecorder(liveOccupancy)
+	// Las posiciones de las micros reales corrigen los tiempos de las rutas. Sin base
+	// de datos no hay conductores, así que no hace falta el código de sus rutas.
+	microClient, err := grpcclient.NewMicroClient(cfg.MicroGRPCTarget, cfg.MicroAPIKey, cfg.GRPCTimeout)
+	if err != nil {
+		log.Fatal().Err(err).Str("event", "micro_client_failed").Msg("Could not connect to micro service")
+	}
+	defer microClient.Close()
+	var routeCode gpsreport.RouteCode
+	if dbAvailable {
+		codeRoutes := repository.NewRouteRepository(pool)
+		routeCode = func(lookupContext context.Context, routeID string) (string, error) {
+			route, err := codeRoutes.FindByID(lookupContext, routeID)
+			if err != nil || route == nil {
+				return "", err
+			}
+			return route.Code, nil
+		}
+	}
+	positionReporter := gpsreport.NewReporter(microClient, gpsreport.NewLineResolver(handler.MicroLineID, routeCode))
+	hub.SetPositionRecorder(positionReporter)
 	go hub.Run()
+	go positionReporter.Run(ctx)
 
 	wsHandler := ws.NewWSHandler(hub, cfg.JWTSecret, cfg.CORSOrigins).WithRevocation(revStore)
 	// Una empresa solo publica la posición de sus micros, en sus rutas.
@@ -296,11 +318,6 @@ func main() {
 		log.Fatal().Err(err).Str("event", "climate_client_failed").Msg("Could not connect to climate service")
 	}
 	defer climateClient.Close()
-	microClient, err := grpcclient.NewMicroClient(cfg.MicroGRPCTarget, cfg.MicroAPIKey, cfg.GRPCTimeout)
-	if err != nil {
-		log.Fatal().Err(err).Str("event", "micro_client_failed").Msg("Could not connect to micro service")
-	}
-	defer microClient.Close()
 	// Las rutas a la universidad usan la ocupación de las micros en vivo y el clima
 	// actual. El clima se guarda unos minutos, para no consultar clima_service en
 	// cada petición; si falla, las rutas se calculan sin clima.

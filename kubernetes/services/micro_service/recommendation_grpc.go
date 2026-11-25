@@ -20,19 +20,26 @@ func (server *microGRPCServer) RecommendRoutes(_ context.Context, request *micro
 	if graph == nil {
 		return nil, status.Error(codes.Unavailable, "graph is not loaded")
 	}
-	return answerRecommendRoutes(graph, request)
+	return answerWithObservedTimes(graph, request, server.service.currentObservedTimes(graph))
 }
 
-// answerRecommendRoutes responde una petición gRPC con el grafo indicado:
+// answerRecommendRoutes responde una petición con los tiempos oficiales.
+func answerRecommendRoutes(graph *TransitGraph, request *microv1.RecommendRoutesRequest) (*microv1.RecommendRoutesResponse, error) {
+	return answerWithObservedTimes(graph, request, ObservedTimes{})
+}
+
+// answerWithObservedTimes responde una petición gRPC con el grafo indicado, corregido
+// con los tiempos del GPS:
 // traduce la petición, planifica las rutas y arma la respuesta. Los errores
 // vuelven como status de gRPC, con el código documentado en el proto y el mensaje
 // que dice qué corregir.
-func answerRecommendRoutes(graph *TransitGraph, request *microv1.RecommendRoutesRequest) (*microv1.RecommendRoutesResponse, error) {
+func answerWithObservedTimes(graph *TransitGraph, request *microv1.RecommendRoutesRequest, observed ObservedTimes) (*microv1.RecommendRoutesResponse, error) {
 	routeRequest, err := recommendationRequestFromProto(request)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
-	paths, err := planRecommendations(graph, routeRequest)
+	routeRequest.HeadwaySeconds = observed.HeadwaySeconds
+	paths, err := planRecommendations(withObservedTimes(graph, observed), routeRequest)
 	if err != nil {
 		return nil, status.Error(recommendationErrorCode(err), err.Error())
 	}
@@ -68,6 +75,8 @@ type recommendationRequest struct {
 	LineOccupancy LineOccupancy
 	// Weather es el clima de la consulta; nil significa sin clima.
 	Weather *WeatherConditions
+	// HeadwaySeconds es cada cuánto pasa cada línea según el GPS; puede venir vacío.
+	HeadwaySeconds map[string]int
 }
 
 // recommendationRequestFromProto traduce la petición gRPC. Solo falla si las

@@ -30,6 +30,9 @@ service MicroService {
 	// Si los puntos son válidos, pero la red no los conecta, no es un error: la
 	// respuesta trae routes vacío y total 0.
 	rpc RecommendRoutes(RecommendRoutesRequest) returns (RecommendRoutesResponse);
+	// Posiciones GPS de micros reales, para corregir los tiempos de las rutas
+	// recomendadas. Las que no sirven se ignoran. Acepta hasta 500 por petición.
+	rpc ReportPositions(ReportPositionsRequest) returns (ReportPositionsResponse);
 }
 
 message HealthRequest {}
@@ -222,6 +225,25 @@ message RecommendRoutesRequest {
 	map<string, double> line_occupancy = 5;
 	// Clima de la consulta. Si no viene, caminar no se penaliza.
 	WeatherConditions weather = 6;
+}
+
+message ReportPositionsRequest {
+	repeated BusPosition positions = 1;
+}
+
+message BusPosition {
+	string bus_id = 1;
+	// Línea según micro_service, por ejemplo "L7B".
+	string route_id = 2;
+	double latitude = 3;
+	double longitude = 4;
+	// Hora de la lectura, en milisegundos desde 1970 (UTC).
+	int64 unix_millis = 5;
+}
+
+message ReportPositionsResponse {
+	// Cuántas posiciones se usaron.
+	int32 accepted = 1;
 }
 
 message RecommendRoutesResponse {
