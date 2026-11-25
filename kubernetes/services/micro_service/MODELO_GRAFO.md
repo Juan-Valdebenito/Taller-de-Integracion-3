@@ -1252,9 +1252,8 @@ un 401 como sesión vencida y la cerraría.
 ## Rutas recomendadas
 
 `RecommendRoutes` entrega rutas entre **cualquier origen y cualquier destino**, no
-solo hacia un campus. Cada uno puede ser un paradero o una coordenada. Por ahora
-solo existe en gRPC; la ruta HTTP de backend-go,
-`GET /api/v1/recommendations/route`, es la Tarea 4.
+solo hacia un campus. Cada uno puede ser un paradero o una coordenada. La app y la
+web la usan por backend-go, en `GET /api/v1/recommendations/route`.
 
 ### Cómo se planifica
 
@@ -1332,6 +1331,90 @@ Sin clima conviene caminar; con mal clima, la micro.
 El mensaje de cada error dice qué corregir, y nombra el lado: por ejemplo,
 `origin stop not found` o `no stops near destination`.
 
+### Ruta HTTP
+
+`GET /api/v1/recommendations/route`, en backend-go. Exige sesión, con cualquier rol.
+
+| Parámetro | Obligatorio | Descripción |
+|---|---|---|
+| `origin_stop`, o `origin_lat` y `origin_long` | Sí, uno de los dos | Origen |
+| `destination_stop`, o `destination_lat` y `destination_long` | Sí, uno de los dos | Destino, distinto del origen |
+| `limit` | No | Entre 1 y 5; por defecto, 3 |
+| `priority` | No | `balanced`, `fastest`, `fewest_transfers` o `least_walking`; por defecto, `balanced` |
+| `max_walk_meters` | No | Entre 100 y 1000; por defecto, 1000 |
+| `avoid_crowding` | No | `true` o `false` (también `1` o `0`); por defecto, `true` |
+
+La app no envía la ocupación ni el clima: backend-go los agrega con las micros en
+vivo y `clima_service`. Si vinieran en la URL, se ignoran.
+
+backend-go revisa solo el formato, y `micro_service` las reglas. Hay cuatro casos que
+debe rechazar backend-go, porque por gRPC se perderían:
+
+| Caso | Por qué |
+|---|---|
+| Paradero y coordenada a la vez | El `oneof` solo lleva uno |
+| `limit=0` o `max_walk_meters=0` | En gRPC, 0 significa el valor por defecto |
+| Un número que no cabe en 32 bits | Se convertiría en otro |
+| Un texto con bytes inválidos, como `%FF` | gRPC no puede enviarlo |
+
+### Ejemplo HTTP
+
+```text
+GET /api/v1/recommendations/route?origin_lat=-38.7340&origin_long=-72.6118&destination_stop=PAR-CJP-02&limit=1
+Authorization: Bearer <access token>
+```
+
+Con la 7B casi llena y 3 °C, recomienda la 1C y después la 7A. Es la respuesta de
+`micro_service` con los datos oficiales:
+
+```json
+{
+  "routes": [
+    {
+      "total_time_seconds": 2087,
+      "total_distance_meters": 9006,
+      "transfers": 1,
+      "movements": [
+        { "from_stop_id": "USER_LOCATION", "to_stop_id": "PAR-PORTAL-01", "mode": "walk", "time_seconds": 47, "distance_meters": 56 },
+        { "from_stop_id": "PAR-PORTAL-01", "to_stop_id": "PAR-CSF-01", "mode": "bus", "route_id": "L1C", "trip_id": "L1C-IDA", "time_seconds": 240, "distance_meters": 950 },
+        { "from_stop_id": "PAR-CSF-01", "to_stop_id": "PAR-DPORT-01", "mode": "bus", "route_id": "L1C", "trip_id": "L1C-IDA", "time_seconds": 300, "distance_meters": 1200 },
+        { "from_stop_id": "PAR-DPORT-01", "to_stop_id": "PAR-CJP-02", "mode": "bus", "route_id": "L7A", "trip_id": "L7A-IDA", "time_seconds": 1500, "distance_meters": 6800 }
+      ],
+      "cost": { "ride": 2040, "walk": 94, "wait": 1200, "transfer": 300, "crowding": 0, "weather": 18.8, "total": 3652.8 }
+    }
+  ],
+  "total": 1,
+  "cost_weights": { "ride_weight": 1, "walk_weight": 2, "wait_weight": 2, "transfer_penalty_seconds": 300, "assumed_headway_seconds": 600 },
+  "preferences": { "priority": "balanced", "max_walk_meters": 1000, "avoid_crowding": true }
+}
+```
+
+El tiempo no incluye la espera, que va en `cost.wait`. Sin rutas responde 200 con
+`"routes": []`.
+
+### Errores HTTP
+
+| Caso | Estado | Mensaje |
+|---|---|---|
+| URL mal escrita, o dato fuera de las reglas | 400 | Qué corregir |
+| Sin sesión, o sesión inválida | 401 | El de la sesión |
+| Paradero inexistente, o sin paraderos cerca | 404 | Qué lado corregir |
+| La app canceló la petición | 499 | No llega a verlo; sirve para los logs |
+| Error inesperado | 500 | General |
+| `micro_service` rechaza la clave de backend-go | 502 | General; un 401 cerraría la sesión en la app |
+| `micro_service` no responde, no tiene el grafo o es una imagen anterior | 503 | "El servicio de rutas no está disponible" |
+
+Los errores 500, 502 y 503 no muestran el detalle, porque puede incluir direcciones
+internas. Queda en el log, con el evento `recommend_routes_failed`.
+
+### Datos en vivo imposibles
+
+`micro_service` rechaza la petición completa si la ocupación o el clima están fuera de
+rango, y la app recibiría un error por algo que no envió. Por eso backend-go los
+descarta antes (`live_data_limits.go`), también para las rutas a la universidad: una
+línea con más del doble de su capacidad no se envía, y las demás sí. Si un valor del
+clima es imposible, no se envía el clima.
+
 ## Despliegue
 
 Las rutas a la universidad necesitan imágenes nuevas de dos servicios:
@@ -1365,9 +1448,8 @@ no envía la ocupación ni el clima.
 
 Con `RecommendRoutes` pasa lo mismo. Si backend-go ya tiene la ruta
 `/api/v1/recommendations/route`, pero `micro_service` es anterior, la función
-responde `Unimplemented`. backend-go debe convertirlo en **503**, como un servicio
-no disponible: hoy `writeRPCError` lo convierte en 500, y la app lo mostraría como
-un error interno.
+responde `Unimplemented`, y backend-go lo convierte en **503**: la app muestra que el
+servicio no está disponible, no un error interno.
 
 ### Comandos
 
@@ -1444,6 +1526,14 @@ En la respuesta se revisa:
 | `cost.total` | Es la suma de los demás componentes | Algún servicio tiene una imagen anterior |
 | `cost.crowding` | Mayor que 0 en alguna ruta, si hay micros llenas | No hay micros publicando, o `micro_service` es anterior a la ocupación |
 | `cost.weather` | Mayor que 0 en alguna ruta, si hace frío, calor, viento o hay mal aire | No hay clima, o `micro_service` es anterior al clima |
+
+Por último, se pide una recomendación. Debe responder 200 con `cost_weights` y
+`preferences`; un 503 indica que falta la imagen nueva de `micro_service`:
+
+```bash
+curl -H "Authorization: Bearer <access token>" \
+  "https://<API_HOST>/api/v1/recommendations/route?origin_stop=PAR-PORTAL-01&destination_stop=PAR-CJP-02"
+```
 
 Que `crowding` o `weather` valgan 0 no siempre es un error: puede que las micros
 vayan vacías o que el día esté templado. Para distinguirlo, se revisan los logs de
@@ -1523,6 +1613,12 @@ go test ./...
 | Clima por red | Sin clima no hay recargo, 0 °C sí es clima, los umbrales son exactos, los recargos se suman hasta 2,0 y solo afectan las caminatas |
 | Errores por red | Cada código con su mensaje exacto, y el orden: primero la clave, después el grafo y al final la petición |
 | Recargas del grafo | Peticiones simultáneas mientras el grafo se recarga responden siempre rutas válidas |
+| URL de recomendaciones | Los formatos aceptados, cada error con su mensaje, y que lo leído llegue igual por gRPC |
+| JSON de recomendaciones | El texto exacto, el orden de `micro_service`, listas vacías y no `null` |
+| Errores HTTP de recomendaciones | Cada estado, sin detalles internos y nunca 401 por la clave interna |
+| Ruta de recomendaciones | Con sesión responde 200; sin ella, 401 sin llamar a `micro_service` |
+| Cadena de recomendaciones | De la petición HTTP a gRPC real y de vuelta: datos en vivo, errores, cancelación y 20 pasajeros a la vez |
+| Datos en vivo imposibles | No se envían, y los demás sí |
 
 `PAR-CJP-02` ↔ `PAR-DPORT-01` está registrado en la prueba como excepción conocida
 de velocidad. Si el equipo corrige el dato, se quita esa excepción. Cualquier otro
@@ -1557,7 +1653,6 @@ prueba confirma que el planificador entrega ese tiempo y esa distancia.
 | El clima no considera la lluvia: `clima_service` no la guarda | Que `clima_service` guarde la lluvia de Open-Meteo |
 | El clima depende de que `clima_simulator` pueda salir a internet para consultar Open-Meteo | Confirmar en el cluster |
 | Muchas ubicaciones de Temuco quedan a más de 1000 m de un paradero de la red, porque esta tiene 7 paraderos | Cargar el catálogo y agregar recorridos |
-| `RecommendRoutes` todavía no tiene ruta HTTP: la app no puede usarla | Tarea 4: `GET /api/v1/recommendations/route` en backend-go |
-| `writeRPCError` convierte `Unimplemented` en 500; con una imagen anterior de `micro_service`, la ruta nueva respondería un error interno | Tarea 4: convertirlo en 503 |
+| La app y la web todavía no usan `/recommendations/route`: piden `/integrations/micro/routes/plan` y calculan las preferencias por su cuenta | Tarea de frontend y móvil |
 | backend-go no envía las preferencias del pasajero a `PlanUniversityRoutes` | Tarea aparte en backend-go |
 | No se pudo probar con el detector de carreras (`go test -race`), porque necesita gcc | Instalar gcc o probarlo en el CI |
