@@ -18,14 +18,14 @@ const getClimateLevel = (record: ClimateTelemetryRecord): ClimateLevel => {
     record.pm25_ug_m3 >= 55.5 || record.pm10_ug_m3 >= 150;
 
   if (hasCriticalReading){
-    let criticalParams = [];
+    const criticalParams = [];
     if (record.temperature_c >= 40 || record.temperature_c <= -5) criticalParams.push('Temperatura');
     if (record.humidity_pct >= 95 || record.humidity_pct <= 10) criticalParams.push('Humedad');
     if (record.pm25_ug_m3 >= 55.5) criticalParams.push('PM2.5');
     if (record.pm10_ug_m3 >= 150) criticalParams.push('PM10');
 
     console.warn(`Estación ${record.station_id} tiene lecturas críticas: ${criticalParams.join(', ')}`);
-  };
+  }
   if (hasCriticalStatus || hasCriticalReading) return 'critical';
 
   const hasWarningReading =
