@@ -30,7 +30,7 @@ func summarizeRoute(path []pathStep, weights CostWeights) routeSummary {
 		if step.Edge.RouteID == walkRouteID {
 			summary.walkMeters += step.Edge.DistanceM
 		} else if needsBoarding(passenger, step.Edge) {
-			summary.waitSeconds += expectedWaitSeconds(step.Edge.RouteID)
+			summary.waitSeconds += weights.waitSeconds(step.Edge.RouteID)
 			lineName := passengerLineName(step.Edge.RouteID)
 			if lineCount := len(summary.lineNames); lineCount == 0 || summary.lineNames[lineCount-1] != lineName {
 				summary.lineNames = append(summary.lineNames, lineName)

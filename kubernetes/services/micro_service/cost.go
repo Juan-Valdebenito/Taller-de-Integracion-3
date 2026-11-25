@@ -31,6 +31,9 @@ type CostWeights struct {
 	Occupancy LineOccupancy
 	// Weather es el clima de esta consulta. Sin datos (nil), caminar no se penaliza.
 	Weather *WeatherConditions
+	// HeadwaySeconds es cada cuánto pasa una línea según el GPS de esta consulta. Las
+	// líneas que no aparecen usan el intervalo supuesto.
+	HeadwaySeconds map[string]int
 }
 
 // configuredCostWeights parte con los valores de respaldo y se reemplaza al
@@ -163,7 +166,16 @@ func expectedWaitSeconds(routeID string) int {
 
 // waitCost es el costo de esperar una micro de la línea indicada.
 func waitCost(routeID string, weights CostWeights) float64 {
-	return float64(expectedWaitSeconds(routeID)) * weights.WaitWeight
+	return float64(weights.waitSeconds(routeID)) * weights.WaitWeight
+}
+
+// waitSeconds es la espera de una línea: la mitad del intervalo observado con GPS
+// o, sin él, la espera supuesta.
+func (weights CostWeights) waitSeconds(routeID string) int {
+	if headway, observed := weights.HeadwaySeconds[routeID]; observed {
+		return headway / 2
+	}
+	return expectedWaitSeconds(routeID)
 }
 
 // edgeCost es el costo de recorrer una arista, según si es a pie o en micro. En
