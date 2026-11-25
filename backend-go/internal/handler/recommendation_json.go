@@ -16,6 +16,9 @@ type recommendedRouteJSON struct {
 	Movements           []movementJSON `json:"movements"`
 	// Cost es el costo con que micro_service ordenó la ruta.
 	Cost costBreakdownJSON `json:"cost"`
+	// Explanation es la frase para el pasajero. Queda vacía si micro_service es
+	// anterior a la explicación.
+	Explanation string `json:"explanation"`
 }
 
 func newRecommendedRouteJSON(route *microv1.RecommendedRoute) recommendedRouteJSON {
@@ -25,6 +28,7 @@ func newRecommendedRouteJSON(route *microv1.RecommendedRoute) recommendedRouteJS
 		Transfers:           route.GetTransfers(),
 		Movements:           newMovementsJSON(route.GetMovements()),
 		Cost:                newCostBreakdownJSON(route.GetCost()),
+		Explanation:         route.GetExplanation(),
 	}
 }
 

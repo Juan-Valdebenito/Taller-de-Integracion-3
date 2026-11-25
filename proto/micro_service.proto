@@ -248,6 +248,9 @@ message RecommendedRoute {
 	repeated Movement movements = 4;
 	// Costo con que se ordenó la ruta, en segundos equivalentes.
 	CostBreakdown cost = 5;
+	// Explicación para el pasajero, en español. Por ejemplo: "1C tarda 20 min, más
+	// unos 5 min de espera, y requiere caminar 4 cuadras."
+	string explanation = 6;
 }
 
 // Origen o destino de una recomendación de ruta: un paradero de la red o una

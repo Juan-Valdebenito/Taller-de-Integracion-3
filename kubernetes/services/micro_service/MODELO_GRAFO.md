@@ -1380,7 +1380,8 @@ Con la 7B casi llena y 3 °C, recomienda la 1C y después la 7A. Es la respuesta
         { "from_stop_id": "PAR-CSF-01", "to_stop_id": "PAR-DPORT-01", "mode": "bus", "route_id": "L1C", "trip_id": "L1C-IDA", "time_seconds": 300, "distance_meters": 1200 },
         { "from_stop_id": "PAR-DPORT-01", "to_stop_id": "PAR-CJP-02", "mode": "bus", "route_id": "L7A", "trip_id": "L7A-IDA", "time_seconds": 1500, "distance_meters": 6800 }
       ],
-      "cost": { "ride": 2040, "walk": 94, "wait": 1200, "transfer": 300, "crowding": 0, "weather": 18.8, "total": 3652.8 }
+      "cost": { "ride": 2040, "walk": 94, "wait": 1200, "transfer": 300, "crowding": 0, "weather": 18.8, "total": 3652.8 },
+      "explanation": "1C y después 7A tardan 35 min, más unos 10 min de espera, con 1 transbordo, y requieren caminar 1 cuadra. El clima hace menos cómodo caminar."
     }
   ],
   "total": 1,
@@ -1391,6 +1392,20 @@ Con la 7B casi llena y 3 °C, recomienda la 1C y después la 7A. Es la respuesta
 
 El tiempo no incluye la espera, que va en `cost.wait`. Sin rutas responde 200 con
 `"routes": []`.
+
+### Explicación de la ruta
+
+Cada ruta trae `explanation`, una frase para el pasajero que arma `explanation.go`:
+
+> 1C tarda 20 min, más unos 5 min de espera, y requiere caminar 4 cuadras.
+
+| Parte | Regla |
+|---|---|
+| Tiempo | El total del viaje, con la caminata, redondeado hacia arriba |
+| Espera | La misma estimación que cobra el costo; por eso dice "unos" |
+| Cuadras | 100 m cada una, en `metersPerBlock` |
+| "La 7B va llena." | Si la línea va al 90 % o más y el pasajero quiere evitar micros llenas |
+| "El clima hace menos cómodo caminar." | Si la ruta tiene caminata y el clima la encarece |
 
 ### Errores HTTP
 
@@ -1612,6 +1627,7 @@ go test ./...
 | `RecommendRoutes` por red | La respuesta es idéntica a la calculada directo, con coordenadas en 0,0, `avoid_crowding=false` y el límite en 0 |
 | Clima por red | Sin clima no hay recargo, 0 °C sí es clima, los umbrales son exactos, los recargos se suman hasta 2,0 y solo afectan las caminatas |
 | Errores por red | Cada código con su mensaje exacto, y el orden: primero la clave, después el grafo y al final la petición |
+| Explicación | Textos exactos, cuándo se mencionan la ocupación y el clima, y que la espera coincida con el costo |
 | Recargas del grafo | Peticiones simultáneas mientras el grafo se recarga responden siempre rutas válidas |
 | URL de recomendaciones | Los formatos aceptados, cada error con su mensaje, y que lo leído llegue igual por gRPC |
 | JSON de recomendaciones | El texto exacto, el orden de `micro_service`, listas vacías y no `null` |

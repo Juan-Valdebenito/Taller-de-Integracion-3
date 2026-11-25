@@ -131,6 +131,7 @@ func microRecommendedRoute(path []pathStep, weights CostWeights) *microv1.Recomm
 		Transfers:           int32(countTransfers(path)),
 		Movements:           microMovements(path),
 		Cost:                microCostBreakdown(newCostBreakdownResponse(pathCostBreakdown(path, weights))),
+		Explanation:         explainRoute(path, weights),
 	}
 }
 

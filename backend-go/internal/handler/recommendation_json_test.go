@@ -26,14 +26,15 @@ func TestRecommendedRouteJSON(t *testing.T) {
 			`{"from_stop_id":"USER_LOCATION","to_stop_id":"PAR-PORTAL-01","mode":"walk","time_seconds":84,"distance_meters":100},`+
 			`{"from_stop_id":"PAR-PORTAL-01","to_stop_id":"PAR-CSF-01","mode":"bus","route_id":"L1C","trip_id":"L1C-IDA","time_seconds":240,"distance_meters":950},`+
 			`{"from_stop_id":"PAR-CSF-01","to_stop_id":"DESTINATION_LOCATION","mode":"walk","time_seconds":46,"distance_meters":55}],`+
-			`"cost":{"ride":240,"walk":260,"wait":600,"transfer":0,"crowding":144,"weather":52,"total":1296}}`)
+			`"cost":{"ride":240,"walk":260,"wait":600,"transfer":0,"crowding":144,"weather":52,"total":1296},`+
+			`"explanation":"1C tarda 7 min, más unos 5 min de espera, y requiere caminar 2 cuadras. La 1C va llena. El clima hace menos cómodo caminar."}`)
 }
 
 // Una ruta sin tramos ni costo no falla, y movements es [] y no null: la app
 // recorre la lista sin revisar si existe.
 func TestRecommendedRouteJSONWithoutData(t *testing.T) {
 	const emptyRoute = `{"total_time_seconds":0,"total_distance_meters":0,"transfers":0,"movements":[],` +
-		`"cost":{"ride":0,"walk":0,"wait":0,"transfer":0,"crowding":0,"weather":0,"total":0}}`
+		`"cost":{"ride":0,"walk":0,"wait":0,"transfer":0,"crowding":0,"weather":0,"total":0},"explanation":""}`
 	assertJSONText(t, newRecommendedRouteJSON(&microv1.RecommendedRoute{}), emptyRoute)
 	assertJSONText(t, newRecommendedRouteJSON(nil), emptyRoute)
 }
@@ -56,7 +57,7 @@ func TestRecommendedRouteJSONMatchesUniversityRoute(t *testing.T) {
 	})
 	expectedText, err := json.Marshal(recommendedRouteJSON{
 		TotalTimeSeconds: university.TotalTimeSeconds, TotalDistanceMeters: university.TotalDistanceMeters,
-		Transfers: university.Transfers, Movements: university.Movements, Cost: university.Cost,
+		Transfers: university.Transfers, Movements: university.Movements, Cost: university.Cost, Explanation: recommended.GetExplanation(),
 	})
 	if err != nil {
 		t.Fatal(err)
