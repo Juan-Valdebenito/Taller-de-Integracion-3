@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-go-configmap
+  namespace: student-jvaldebenito
+data:
+  CLIMATE_GRPC_TARGET: "clima-service-svc.<REALTIME_NAMESPACE>.svc.cluster.local:9090"
+  MICRO_GRPC_TARGET: "micros-service-svc.<APP_NAMESPACE>.svc.cluster.local:9091"
+  REDIS_ADDR: "redis-svc.<FOUNDATION_NAMESPACE>.svc.cluster.local:6379"

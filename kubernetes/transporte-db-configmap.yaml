@@ -4,7 +4,7 @@ metadata:
   name: transporte-db-configmap
   namespace: student-jvaldebenito
 data:
-  DB_HOST: "transporte-db-svc.student-jvaldebenito.svc.cluster.local"
+  DB_HOST: "transporte-db-svc.<FOUNDATION_NAMESPACE>.svc.cluster.local"
   DB_PORT: "5432"
   DB_NAME: "transporte_db"
   DB_USER: "transporte_user"  # Asegurarse de configurar usuario y contraseña
