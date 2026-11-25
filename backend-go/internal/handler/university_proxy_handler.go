@@ -155,7 +155,7 @@ func (proxyHandler *GRPCProxyHandler) currentLineOccupancy() map[string]float64 
 	if proxyHandler.lineOccupancy == nil {
 		return nil
 	}
-	occupancy := proxyHandler.lineOccupancy.LineOccupancyBy(microLineID)
+	occupancy := acceptedOccupancy(proxyHandler.lineOccupancy.LineOccupancyBy(microLineID))
 	if len(occupancy) == 0 {
 		return nil
 	}
@@ -182,7 +182,7 @@ func (proxyHandler *GRPCProxyHandler) currentWeatherMessage(requestContext conte
 		return nil
 	}
 	conditions := proxyHandler.currentWeather.Current(requestContext)
-	if conditions == nil {
+	if conditions == nil || !isAcceptedWeather(conditions) {
 		return nil
 	}
 	return &microv1.WeatherConditions{

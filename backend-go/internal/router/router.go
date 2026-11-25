@@ -168,6 +168,9 @@ func Setup(
 			grpcGroup.GET("/micro/campuses", grpcH.ListCampuses)
 			grpcGroup.GET("/micro/routes/university", grpcH.PlanUniversityRoutes)
 		}
+		// Rutas entre cualquier origen y destino, según las preferencias del pasajero.
+		api.GET("/recommendations/route", auth(), grpcH.RecommendRoutes)
+
 		grpcNoAuth := api.Group("/mapinfo")
 		{
 			grpcNoAuth.GET("/climate/telemetry", grpcH.ListTelemetry)
