@@ -1,37 +1,50 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
+import type { RealRoute } from '../../../realtime/realRoutes';
 import { initialSimulatedBuses } from '../../../realtime/simulatedBuses';
-import { countForRoute, filterBusesByRoute, ROUTE_OPTIONS, RouteFilter } from '../RouteFilter';
+import { countForRoute, filterBusesByRoute, routeOptionsFor, RouteFilter } from '../RouteFilter';
 
-const buses = [...initialSimulatedBuses(0), { ...initialSimulatedBuses(0)[0], id: 'otra-7A' }]; // 2 de la 7A, 1 de la 7B, 1 de la 1C
+const routes: RealRoute[] = [
+  { id: 'route-centro', code: '1', name: 'Centro', label: 'Línea 1 — Centro', stops: [] },
+  { id: 'route-norte', code: '2', name: 'Norte', label: 'Línea 2 — Norte', stops: [] },
+];
+const seeds = initialSimulatedBuses(0);
+const buses = [
+  { ...seeds[0], id: 'bus-1', routeId: 'route-centro', routeName: 'Línea 1 — Centro' },
+  { ...seeds[1], id: 'bus-2', routeId: 'route-centro', routeName: 'Línea 1 — Centro' },
+  { ...seeds[2], id: 'bus-3', routeId: 'route-norte', routeName: 'Línea 2 — Norte' },
+];
 
 describe('RouteFilter', () => {
-  it('tiene las opciones del web, en su orden', () => {
-    expect(ROUTE_OPTIONS.map((option) => option.label)).toEqual(['Todas las rutas', 'Línea 7A', 'Línea 7B', 'Línea 1C']);
+  it('crea opciones a partir de rutas recibidas del backend', () => {
+    expect(routeOptionsFor(routes)).toEqual([
+      { id: 'all', label: 'Todas las rutas' },
+      { id: 'route-centro', label: 'Línea 1 — Centro' },
+      { id: 'route-norte', label: 'Línea 2 — Norte' },
+    ]);
   });
 
-  it('cuenta y filtra las micros por línea', () => {
-    expect(countForRoute(buses, 'all')).toBe(4);
-    expect(countForRoute(buses, 'route-7A')).toBe(2);
-    expect(countForRoute(buses, 'route-1C')).toBe(1);
+  it('cuenta y filtra las micros por ID de ruta real', () => {
+    expect(countForRoute(buses, 'all')).toBe(3);
+    expect(countForRoute(buses, 'route-centro')).toBe(2);
     expect(filterBusesByRoute(buses, 'all')).toBe(buses);
-    expect(filterBusesByRoute(buses, 'route-7A').map((bus) => bus.id)).toEqual([buses[0].id, 'otra-7A']);
+    expect(filterBusesByRoute(buses, 'route-centro').map((bus) => bus.id)).toEqual(['bus-1', 'bus-2']);
   });
 
-  it('muestra cada línea con su cantidad y marca la elegida', async () => {
-    await render(<RouteFilter buses={buses} value="route-7B" onChange={jest.fn()} />);
+  it('muestra cada ruta con su cantidad y marca la elegida', async () => {
+    await render(<RouteFilter buses={buses} routes={routes} value="route-norte" onChange={jest.fn()} />);
 
     expect(screen.getByText('Ruta:')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Todas las rutas, 4 micros' })).not.toBeSelected();
-    expect(screen.getByRole('button', { name: 'Línea 7A, 2 micros' })).not.toBeSelected();
-    expect(screen.getByRole('button', { name: 'Línea 7B, 1 micros' })).toBeSelected();
+    expect(screen.getByRole('button', { name: 'Todas las rutas, 3 micros' })).not.toBeSelected();
+    expect(screen.getByRole('button', { name: 'Línea 1 — Centro, 2 micros' })).not.toBeSelected();
+    expect(screen.getByRole('button', { name: 'Línea 2 — Norte, 1 micros' })).toBeSelected();
   });
 
-  it('al tocar una línea avisa cuál se eligió', async () => {
+  it('al tocar una ruta avisa cuál se eligió', async () => {
     const onChange = jest.fn();
-    await render(<RouteFilter buses={buses} value="all" onChange={onChange} />);
+    await render(<RouteFilter buses={buses} routes={routes} value="all" onChange={onChange} />);
 
-    fireEvent.press(screen.getByRole('button', { name: /^Línea 1C/ }));
-    expect(onChange).toHaveBeenCalledWith('route-1C');
+    fireEvent.press(screen.getByRole('button', { name: /^Línea 2 — Norte/ }));
+    expect(onChange).toHaveBeenCalledWith('route-norte');
   });
 });

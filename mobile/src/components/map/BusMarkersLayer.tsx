@@ -6,7 +6,6 @@ import { useAnimatedPosition } from '../../hooks/useAnimatedPosition';
 import type { LiveBus } from '../../realtime/liveBuses';
 import { busColor, busIconSize, RECENT_MS } from './busIcon';
 import { BusGlyph } from './BusGlyph';
-import { ROUTE_LABELS, type RouteId } from './routeNodes';
 
 export interface BusMarkersLayerProps {
   buses: readonly LiveBus[];
@@ -18,7 +17,7 @@ export interface BusMarkersLayerProps {
 
 /** Texto para lectores de pantalla: "Micro Línea 7A, 45 % de ocupación". */
 export function busAccessibilityLabel(bus: LiveBus): string {
-  const line = ROUTE_LABELS[bus.routeId as RouteId] ?? bus.routeName;
+  const line = bus.routeName;
   const pct = bus.capacity > 0 ? Math.round((bus.currentPassengers / bus.capacity) * 100) : 0;
   return `Micro ${line}, ${pct} % de ocupación`;
 }

@@ -20,7 +20,7 @@ const update = (overrides: Partial<BusUpdatePayload> = {}): BusUpdatePayload => 
 
 describe('applyBusUpdate (igual que useSocketBuses del web)', () => {
   it('agrega una micro nueva con el nombre de su ruta', () => {
-    const buses = applyBusUpdate([], update(), 1000);
+    const buses = applyBusUpdate([], update(), 1000, { 'route-7A': 'Línea 7A — Hualpén / Centro / Las Américas' });
 
     expect(buses).toHaveLength(1);
     expect(buses[0]).toMatchObject({
@@ -96,17 +96,17 @@ describe('useRealtimeBuses', () => {
   beforeEach(() => jest.useFakeTimers({ now: Date.parse('2026-10-29T12:00:01.000Z') }));
   afterEach(() => jest.useRealTimers());
 
-  async function renderWithFake() {
+  async function renderWithFake(routeIds: string[] = []) {
     const fake = new FakeClient();
-    const hook = await renderHook(() => useRealtimeBuses({ createClient: () => fake as unknown as RealtimeClient }));
+    const hook = await renderHook(() => useRealtimeBuses({ routeIds, createClient: () => fake as unknown as RealtimeClient }));
     return { fake, hook };
   }
 
-  it('se conecta y se suscribe a las líneas 7A, 7B y 1C, como el web', async () => {
+  it('se conecta sin inventar rutas antes de cargar el catálogo', async () => {
     const { fake, hook } = await renderWithFake();
 
     expect(fake.connected).toBe(true);
-    expect(fake.subscribed).toEqual(['route-7A', 'route-7B', 'route-1C']);
+    expect(fake.subscribed).toEqual([]);
     expect(hook.result.current.status).toBe('connecting');
     await act(async () => fake.statusHandler?.('connected'));
     expect(hook.result.current.status).toBe('connected');
@@ -129,6 +129,20 @@ describe('useRealtimeBuses', () => {
     expect(hook.result.current.messagesPerSecond).toBe(2);
     await act(async () => jest.advanceTimersByTime(1000));
     expect(hook.result.current.messagesPerSecond).toBe(0);
+  });
+
+  it('conserva los eventos simulados de respaldo y los cuenta', async () => {
+    const { fake, hook } = await renderWithFake(['route-live']);
+
+    await act(async () => {
+      fake.messageHandler?.({ type: 'bus:update', data: update({ busId: 'sim-route-live-1' }) });
+    });
+
+    expect(hook.result.current.buses).toHaveLength(1);
+    expect(hook.result.current.buses[0]).toMatchObject({ id: 'sim-route-live-1', dataSource: 'simulation' });
+    expect(hook.result.current.totalMessages).toBe(1);
+    await act(async () => jest.advanceTimersByTime(1000));
+    expect(hook.result.current.messagesPerSecond).toBe(1);
   });
 
   it('al desmontarse cierra la conexión', async () => {

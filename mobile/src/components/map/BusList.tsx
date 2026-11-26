@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, Text, View } from 'react-native';
 
 import { useEta } from '../../hooks/useEta';
+import type { RouteStop } from '../../api/companyApi';
 import type { LiveBus } from '../../realtime/liveBuses';
 import { BUS_STATUS, makeStyles, occupancyColor } from '../../theme';
 import { freshnessColor, occupancyPercent } from './BusDetailCard';
@@ -25,13 +26,14 @@ export interface BusListProps {
   live: boolean;
   /** Mientras se conecta por primera vez, como el web. */
   loading?: boolean;
+  routeStopsByRoute?: Readonly<Record<string, readonly RouteStop[]>>;
 }
 
 /**
  * Lista "Micros activas", como BusSidePanel del web: cada micro con su estado,
  * ocupación, velocidad, próxima parada y predicción. Tocar una la elige.
  */
-export function BusList({ buses, selectedId, onSelect, live, loading = false }: BusListProps) {
+export function BusList({ buses, selectedId, onSelect, live, loading = false, routeStopsByRoute = {} }: BusListProps) {
   const styles = useStyles();
   const [now, setNow] = useState(0);
   useEffect(() => {
@@ -44,18 +46,33 @@ export function BusList({ buses, selectedId, onSelect, live, loading = false }: 
   return (
     <View>
       {sortByOccupancy(buses).map((bus) => (
-        <BusRow key={bus.id} bus={bus} selected={bus.id === selectedId} onSelect={onSelect} live={live} now={now} />
+        <BusRow
+          key={bus.id}
+          bus={bus}
+          selected={bus.id === selectedId}
+          onSelect={onSelect}
+          live={live}
+          now={now}
+          routeStops={routeStopsByRoute[bus.routeId] ?? []}
+        />
       ))}
     </View>
   );
 }
 
-function BusRow({ bus, selected, onSelect, live, now }: { bus: LiveBus; selected: boolean; onSelect: (id: string) => void; live: boolean; now: number }) {
+function BusRow({ bus, selected, onSelect, live, now, routeStops }: {
+  bus: LiveBus;
+  selected: boolean;
+  onSelect: (id: string) => void;
+  live: boolean;
+  now: number;
+  routeStops: readonly RouteStop[];
+}) {
   const styles = useStyles();
   const pct = occupancyPercent(bus);
   const status = BUS_STATUS[bus.status];
   const occColor = busColor(bus);
-  const { nextStop, isStopped } = useEta(bus);
+  const { nextStop, isStopped } = useEta(bus, routeStops);
 
   // Destello cuando llega un dato nuevo del tiempo real (bus-row-flash del web).
   const [flash] = useState(() => new Animated.Value(0));

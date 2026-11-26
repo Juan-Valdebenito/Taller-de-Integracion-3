@@ -6,15 +6,14 @@
  *
  * Features:
  *  - WebSocket como fuente primaria de datos (backend Go)
- *  - Eventos reales priorizados por ruta, con simulación del backend de respaldo
+ *  - Eventos GPS reales del backend con simulación previa como respaldo
  *  - Marcadores SVG con animación de movimiento suave (interpolación rAF)
  *  - Halo de ocupación con color del OccupancyService
  *  - Popup con datos de predicción de aforo del backend
  *  - Panel lateral ordenado por ocupación con badges de predicción
  *  - Barra de estado con latencia WS y mensajes/segundo
  *  - Overlay de reconexión cuando se pierde la conexión
- *  - Panel de simulación de sensores y pagos (solo en desarrollo), que publica
- *    por el WebSocket nativo /ws de Go
+ *  - Herramientas de sensores y pagos en desarrollo
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -29,14 +28,12 @@ import { MapStatusBar } from '../../components/map/MapStatusBar';
 import { ConnectionOverlay } from '../../components/map/ConnectionOverlay';
 import { microStopsApi, type MicroStop } from '../../../infrastructure/api/microStopsApi';
 import { climateTelemetryApi, type ClimateTelemetryRecord } from '../../../infrastructure/api/climateTelemetryApi';
-import { routesApi } from '../../../infrastructure/api/routesApi';
+import { routesApi, type RouteStop } from '../../../infrastructure/api/routesApi';
 import { LiveMap } from '../../components/passenger/LiveMap';
 import { SimulationDevTools } from '../../components/passenger/SimulationDevTools';
 import { RecommendedTripPlanner } from '../../components/passenger/RecommendedTripPlanner';
 
 const NO_BUSES: BusState[] = [];
-
-// El simulador es una herramienta de desarrollo: no se muestra en producción.
 const SHOW_DEVTOOLS = import.meta.env.DEV;
 
 interface MapRouteOption {
@@ -44,16 +41,13 @@ interface MapRouteOption {
   label: string;
 }
 
-// IDs de las rutas que publica el simulador del backend. Se mantienen como
-// respaldo hasta que cada ruta tenga telemetría real reciente.
+const BUS_EVENT_MAX_AGE_MS = 60_000;
+const SIMULATION_EVENT_MAX_AGE_MS = 15_000;
 const SIMULATION_ROUTES: MapRouteOption[] = [
   { id: 'route-7A', label: 'Línea 7A' },
   { id: 'route-7B', label: 'Línea 7B' },
   { id: 'route-1C', label: 'Línea 1C' },
 ];
-
-const REAL_EVENT_MAX_AGE_MS = 60_000;
-const SIMULATION_EVENT_MAX_AGE_MS = 15_000;
 
 const STOPS_LIMIT = 5000;
 const CLIMATE_REFRESH_MS = 10_000;
@@ -65,7 +59,10 @@ export function PassengerMapPage() {
   const [selectedBusId, setSelectedBusId] = useState<string | null>(null);
   const [routeFilter, setRouteFilter] = useState<string>('all');
   const [routes, setRoutes] = useState<MapRouteOption[]>(SIMULATION_ROUTES);
+  const [routeStopsByRoute, setRouteStopsByRoute] = useState<Record<string, RouteStop[]>>({});
   const [routeNames, setRouteNames] = useState<Record<string, string>>({});
+  const [routesLoading, setRoutesLoading] = useState(true);
+  const [routesMessage, setRoutesMessage] = useState<string | null>(null);
   const [stops, setStops] = useState<MicroStop[]>([]);
   const [stopsLoading, setStopsLoading] = useState(true);
   const [stopsMessage, setStopsMessage] = useState<string | null>(null);
@@ -82,10 +79,10 @@ export function PassengerMapPage() {
         if (!active) return;
 
         const activeRoutes = loadedRoutes.filter((route) => route.isActive);
+        const names: Record<string, string> = {};
         const mergedRoutes = new Map<string, MapRouteOption>(
           SIMULATION_ROUTES.map((route): [string, MapRouteOption] => [route.id, route]),
         );
-        const names: Record<string, string> = {};
 
         for (const route of activeRoutes) {
           const label = route.name || route.code || `Ruta ${route.id}`;
@@ -93,11 +90,25 @@ export function PassengerMapPage() {
           names[route.id] = label;
         }
 
-        setRoutes(Array.from(mergedRoutes.values()));
+        const routeOptions = Array.from(mergedRoutes.values());
+        setRoutes(routeOptions);
         setRouteNames(names);
+        setRoutesMessage(null);
+        void Promise.all(activeRoutes.map(async (route) => {
+          try {
+            return [route.id, await routesApi.getStops(route.id)] as const;
+          } catch {
+            return [route.id, []] as const;
+          }
+        })).then((entries) => {
+          if (active) setRouteStopsByRoute(Object.fromEntries(entries));
+        });
       })
       .catch(() => {
-        // El mapa conserva las rutas de respaldo mientras la API no responde.
+        if (active) setRoutesMessage('No se pudieron cargar las rutas reales; se mantienen las rutas de respaldo.');
+      })
+      .finally(() => {
+        if (active) setRoutesLoading(false);
       });
 
     return () => {
@@ -199,12 +210,10 @@ export function PassengerMapPage() {
   const sourceBuses = wsState.status === 'connected' ? buses : NO_BUSES;
   const freshBuses = sourceBuses.filter((bus) => {
     if (!bus.lastWsUpdate) return false;
-    const maxAge = bus.dataSource === 'live' ? REAL_EVENT_MAX_AGE_MS : SIMULATION_EVENT_MAX_AGE_MS;
+    const maxAge = bus.dataSource === 'live' ? BUS_EVENT_MAX_AGE_MS : SIMULATION_EVENT_MAX_AGE_MS;
     return freshnessClock - bus.lastWsUpdate.getTime() <= maxAge;
   });
-  const liveRoutes = new Set(
-    freshBuses.filter((bus) => bus.dataSource === 'live').map((bus) => bus.routeId),
-  );
+  const liveRoutes = new Set(freshBuses.filter((bus) => bus.dataSource === 'live').map((bus) => bus.routeId));
   const activeBuses = freshBuses
     .filter((bus) => bus.dataSource === 'live' || !liveRoutes.has(bus.routeId))
     .map((bus) => ({
@@ -258,6 +267,7 @@ export function PassengerMapPage() {
                 bus={bus}
                 isSelected={bus.id === selectedBusId}
                 onSelect={handleSelectBus}
+                routeStops={routeStopsByRoute[bus.routeId] ?? []}
               />
             ))}
           </LiveMap>
@@ -265,6 +275,12 @@ export function PassengerMapPage() {
           {stopsLoading || stopsMessage ? (
             <div className="map-stops-notice" role="status" aria-live="polite">
               {stopsLoading ? 'Cargando paraderos...' : stopsMessage}
+            </div>
+          ) : null}
+
+          {routesLoading || routesMessage ? (
+            <div className="map-stops-notice" role="status" aria-live="polite">
+              {routesLoading ? 'Cargando rutas reales...' : routesMessage}
             </div>
           ) : null}
 
@@ -281,10 +297,11 @@ export function PassengerMapPage() {
             <SimulationDevTools
               buses={activeBuses}
               selectedBusId={selectedBusId}
-              onSelectBus={(id) => setSelectedBusId(id)}
+              onSelectBus={setSelectedBusId}
               wsStatus={wsState.status}
             />
           ) : null}
+
         </div>
 
         {/* Panel lateral */}
@@ -295,6 +312,7 @@ export function PassengerMapPage() {
             onSelect={handleSelectBus}
             routeFilter={routeFilter}
             loading={isInitialLoading}
+            routeStopsByRoute={routeStopsByRoute}
           />
         </aside>
       </div>

@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { liveBusesToPositions } from '../alerts/proximityAlerts';
 import { LocationCard } from '../components/LocationCard';
@@ -16,6 +16,7 @@ import { filterBusesByRoute, RouteFilter } from '../components/map/RouteFilter';
 import { RouteNodesLayer } from '../components/map/RouteNodesLayer';
 import { RecommendedTripLayer } from '../components/map/RecommendedTripLayer';
 import type { RoutePlan } from '../api/tripPlannerApi';
+import type { RouteStop } from '../api/companyApi';
 import type { Stop } from '../location/geo';
 import type { RouteFilterValue } from '../components/map/routeNodes';
 import { TransitMap } from '../components/map/TransitMap';
@@ -41,11 +42,15 @@ import { makeStyles, spacing } from '../theme';
 export function MapScreen() {
   const styles = useStyles();
   const location = useLocation();
-  const { buses, live, realtime } = useMapBuses();
+  const { buses, live, realtime, routes, routesLoading, routesError } = useMapBuses();
   // Tocar una micro la selecciona; tocarla de nuevo la deselecciona (como el web).
   const [selectedBusId, setSelectedBusId] = useState<string | null>(null);
   const selectBus = (id: string) => setSelectedBusId((current) => (current === id ? null : id));
   const [routeFilter, setRouteFilter] = useState<RouteFilterValue>('all');
+  const routeStopsByRoute = useMemo(
+    () => Object.fromEntries(routes.map((route) => [route.id, route.stops])) as Record<string, RouteStop[]>,
+    [routes],
+  );
   const [recommendedTrip, setRecommendedTrip] = useState<{ plan: RoutePlan | null; stops: readonly Stop[] }>({ plan: null, stops: [] });
   const updateRecommendedTrip = useCallback((plan: RoutePlan | null, stops: readonly Stop[]) => {
     setRecommendedTrip((current) => current.plan === plan && current.stops === stops ? current : { plan, stops });
@@ -84,17 +89,27 @@ export function MapScreen() {
   return (
     <View style={styles.screen}>
       <MapStatusBar buses={buses} realtime={realtime} routeFilter={routeFilter} />
-      <RouteFilter buses={buses} value={routeFilter} onChange={setRouteFilter} />
+      <RouteFilter buses={buses} routes={routes} value={routeFilter} onChange={setRouteFilter} />
       <View style={styles.mapArea}>
         <TransitMap fitCoordinates={recommendedCoordinates}>
-          <RouteNodesLayer routeFilter={routeFilter} />
+          <RouteNodesLayer routeFilter={routeFilter} routes={routes} />
           <RecommendedTripLayer plan={recommendedTrip.plan} stops={recommendedTrip.stops} />
           <BusMarkersLayer buses={visibleBuses} selectedId={selectedBusId} onSelect={selectBus} live={live} />
           <UserLocationLayer position={location.position} />
         </TransitMap>
+        {routesLoading || routesError ? (
+          <View pointerEvents="none" style={styles.routeNotice} accessibilityRole="status">
+            <Text style={styles.routeNoticeText}>{routesLoading ? 'Cargando rutas reales...' : routesError}</Text>
+          </View>
+        ) : null}
         <ConnectionOverlay status={realtime.status} />
         {selectedBus ? (
-          <BusDetailCard bus={selectedBus} live={live} onClose={() => setSelectedBusId(null)} />
+          <BusDetailCard
+            bus={selectedBus}
+            live={live && selectedBus.dataSource !== 'simulation' && !selectedBus.id.startsWith('sim-')}
+            routeStops={routeStopsByRoute[selectedBus.routeId] ?? []}
+            onClose={() => setSelectedBusId(null)}
+          />
         ) : (
           <View style={styles.panels}>
             <MapPanel
@@ -104,7 +119,14 @@ export function MapScreen() {
               onOpenChange={(open) => setOpenPanel(open ? 'buses' : null)}
               flush
             >
-              <BusList buses={visibleBuses} selectedId={selectedBusId} onSelect={selectBus} live={live} loading={loadingBuses} />
+              <BusList
+                buses={visibleBuses}
+                selectedId={selectedBusId}
+                onSelect={selectBus}
+                live={live}
+                loading={loadingBuses}
+                routeStopsByRoute={routeStopsByRoute}
+              />
             </MapPanel>
             <MapPanel
               title="🧭 Planificar viaje"
@@ -135,4 +157,6 @@ const useStyles = makeStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.background },
   mapArea: { flex: 1 },
   panels: { position: 'absolute', left: spacing.sm, right: spacing.sm, bottom: spacing.sm, maxHeight: '70%', gap: spacing.sm },
+  routeNotice: { position: 'absolute', top: spacing.sm, left: spacing.sm, right: spacing.sm, alignItems: 'center' },
+  routeNoticeText: { overflow: 'hidden', maxWidth: '100%', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, color: '#fbbf24', backgroundColor: 'rgba(15, 23, 42, 0.9)', fontSize: 12, textAlign: 'center' },
 }));

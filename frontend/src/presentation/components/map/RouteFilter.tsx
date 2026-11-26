@@ -24,7 +24,7 @@ export function RouteFilter({ buses, routes, value, onChange }: RouteFilterProps
 
   return (
     <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
-      {routeOptions.map((opt) => {
+          {routeOptions.map((opt) => {
         const isActive = value === opt.id;
         const count = countFor(opt.id);
         return (

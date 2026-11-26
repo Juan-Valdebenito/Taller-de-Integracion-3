@@ -54,8 +54,7 @@ function weatherForStop(records: WeatherTelemetry[], stop: Stop | null): Weather
   if (!records.length) return null;
   if (!stop) return latestWeather(records);
   return [...records]
-    .sort((left, right) => distanceInMeters(stop, left) - distanceInMeters(stop, right))
-    [0] ?? null;
+    .sort((left, right) => distanceInMeters(stop, left) - distanceInMeters(stop, right))[0] ?? null;
 }
 
 function weatherAlerts(weather: WeatherTelemetry): string[] {

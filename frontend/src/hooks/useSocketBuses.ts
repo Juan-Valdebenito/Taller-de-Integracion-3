@@ -39,8 +39,6 @@ export interface SocketBusesState {
 
 type BusUpdater = (updater: (prev: BusState[]) => BusState[]) => void;
 
-// ── Nombres de ruta (para buses nuevos del WS) ───────────────────────────
-
 const ROUTE_NAMES: Record<string, string> = {
   'route-7A': 'Línea 7A — Hualpén / Centro / Las Américas',
   'route-7B': 'Línea 7B — Pedro de Valdivia / Centro / Amanecer',
@@ -77,6 +75,7 @@ export function useSocketBuses(
   const handleBusUpdate = useCallback(
     (data: BusUpdatePayload) => {
       const now = new Date();
+      const dataSource: BusState['dataSource'] = data.busId.startsWith('sim-') ? 'simulation' : 'live';
 
       // Estimar latencia
       if (data.timestamp) {
@@ -128,7 +127,7 @@ export function useSocketBuses(
                   totalStudents: data.totalStudents ?? bus.totalStudents,
                   status: 'ACTIVE' as const,
                   lastUpdate: now,
-                  dataSource: data.busId.startsWith('sim-') ? 'simulation' : 'live',
+                  dataSource,
                   wsOccupancy,
                   lastWsUpdate: now,
                 }
@@ -155,7 +154,7 @@ export function useSocketBuses(
             totalStudents: data.totalStudents ?? 0,
             status: 'ACTIVE',
             lastUpdate: now,
-            dataSource: data.busId.startsWith('sim-') ? 'simulation' : 'live',
+            dataSource,
             wsOccupancy,
             lastWsUpdate: now,
           };

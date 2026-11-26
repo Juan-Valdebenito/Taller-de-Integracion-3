@@ -10,6 +10,7 @@ import { useMemo } from 'react';
 import { Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import { FaBus } from 'react-icons/fa';
+import type { RouteStop } from '../../../infrastructure/api/routesApi';
 import { BusState, getOccupancyColor, getOccupancyLevel } from '../../../hooks/useSimulatedBuses';
 import { useAnimatedPosition } from '../../../hooks/useAnimatedPosition';
 import { useEta } from '../../../hooks/useEta';
@@ -18,6 +19,7 @@ interface BusMarkerProps {
   bus: BusState;
   isSelected: boolean;
   onSelect: (id: string) => void;
+  routeStops?: readonly RouteStop[];
 }
 
 /** Genera un divIcon SVG premium con halo de ocupación y flecha de dirección */
@@ -171,7 +173,6 @@ function FreshnessDot({ lastWsUpdate, dataSource }: { lastWsUpdate?: Date; dataS
   if (dataSource === 'simulation') {
     return <span style={{ fontSize: '10px', color: '#fbbf24' }}>Respaldo simulado</span>;
   }
-
   if (!lastWsUpdate) {
     return (
       <span style={{ fontSize: '10px', color: '#475569' }}>Sin evento reciente</span>
@@ -193,7 +194,7 @@ function FreshnessDot({ lastWsUpdate, dataSource }: { lastWsUpdate?: Date; dataS
   );
 }
 
-export function BusMarker({ bus, isSelected, onSelect }: BusMarkerProps) {
+export function BusMarker({ bus, isSelected, onSelect, routeStops = [] }: BusMarkerProps) {
   // Animación de posición suave
   const animated = useAnimatedPosition(bus.latitude, bus.longitude, bus.heading);
 
@@ -206,7 +207,7 @@ export function BusMarker({ bus, isSelected, onSelect }: BusMarkerProps) {
     : false;
 
   // ETA al próximo paradero
-  const { nextStop, isStopped } = useEta(bus);
+  const { nextStop, isStopped } = useEta(bus, routeStops);
 
   const icon = useMemo(
     () => createBusIcon(color, bus.heading, isSelected, isRecent),

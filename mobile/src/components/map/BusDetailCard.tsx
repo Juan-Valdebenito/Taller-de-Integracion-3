@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { useEta } from '../../hooks/useEta';
+import type { RouteStop } from '../../api/companyApi';
 import type { LiveBus } from '../../realtime/liveBuses';
 import type { OccupancyInfo } from '../../realtime/types';
 import { BUS_STATUS, makeStyles, radius, spacing } from '../../theme';
@@ -31,8 +32,9 @@ export const PREDICTION_COLORS: Readonly<Record<OccupancyInfo['occupancyLevel'],
 
 export interface BusDetailCardProps {
   bus: LiveBus;
-  /** true si los datos vienen del tiempo real; si no, la micro es de la simulación. */
+  /** true si el WebSocket mantiene conexión con el backend. */
   live: boolean;
+  routeStops?: readonly RouteStop[];
   onClose: () => void;
 }
 
@@ -43,12 +45,12 @@ export interface BusDetailCardProps {
  * hora de actualización. En el
  * teléfono va fija sobre el mapa en vez de seguir a la micro.
  */
-export function BusDetailCard({ bus, live, onClose }: BusDetailCardProps) {
+export function BusDetailCard({ bus, live, routeStops = [], onClose }: BusDetailCardProps) {
   const styles = useStyles();
   const color = busColor(bus);
   const pct = occupancyPercent(bus);
   const status = BUS_STATUS[bus.status];
-  const { nextStop, isStopped } = useEta(bus);
+  const { nextStop, isStopped } = useEta(bus, routeStops);
 
   return (
     <View style={styles.card} accessibilityLabel={`Micro ${bus.id}`}>
@@ -63,7 +65,7 @@ export function BusDetailCard({ bus, live, onClose }: BusDetailCardProps) {
               <Text style={styles.routeName} numberOfLines={2}>{bus.routeName}</Text>
             </View>
           </View>
-          <Freshness live={live} lastUpdate={bus.lastUpdate} />
+          <Freshness live={live} lastUpdate={bus.lastUpdate} simulated={bus.dataSource === 'simulation' || bus.id.startsWith('sim-')} />
           <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Cerrar detalle de la micro" hitSlop={8} style={styles.close}>
             <Ionicons name="close" size={18} color="#94a3b8" />
           </Pressable>
@@ -115,8 +117,8 @@ export function BusDetailCard({ bus, live, onClose }: BusDetailCardProps) {
   );
 }
 
-/** "hace Ns" con su punto de color (se actualiza cada segundo), o "Simulación". */
-function Freshness({ live, lastUpdate }: { live: boolean; lastUpdate: number }) {
+/** "hace Ns" con su punto de color (se actualiza cada segundo). */
+function Freshness({ live, lastUpdate, simulated }: { live: boolean; lastUpdate: number; simulated: boolean }) {
   const styles = useStyles();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -125,7 +127,8 @@ function Freshness({ live, lastUpdate }: { live: boolean; lastUpdate: number }) 
     return () => clearInterval(timer);
   }, [live]);
 
-  if (!live) return <Text style={styles.simulated}>Simulación</Text>;
+  if (simulated) return <Text style={styles.simulated}>Simulación de respaldo</Text>;
+  if (!live) return <Text style={styles.stale}>Sin actualización reciente</Text>;
   const ageSec = Math.max(0, Math.round((now - lastUpdate) / 1000));
   const color = freshnessColor(ageSec);
   return (
@@ -184,7 +187,8 @@ const useStyles = makeStyles((_colors, font) => ({
   busId: { fontSize: font(14), fontWeight: '700', color: '#f1f5f9' },
   routeName: { fontSize: font(11), color: '#94a3b8' },
   close: { padding: 2 },
-  simulated: { fontSize: font(10), color: '#475569' },
+  stale: { fontSize: font(10), color: '#475569' },
+  simulated: { fontSize: font(10), color: '#fbbf24' },
   freshness: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   freshDot: { width: 6, height: 6, borderRadius: 3 },
   freshText: { fontSize: font(10), fontVariant: ['tabular-nums'] },

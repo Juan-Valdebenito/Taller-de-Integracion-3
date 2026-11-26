@@ -20,7 +20,7 @@ export interface UseRealtimeBusesOptions {
   enabled?: boolean;
   /** Rutas a escuchar. Si cambian, se suscribe o desuscribe sin reconectar. */
   routeIds?: readonly string[];
-  /** Nombre a mostrar de rutas que no son las 3 líneas del web. */
+  /** Nombres de las rutas activas cargadas desde el catálogo del backend. */
   routeNames?: Readonly<Record<string, string>>;
   /** Cliente a usar (tests); por defecto uno nuevo hacia el WebSocket de backend-go. */
   createClient?: () => RealtimeClient;
@@ -48,7 +48,10 @@ export function useRealtimeBuses({
   const clientRef = useRef<RealtimeClient | null>(null);
   const subscribed = useRef(new Set<string>());
   const routeNamesRef = useRef(routeNames);
-  routeNamesRef.current = routeNames;
+
+  useEffect(() => {
+    routeNamesRef.current = routeNames;
+  }, [routeNames]);
 
   useEffect(() => {
     if (!enabled) return;

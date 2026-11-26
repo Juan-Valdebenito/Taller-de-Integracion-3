@@ -1,9 +1,11 @@
-/**
- * Micros de ejemplo para las pruebas: una por línea. La app no las muestra, las
- * micros del mapa llegan siempre por el WebSocket.
- */
+/** Fixtures usados por pruebas automatizadas. */
 import type { LiveBus } from './liveBuses';
-import { ROUTE_NAMES } from './liveBuses';
+
+const TEST_ROUTE_NAMES: Readonly<Record<string, string>> = {
+  'route-7A': 'Línea de prueba 7A',
+  'route-7B': 'Línea de prueba 7B',
+  'route-1C': 'Línea de prueba 1C',
+};
 
 /** Una posición de Temuco para cada micro de ejemplo. */
 const START: Readonly<Record<string, [number, number]>> = {
@@ -20,7 +22,7 @@ function startBus(
   return {
     id: `sim-${routeId}-1`,
     routeId,
-    routeName: ROUTE_NAMES[routeId],
+    routeName: TEST_ROUTE_NAMES[routeId],
     latitude,
     longitude,
     boardings: 0,
@@ -31,6 +33,7 @@ function startBus(
     totalAlightings: 0,
     totalStudents: 0,
     lastUpdate: 0,
+    dataSource: 'simulation',
     ...values,
   };
 }

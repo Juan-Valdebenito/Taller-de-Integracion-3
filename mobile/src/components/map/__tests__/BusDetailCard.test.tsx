@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
 import { computeEta } from '../../../hooks/useEta';
-import type { LiveBus } from '../../../realtime/liveBuses';
+import type { LiveBus, LiveRouteStop } from '../../../realtime/liveBuses';
 import { initialSimulatedBuses } from '../../../realtime/simulatedBuses';
 import { BusDetailCard, freshnessColor, occupancyPercent, PREDICTION_COLORS } from '../BusDetailCard';
 import { formatClock } from '../MapStatusBar';
@@ -9,6 +9,8 @@ import { formatClock } from '../MapStatusBar';
 const NOW = new Date(2026, 9, 30, 11, 20, 0).getTime();
 const bus: LiveBus = {
   ...initialSimulatedBuses(NOW)[0],
+  id: 'bus-live-7A-1',
+  dataSource: 'live',
   currentPassengers: 52,
   capacity: 80,
   totalBoardings: 31,
@@ -18,6 +20,9 @@ const bus: LiveBus = {
   status: 'DELAYED',
   lastUpdate: NOW - 3000,
 };
+const routeStops: LiveRouteStop[] = [
+  { id: 'stop-live', name: 'Paradero recibido', latitude: bus.latitude, longitude: bus.longitude + 0.001, order: 1 },
+];
 
 describe('BusDetailCard', () => {
   beforeEach(() => jest.useFakeTimers({ now: NOW }));
@@ -55,9 +60,9 @@ describe('BusDetailCard', () => {
     expect(screen.getByText('hace 5s')).toBeTruthy();
   });
 
-  it('con la simulación dice "Simulación"', async () => {
+  it('sin un dato reciente informa que el bus está desactualizado', async () => {
     await render(<BusDetailCard bus={bus} live={false} onClose={jest.fn()} />);
-    expect(screen.getByText('Simulación')).toBeTruthy();
+    expect(screen.getByText('Sin actualización reciente')).toBeTruthy();
     expect(screen.queryByText(/^hace/)).toBeNull();
   });
 
@@ -81,16 +86,23 @@ describe('BusDetailCard', () => {
     expect(screen.getByText('±12% · EWMA')).toBeTruthy();
   });
 
+  it('identifica las micros simuladas de respaldo', async () => {
+    const backup = { ...bus, id: 'sim-route-7A-1', dataSource: 'simulation' as const };
+    await render(<BusDetailCard bus={backup} live onClose={jest.fn()} />);
+
+    expect(screen.getByText('Simulación de respaldo')).toBeTruthy();
+  });
+
   it('muestra la próxima parada con su tiempo y distancia, y la oculta si la micro está detenida', async () => {
-    const { nextStop } = computeEta(bus);
-    const { rerender } = await render(<BusDetailCard bus={bus} live onClose={jest.fn()} />);
+    const { nextStop } = computeEta(bus, routeStops);
+    const { rerender } = await render(<BusDetailCard bus={bus} live routeStops={routeStops} onClose={jest.fn()} />);
 
     expect(screen.getByText('⏱ Próxima parada')).toBeTruthy();
     expect(screen.getByText(nextStop!.stopName)).toBeTruthy();
     expect(screen.getByText(nextStop!.etaLabel)).toBeTruthy();
     expect(screen.getByText(`~${Math.round(nextStop!.distanceM)} m`)).toBeTruthy();
 
-    await rerender(<BusDetailCard bus={{ ...bus, speed: 0 }} live onClose={jest.fn()} />);
+    await rerender(<BusDetailCard bus={{ ...bus, speed: 0 }} live routeStops={routeStops} onClose={jest.fn()} />);
     expect(screen.queryByText('⏱ Próxima parada')).toBeNull();
   });
 
