@@ -23,10 +23,8 @@ export function useAdminCompanies(): UseAdminCompaniesResult {
   const [error, setError] = useState<string | null>(null);
   const requestId = useRef(0);
 
-  const refresh = useCallback(async () => {
+  const load = useCallback(async () => {
     const id = ++requestId.current;
-    setLoading(true);
-    setError(null);
     try {
       const [list, buses, routes, pending] = await Promise.all([
         fetchCompanies(),
@@ -43,8 +41,14 @@ export function useAdminCompanies(): UseAdminCompaniesResult {
   }, []);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    void Promise.resolve().then(load);
+  }, [load]);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    await load();
+  }, [load]);
 
   return { companies, loading, error, refresh };
 }
