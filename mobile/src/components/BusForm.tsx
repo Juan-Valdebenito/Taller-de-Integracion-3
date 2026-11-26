@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, Text, View } from 'react-native';
 
 import { createCompanyBus, saveCompanyBus, updateCompanyBus, type CompanyBus, type CompanyRoute } from '../api/companyApi';
@@ -27,15 +27,9 @@ export interface BusFormProps {
  */
 export function BusForm({ visible, bus, routes, companyId, onClose, onSaved }: BusFormProps) {
   const styles = useStyles();
-  const [values, setValues] = useState<BusFormValues>(NEW_BUS_FORM);
+  const [values, setValues] = useState<BusFormValues>(() => (bus ? formFromBus(bus) : NEW_BUS_FORM));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (!visible) return;
-    setValues(bus ? formFromBus(bus) : NEW_BUS_FORM);
-    setError(null);
-  }, [visible, bus]);
 
   const set = <K extends keyof BusFormValues>(key: K) => (value: BusFormValues[K]) => setValues((current) => ({ ...current, [key]: value }));
 

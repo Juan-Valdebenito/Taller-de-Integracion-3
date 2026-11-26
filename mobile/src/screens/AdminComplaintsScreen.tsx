@@ -168,7 +168,14 @@ export function AdminComplaintsScreen() {
           ))
         )}
       </ScrollView>
-      <ComplaintResolutionForm complaint={managing} onClose={() => setManaging(null)} onSaved={onSaved} />
+      {managing ? (
+        <ComplaintResolutionForm
+          key={`complaint:${managing.id}`}
+          complaint={managing}
+          onClose={() => setManaging(null)}
+          onSaved={onSaved}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }

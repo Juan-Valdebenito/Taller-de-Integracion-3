@@ -184,14 +184,17 @@ export function AdminRoutesScreen() {
           ))
         )}
       </ScrollView>
-      <RouteForm
-        visible={editing !== false}
-        route={editing || null}
-        routes={routes}
-        companies={companies}
-        onClose={() => setEditing(false)}
-        onSaved={onSaved}
-      />
+      {editing !== false ? (
+        <RouteForm
+          key={editing === null ? 'new' : `route:${editing.id}`}
+          visible
+          route={editing}
+          routes={routes}
+          companies={companies}
+          onClose={() => setEditing(false)}
+          onSaved={onSaved}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
