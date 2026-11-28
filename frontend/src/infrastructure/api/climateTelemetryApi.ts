@@ -7,6 +7,7 @@ export interface ClimateTelemetryRecord {
   temperature_c: number;
   humidity_pct: number;
   wind_speed_kmh: number;
+  precipitation_mm: number;
   pm25_ug_m3: number;
   pm10_ug_m3: number;
   status: string;
@@ -48,6 +49,7 @@ const isTelemetryRecord = (value: unknown): value is ClimateTelemetryRecord => {
   if (!isObject(value)) return false;
 
   const time = parseTimestamp(value.time);
+  const precipitation = value.precipitation_mm ?? 0;
   if (
     !time ||
     typeof value.station_id !== 'string' ||
@@ -57,6 +59,8 @@ const isTelemetryRecord = (value: unknown): value is ClimateTelemetryRecord => {
     !isFiniteNumber(value.temperature_c) ||
     !isFiniteNumber(value.humidity_pct) ||
     !isFiniteNumber(value.wind_speed_kmh) ||
+    !isFiniteNumber(precipitation) ||
+    precipitation < 0 ||
     !isFiniteNumber(value.pm25_ug_m3) ||
     !isFiniteNumber(value.pm10_ug_m3) ||
     !isFiniteNumber(value.latitude) ||
@@ -82,7 +86,7 @@ export const climateTelemetryApi = {
       if (!isTelemetryRecord(record)) return [];
       const time = parseTimestamp(record.time);
       if (!time) return [];
-      return [{ ...record, time }];
+      return [{ ...record, time, precipitation_mm: record.precipitation_mm ?? 0 }];
     });
   },
 };

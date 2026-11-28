@@ -40,7 +40,9 @@ function latestWeather(records: WeatherTelemetry[]): WeatherTelemetry | null {
 
 function weatherAlerts(weather: WeatherTelemetry): string[] {
   const alerts: string[] = [];
-  if (weather.humidity_pct >= 85) alerts.push('Alta humedad: posible lluvia o ambiente muy húmedo.');
+  if (weather.precipitation_mm >= 7.6) alerts.push(`Lluvia intensa (${weather.precipitation_mm.toFixed(1)} mm): precaución en los tramos a pie.`);
+  else if (weather.precipitation_mm >= 2.5) alerts.push(`Precipitación de ${weather.precipitation_mm.toFixed(1)} mm: considera protegerte de la lluvia.`);
+  if (weather.humidity_pct >= 85) alerts.push('Humedad elevada: ambiente húmedo durante el recorrido.');
   if (weather.temperature_c >= 30) alerts.push(`Calor elevado (${Math.round(weather.temperature_c)} °C): lleva agua y protege tu ruta peatonal.`);
   if (weather.temperature_c <= 8) alerts.push(`Temperatura baja (${Math.round(weather.temperature_c)} °C): considera abrigo para caminar.`);
   if (weather.wind_speed_kmh >= 30) alerts.push(`Viento fuerte (${Math.round(weather.wind_speed_kmh)} km/h): precaución al esperar.`);
@@ -266,6 +268,10 @@ export function RecommendedTripPlanner() {
                   <div className="tpp-weather-card">
                     <span>🌬️ Viento</span>
                     <strong>{Math.round(currentWeather.wind_speed_kmh)} km/h</strong>
+                  </div>
+                  <div className="tpp-weather-card">
+                    <span>🌧️ Precipitación</span>
+                    <strong>{currentWeather.precipitation_mm.toFixed(1)} mm</strong>
                   </div>
                   <div className="tpp-weather-card">
                     <span>PM2.5</span>

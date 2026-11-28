@@ -79,6 +79,7 @@ export function ClimateMarker({ record }: ClimateMarkerProps) {
             <div><dt>Temperatura</dt><dd>{record.temperature_c.toFixed(1)} °C</dd></div>
             <div><dt>Humedad</dt><dd>{record.humidity_pct.toFixed(1)} %</dd></div>
             <div><dt>Viento</dt><dd>{record.wind_speed_kmh.toFixed(1)} km/h</dd></div>
+            <div><dt>Precipitación</dt><dd>{record.precipitation_mm.toFixed(1)} mm</dd></div>
             <div><dt>PM2.5</dt><dd>{record.pm25_ug_m3.toFixed(1)} µg/m³</dd></div>
             <div><dt>PM10</dt><dd>{record.pm10_ug_m3.toFixed(1)} µg/m³</dd></div>
             <div><dt>Estado</dt><dd>{record.status}</dd></div>

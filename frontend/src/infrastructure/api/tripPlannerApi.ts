@@ -40,6 +40,7 @@ export interface WeatherTelemetry {
   temperature_c: number;
   humidity_pct: number;
   wind_speed_kmh: number;
+  precipitation_mm: number;
   pm25_ug_m3: number;
   pm10_ug_m3: number;
   status: string;
@@ -53,7 +54,10 @@ export async function fetchWeatherTelemetry(): Promise<WeatherTelemetry[]> {
   const { data } = await apiClient.get<{ data?: WeatherTelemetry[] }>('/mapinfo/climate/telemetry', {
     params: { from: from.toISOString(), to: to.toISOString(), limit: 20 },
   });
-  return data?.data ?? [];
+  return (data?.data ?? []).map((record) => ({
+    ...record,
+    precipitation_mm: record.precipitation_mm ?? 0,
+  }));
 }
 
 type TripPreference = 'fastest' | 'min_transfers' | 'shortest' | 'least_walk';
