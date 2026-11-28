@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
         - name: clima-service
-          image: ignaciogsm/clima_service:v1.2
+          image: <DOCKERHUB_USER>/clima_service:<IMAGE_TAG>
           imagePullPolicy: Always
           ports:
             # Los nombres permiten que probes y Services apunten al puerto lógico.

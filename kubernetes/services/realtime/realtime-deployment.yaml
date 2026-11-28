@@ -26,7 +26,7 @@ spec:
       containers:
         - name: realtime
           # deploy.sh la reemplaza por <DOCKERHUB_USER>/transithub-realtime:<IMAGE_TAG> (cluster.env); se construye con: bash kubernetes/deploy.sh app build
-          image: <DOCKERHUB_USER>/transithub-realtime:v1
+          image: <DOCKERHUB_USER>/transithub-realtime:<IMAGE_TAG>
           imagePullPolicy: Always
           ports:
             - name: http

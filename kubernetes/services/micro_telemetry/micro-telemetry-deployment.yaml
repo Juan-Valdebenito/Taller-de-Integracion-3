@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
         - name: micro-telemetry
-          image: ignaciogsm/micro_telemetry:v1
+          image: <DOCKERHUB_USER>/micro_telemetry:<IMAGE_TAG>
           imagePullPolicy: Always
           ports:
             - name: http

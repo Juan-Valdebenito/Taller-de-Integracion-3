@@ -40,7 +40,7 @@ spec:
       terminationGracePeriodSeconds: 15
       containers:
         - name: clima-simulator
-          image: <DOCKERHUB_USER>/clima-simulator:v1
+          image: <DOCKERHUB_USER>/clima-simulator:<IMAGE_TAG>
           imagePullPolicy: Always
           envFrom:
             - configMapRef:

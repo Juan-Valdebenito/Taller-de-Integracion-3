@@ -44,7 +44,7 @@ spec:
         - name: backend-go
           # deploy.sh la reemplaza por <DOCKERHUB_USER>/backend-go:<BACKEND_GO_IMAGE_TAG> (cluster.env).
           # Construir desde la raíz del repo: docker build -f backend-go/Dockerfile -t <usuario>/backend-go:v1 .
-          image: <DOCKERHUB_USER>/backend-go:v1
+          image: <DOCKERHUB_USER>/backend-go:<BACKEND_GO_IMAGE_TAG>
           imagePullPolicy: Always
           ports:
             - name: http

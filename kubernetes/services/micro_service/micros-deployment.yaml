@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: micros-service
-          image: tpenroz/micro_service:recommend-routes-v1
+          image: <DOCKERHUB_USER>/micro_service:<IMAGE_TAG>
           imagePullPolicy: Always
           resources:
             requests:
