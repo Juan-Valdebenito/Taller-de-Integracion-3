@@ -51,11 +51,12 @@ func validWeatherPayload(stationID string) WeatherPayload {
 			Sector:    "Centro",
 		},
 		Readings: SensorReadings{
-			TemperatureC: 12,
-			HumidityPct:  70,
-			WindSpeedKMH: 8,
-			PM25:         15,
-			PM10:         25,
+			TemperatureC:  12,
+			HumidityPct:   70,
+			WindSpeedKMH:  8,
+			Precipitation: 3.2,
+			PM25:          15,
+			PM10:          25,
 		},
 		Status:    "OPERATIONAL",
 		Timestamp: time.Now().Unix(),
@@ -136,10 +137,11 @@ func TestWeatherTelemetryReturnsErrorWhenPublishingFails(t *testing.T) {
 
 func TestWeatherTelemetryReadReturnsRecords(t *testing.T) {
 	reader := &fakeTelemetryReader{records: []TelemetryRecord{{
-		Time:      time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC),
-		StationID: "station-1",
-		Latitude:  -38.7397,
-		Longitude: -72.5984,
+		Time:          time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC),
+		StationID:     "station-1",
+		Precipitation: 4.5,
+		Latitude:      -38.7397,
+		Longitude:     -72.5984,
 	}}}
 	server := &Server{apiKey: "test-key", reader: reader}
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/telemetry/weather?from=2026-09-26T00:00:00Z&to=2026-09-27T00:00:00Z&station_id=station-1&limit=20", nil)
@@ -158,11 +160,27 @@ func TestWeatherTelemetryReadReturnsRecords(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
-	if len(body.Data) != 1 || body.Data[0].StationID != "station-1" || body.Limit != 20 {
+	if len(body.Data) != 1 || body.Data[0].StationID != "station-1" || body.Data[0].Precipitation != 4.5 || body.Limit != 20 {
 		t.Fatalf("unexpected response: %#v", body)
 	}
 	if reader.query.StationID != "station-1" || reader.query.Limit != 20 {
 		t.Fatalf("unexpected query: %#v", reader.query)
+	}
+}
+
+func TestWeatherTelemetryRejectsNegativePrecipitation(t *testing.T) {
+	repository := &fakeTelemetryRepository{}
+	server := &Server{apiKey: "test-key", repository: repository, publisher: &fakeTelemetryPublisher{}, maxBody: 1024}
+	payload := validWeatherPayload("station-1")
+	payload.Readings.Precipitation = -0.1
+	response := httptest.NewRecorder()
+	server.weatherTelemetry(response, newTelemetryRequest(t, mustMarshalPayload(t, payload)))
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, response.Code)
+	}
+	if len(repository.inserted) != 0 {
+		t.Fatalf("expected invalid payload not to be persisted, got %d records", len(repository.inserted))
 	}
 }
 

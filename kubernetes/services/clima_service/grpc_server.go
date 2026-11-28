@@ -67,17 +67,18 @@ func (s *climateGRPCServer) ListTelemetry(ctx context.Context, request *climav1.
 	response := &climav1.ListTelemetryResponse{Records: make([]*climav1.TelemetryRecord, 0, len(records))}
 	for _, record := range records {
 		response.Records = append(response.Records, &climav1.TelemetryRecord{
-			Time:         timestamppb.New(record.Time),
-			StationId:    record.StationID,
-			Sector:       record.Sector,
-			TemperatureC: record.TemperatureC,
-			HumidityPct:  record.HumidityPct,
-			WindSpeedKmh: record.WindSpeedKMH,
-			Pm25UgM3:     record.PM25,
-			Pm10UgM3:     record.PM10,
-			Status:       record.Status,
-			Latitude:     record.Latitude,
-			Longitude:    record.Longitude,
+			Time:            timestamppb.New(record.Time),
+			StationId:       record.StationID,
+			Sector:          record.Sector,
+			TemperatureC:    record.TemperatureC,
+			HumidityPct:     record.HumidityPct,
+			WindSpeedKmh:    record.WindSpeedKMH,
+			PrecipitationMm: record.Precipitation,
+			Pm25UgM3:        record.PM25,
+			Pm10UgM3:        record.PM10,
+			Status:          record.Status,
+			Latitude:        record.Latitude,
+			Longitude:       record.Longitude,
 		})
 	}
 	return response, nil

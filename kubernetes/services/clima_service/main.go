@@ -31,11 +31,12 @@ type Location struct {
 }
 
 type SensorReadings struct {
-	TemperatureC float64 `json:"temperature_c"`
-	HumidityPct  float64 `json:"humidity_pct"`
-	WindSpeedKMH float64 `json:"wind_speed_kmh"`
-	PM25         float64 `json:"pm25_ug_m3"`
-	PM10         float64 `json:"pm10_ug_m3"`
+	TemperatureC  float64 `json:"temperature_c"`
+	HumidityPct   float64 `json:"humidity_pct"`
+	WindSpeedKMH  float64 `json:"wind_speed_kmh"`
+	Precipitation float64 `json:"precipitation_mm"`
+	PM25          float64 `json:"pm25_ug_m3"`
+	PM10          float64 `json:"pm10_ug_m3"`
 }
 
 type WeatherPayload struct {
@@ -60,17 +61,18 @@ type TelemetryQuery struct {
 }
 
 type TelemetryRecord struct {
-	Time         time.Time `json:"time"`
-	StationID    string    `json:"station_id"`
-	Sector       string    `json:"sector"`
-	TemperatureC float64   `json:"temperature_c"`
-	HumidityPct  float64   `json:"humidity_pct"`
-	WindSpeedKMH float64   `json:"wind_speed_kmh"`
-	PM25         float64   `json:"pm25_ug_m3"`
-	PM10         float64   `json:"pm10_ug_m3"`
-	Status       string    `json:"status"`
-	Latitude     float64   `json:"latitude"`
-	Longitude    float64   `json:"longitude"`
+	Time          time.Time `json:"time"`
+	StationID     string    `json:"station_id"`
+	Sector        string    `json:"sector"`
+	TemperatureC  float64   `json:"temperature_c"`
+	HumidityPct   float64   `json:"humidity_pct"`
+	WindSpeedKMH  float64   `json:"wind_speed_kmh"`
+	Precipitation float64   `json:"precipitation_mm"`
+	PM25          float64   `json:"pm25_ug_m3"`
+	PM10          float64   `json:"pm10_ug_m3"`
+	Status        string    `json:"status"`
+	Latitude      float64   `json:"latitude"`
+	Longitude     float64   `json:"longitude"`
 }
 
 type TelemetryReader interface {
@@ -110,10 +112,10 @@ func (r *PostgresRepository) Insert(ctx context.Context, payloads []WeatherPaylo
 		_, err := tx.Exec(ctx, `
 			INSERT INTO weather_telemetry (
 				time, station_id, sector, temperature_c, humidity_pct,
-				wind_speed_kmh, pm25, pm10, status, location
+				wind_speed_kmh, precipitation_mm, pm25, pm10, status, location
 			) VALUES (
-				$1, $2, $3, $4, $5, $6, $7, $8, $9,
-				ST_SetSRID(ST_MakePoint($10, $11), 4326)
+				$1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+				ST_SetSRID(ST_MakePoint($11, $12), 4326)
 			)`,
 			time.Unix(payload.Timestamp, 0).UTC(),
 			payload.StationID,
@@ -121,6 +123,7 @@ func (r *PostgresRepository) Insert(ctx context.Context, payloads []WeatherPaylo
 			payload.Readings.TemperatureC,
 			payload.Readings.HumidityPct,
 			payload.Readings.WindSpeedKMH,
+			payload.Readings.Precipitation,
 			payload.Readings.PM25,
 			payload.Readings.PM10,
 			payload.Status,
@@ -138,7 +141,7 @@ func (r *PostgresRepository) Insert(ctx context.Context, payloads []WeatherPaylo
 func (r *PostgresRepository) Read(ctx context.Context, query TelemetryQuery) ([]TelemetryRecord, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT time, station_id, sector, temperature_c, humidity_pct,
-			wind_speed_kmh, pm25, pm10, status, ST_Y(location), ST_X(location)
+			wind_speed_kmh, precipitation_mm, pm25, pm10, status, ST_Y(location), ST_X(location)
 		FROM weather_telemetry
 		WHERE time >= $1 AND time < $2
 			AND ($3 = '' OR station_id = $3)
@@ -159,6 +162,7 @@ func (r *PostgresRepository) Read(ctx context.Context, query TelemetryQuery) ([]
 			&record.TemperatureC,
 			&record.HumidityPct,
 			&record.WindSpeedKMH,
+			&record.Precipitation,
 			&record.PM25,
 			&record.PM10,
 			&record.Status,
@@ -372,7 +376,7 @@ func validatePayload(payload WeatherPayload) error {
 	if strings.TrimSpace(payload.Status) == "" || len(payload.Status) > 32 {
 		return fmt.Errorf("status es requerido y debe tener como máximo 32 caracteres")
 	}
-	if payload.Readings.HumidityPct < 0 || payload.Readings.HumidityPct > 100 || payload.Readings.WindSpeedKMH < 0 || payload.Readings.PM25 < 0 || payload.Readings.PM10 < 0 {
+	if payload.Readings.HumidityPct < 0 || payload.Readings.HumidityPct > 100 || payload.Readings.WindSpeedKMH < 0 || payload.Readings.Precipitation < 0 || payload.Readings.PM25 < 0 || payload.Readings.PM10 < 0 {
 		return fmt.Errorf("las métricas no pueden tener valores negativos o humedad mayor a 100")
 	}
 	return nil

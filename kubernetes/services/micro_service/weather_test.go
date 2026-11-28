@@ -35,6 +35,52 @@ func TestWalkWeatherFactorByAirQuality(t *testing.T) {
 	assertFactor(t, "aire en alerta", &WeatherConditions{TemperatureC: 15, PM25: 90}, 1.4)
 }
 
+func TestWalkWeatherFactorByPrecipitation(t *testing.T) {
+	assertFactor(t, "bajo el umbral", &WeatherConditions{TemperatureC: 15, PrecipitationMM: 2.4}, 1)
+	assertFactor(t, "en el umbral moderado", &WeatherConditions{TemperatureC: 15, PrecipitationMM: 2.5}, 1)
+	assertFactor(t, "sobre el umbral moderado", &WeatherConditions{TemperatureC: 15, PrecipitationMM: 2.6}, 1.2)
+	assertFactor(t, "en el umbral severo", &WeatherConditions{TemperatureC: 15, PrecipitationMM: 7.6}, 1.2)
+	assertFactor(t, "sobre el umbral severo", &WeatherConditions{TemperatureC: 15, PrecipitationMM: 7.7}, 1.4)
+}
+
+func TestLoadPrecipitationThresholdsFromEnv(t *testing.T) {
+	t.Setenv("PRECIPITATION_MODERATE_MM", "3")
+	t.Setenv("PRECIPITATION_SEVERE_MM", "8")
+	thresholds, err := loadPrecipitationThresholdsFromEnv()
+	if err != nil || thresholds != (PrecipitationThresholds{ModerateMM: 3, SevereMM: 8}) {
+		t.Fatalf("se esperaban umbrales configurados y válidos: %+v, %v", thresholds, err)
+	}
+}
+
+func TestLoadPrecipitationThresholdsRejectsInvalidValues(t *testing.T) {
+	tests := []struct {
+		moderate string
+		severe   string
+	}{
+		{"-1", "8"},
+		{"3", "3"},
+		{"3", "1000.1"},
+		{"NaN", "8"},
+	}
+	for _, test := range tests {
+		t.Run(test.moderate+"/"+test.severe, func(t *testing.T) {
+			t.Setenv("PRECIPITATION_MODERATE_MM", test.moderate)
+			t.Setenv("PRECIPITATION_SEVERE_MM", test.severe)
+			if _, err := loadPrecipitationThresholdsFromEnv(); err == nil {
+				t.Fatal("se esperaban umbrales inválidos")
+			}
+		})
+	}
+}
+
+func TestValidateWeatherRejectsInvalidPrecipitation(t *testing.T) {
+	for _, precipitation := range []float64{-0.1, maxPrecipitationMM + 0.1, math.NaN()} {
+		if err := validateWeather(&WeatherConditions{PrecipitationMM: precipitation}); err == nil {
+			t.Errorf("se esperaba rechazar precipitación %v", precipitation)
+		}
+	}
+}
+
 func TestWalkWeatherFactorAddsConditions(t *testing.T) {
 	// Frío y aire sobre la norma, algo típico de un invierno en Temuco.
 	assertFactor(t, "frío y mal aire", &WeatherConditions{TemperatureC: 3, PM25: 60}, 1.4)

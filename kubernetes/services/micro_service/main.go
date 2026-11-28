@@ -441,6 +441,11 @@ func main() {
 		log.Fatalf("configuración de pesos inválida: %v", err)
 	}
 	configuredCostWeights = weights
+	precipitationThresholds, err := loadPrecipitationThresholdsFromEnv()
+	if err != nil {
+		log.Fatalf("configuración de umbrales de precipitación inválida: %v", err)
+	}
+	configuredPrecipitationThresholds = precipitationThresholds
 
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, config.DatabaseURL)
