@@ -37,12 +37,12 @@ func TestFetchReadingsMapsOpenMeteoResponses(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/weather":
-			if got := r.URL.Query().Get("current"); got != "temperature_2m,relative_humidity_2m,wind_speed_10m" {
+			if got := r.URL.Query().Get("current"); got != "temperature_2m,relative_humidity_2m,wind_speed_10m,precipitation" {
 				t.Errorf("unexpected weather variables: %s", got)
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"current": map[string]any{
 				"time": validAt, "temperature_2m": 14.5, "relative_humidity_2m": 67,
-				"wind_speed_10m": 9.2,
+				"wind_speed_10m": 9.2, "precipitation": 3.2,
 			}})
 		case "/air-quality":
 			if got := r.URL.Query().Get("current"); got != "pm2_5,pm10" {
@@ -69,11 +69,36 @@ func TestFetchReadingsMapsOpenMeteoResponses(t *testing.T) {
 	if reading.StationID != station.StationID || reading.Location.Latitude != station.Latitude || reading.Location.Longitude != station.Longitude {
 		t.Fatalf("station identity or location changed: %#v", reading)
 	}
-	if reading.Readings.TemperatureC != 14.5 || reading.Readings.HumidityPct != 67 || reading.Readings.WindSpeedKMH != 9.2 || reading.Readings.PM25 != 8.3 || reading.Readings.PM10 != 12.7 {
+	if reading.Readings.TemperatureC != 14.5 || reading.Readings.HumidityPct != 67 || reading.Readings.WindSpeedKMH != 9.2 || reading.Readings.Precipitation != 3.2 || reading.Readings.PM25 != 8.3 || reading.Readings.PM10 != 12.7 {
 		t.Fatalf("unexpected mapped readings: %#v", reading.Readings)
 	}
 	if reading.Timestamp != validAt-60 {
 		t.Fatalf("expected the oldest source timestamp %d, got %d", validAt-60, reading.Timestamp)
+	}
+}
+
+func TestFetchReadingsRejectsNegativePrecipitation(t *testing.T) {
+	validAt := time.Now().Add(-time.Minute).Unix()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/weather" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"current": map[string]any{
+				"time": validAt, "temperature_2m": 14.5, "relative_humidity_2m": 67,
+				"wind_speed_10m": 9.2, "precipitation": -0.1,
+			}})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"current": map[string]any{
+			"time": validAt, "pm2_5": 8.3, "pm10": 12.7,
+		}})
+	}))
+	defer server.Close()
+
+	manager := NewWeatherManager("http://example.test", "key")
+	manager.weatherAPIURL = server.URL + "/weather"
+	manager.airQualityAPIURL = server.URL + "/air-quality"
+	if _, err := manager.fetchReadings(testStation("STATION-01")); err == nil {
+		t.Fatal("expected negative precipitation to be rejected")
 	}
 }
 

@@ -36,11 +36,12 @@ type Location struct {
 
 // SensorReadings DTO para la API
 type SensorReadings struct {
-	TemperatureC float64 `json:"temperature_c"`
-	HumidityPct  float64 `json:"humidity_pct"`
-	WindSpeedKMH float64 `json:"wind_speed_kmh"`
-	PM25         float64 `json:"pm25_ug_m3"`
-	PM10         float64 `json:"pm10_ug_m3"`
+	TemperatureC  float64 `json:"temperature_c"`
+	HumidityPct   float64 `json:"humidity_pct"`
+	WindSpeedKMH  float64 `json:"wind_speed_kmh"`
+	Precipitation float64 `json:"precipitation_mm"`
+	PM25          float64 `json:"pm25_ug_m3"`
+	PM10          float64 `json:"pm10_ug_m3"`
 }
 
 // WeatherPayload representa el JSON enviado al backend
@@ -83,12 +84,13 @@ func NewWeatherManager(endpoint, apiKey string) *WeatherManager {
 }
 
 type openMeteoCurrent struct {
-	Time         *int64   `json:"time"`
-	TemperatureC *float64 `json:"temperature_2m"`
-	HumidityPct  *float64 `json:"relative_humidity_2m"`
-	WindSpeedKMH *float64 `json:"wind_speed_10m"`
-	PM25         *float64 `json:"pm2_5"`
-	PM10         *float64 `json:"pm10"`
+	Time          *int64   `json:"time"`
+	TemperatureC  *float64 `json:"temperature_2m"`
+	HumidityPct   *float64 `json:"relative_humidity_2m"`
+	WindSpeedKMH  *float64 `json:"wind_speed_10m"`
+	Precipitation *float64 `json:"precipitation"`
+	PM25          *float64 `json:"pm2_5"`
+	PM10          *float64 `json:"pm10"`
 }
 
 type openMeteoResponse struct {
@@ -164,7 +166,7 @@ func (m *WeatherManager) StartStation(config StationConfig, stopChan <-chan stru
 }
 
 func (m *WeatherManager) fetchReadings(config StationConfig) (WeatherPayload, error) {
-	weather, err := m.fetchCurrent(m.weatherAPIURL, config, "temperature_2m,relative_humidity_2m,wind_speed_10m")
+	weather, err := m.fetchCurrent(m.weatherAPIURL, config, "temperature_2m,relative_humidity_2m,wind_speed_10m,precipitation")
 	if err != nil {
 		return WeatherPayload{}, fmt.Errorf("consultando clima: %w", err)
 	}
@@ -174,7 +176,7 @@ func (m *WeatherManager) fetchReadings(config StationConfig) (WeatherPayload, er
 	}
 	current := weather.Current
 	air := airQuality.Current
-	if current.Time == nil || current.TemperatureC == nil || current.HumidityPct == nil || current.WindSpeedKMH == nil {
+	if current.Time == nil || current.TemperatureC == nil || current.HumidityPct == nil || current.WindSpeedKMH == nil || current.Precipitation == nil {
 		return WeatherPayload{}, fmt.Errorf("respuesta de clima incompleta")
 	}
 	if air.Time == nil || air.PM25 == nil || air.PM10 == nil {
@@ -183,7 +185,7 @@ func (m *WeatherManager) fetchReadings(config StationConfig) (WeatherPayload, er
 	if *current.Time <= 0 || *air.Time <= 0 {
 		return WeatherPayload{}, fmt.Errorf("respuesta contiene timestamps inválidos")
 	}
-	if *current.HumidityPct < 0 || *current.HumidityPct > 100 || *current.WindSpeedKMH < 0 || *air.PM25 < 0 || *air.PM10 < 0 {
+	if *current.HumidityPct < 0 || *current.HumidityPct > 100 || *current.WindSpeedKMH < 0 || *current.Precipitation < 0 || *air.PM25 < 0 || *air.PM10 < 0 {
 		return WeatherPayload{}, fmt.Errorf("respuesta contiene métricas fuera del contrato")
 	}
 
@@ -202,11 +204,12 @@ func (m *WeatherManager) fetchReadings(config StationConfig) (WeatherPayload, er
 			Sector:    config.Sector,
 		},
 		Readings: SensorReadings{
-			TemperatureC: *current.TemperatureC,
-			HumidityPct:  *current.HumidityPct,
-			WindSpeedKMH: *current.WindSpeedKMH,
-			PM25:         *air.PM25,
-			PM10:         *air.PM10,
+			TemperatureC:  *current.TemperatureC,
+			HumidityPct:   *current.HumidityPct,
+			WindSpeedKMH:  *current.WindSpeedKMH,
+			Precipitation: *current.Precipitation,
+			PM25:          *air.PM25,
+			PM10:          *air.PM10,
 		},
 		Status:    "OPERATIONAL",
 		Timestamp: validAt.Unix(),
