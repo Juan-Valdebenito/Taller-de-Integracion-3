@@ -426,6 +426,17 @@
   font-size: 10px;
 }
 
+.tpp-route-weather-alert {
+  margin: 0;
+  padding: 7px 9px;
+  border: 1px solid rgba(251, 191, 36, 0.24);
+  border-radius: 7px;
+  background: rgba(251, 191, 36, 0.08);
+  color: #fde68a;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
 /* Botones de acción */
 .tpp-actions {
   display: flex;

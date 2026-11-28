@@ -57,6 +57,8 @@ export function MapStatusBar({ buses, wsState, routeFilter }: MapStatusBarProps)
   const active  = buses.filter((b) => b.status === 'ACTIVE').length;
   const stopped = buses.filter((b) => b.status === 'STOPPED').length;
   const delayed = buses.filter((b) => b.status === 'DELAYED').length;
+  const liveEvents = buses.filter((b) => b.dataSource === 'live').length;
+  const simulatedFallbacks = buses.filter((b) => b.dataSource === 'simulation').length;
 
   const now = new Date().toLocaleTimeString('es-CL', {
     hour: '2-digit',
@@ -131,6 +133,16 @@ export function MapStatusBar({ buses, wsState, routeFilter }: MapStatusBarProps)
             <span style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
               <StatusDot color="#ef4444" animate={false} />
               <span style={{ color: '#94a3b8' }}>{delayed} retrasadas</span>
+            </span>
+          )}
+          {liveEvents > 0 && (
+            <span style={{ fontSize: '10px', color: '#4ade80', whiteSpace: 'nowrap' }}>
+              {liveEvents} reales
+            </span>
+          )}
+          {simulatedFallbacks > 0 && (
+            <span style={{ fontSize: '10px', color: '#fbbf24', whiteSpace: 'nowrap' }}>
+              {simulatedFallbacks} simuladas de respaldo
             </span>
           )}
         </div>

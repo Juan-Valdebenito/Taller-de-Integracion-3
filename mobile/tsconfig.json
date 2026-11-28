@@ -4,5 +4,6 @@
     "strict": true,
     // TypeScript 6 ya no incluye todos los @types instalados: se declaran aquí.
     "types": ["jest"]
-  }
+  },
+  "exclude": ["node_modules", "dist", "web-build", ".expo"]
 }

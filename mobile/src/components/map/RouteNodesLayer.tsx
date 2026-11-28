@@ -1,11 +1,13 @@
 import { Text, View } from 'react-native';
 import { Callout, Marker } from 'react-native-maps';
 
+import type { RealRoute } from '../../realtime/realRoutes';
 import { makeStyles, radius, spacing } from '../../theme';
-import { ROUTE_NODE_COLORS, routeLabelsOf, visibleRouteNodes, type RouteFilterValue } from './routeNodes';
+import { routeLabelsOf, routeNodeColor, routeNodesForRoutes, visibleRouteNodes, type RouteFilterValue } from './routeNodes';
 
 export interface RouteNodesLayerProps {
   routeFilter: RouteFilterValue;
+  routes: readonly RealRoute[];
 }
 
 /**
@@ -14,24 +16,25 @@ export interface RouteNodesLayerProps {
  * tocarlo, el nombre y las líneas. La versión web (Leaflet) está en
  * RouteNodesLayer.web.tsx.
  */
-export function RouteNodesLayer({ routeFilter }: RouteNodesLayerProps) {
+export function RouteNodesLayer({ routeFilter, routes }: RouteNodesLayerProps) {
   const styles = useStyles();
+  const nodes = visibleRouteNodes(routeNodesForRoutes(routes), routeFilter);
   return (
     <>
-      {visibleRouteNodes(routeFilter).map((node) => (
+      {nodes.map((node) => (
         <Marker
           key={node.id}
           coordinate={{ latitude: node.position[0], longitude: node.position[1] }}
           anchor={{ x: 0.5, y: 0.5 }}
           // El dibujo no cambia: no hace falta volver a capturarlo (más fluido).
           tracksViewChanges={false}
-          accessibilityLabel={`Parada ${node.name}: ${routeLabelsOf(node)}`}
+          accessibilityLabel={`Parada ${node.name}: ${routeLabelsOf(node, routes)}`}
         >
-          <View style={[styles.dot, { borderColor: ROUTE_NODE_COLORS[node.routeIds[0]] }]} />
+          <View style={[styles.dot, { borderColor: routeNodeColor(node.routeIds[0]) }]} />
           <Callout tooltip>
             <View style={styles.popup}>
               <Text style={styles.popupTitle}>{node.name}</Text>
-              <Text style={styles.popupText}>{routeLabelsOf(node)}</Text>
+              <Text style={styles.popupText}>{routeLabelsOf(node, routes)}</Text>
             </View>
           </Callout>
         </Marker>

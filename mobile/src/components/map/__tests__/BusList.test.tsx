@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { computeEta } from '../../../hooks/useEta';
-import type { LiveBus } from '../../../realtime/liveBuses';
+import type { LiveBus, LiveRouteStop } from '../../../realtime/liveBuses';
 import { initialSimulatedBuses } from '../../../realtime/simulatedBuses';
 import { BusList, busListSummary, sortByOccupancy } from '../BusList';
 
@@ -11,6 +11,15 @@ const buses: LiveBus[] = [
   { ...b, id: 'llena', currentPassengers: 76, capacity: 80, speed: 0, status: 'STOPPED' },
   { ...c, id: 'vacia', currentPassengers: 8, capacity: 80, speed: 20, status: 'DELAYED' },
 ];
+const routeStopsByRoute: Record<string, LiveRouteStop[]> = Object.fromEntries(
+  [buses[0], buses[2]].map((bus) => [bus.routeId, [{
+    id: `stop-${bus.id}`,
+    name: `Paradero ${bus.id}`,
+    latitude: bus.latitude,
+    longitude: bus.longitude + 0.001,
+    order: 1,
+  }]]),
+);
 
 describe('BusList', () => {
   it('ordena por ocupación, la más llena primero, y resume como el web', () => {
@@ -33,9 +42,9 @@ describe('BusList', () => {
   });
 
   it('muestra el tiempo a la próxima parada, salvo si la micro está detenida', async () => {
-    await render(<BusList buses={buses} selectedId={null} onSelect={jest.fn()} live />);
+    await render(<BusList buses={buses} selectedId={null} onSelect={jest.fn()} live routeStopsByRoute={routeStopsByRoute} />);
 
-    const eta = computeEta(buses[0]).nextStop!;
+    const eta = computeEta(buses[0], routeStopsByRoute[buses[0].routeId]).nextStop!;
     expect(screen.getAllByText(`⏱ ${eta.etaLabel}`).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/^⏱/)).toHaveLength(2); // la detenida no tiene
   });

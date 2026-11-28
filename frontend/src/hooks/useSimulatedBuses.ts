@@ -33,6 +33,8 @@ export interface BusState {
   wsOccupancy?: OccupancyInfo;
   /** Timestamp del último update recibido vía WebSocket. */
   lastWsUpdate?: Date;
+  /** Distingue eventos de conductores de la simulación de respaldo. */
+  dataSource: 'live' | 'simulation';
 }
 
 // ─── Utilidades ───────────────────────────────────────────────────────────────

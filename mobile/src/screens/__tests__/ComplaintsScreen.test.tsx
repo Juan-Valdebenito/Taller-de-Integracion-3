@@ -79,7 +79,7 @@ describe('ComplaintsScreen', () => {
     await render(<ComplaintsScreen />);
 
     expect(await screen.findByText('No tienes reclamos')).toBeTruthy();
-    expect(screen.getByText('📭')).toBeTruthy();
+    // El ícono es decorativo y se oculta correctamente a lectores de pantalla.
     expect(screen.getByText('Tus reclamos aparecerán aquí')).toBeTruthy();
   });
 

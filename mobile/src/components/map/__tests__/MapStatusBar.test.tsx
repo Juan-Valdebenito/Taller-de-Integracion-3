@@ -31,6 +31,7 @@ describe('MapStatusBar', () => {
     expect(screen.getByLabelText('3 mensajes por segundo')).toBeTruthy();
     expect(screen.getByText('2 en ruta')).toBeTruthy();
     expect(screen.getByText('1 retrasadas')).toBeTruthy();
+    expect(screen.getByText('3 simuladas de respaldo')).toBeTruthy();
     expect(screen.queryByText(/detenidas/)).toBeNull();
     expect(screen.getByText('12 msgs')).toBeTruthy();
   });

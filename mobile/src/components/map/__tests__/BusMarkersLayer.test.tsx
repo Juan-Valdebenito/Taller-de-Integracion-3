@@ -6,7 +6,11 @@ import { initialSimulatedBuses } from '../../../realtime/simulatedBuses';
 import { busColor, busIconSize, busIconSvg } from '../busIcon';
 import { BusIcon, BusMarkersLayer, busAccessibilityLabel } from '../BusMarkersLayer';
 
-const buses = initialSimulatedBuses(Date.now());
+const buses = initialSimulatedBuses(Date.now()).map((bus, index) => ({
+  ...bus,
+  id: ['bus-7a', 'bus-7b', 'bus-1c'][index],
+  routeName: ['Línea 7A', 'Línea 7B', 'Línea 1C'][index],
+}));
 
 describe('animación de las micros (igual al web)', () => {
   it('gira por el camino más corto', () => {
@@ -104,11 +108,11 @@ describe('BusMarkersLayer', () => {
 
     await fireEvent.press(screen.getByLabelText('Micro Línea 7B, 60 % de ocupación'));
 
-    expect(onSelect).toHaveBeenCalledWith('sim-route-7B-1');
+    expect(onSelect).toHaveBeenCalledWith('bus-7b');
   });
 
   it('la micro seleccionada se ve más grande y encima de las demás', async () => {
-    await render(<BusMarkersLayer buses={buses} selectedId="sim-route-1C-1" />);
+    await render(<BusMarkersLayer buses={buses} selectedId="bus-1c" />);
 
     const markers = screen.getAllByTestId('map-Marker');
     expect(markers[2].props.zIndex).toBe(2);

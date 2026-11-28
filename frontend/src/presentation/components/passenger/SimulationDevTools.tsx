@@ -8,8 +8,8 @@
  * - Eventos inyectados via sendMessage() del socketClient nativo (Go /ws),
  *   con el token de la sesion: el backend solo acepta publicaciones de una
  *   empresa (sus micros) o de un administrador. Si las rechaza, el panel lo
- *   muestra y aplica el evento solo en el mapa local.
- * - Fallback: WS nativo -> REST -> estado local
+ *   muestra el rechazo y conserva en el mapa el último evento recibido.
+ * - Fallback: WS nativo -> REST, sin alterar localmente los datos del mapa
  * - Props adaptadas al nuevo BusState (latitude/longitude, routeId)
  * - Selector de bus dinámico con buses reales del mapa
  */
@@ -79,7 +79,6 @@ interface SimulationDevToolsProps {
   selectedBusId?: string | null;
   onSelectBus?: (busId: string) => void;
   wsStatus?: ConnectionStatus;
-  onLocalEvent?: (busId: string, eventType: SimEventType) => void;
 }
 
 export const SimulationDevTools: React.FC<SimulationDevToolsProps> = ({
@@ -87,7 +86,6 @@ export const SimulationDevTools: React.FC<SimulationDevToolsProps> = ({
   selectedBusId,
   onSelectBus,
   wsStatus = 'disconnected',
-  onLocalEvent,
 }) => {
   const [isOpen, setIsOpen] = useState(true);
   const [localBusId, setLocalBusId] = useState<string>(buses[0]?.id ?? '');
@@ -155,8 +153,7 @@ export const SimulationDevTools: React.FC<SimulationDevToolsProps> = ({
           };
           const rejection = await publishAndWatch(msg);
           if (rejection) {
-            onLocalEvent?.(currentBus.id, eventType);
-            setLog('El servidor rechazó la publicación (' + rejection + '). Aplicado solo en este mapa.');
+            setLog('El servidor rechazó la publicación (' + rejection + '). El mapa conserva el último evento recibido.');
           } else {
             setLog('WS -> ' + meta.label + ' | Bus ' + currentBus.id + ' | ' + pass + '/' + cap + ' pasajeros');
           }
@@ -174,16 +171,14 @@ export const SimulationDevTools: React.FC<SimulationDevToolsProps> = ({
               throw new Error('HTTP ' + res.status);
             }
           } catch {
-            // 3. Fallback local
-            onLocalEvent?.(currentBus.id, eventType);
-            setLog('Local -> ' + meta.label + ' (sin conexion al servidor)');
+            setLog('No se pudo confirmar el evento en el backend. El mapa conserva el último dato recibido.');
           }
         }
       } finally {
         setIsSending(false);
       }
     },
-    [currentBus, onLocalEvent],
+    [currentBus],
   );
 
   if (!isOpen) {

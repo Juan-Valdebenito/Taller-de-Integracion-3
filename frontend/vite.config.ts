@@ -36,4 +36,17 @@ export default defineConfig({
     },
     cors: true,
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (/node_modules\/(react|react-dom|scheduler)\//.test(id)) return 'react-vendor';
+          if (/node_modules\/(leaflet|react-leaflet)\//.test(id)) return 'map-vendor';
+          if (id.includes('node_modules/react-icons/')) return 'icons-vendor';
+          return undefined;
+        },
+      },
+    },
+  },
 });

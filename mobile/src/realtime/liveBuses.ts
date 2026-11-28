@@ -3,6 +3,7 @@
  * (frontend/src/hooks/useSimulatedBuses.ts), y cómo se actualiza con cada
  * mensaje bus:update (misma lógica que useSocketBuses del web).
  */
+import type { RouteStop } from '../api/companyApi';
 import type { BusStatus } from '../theme/status';
 import type { BusUpdatePayload, OccupancyInfo } from './types';
 
@@ -28,11 +29,15 @@ export interface LiveBus {
   status: BusStatus;
   /** Última actualización (ms desde 1970). */
   lastUpdate: number;
+  /** Fuente del dato: GPS real o simulación de respaldo. */
+  dataSource?: 'live' | 'simulation';
   /** Ocupación calculada por el backend, si la envía. */
   occupancy?: OccupancyInfo;
 }
 
-/** Rutas a las que se suscribe el mapa, como el web. */
+export type LiveRouteStop = Pick<RouteStop, 'id' | 'name' | 'latitude' | 'longitude' | 'order'>;
+
+/** Rutas locales de respaldo que existían antes de conectar el catálogo real. */
 export const DEFAULT_ROUTE_IDS = ['route-7A', 'route-7B', 'route-1C'] as const;
 
 export const ROUTE_NAMES: Readonly<Record<string, string>> = {
@@ -59,7 +64,7 @@ export function applyBusUpdate(
       {
         id: data.busId,
         routeId: data.routeId,
-        routeName: ROUTE_NAMES[data.routeId] ?? routeNames[data.routeId] ?? `Ruta ${data.routeId}`,
+        routeName: routeNames[data.routeId] ?? ROUTE_NAMES[data.routeId] ?? `Ruta ${data.routeId}`,
         latitude: data.latitude,
         longitude: data.longitude,
         heading: data.heading ?? 0,
@@ -75,6 +80,7 @@ export function applyBusUpdate(
         totalStudents: data.totalStudents ?? 0,
         status: 'ACTIVE',
         lastUpdate: now,
+        dataSource: data.busId.startsWith('sim-') ? 'simulation' : 'live',
         occupancy: data.occupancy,
       },
     ];
@@ -97,6 +103,7 @@ export function applyBusUpdate(
     totalStudents: data.totalStudents ?? bus.totalStudents,
     status: 'ACTIVE',
     lastUpdate: now,
+    dataSource: data.busId.startsWith('sim-') ? 'simulation' : 'live',
     occupancy: data.occupancy,
   };
   return buses.map((b, i) => (i === index ? updated : b));

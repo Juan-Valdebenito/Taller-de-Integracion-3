@@ -58,6 +58,8 @@ export function MapStatusBar({ buses, realtime, routeFilter = 'all' }: MapStatus
   const active = count('ACTIVE');
   const stopped = count('STOPPED');
   const delayed = count('DELAYED');
+  const realBuses = buses.filter((bus) => bus.dataSource !== 'simulation' && !bus.id.startsWith('sim-')).length;
+  const simulatedBuses = buses.length - realBuses;
   const connection = CONNECTION_CONFIG[realtime.status];
   const connected = realtime.status === 'connected';
 
@@ -73,6 +75,8 @@ export function MapStatusBar({ buses, realtime, routeFilter = 'all' }: MapStatus
           <Text style={[styles.pillText, { color: connection.color }]}>{connection.label}</Text>
         </View>
         <View style={styles.separator} />
+        {realBuses > 0 ? <Text style={styles.sourceReal}>{realBuses} reales</Text> : null}
+        {simulatedBuses > 0 ? <Text style={styles.sourceSimulation}>{simulatedBuses} simuladas de respaldo</Text> : null}
         {connected ? (
           <>
             <Text style={styles.metric} accessibilityLabel={`Latencia ${realtime.latencyMs} milisegundos`}>
@@ -121,6 +125,8 @@ const useStyles = makeStyles((_colors, font) => ({
   rate: { color: '#818cf8', fontWeight: '600', fontVariant: ['tabular-nums'] },
   counter: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   counterText: { fontSize: font(11), color: '#94a3b8' },
+  sourceReal: { fontSize: font(10), color: '#4ade80' },
+  sourceSimulation: { fontSize: font(10), color: '#fbbf24' },
   spacer: { flexGrow: 1 },
   filterBadge: {
     fontSize: font(11),

@@ -1,8 +1,7 @@
 import { useMemo } from 'react';
 
-import { ROUTE_NODES, type RouteId } from '../components/map/routeNodes';
 import { distanceInMeters } from '../location/geo';
-import type { LiveBus } from '../realtime/liveBuses';
+import type { LiveBus, LiveRouteStop } from '../realtime/liveBuses';
 
 /**
  * Tiempo de llegada (ETA) de una micro a los paraderos de su línea, igual que
@@ -55,16 +54,24 @@ export function isAhead(bus: Pick<LiveBus, 'latitude' | 'longitude' | 'heading'>
   return Math.sin(headRad) * (dLng / mag) + Math.cos(headRad) * (dLat / mag) > 0;
 }
 
-export function computeEta(bus: LiveBus | null | undefined): BusEtaResult {
+export function computeEta(bus: LiveBus | null | undefined, routeStops: readonly LiveRouteStop[] = []): BusEtaResult {
   if (!bus) return { nextStop: null, allStops: [], isStopped: false };
 
   const isStopped = bus.speed <= MIN_SPEED_KMH || bus.status === 'STOPPED';
-  const routeStops = ROUTE_NODES.filter((node) => node.routeIds.includes(bus.routeId as RouteId));
-  if (routeStops.length === 0) return { nextStop: null, allStops: [], isStopped };
+  const validStops = routeStops.filter((stop) => (
+    Number.isFinite(stop.latitude)
+    && Number.isFinite(stop.longitude)
+    && stop.latitude >= -90
+    && stop.latitude <= 90
+    && stop.longitude >= -180
+    && stop.longitude <= 180
+  ));
+  if (validStops.length === 0) return { nextStop: null, allStops: [], isStopped };
 
   const speedMs = bus.speed / 3.6;
-  const allStops: StopEta[] = routeStops.map((stop) => {
-    const distanceM = distanceInMeters(bus, { latitude: stop.position[0], longitude: stop.position[1] }) * TORTUOSITY;
+  const allStops: StopEta[] = validStops.map((stop) => {
+    const position: [number, number] = [stop.latitude, stop.longitude];
+    const distanceM = distanceInMeters(bus, { latitude: stop.latitude, longitude: stop.longitude }) * TORTUOSITY;
     const etaSeconds = !isStopped && speedMs > 0 ? distanceM / speedMs : null;
     return {
       stopId: stop.id,
@@ -72,7 +79,7 @@ export function computeEta(bus: LiveBus | null | undefined): BusEtaResult {
       distanceM,
       etaSeconds,
       etaLabel: etaSeconds === null ? '—' : formatEta(etaSeconds),
-      position: stop.position,
+      position,
     };
   });
 
@@ -84,6 +91,6 @@ export function computeEta(bus: LiveBus | null | undefined): BusEtaResult {
   return { nextStop, allStops, isStopped };
 }
 
-export function useEta(bus: LiveBus | null | undefined): BusEtaResult {
-  return useMemo(() => computeEta(bus), [bus]);
+export function useEta(bus: LiveBus | null | undefined, routeStops: readonly LiveRouteStop[] = []): BusEtaResult {
+  return useMemo(() => computeEta(bus, routeStops), [bus, routeStops]);
 }

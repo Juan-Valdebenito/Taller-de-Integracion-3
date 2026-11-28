@@ -5,6 +5,18 @@ import (
 	"testing"
 )
 
+func TestGPSimulationIsOptIn(t *testing.T) {
+	t.Setenv("SIMULATION_ENABLED", "")
+	if cfg := Load(); cfg.SimulationEnabled {
+		t.Fatal("GPS simulation must be disabled by default")
+	}
+
+	t.Setenv("SIMULATION_ENABLED", "true")
+	if cfg := Load(); !cfg.SimulationEnabled {
+		t.Fatal("GPS simulation must remain available when explicitly enabled")
+	}
+}
+
 func TestRateLimitDefaults(t *testing.T) {
 	for _, key := range []string{"RATE_LIMIT_ENABLED", "RATE_LIMIT_AUTH_PER_MIN", "RATE_LIMIT_AUTH_BURST",
 		"RATE_LIMIT_TOKEN_PER_MIN", "RATE_LIMIT_TOKEN_BURST", "TRUSTED_PROXIES"} {

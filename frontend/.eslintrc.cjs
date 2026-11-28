@@ -2,7 +2,8 @@ module.exports = {
   root: true,
   env: {
     browser: true,
-    es2021: true,
+    es2022: true,
+    node: true,
   },
   parser: '@typescript-eslint/parser',
   parserOptions: {
@@ -21,7 +22,8 @@ module.exports = {
     // Existing API error handling and payload mappings use `any`; migrate
     // those incrementally without blocking the rest of the lint checks.
     '@typescript-eslint/no-explicit-any': 'off',
+    '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     'react-hooks/rules-of-hooks': 'error',
   },
-  ignorePatterns: ['dist/', 'node_modules/'],
+  ignorePatterns: ['dist/', 'node_modules/', 'coverage/'],
 };

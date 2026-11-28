@@ -15,6 +15,7 @@ import {
   disconnectWS,
   onMessage,
   subscribe,
+  unsubscribe,
   isConnected,
   type BusUpdatePayload,
   type OccupancyInfo,
@@ -37,8 +38,6 @@ export interface SocketBusesState {
 }
 
 type BusUpdater = (updater: (prev: BusState[]) => BusState[]) => void;
-
-// ── Nombres de ruta (para buses nuevos del WS) ───────────────────────────
 
 const ROUTE_NAMES: Record<string, string> = {
   'route-7A': 'Línea 7A — Hualpén / Centro / Las Américas',
@@ -76,6 +75,7 @@ export function useSocketBuses(
   const handleBusUpdate = useCallback(
     (data: BusUpdatePayload) => {
       const now = new Date();
+      const dataSource: BusState['dataSource'] = data.busId.startsWith('sim-') ? 'simulation' : 'live';
 
       // Estimar latencia
       if (data.timestamp) {
@@ -111,6 +111,7 @@ export function useSocketBuses(
             bus.id === data.busId
               ? {
                   ...bus,
+                  routeId: data.routeId,
                   latitude: data.latitude,
                   longitude: data.longitude,
                   heading: data.heading ?? bus.heading,
@@ -126,6 +127,7 @@ export function useSocketBuses(
                   totalStudents: data.totalStudents ?? bus.totalStudents,
                   status: 'ACTIVE' as const,
                   lastUpdate: now,
+                  dataSource,
                   wsOccupancy,
                   lastWsUpdate: now,
                 }
@@ -152,6 +154,7 @@ export function useSocketBuses(
             totalStudents: data.totalStudents ?? 0,
             status: 'ACTIVE',
             lastUpdate: now,
+            dataSource,
             wsOccupancy,
             lastWsUpdate: now,
           };
@@ -180,11 +183,6 @@ export function useSocketBuses(
 
       // Conectar
       connectWS();
-
-      // Suscribirse a las rutas
-      for (const routeId of routeIds) {
-        subscribe('route', routeId);
-      }
 
       // Polling de estado de conexión
       const statusInterval = setInterval(() => {
@@ -218,7 +216,23 @@ export function useSocketBuses(
       setStatus('disconnected');
       return undefined;
     }
-  }, [enabled, handleBusUpdate, routeIds, setGlobalStatus]);
+  }, [enabled, handleBusUpdate, setGlobalStatus]);
+
+  // La lista de rutas llega después de cargar el catálogo REST. Actualizar las
+  // suscripciones no debe reiniciar el socket ni perder eventos ya recibidos.
+  useEffect(() => {
+    if (!enabled) return;
+
+    for (const routeId of routeIds) {
+      subscribe('route', routeId);
+    }
+
+    return () => {
+      for (const routeId of routeIds) {
+        unsubscribe('route', routeId);
+      }
+    };
+  }, [enabled, routeIds]);
 
   useEffect(() => {
     setGlobalStatus(status);

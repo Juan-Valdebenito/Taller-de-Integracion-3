@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { FaStar, FaRegStar, FaTimes, FaCheckCircle } from 'react-icons/fa';
 import { apiClient } from '../../../infrastructure/api/apiClient';
 import './ComplaintModal.css';
@@ -51,6 +51,19 @@ export const ComplaintModal: React.FC<ComplaintModalProps> = ({
   // Normalizar línea para coincidir con 7A, 7B, 1C
   const normalizedLine = (lineName || '7A').toUpperCase().replace('LÍNEA', '').trim() || '7A';
 
+  const handleClose = useCallback(() => {
+    setSuccess(false);
+    setToastMessage(null);
+    setTitle('');
+    setRating(0);
+    setHoverRating(0);
+    setCategory(DEFAULT_CATEGORY);
+    setComment('');
+    setRouteId('');
+    setError(null);
+    onClose();
+  }, [onClose]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
@@ -59,7 +72,7 @@ export const ComplaintModal: React.FC<ComplaintModalProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen]);
+  }, [handleClose, isOpen]);
 
   // Al abrir: título sugerido y rutas reales de la BD
   useEffect(() => {
@@ -120,19 +133,6 @@ export const ComplaintModal: React.FC<ComplaintModalProps> = ({
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleClose = () => {
-    setSuccess(false);
-    setToastMessage(null);
-    setTitle('');
-    setRating(0);
-    setHoverRating(0);
-    setCategory(DEFAULT_CATEGORY);
-    setComment('');
-    setRouteId('');
-    setError(null);
-    onClose();
   };
 
   return (

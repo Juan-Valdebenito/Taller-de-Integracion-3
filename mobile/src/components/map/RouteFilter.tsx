@@ -1,17 +1,18 @@
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import type { LiveBus } from '../../realtime/liveBuses';
+import type { RealRoute } from '../../realtime/realRoutes';
 import { makeStyles, radius } from '../../theme';
-import { ROUTE_LABELS, type RouteFilterValue, type RouteId } from './routeNodes';
+import type { RouteFilterValue } from './routeNodes';
 
-/** Opciones del filtro, en el orden del web. */
-export const ROUTE_OPTIONS: readonly { id: RouteFilterValue; label: string }[] = [
+/** Opciones de filtro tomadas del catálogo activo del backend. */
+export const routeOptionsFor = (routes: readonly RealRoute[]) => [
   { id: 'all', label: 'Todas las rutas' },
-  ...(Object.keys(ROUTE_LABELS) as RouteId[]).map((id) => ({ id, label: ROUTE_LABELS[id] })),
+  ...routes.map((route) => ({ id: route.id, label: route.label })),
 ];
 
 /** Micros de una opción del filtro ('all' cuenta todas). */
-export const countForRoute = (buses: readonly LiveBus[], id: RouteFilterValue) =>
+export const countForRoute = (buses: readonly LiveBus[], id: string) =>
   id === 'all' ? buses.length : buses.filter((bus) => bus.routeId === id).length;
 
 /** Micros que se ven con el filtro elegido (misma lógica que PassengerMapPage del web). */
@@ -20,6 +21,7 @@ export const filterBusesByRoute = (buses: readonly LiveBus[], filter: RouteFilte
 
 export interface RouteFilterProps {
   buses: readonly LiveBus[];
+  routes: readonly RealRoute[];
   value: RouteFilterValue;
   onChange: (value: RouteFilterValue) => void;
 }
@@ -28,13 +30,14 @@ export interface RouteFilterProps {
  * Barra "Ruta:" con una píldora por línea y su cantidad de micros, como
  * RouteFilter del web. En el teléfono se desliza de lado si no cabe.
  */
-export function RouteFilter({ buses, value, onChange }: RouteFilterProps) {
+export function RouteFilter({ buses, routes, value, onChange }: RouteFilterProps) {
   const styles = useStyles();
+  const options = routeOptionsFor(routes);
   return (
     <View style={styles.bar}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
         <Text style={styles.label}>Ruta:</Text>
-        {ROUTE_OPTIONS.map((option) => {
+        {options.map((option) => {
           const active = option.id === value;
           const count = countForRoute(buses, option.id);
           return (

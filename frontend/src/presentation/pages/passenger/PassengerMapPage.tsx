@@ -6,18 +6,17 @@
  *
  * Features:
  *  - WebSocket como fuente primaria de datos (backend Go)
- *  - Simulación local como fallback cuando el WS no está conectado
+ *  - Eventos GPS reales del backend con simulación previa como respaldo
  *  - Marcadores SVG con animación de movimiento suave (interpolación rAF)
  *  - Halo de ocupación con color del OccupancyService
  *  - Popup con datos de predicción de aforo del backend
  *  - Panel lateral ordenado por ocupación con badges de predicción
  *  - Barra de estado con latencia WS y mensajes/segundo
  *  - Overlay de reconexión cuando se pierde la conexión
- *  - Panel de simulación de sensores y pagos (solo en desarrollo), que publica
- *    por el WebSocket nativo /ws de Go
+ *  - Herramientas de sensores y pagos en desarrollo
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import './PassengerMapPage.css';
 
 import type { BusState } from '../../../hooks/useSimulatedBuses';
@@ -29,29 +28,26 @@ import { MapStatusBar } from '../../components/map/MapStatusBar';
 import { ConnectionOverlay } from '../../components/map/ConnectionOverlay';
 import { microStopsApi, type MicroStop } from '../../../infrastructure/api/microStopsApi';
 import { climateTelemetryApi, type ClimateTelemetryRecord } from '../../../infrastructure/api/climateTelemetryApi';
+import { routesApi, type RouteStop } from '../../../infrastructure/api/routesApi';
 import { LiveMap } from '../../components/passenger/LiveMap';
-import { SimulationDevTools, type SimEventType } from '../../components/passenger/SimulationDevTools';
+import { SimulationDevTools } from '../../components/passenger/SimulationDevTools';
 import { RecommendedTripPlanner } from '../../components/passenger/RecommendedTripPlanner';
 
 const NO_BUSES: BusState[] = [];
-
-// El simulador es una herramienta de desarrollo: no se muestra en producción.
 const SHOW_DEVTOOLS = import.meta.env.DEV;
 
-/** Pasajeros de una micro después de un evento simulado (sin salirse de 0..capacidad). */
-function passengersAfter(bus: BusState, event: SimEventType): number {
-  switch (event) {
-    case 'tap_in_normal':
-    case 'tap_in_student':
-      return Math.min(bus.capacity, bus.currentPassengers + 1);
-    case 'sensor_alight':
-      return Math.max(0, bus.currentPassengers - 1);
-    case 'fill_capacity':
-      return bus.capacity;
-    case 'empty_capacity':
-      return 0;
-  }
+interface MapRouteOption {
+  id: string;
+  label: string;
 }
+
+const BUS_EVENT_MAX_AGE_MS = 60_000;
+const SIMULATION_EVENT_MAX_AGE_MS = 15_000;
+const SIMULATION_ROUTES: MapRouteOption[] = [
+  { id: 'route-7A', label: 'Línea 7A' },
+  { id: 'route-7B', label: 'Línea 7B' },
+  { id: 'route-1C', label: 'Línea 1C' },
+];
 
 const STOPS_LIMIT = 5000;
 const CLIMATE_REFRESH_MS = 10_000;
@@ -62,12 +58,68 @@ export function PassengerMapPage() {
   // ── Estado ────────────────────────────────────────────────────
   const [selectedBusId, setSelectedBusId] = useState<string | null>(null);
   const [routeFilter, setRouteFilter] = useState<string>('all');
+  const [routes, setRoutes] = useState<MapRouteOption[]>(SIMULATION_ROUTES);
+  const [routeStopsByRoute, setRouteStopsByRoute] = useState<Record<string, RouteStop[]>>({});
+  const [routeNames, setRouteNames] = useState<Record<string, string>>({});
+  const [routesLoading, setRoutesLoading] = useState(true);
+  const [routesMessage, setRoutesMessage] = useState<string | null>(null);
   const [stops, setStops] = useState<MicroStop[]>([]);
   const [stopsLoading, setStopsLoading] = useState(true);
   const [stopsMessage, setStopsMessage] = useState<string | null>(null);
   const [climateTelemetry, setClimateTelemetry] = useState<ClimateTelemetryRecord[]>([]);
   const [climateLoading, setClimateLoading] = useState(true);
   const [climateMessage, setClimateMessage] = useState<string | null>(null);
+  const [freshnessClock, setFreshnessClock] = useState(() => Date.now());
+
+  useEffect(() => {
+    let active = true;
+
+    routesApi.getAll()
+      .then((loadedRoutes) => {
+        if (!active) return;
+
+        const activeRoutes = loadedRoutes.filter((route) => route.isActive);
+        const names: Record<string, string> = {};
+        const mergedRoutes = new Map<string, MapRouteOption>(
+          SIMULATION_ROUTES.map((route): [string, MapRouteOption] => [route.id, route]),
+        );
+
+        for (const route of activeRoutes) {
+          const label = route.name || route.code || `Ruta ${route.id}`;
+          mergedRoutes.set(route.id, { id: route.id, label });
+          names[route.id] = label;
+        }
+
+        const routeOptions = Array.from(mergedRoutes.values());
+        setRoutes(routeOptions);
+        setRouteNames(names);
+        setRoutesMessage(null);
+        void Promise.all(activeRoutes.map(async (route) => {
+          try {
+            return [route.id, await routesApi.getStops(route.id)] as const;
+          } catch {
+            return [route.id, []] as const;
+          }
+        })).then((entries) => {
+          if (active) setRouteStopsByRoute(Object.fromEntries(entries));
+        });
+      })
+      .catch(() => {
+        if (active) setRoutesMessage('No se pudieron cargar las rutas reales; se mantienen las rutas de respaldo.');
+      })
+      .finally(() => {
+        if (active) setRoutesLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => setFreshnessClock(Date.now()), 5_000);
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -141,25 +193,33 @@ export function PassengerMapPage() {
 
   const [buses, setBuses] = useState<BusState[]>([]);
 
-  // ── WebSocket (única fuente) ────────────────────────────────
+  // ── WebSocket: rutas reales más rutas de respaldo ────────────
   const setBusesCallback = useCallback(
     (updater: (prev: BusState[]) => BusState[]) => {
       setBuses(updater);
     },
     [],
   );
-  const wsState = useSocketBuses(setBusesCallback, true);
-
-  // Eventos del simulador aplicados solo en este mapa (sin servidor, o si lo
-  // rechaza). Duran hasta que llega un dato nuevo de esa micro (base distinta).
-  const [localPassengers, setLocalPassengers] = useState<Record<string, { base: number; value: number }>>({});
+  const subscribedRouteIds = useMemo(
+    () => Array.from(new Set([...SIMULATION_ROUTES.map((route) => route.id), ...routes.map((route) => route.id)])),
+    [routes],
+  );
+  const wsState = useSocketBuses(setBusesCallback, true, subscribedRouteIds);
 
   // Sin conexión no se muestran micros: su posición ya no sería la actual.
   const sourceBuses = wsState.status === 'connected' ? buses : NO_BUSES;
-  const activeBuses = sourceBuses.map((bus) => {
-    const local = localPassengers[bus.id];
-    return local && local.base === bus.currentPassengers ? { ...bus, currentPassengers: local.value } : bus;
+  const freshBuses = sourceBuses.filter((bus) => {
+    if (!bus.lastWsUpdate) return false;
+    const maxAge = bus.dataSource === 'live' ? BUS_EVENT_MAX_AGE_MS : SIMULATION_EVENT_MAX_AGE_MS;
+    return freshnessClock - bus.lastWsUpdate.getTime() <= maxAge;
   });
+  const liveRoutes = new Set(freshBuses.filter((bus) => bus.dataSource === 'live').map((bus) => bus.routeId));
+  const activeBuses = freshBuses
+    .filter((bus) => bus.dataSource === 'live' || !liveRoutes.has(bus.routeId))
+    .map((bus) => ({
+      ...bus,
+      routeName: routeNames[bus.routeId] || bus.routeName,
+    }));
   const isInitialLoading = wsState.status === 'connecting' && wsState.totalMessages === 0;
 
   // ── Filtro de ruta ────────────────────────────────────────────
@@ -171,14 +231,6 @@ export function PassengerMapPage() {
   // ── Handlers ─────────────────────────────────────────────────
   const handleSelectBus = (id: string) => {
     setSelectedBusId((prev) => (prev === id ? null : id));
-  };
-
-  const handleLocalEvent = (busId: string, event: SimEventType) => {
-    const source = sourceBuses.find((b) => b.id === busId);
-    const shown = activeBuses.find((b) => b.id === busId);
-    if (source && shown) {
-      setLocalPassengers((prev) => ({ ...prev, [busId]: { base: source.currentPassengers, value: passengersAfter(shown, event) } }));
-    }
   };
 
   return (
@@ -195,6 +247,7 @@ export function PassengerMapPage() {
         <span className="map-topbar-label">Ruta:</span>
         <RouteFilter
           buses={activeBuses}
+          routes={routes}
           value={routeFilter}
           onChange={setRouteFilter}
         />
@@ -214,6 +267,7 @@ export function PassengerMapPage() {
                 bus={bus}
                 isSelected={bus.id === selectedBusId}
                 onSelect={handleSelectBus}
+                routeStops={routeStopsByRoute[bus.routeId] ?? []}
               />
             ))}
           </LiveMap>
@@ -221,6 +275,12 @@ export function PassengerMapPage() {
           {stopsLoading || stopsMessage ? (
             <div className="map-stops-notice" role="status" aria-live="polite">
               {stopsLoading ? 'Cargando paraderos...' : stopsMessage}
+            </div>
+          ) : null}
+
+          {routesLoading || routesMessage ? (
+            <div className="map-stops-notice" role="status" aria-live="polite">
+              {routesLoading ? 'Cargando rutas reales...' : routesMessage}
             </div>
           ) : null}
 
@@ -237,11 +297,11 @@ export function PassengerMapPage() {
             <SimulationDevTools
               buses={activeBuses}
               selectedBusId={selectedBusId}
-              onSelectBus={(id) => setSelectedBusId(id)}
+              onSelectBus={setSelectedBusId}
               wsStatus={wsState.status}
-              onLocalEvent={handleLocalEvent}
             />
           ) : null}
+
         </div>
 
         {/* Panel lateral */}
@@ -252,6 +312,7 @@ export function PassengerMapPage() {
             onSelect={handleSelectBus}
             routeFilter={routeFilter}
             loading={isInitialLoading}
+            routeStopsByRoute={routeStopsByRoute}
           />
         </aside>
       </div>

@@ -97,14 +97,14 @@ export interface RouteStop {
 
 /** Paraderos de la ruta en el orden del recorrido. */
 export async function fetchRouteStops(routeId: string): Promise<RouteStop[]> {
-  const raw = await apiRequest<Array<Partial<RouteStop>> | null>(`/routes/${encodeURIComponent(routeId)}/stops`);
+  const raw = await apiRequest<Partial<RouteStop>[] | null>(`/routes/${encodeURIComponent(routeId)}/stops`);
   return (Array.isArray(raw) ? raw : [])
     .filter((stop) => stop?.id)
     .map((stop) => ({
       id: String(stop.id),
       name: String(stop.name ?? '').trim() || 'Paradero sin nombre',
-      latitude: Number(stop.latitude ?? 0),
-      longitude: Number(stop.longitude ?? 0),
+      latitude: Number(stop.latitude),
+      longitude: Number(stop.longitude),
       order: Number(stop.order ?? 0),
     }))
     .sort((a, b) => a.order - b.order);
