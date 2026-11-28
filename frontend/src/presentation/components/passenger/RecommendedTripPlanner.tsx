@@ -3,18 +3,22 @@
  *
  * Control superpuesto en el mapa Leaflet que permite al pasajero planificar un viaje:
  *  - Buscador de paradero de subida y bajada (con filtro de texto)
- *  - Llama a fetchRouteAlternatives y muestra la ruta recomendada + alternativas
+ *  - Prioridad del pasajero (equilibrada, llegar antes, menos transbordos, caminar menos)
+ *  - Llama a fetchRecommendedRoutes y muestra la ruta recomendada, sus alternativas
+ *    y la explicación de cada una
  *  - Dibuja en el mapa: Polyline naranja (recorrido) + CircleMarker verde (subida) y rojo (bajada)
- *  - Muestra tiempo total estimado
  */
 
 import { useEffect, useRef, useState } from 'react';
 import { CircleMarker, Polyline, Popup } from 'react-leaflet';
 import {
   fetchAllStops,
-  fetchRouteAlternatives,
+  fetchRecommendedRoutes,
   fetchWeatherTelemetry,
-  type RoutePlan,
+  recommendationErrorMessage,
+  ROUTE_PRIORITIES,
+  type RecommendedRoute,
+  type RoutePriority,
   type Stop,
   type WeatherTelemetry,
 } from '../../../infrastructure/api/tripPlannerApi';
@@ -68,7 +72,7 @@ function weatherAlerts(weather: WeatherTelemetry): string[] {
   return alerts;
 }
 
-function routeWeatherAlert(plan: RoutePlan, weather: WeatherTelemetry): string | null {
+function routeWeatherAlert(plan: RecommendedRoute, weather: WeatherTelemetry): string | null {
   const walkingSeconds = plan.movements
     .filter((movement) => movement.mode === 'walk')
     .reduce((total, movement) => total + movement.time_seconds, 0);
@@ -159,20 +163,20 @@ function StopPicker({ label, value, stops, excludeId, onSelect }: StopPickerProp
 // ── Capa visual en el mapa ────────────────────────────────────────────────────
 
 interface TripLayerProps {
-  plan: RoutePlan;
+  plan: RecommendedRoute;
   stops: Stop[];
+  origin: Stop;
+  destination: Stop;
 }
 
-function TripLayer({ plan, stops }: TripLayerProps) {
+function TripLayer({ plan, stops, origin, destination }: TripLayerProps) {
   const byId = new Map(stops.map((s) => [s.id, s]));
-  const ids = [plan.origin_stop_id, ...plan.movements.map((m) => m.to_stop_id)];
+  const ids = [origin.id, ...plan.movements.map((m) => m.to_stop_id)];
   const coords = ids
     .map((id) => byId.get(id))
     .filter((s): s is Stop => Boolean(s))
     .map(({ latitude, longitude }) => [latitude, longitude] as [number, number]);
 
-  const origin = byId.get(plan.origin_stop_id);
-  const destination = byId.get(plan.destination_stop_id);
   const endpoints = [
     { stop: origin, label: 'subida', color: '#15803d', fill: '#22c55e' },
     { stop: destination, label: 'bajada', color: '#b91c1c', fill: '#ef4444' },
@@ -215,7 +219,11 @@ export function RecommendedTripPlanner() {
   const [weatherError, setWeatherError] = useState('');
   const [origin, setOrigin] = useState<Stop | null>(null);
   const [destination, setDestination] = useState<Stop | null>(null);
-  const [plans, setPlans] = useState<RoutePlan[] | null>(null);
+  const [priority, setPriority] = useState<RoutePriority>('balanced');
+  const [plans, setPlans] = useState<RecommendedRoute[] | null>(null);
+  // Las rutas guardan los paraderos con que se pidieron, por si el pasajero cambia
+  // la selección antes de una nueva búsqueda.
+  const [plannedStops, setPlannedStops] = useState<{ origin: Stop; destination: Stop } | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [planning, setPlanning] = useState(false);
   const [planError, setPlanError] = useState('');
@@ -233,19 +241,25 @@ export function RecommendedTripPlanner() {
 
   const findRoute = async () => {
     if (!origin || !destination) return;
+    // Las rutas recomendadas exigen sesión; sin ella, el cliente enviaría al login.
+    if (!localStorage.getItem('token')) {
+      setPlanError('Inicia sesión para ver las rutas recomendadas.');
+      return;
+    }
     setPlanning(true);
     setPlanError('');
     setPlans(null);
     setSelectedIndex(0);
     try {
-      const result = await fetchRouteAlternatives(origin, destination);
+      const result = await fetchRecommendedRoutes(origin, destination, priority);
       if (result.length === 0) {
         setPlanError('No encontramos un recorrido entre esos paraderos.');
       } else {
         setPlans(result);
+        setPlannedStops({ origin, destination });
       }
-    } catch {
-      setPlanError('No se pudieron calcular los recorridos. Intenta de nuevo.');
+    } catch (error) {
+      setPlanError(recommendationErrorMessage(error) ?? 'No se pudieron calcular los recorridos. Intenta de nuevo.');
     } finally {
       setPlanning(false);
     }
@@ -269,7 +283,9 @@ export function RecommendedTripPlanner() {
   return (
     <>
       {/* ── Capa visual en el mapa ── */}
-      {activePlan && <TripLayer plan={activePlan} stops={stops} />}
+      {activePlan && plannedStops && (
+        <TripLayer plan={activePlan} stops={stops} origin={plannedStops.origin} destination={plannedStops.destination} />
+      )}
 
       {/* ── Panel de control superpuesto ── */}
       <div className={`tpp-panel${collapsed ? ' tpp-collapsed' : ''}`}>
@@ -334,6 +350,19 @@ export function RecommendedTripPlanner() {
               onSelect={(s) => { setDestination(s); setPlans(null); }}
             />
 
+            <label className="tpp-stop-field">
+              <span className="tpp-field-label">Prioridad</span>
+              <select
+                className="tpp-priority"
+                value={priority}
+                onChange={(event) => { setPriority(event.target.value as RoutePriority); setPlans(null); }}
+              >
+                {ROUTE_PRIORITIES.map((option) => (
+                  <option key={option.id} value={option.id}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+
             {/* Acciones */}
             <div className="tpp-actions">
               <button
@@ -360,6 +389,9 @@ export function RecommendedTripPlanner() {
                 <p className="tpp-results-label">
                   {plans.length} recorrido{plans.length !== 1 ? 's' : ''} encontrado{plans.length !== 1 ? 's' : ''}
                 </p>
+                {activePlan?.explanation && (
+                  <p className="tpp-route-explanation" role="status">{activePlan.explanation}</p>
+                )}
                 {activeRouteWeatherAlert && (
                   <p className="tpp-route-weather-alert" role="status">
                     {activeRouteWeatherAlert}
@@ -367,7 +399,7 @@ export function RecommendedTripPlanner() {
                 )}
                 {plans.map((plan, idx) => (
                   <button
-                    key={`${plan.origin_stop_id}-${plan.destination_stop_id}-${idx}`}
+                    key={`${plan.cost.total}-${idx}`}
                     type="button"
                     className={`tpp-plan-row${idx === selectedIndex ? ' tpp-plan-active' : ''}`}
                     onClick={() => setSelectedIndex(idx)}

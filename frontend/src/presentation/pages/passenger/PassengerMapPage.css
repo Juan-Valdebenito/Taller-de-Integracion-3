@@ -426,6 +426,27 @@
   font-size: 10px;
 }
 
+.tpp-priority {
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #f1f5f9;
+  font-size: 12px;
+}
+.tpp-priority option { color: #0f172a; }
+
+.tpp-route-explanation {
+  margin: 0;
+  padding: 7px 9px;
+  border: 1px solid rgba(56, 189, 248, 0.24);
+  border-radius: 7px;
+  background: rgba(56, 189, 248, 0.08);
+  color: #bae6fd;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 .tpp-route-weather-alert {
   margin: 0;
   padding: 7px 9px;
