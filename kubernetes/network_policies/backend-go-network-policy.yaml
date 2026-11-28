@@ -55,6 +55,15 @@ spec:
         - protocol: TCP
           port: 6379
 
+    # Modelo de ocupación, en el mismo namespace
+    - to:
+        - podSelector:
+            matchLabels:
+              app: prediction-service
+      ports:
+        - protocol: TCP
+          port: 8000
+
     # Clima gRPC: namespace student-iglausser
     - to:
         - namespaceSelector:

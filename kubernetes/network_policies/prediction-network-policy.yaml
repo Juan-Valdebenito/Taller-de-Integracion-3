@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+# El modelo solo recibe consultas de backend-go y no sale a ningún lado.
+metadata:
+  name: prediction-service-minima
+  namespace: student-jvaldebenito
+spec:
+  podSelector:
+    matchLabels:
+      app: prediction-service
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: backend-go
+      ports:
+        - protocol: TCP
+          port: 8000
+  egress: []

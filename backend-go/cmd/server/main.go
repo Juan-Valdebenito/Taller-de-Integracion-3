@@ -18,6 +18,7 @@ import (
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/liveoccupancy"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/logger"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/middleware"
+	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/occupancyforecast"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/push"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/repository"
 	"github.com/Juan-Valdebenito/Taller-de-Integracion-3/backend-go/internal/telemetry"
@@ -142,6 +143,9 @@ func main() {
 	// ── Conectar predictor ML si está configurado ──────────────────────────────
 	// El predictor remoto es opcional. Si no está configurado o falla al
 	// conectarse, OccupancyService conserva su predictor heurístico local.
+	// occupancyModel queda en nil sin modelo: las rutas no usan el heurístico,
+	// porque su variación aleatoria cambiaría la ruta entre una consulta y otra.
+	var occupancyModel occupancyforecast.Predictor
 	if cfg.PredictionTransport != "" {
 		predClient, err := transport.NewPredictionClient(transport.Config{
 			Transport:  transport.TransportType(cfg.PredictionTransport),
@@ -163,6 +167,7 @@ func main() {
 			timeout := time.Duration(cfg.PredictionTimeoutSec) * time.Second
 			mlPredictor := service.NewMLRemotePredictor(predClient, timeout)
 			occupancySvc.SetPredictor(mlPredictor)
+			occupancyModel = mlPredictor
 			log.Info().Str("event", "prediction_client_ready").
 				Str("predictor", mlPredictor.Name()).
 				Str("transport", cfg.PredictionTransport).
@@ -184,6 +189,13 @@ func main() {
 	// cada línea al planificar rutas. Se conecta antes de iniciar el Hub.
 	liveOccupancy := liveoccupancy.NewTracker()
 	hub.SetOccupancyRecorder(liveOccupancy)
+	// Con el modelo, las rutas usan la ocupación que tendrá cada línea en 15 minutos.
+	var routeOccupancy handler.LineOccupancySource = liveOccupancy
+	if occupancyModel != nil {
+		forecaster := occupancyforecast.New(liveOccupancy, occupancyModel, handler.MicroLineID)
+		routeOccupancy = forecaster
+		go forecaster.Run(ctx)
+	}
 	// Las posiciones de las micros reales corrigen los tiempos de las rutas. Sin base
 	// de datos no hay conductores, así que no hace falta el código de sus rutas.
 	microClient, err := grpcclient.NewMicroClient(cfg.MicroGRPCTarget, cfg.MicroAPIKey, cfg.GRPCTimeout)
@@ -323,7 +335,7 @@ func main() {
 	// cada petición; si falla, las rutas se calculan sin clima.
 	currentWeather := currentweather.NewCache(currentweather.NewProvider(climateClient))
 	grpcProxyH := handler.NewGRPCProxyHandler(climateClient, microClient).
-		WithLineOccupancy(liveOccupancy).
+		WithLineOccupancy(routeOccupancy).
 		WithCurrentWeather(currentWeather)
 
 	// ── Rate limiting de autenticación (por IP) ───────────────

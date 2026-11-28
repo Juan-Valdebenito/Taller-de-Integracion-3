@@ -38,6 +38,7 @@ FOUNDATION_FILES=(
   services/redis_server/redis-auth-secret.yaml
   services/redis_server/redis-server-deployment.yml
   services/backend-go/clima-client-secret.yaml
+  services/prediction_service/prediction-deployment.yaml
   services/backend-go/backend-go-configmap.yaml
   services/backend-go/backend-go-deployment.yaml
   services/backend-go/backend-go-service.yaml
@@ -271,10 +272,12 @@ cmd_build() {
   docker build -t "$DOCKERHUB_USER/transithub-realtime:$IMAGE_TAG" backend/
   docker build --build-arg "VITE_API_BASE_URL=$frontend_api_url" -t "$DOCKERHUB_USER/transithub-frontend:$IMAGE_TAG" frontend/
   docker build -t "$DOCKERHUB_USER/clima-simulator:$IMAGE_TAG" kubernetes/services/clima_simulator/
+  docker build -t "$DOCKERHUB_USER/prediction-service:$IMAGE_TAG" kubernetes/services/prediction_service/
   docker push "$DOCKERHUB_USER/backend-go:$BACKEND_GO_IMAGE_TAG"
   docker push "$DOCKERHUB_USER/transithub-realtime:$IMAGE_TAG"
   docker push "$DOCKERHUB_USER/transithub-frontend:$IMAGE_TAG"
   docker push "$DOCKERHUB_USER/clima-simulator:$IMAGE_TAG"
+  docker push "$DOCKERHUB_USER/prediction-service:$IMAGE_TAG"
   ok "Imágenes publicadas"
 }
 

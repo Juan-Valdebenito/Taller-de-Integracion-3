@@ -942,6 +942,24 @@ ocupación = pasajeros de todas sus micros / capacidad de todas ellas
 Así una micro grande pesa más que una chica. Con 30 de 40 y 6 de 20, la línea va
 al 60 %, no al 52,5 % de un promedio simple.
 
+### Ocupación predicha
+
+Si backend-go tiene configurado el modelo de ocupación
+(`kubernetes/services/prediction_service`), envía la ocupación que tendrá cada línea
+**en 15 minutos**, cuando el pasajero llegue al paradero, en vez de la actual.
+
+| Regla | Detalle |
+|---|---|
+| Cada cuánto | `occupancyforecast` le pregunta al modelo cada 30 segundos, una vez por línea |
+| Qué le envía | Pasajeros y capacidad sumados de la línea, y la hora y el día de Chile |
+| Duración | Una predicción vale 2 minutos. Después se usa la ocupación actual |
+| Sin modelo o si falla | Se usa la ocupación actual, como antes. Se registra `occupancy_forecast_failed` una vez |
+| Valores imposibles | Una predicción menor que 0 o mayor que 2 se ignora |
+
+Sin modelo no se usa el predictor heurístico de backend-go, porque su variación
+aleatoria haría cambiar la ruta entre una consulta y otra. El modelo se entrenó con
+datos simulados: ver su README.
+
 ### Traducción de IDs
 
 backend-go nombra la misma línea de dos formas: `route-7A` en la simulación y
@@ -1701,6 +1719,7 @@ go test ./...
 | Tiempos con GPS | Los promedios a mano, qué lecturas se ignoran, que venzan en una hora y que la búsqueda siga coincidiendo con la fuerza bruta |
 | Posiciones por red | Del Hub a gRPC real con la clave y la línea traducida, sin micros simuladas, y cómo cambian la recomendación |
 | Migraciones | Pares y numeración, igualdad con los scripts iniciales, base vacía, base existente con sus datos, varias réplicas y una migración con errores. Las de base necesitan `TEST_DATABASE_URL` |
+| Ocupación predicha | Una consulta por línea con la hora de Chile, reemplaza a la actual, vence en 2 minutos, se ignora si es imposible, y llega por HTTP real a `micro_service` |
 | Datos en vivo imposibles | No se envían, y los demás sí |
 
 `PAR-CJP-02` ↔ `PAR-DPORT-01` está registrado en la prueba como excepción conocida

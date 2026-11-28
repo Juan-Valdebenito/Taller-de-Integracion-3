@@ -151,6 +151,14 @@ spec:
                   key: ADMIN_KEY
             - name: GRPC_TIMEOUT
               value: "5s"
+            # ── Modelo de ocupación (services/prediction_service) ──
+            # Si no responde, backend-go usa la ocupación actual.
+            - name: PREDICTION_TRANSPORT
+              value: "http"
+            - name: PREDICTION_HTTP_URL
+              value: "http://prediction-svc:8000"
+            - name: PREDICTION_TIMEOUT_SEC
+              value: "2"
             # ── Revocación de tokens compartida (opcional) ──────
             # Sin REDIS_ADDR la revocación (logout / refresh) vive en memoria del
             # pod: válido solo con replicas: 1. Con Redis en el cluster:
