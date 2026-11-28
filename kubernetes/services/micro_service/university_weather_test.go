@@ -83,26 +83,31 @@ func TestGRPCUniversityRoutesUseWeather(t *testing.T) {
 }
 
 func TestParseWeatherReadsAllValues(t *testing.T) {
-	weather, err := parseWeather("3.5", "35", "60")
+	weather, err := parseWeather("3.5", "35", "60", "2.5")
 	expected := WeatherConditions{TemperatureC: 3.5, WindSpeedKmh: 35, PM25: 60}
+	expected.PrecipitationMM = 2.5
 	if err != nil || weather == nil || *weather != expected {
 		t.Errorf("se esperaba %+v y se obtuvo %+v, %v", expected, weather, err)
 	}
-	if weather, err := parseWeather("", "", ""); err != nil || weather != nil {
+	if weather, err := parseWeather("", "", "", ""); err != nil || weather != nil {
 		t.Errorf("sin parámetros no debe haber clima: %+v, %v", weather, err)
+	}
+	if weather, err := parseWeather("3.5", "35", "60", ""); err != nil || weather == nil || weather.PrecipitationMM != 0 {
+		t.Errorf("un cliente antiguo debe ser compatible con precipitación cero: %+v, %v", weather, err)
 	}
 }
 
 func TestParseWeatherRequiresAllValues(t *testing.T) {
-	incompleteOrInvalid := [][3]string{
-		{"3", "", ""},
-		{"", "35", "60"},
-		{"3", "35", ""},
-		{"frío", "35", "60"},
-		{"3", "35", "mucho"},
+	incompleteOrInvalid := [][4]string{
+		{"3", "", "", ""},
+		{"", "35", "60", ""},
+		{"3", "35", "", ""},
+		{"frío", "35", "60", ""},
+		{"3", "35", "mucho", ""},
+		{"3", "35", "60", "lluvia"},
 	}
 	for _, rawValues := range incompleteOrInvalid {
-		if _, err := parseWeather(rawValues[0], rawValues[1], rawValues[2]); !errors.Is(err, errInvalidWeather) {
+		if _, err := parseWeather(rawValues[0], rawValues[1], rawValues[2], rawValues[3]); !errors.Is(err, errInvalidWeather) {
 			t.Errorf("%v: se esperaba errInvalidWeather y se obtuvo %v", rawValues, err)
 		}
 	}

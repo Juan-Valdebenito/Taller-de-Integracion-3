@@ -81,9 +81,10 @@ func weatherFromProto(message *microv1.WeatherConditions) *WeatherConditions {
 		return nil
 	}
 	return &WeatherConditions{
-		TemperatureC: message.GetTemperatureC(),
-		WindSpeedKmh: message.GetWindSpeedKmh(),
-		PM25:         message.GetPm25(),
+		TemperatureC:    message.GetTemperatureC(),
+		WindSpeedKmh:    message.GetWindSpeedKmh(),
+		PrecipitationMM: message.GetPrecipitationMm(),
+		PM25:            message.GetPm25(),
 	}
 }
 
