@@ -20,9 +20,10 @@ const (
 
 // Conditions es el clima de la ciudad: el promedio de las estaciones.
 type Conditions struct {
-	TemperatureC float64
-	WindSpeedKmh float64
-	PM25         float64
+	TemperatureC  float64
+	WindSpeedKmh  float64
+	Precipitation float64
+	PM25          float64
 }
 
 // TelemetryLister lo implementa el cliente gRPC de clima_service.
@@ -69,12 +70,14 @@ func cityConditions(records []*climav1.TelemetryRecord) *Conditions {
 	for _, record := range latestByStation {
 		totals.TemperatureC += record.GetTemperatureC()
 		totals.WindSpeedKmh += record.GetWindSpeedKmh()
+		totals.Precipitation += record.GetPrecipitationMm()
 		totals.PM25 += record.GetPm25UgM3()
 	}
 	stationCount := float64(len(latestByStation))
 	return &Conditions{
-		TemperatureC: totals.TemperatureC / stationCount,
-		WindSpeedKmh: totals.WindSpeedKmh / stationCount,
-		PM25:         totals.PM25 / stationCount,
+		TemperatureC:  totals.TemperatureC / stationCount,
+		WindSpeedKmh:  totals.WindSpeedKmh / stationCount,
+		Precipitation: totals.Precipitation / stationCount,
+		PM25:          totals.PM25 / stationCount,
 	}
 }

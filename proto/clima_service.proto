@@ -40,4 +40,5 @@ message TelemetryRecord {
 	string status = 9;
 	double latitude = 10;
 	double longitude = 11;
+	double precipitation_mm = 12;
 }

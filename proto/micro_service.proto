@@ -150,11 +150,12 @@ message RoutePreferences {
 	optional bool avoid_crowding = 3;
 }
 
-// Clima del momento de la consulta. clima_service no informa lluvia.
+// Clima del momento de la consulta.
 message WeatherConditions {
 	double temperature_c = 1;
 	double wind_speed_kmh = 2;
 	double pm25 = 3;
+	double precipitation_mm = 4;
 }
 
 message PlanUniversityRoutesResponse {

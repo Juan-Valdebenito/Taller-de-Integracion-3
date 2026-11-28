@@ -186,9 +186,10 @@ func (proxyHandler *GRPCProxyHandler) currentWeatherMessage(requestContext conte
 		return nil
 	}
 	return &microv1.WeatherConditions{
-		TemperatureC: conditions.TemperatureC,
-		WindSpeedKmh: conditions.WindSpeedKmh,
-		Pm25:         conditions.PM25,
+		TemperatureC:    conditions.TemperatureC,
+		WindSpeedKmh:    conditions.WindSpeedKmh,
+		PrecipitationMm: conditions.Precipitation,
+		Pm25:            conditions.PM25,
 	}
 }
 

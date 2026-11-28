@@ -23,12 +23,12 @@ func (weather fixedWeather) Current(context.Context) *currentweather.Conditions 
 
 func TestPlanUniversityRoutesSendsCurrentWeather(t *testing.T) {
 	fakeMicro := emptyRoutesMicro()
-	weather := fixedWeather{conditions: &currentweather.Conditions{TemperatureC: 3, WindSpeedKmh: 35, PM25: 60}}
+	weather := fixedWeather{conditions: &currentweather.Conditions{TemperatureC: 3, WindSpeedKmh: 35, Precipitation: 2.5, PM25: 60}}
 	proxyHandler := NewGRPCProxyHandler(nil, fakeMicro).WithCurrentWeather(weather)
 	serveUniversityRequestWith(proxyHandler, "/routes/university?from_stop=PAR-PORTAL-01")
 
 	sentWeather := fakeMicro.receivedRequest.GetWeather()
-	if sentWeather == nil || sentWeather.GetTemperatureC() != 3 || sentWeather.GetWindSpeedKmh() != 35 || sentWeather.GetPm25() != 60 {
+	if sentWeather == nil || sentWeather.GetTemperatureC() != 3 || sentWeather.GetWindSpeedKmh() != 35 || sentWeather.GetPrecipitationMm() != 2.5 || sentWeather.GetPm25() != 60 {
 		t.Errorf("se esperaba enviar 3 °C, 35 km/h y PM2.5 de 60: %+v", sentWeather)
 	}
 }

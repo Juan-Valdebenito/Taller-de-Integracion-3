@@ -153,7 +153,7 @@ func (e *queryError) Error() string { return e.message }
 func climateRecords(response *climav1.ListTelemetryResponse) []gin.H {
 	result := make([]gin.H, 0, len(response.GetRecords()))
 	for _, record := range response.GetRecords() {
-		result = append(result, gin.H{"time": record.GetTime(), "station_id": record.GetStationId(), "sector": record.GetSector(), "temperature_c": record.GetTemperatureC(), "humidity_pct": record.GetHumidityPct(), "wind_speed_kmh": record.GetWindSpeedKmh(), "pm25_ug_m3": record.GetPm25UgM3(), "pm10_ug_m3": record.GetPm10UgM3(), "status": record.GetStatus(), "latitude": record.GetLatitude(), "longitude": record.GetLongitude()})
+		result = append(result, gin.H{"time": record.GetTime(), "station_id": record.GetStationId(), "sector": record.GetSector(), "temperature_c": record.GetTemperatureC(), "humidity_pct": record.GetHumidityPct(), "wind_speed_kmh": record.GetWindSpeedKmh(), "precipitation_mm": record.GetPrecipitationMm(), "pm25_ug_m3": record.GetPm25UgM3(), "pm10_ug_m3": record.GetPm10UgM3(), "status": record.GetStatus(), "latitude": record.GetLatitude(), "longitude": record.GetLongitude()})
 	}
 	return result
 }
