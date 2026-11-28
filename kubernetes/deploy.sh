@@ -12,7 +12,7 @@
 #   bash kubernetes/deploy.sh <foundation|micros|app|realtime> apply
 #   bash kubernetes/deploy.sh <foundation|micros|app|realtime> status
 #   bash kubernetes/deploy.sh <foundation|micros|app|realtime> delete
-#   bash kubernetes/deploy.sh <foundation|app|realtime> build
+#   bash kubernetes/deploy.sh <foundation|micros|app|realtime> build
 #
 # Orden recomendado: foundation primero; después micros, realtime y app.
 # El inicio de sesión en el cluster NO lo hace este script ni guarda contraseñas.
@@ -75,8 +75,8 @@ REALTIME_FILES=(
   services/micro_telemetry/micro-telemetry-deployment.yaml
   services/micro_telemetry/micro-telemetry-hpa.yaml
   services/clima_simulator/clima-simulator-deployment.yaml
-  services/realtime/realtime-deployment.yaml
-  ingress/realtime-ingress.yaml
+  #services/realtime/realtime-deployment.yaml
+  #ingress/realtime-ingress.yaml
 )
 
 # No se aplican en ningún stack:
@@ -198,7 +198,7 @@ cmd_render() {
     if [ -n "$DOCKERHUB_USER" ]; then
       sed -E -i.bak "s#image: <DOCKERHUB_USER>/backend-go:[^ ]*#image: $DOCKERHUB_USER/backend-go:$BACKEND_GO_IMAGE_TAG#" "$dst"
       rm -f "$dst.bak"
-      sed -E -i.bak "s#image: <DOCKERHUB_USER>/([a-z-]+):[^ ]*#image: $DOCKERHUB_USER/\1:$IMAGE_TAG#" "$dst"
+      sed -E -i.bak "s#image: <DOCKERHUB_USER>/([a-zA-Z0-9._-]+):[^ ]*#image: $DOCKERHUB_USER/\1:$IMAGE_TAG#" "$dst"
       rm -f "$dst.bak"
     fi
   done
@@ -257,25 +257,49 @@ cmd_check() {
 }
 
 cmd_build() {
-  case "$STACK" in
-    foundation|app|realtime) ;;
-    *) die "build aplica a foundation, app o realtime." ;;
-  esac
   [ -n "$DOCKERHUB_USER" ] || die "Falta DOCKERHUB_USER en cluster.env."
   command -v docker >/dev/null 2>&1 || die "docker no está instalado."
   local frontend_api_url="$APP_SCHEME://$API_HOST"
-  info "Construyendo imágenes en $DOCKERHUB_USER (tag general $IMAGE_TAG, backend-go $BACKEND_GO_IMAGE_TAG)"
-  info "Frontend usará la API en $frontend_api_url"
+  local image
+  local -a images=()
+  info "Construyendo imágenes del stack $STACK en $DOCKERHUB_USER"
   cd "$ROOT"
-  docker build -f backend-go/Dockerfile -t "$DOCKERHUB_USER/backend-go:$BACKEND_GO_IMAGE_TAG" .
-  docker build -t "$DOCKERHUB_USER/transithub-realtime:$IMAGE_TAG" backend/
-  docker build --build-arg "VITE_API_BASE_URL=$frontend_api_url" -t "$DOCKERHUB_USER/transithub-frontend:$IMAGE_TAG" frontend/
-  docker build -t "$DOCKERHUB_USER/clima-simulator:$IMAGE_TAG" kubernetes/services/clima_simulator/
-  docker push "$DOCKERHUB_USER/backend-go:$BACKEND_GO_IMAGE_TAG"
-  docker push "$DOCKERHUB_USER/transithub-realtime:$IMAGE_TAG"
-  docker push "$DOCKERHUB_USER/transithub-frontend:$IMAGE_TAG"
-  docker push "$DOCKERHUB_USER/clima-simulator:$IMAGE_TAG"
-  ok "Imágenes publicadas"
+  case "$STACK" in
+    foundation)
+      image="$DOCKERHUB_USER/backend-go:$BACKEND_GO_IMAGE_TAG"
+      docker build -f backend-go/Dockerfile -t "$image" .
+      images+=("$image")
+      ;;
+    micros)
+      image="$DOCKERHUB_USER/micro_service:$IMAGE_TAG"
+      docker build -f kubernetes/services/micro_service/Dockerfile -t "$image" .
+      images+=("$image")
+      ;;
+    app)
+      image="$DOCKERHUB_USER/transithub-frontend:$IMAGE_TAG"
+      info "Frontend usará la API en $frontend_api_url"
+      docker build --build-arg "VITE_API_BASE_URL=$frontend_api_url" -t "$image" frontend/
+      images+=("$image")
+      ;;
+    realtime)
+      image="$DOCKERHUB_USER/clima_service:$IMAGE_TAG"
+      docker build -f kubernetes/services/clima_service/Dockerfile -t "$image" .
+      images+=("$image")
+
+      image="$DOCKERHUB_USER/micro_telemetry:$IMAGE_TAG"
+      docker build -f kubernetes/services/micro_telemetry/Dockerfile -t "$image" .
+      images+=("$image")
+
+      image="$DOCKERHUB_USER/clima-simulator:$IMAGE_TAG"
+      docker build -t "$image" kubernetes/services/clima_simulator/
+      images+=("$image")
+      ;;
+  esac
+
+  for image in "${images[@]}"; do
+    docker push "$image"
+  done
+  ok "${#images[@]} imágenes publicadas para $STACK"
 }
 
 cmd_apply() {

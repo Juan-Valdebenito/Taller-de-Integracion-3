@@ -122,11 +122,15 @@ registro DNS (puede tardar unos minutos).
 | `CORS_ORIGIN`, `SOCKET_CORS_ORIGIN` | `APP_SCHEME://APP_HOST` |
 | `<DOCKERHUB_USER>/…:v1` | `DOCKERHUB_USER/…:IMAGE_TAG` |
 
-`build` acepta `foundation`, `app` o `realtime` (por ejemplo,
-`bash kubernetes/deploy.sh app build`). El comando construye y publica todas las
-imágenes propias; la imagen del frontend recibe `VITE_API_BASE_URL` desde
-`APP_SCHEME` y `API_HOST` en `cluster.env`, porque Vite incorpora esa URL al
-compilar los archivos estáticos.
+`build` construye y publica únicamente las imágenes del stack elegido:
+`foundation` publica `backend-go`, `micros` publica `micro_service`, `app`
+publica `transithub-frontend` y `realtime` publica `clima_service`,
+`micro_telemetry` y `clima-simulator` (el Deployment de `realtime` está
+desactivado actualmente). Por ejemplo,
+`bash kubernetes/deploy.sh micros build`. Todas usan `DOCKERHUB_USER` y
+`IMAGE_TAG`, salvo `backend-go`, que usa `BACKEND_GO_IMAGE_TAG`. La imagen del
+frontend recibe `VITE_API_BASE_URL` desde `APP_SCHEME` y `API_HOST` en
+`cluster.env`, porque Vite incorpora esa URL al compilar los archivos estáticos.
 
 Clima y la telemetría se aplican en `REALTIME_NAMESPACE`. Clima usa
 `clima-db-svc.REALTIME_NAMESPACE.svc.cluster.local:5432` y NATS desde
