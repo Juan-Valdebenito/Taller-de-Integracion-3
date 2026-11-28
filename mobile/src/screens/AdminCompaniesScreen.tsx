@@ -149,7 +149,15 @@ export function AdminCompaniesScreen() {
           ))
         )}
       </ScrollView>
-      <CompanyForm visible={editing !== false} company={editing || null} onClose={() => setEditing(false)} onSaved={onSaved} />
+      {editing !== false ? (
+        <CompanyForm
+          key={editing === null ? 'new' : `company:${editing.id}`}
+          visible
+          company={editing}
+          onClose={() => setEditing(false)}
+          onSaved={onSaved}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }

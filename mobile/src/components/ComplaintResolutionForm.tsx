@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { ApiError } from '../api/errors';
@@ -37,19 +37,11 @@ function issuedAt(complaint: AdminComplaintRow): string {
 export function ComplaintResolutionForm({ complaint, onClose, onSaved }: ComplaintResolutionFormProps) {
   const styles = useStyles();
   const { colors } = useTheme();
-  const [target, setTarget] = useState<ComplaintStatus>('IN_REVIEW');
-  const [response, setResponse] = useState('');
+  const [target, setTarget] = useState<ComplaintStatus>(() => (complaint ? initialTarget(complaint.status) : 'IN_REVIEW'));
+  const [response, setResponse] = useState(() => complaint?.adminResponse ?? '');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
-
-  useEffect(() => {
-    if (!complaint) return;
-    setTarget(initialTarget(complaint.status));
-    setResponse(complaint.adminResponse ?? '');
-    setError(null);
-    setConfirming(false);
-  }, [complaint]);
 
   const close = () => {
     if (saving) return;

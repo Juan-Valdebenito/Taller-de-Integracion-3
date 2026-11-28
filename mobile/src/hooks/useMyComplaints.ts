@@ -24,11 +24,12 @@ export interface UseMyComplaintsResult {
  */
 export function useMyComplaints({ category = '', status = '' }: ComplaintFilters = {}): UseMyComplaintsResult {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [settledQuery, setSettledQuery] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<{ query: string; message: string } | null>(null);
   const requestId = useRef(0);
   const mounted = useRef(true);
+  const query = JSON.stringify([category, status]);
 
   useEffect(() => {
     mounted.current = true;
@@ -37,33 +38,47 @@ export function useMyComplaints({ category = '', status = '' }: ComplaintFilters
     };
   }, []);
 
-  const load = useCallback(
-    async (mode: 'loading' | 'refreshing') => {
+  const loadAutomatically = useCallback(async () => {
+    const id = ++requestId.current;
+    try {
+      const result = await fetchMyComplaints({ category, status });
+      if (mounted.current && id === requestId.current) setComplaints(result);
+      if (mounted.current && id === requestId.current) setLoadError(null);
+    } catch {
+      if (mounted.current && id === requestId.current) setLoadError({ query, message: LOAD_ERROR });
+    } finally {
+      if (mounted.current && id === requestId.current) setSettledQuery(query);
+    }
+  }, [category, query, status]);
+
+  const loadManually = useCallback(
+    async () => {
       const id = ++requestId.current;
-      (mode === 'loading' ? setLoading : setRefreshing)(true);
-      setError(null);
+      setRefreshing(true);
+      setLoadError(null);
       try {
         const result = await fetchMyComplaints({ category, status });
         if (mounted.current && id === requestId.current) setComplaints(result);
       } catch {
-        if (mounted.current && id === requestId.current) setError(LOAD_ERROR);
+        if (mounted.current && id === requestId.current) setLoadError({ query, message: LOAD_ERROR });
       } finally {
-        // La última consulta apaga los dos indicadores (pudo reemplazar a otra en curso).
         if (mounted.current && id === requestId.current) {
-          setLoading(false);
           setRefreshing(false);
+          setSettledQuery(query);
         }
       }
     },
-    [category, status],
+    [category, query, status],
   );
 
   useEffect(() => {
-    load('loading');
-  }, [load]);
+    void Promise.resolve().then(loadAutomatically);
+  }, [loadAutomatically]);
 
-  const refresh = useCallback(() => load('refreshing'), [load]);
+  const refresh = useCallback(() => loadManually(), [loadManually]);
   const addComplaint = useCallback((complaint: Complaint) => setComplaints((current) => [complaint, ...current]), []);
+  const loading = settledQuery !== query;
+  const error = loadError?.query === query ? loadError.message : null;
 
   return { complaints, loading, refreshing, error, refresh, addComplaint };
 }

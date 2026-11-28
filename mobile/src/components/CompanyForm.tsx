@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, Text, View } from 'react-native';
 
 import { createCompany, setCompanyActive, updateCompany, type CompanySummary } from '../api/adminApi';
@@ -25,15 +25,9 @@ export interface CompanyFormProps {
  */
 export function CompanyForm({ visible, company, onClose, onSaved }: CompanyFormProps) {
   const styles = useStyles();
-  const [values, setValues] = useState<CompanyFormValues>(NEW_COMPANY_FORM);
+  const [values, setValues] = useState<CompanyFormValues>(() => (company ? formFromCompany(company) : NEW_COMPANY_FORM));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (!visible) return;
-    setValues(company ? formFromCompany(company) : NEW_COMPANY_FORM);
-    setError(null);
-  }, [visible, company]);
 
   const set = (key: keyof CompanyFormValues) => (value: string | boolean) => setValues((current) => ({ ...current, [key]: value }));
 

@@ -169,7 +169,17 @@ export function AdminUsersScreen() {
           </>
         )}
       </ScrollView>
-      <UserForm user={editing} users={users} companies={companies} myId={me?.id ?? null} onClose={() => setEditing(null)} onSaved={onSaved} />
+      {editing !== null ? (
+        <UserForm
+          key={editing === 'new' ? 'new' : `user:${editing.id}`}
+          user={editing}
+          users={users}
+          companies={companies}
+          myId={me?.id ?? null}
+          onClose={() => setEditing(null)}
+          onSaved={onSaved}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }

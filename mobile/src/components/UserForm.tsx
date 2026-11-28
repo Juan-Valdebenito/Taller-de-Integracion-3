@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, Text, View } from 'react-native';
 
 import { createUser, updateUser, type AdminUser, type CompanySummary } from '../api/adminApi';
@@ -34,20 +34,13 @@ export function UserForm({ user: target, users, companies, myId, onClose, onSave
   const user = target === 'new' ? null : target;
   const creating = target === 'new';
   const isSelf = !!user && user.id === myId;
-  const [values, setValues] = useState<UserFormValues>(newUserForm());
+  const [values, setValues] = useState<UserFormValues>(() => (target && target !== 'new' ? formFromUser(target) : newUserForm()));
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const companyOptions = companies
     .filter((company) => company.isActive || company.id === user?.companyId)
     .map((company) => ({ value: company.id, label: company.name }));
-
-  useEffect(() => {
-    if (!target) return;
-    setValues(target === 'new' ? newUserForm() : formFromUser(target));
-    setPassword('');
-    setError(null);
-  }, [target]);
 
   const set = <K extends keyof UserFormValues>(key: K) => (value: UserFormValues[K]) => setValues((current) => ({ ...current, [key]: value }));
 

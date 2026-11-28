@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, Text, View } from 'react-native';
 
 import { createRoute, updateRoute, type CompanySummary } from '../api/adminApi';
@@ -31,17 +31,9 @@ export interface RouteFormProps {
 export function RouteForm({ visible, route, routes, companies, onClose, onSaved }: RouteFormProps) {
   const styles = useStyles();
   const activeCompanies = companies.filter((company) => company.isActive || company.id === route?.companyId);
-  const [values, setValues] = useState<RouteFormValues>(newRouteForm());
+  const [values, setValues] = useState<RouteFormValues>(() => (route ? formFromRoute(route) : newRouteForm(activeCompanies[0]?.id ?? '')));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (!visible) return;
-    setValues(route ? formFromRoute(route) : newRouteForm(activeCompanies[0]?.id ?? ''));
-    setError(null);
-    // Solo al abrir: las empresas no cambian mientras el formulario está abierto.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, route]);
 
   const set = (key: keyof RouteFormValues) => (value: string | boolean) => setValues((current) => ({ ...current, [key]: value }));
 

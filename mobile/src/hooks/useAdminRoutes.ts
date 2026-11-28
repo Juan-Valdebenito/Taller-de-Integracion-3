@@ -25,10 +25,8 @@ export function useAdminRoutes(): UseAdminRoutesResult {
   const [error, setError] = useState<string | null>(null);
   const requestId = useRef(0);
 
-  const refresh = useCallback(async () => {
+  const load = useCallback(async () => {
     const id = ++requestId.current;
-    setLoading(true);
-    setError(null);
     try {
       const [routeList, buses, companyList] = await Promise.all([
         fetchCompanyRoutes(),
@@ -46,8 +44,14 @@ export function useAdminRoutes(): UseAdminRoutesResult {
   }, []);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    void Promise.resolve().then(load);
+  }, [load]);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    await load();
+  }, [load]);
 
   return { routes, companies, loading, error, refresh };
 }

@@ -22,35 +22,31 @@ export function useCompanyDashboard(): UseCompanyDashboardResult {
   const { user } = useAuth();
   const operations = useCompanyOperations();
   const companyId = user?.role === 'COMPANY' ? user.companyId ?? null : null;
-  const [pending, setPending] = useState<number | null>(null);
-  const [loadingPending, setLoadingPending] = useState(false);
+  const [pendingResult, setPendingResult] = useState<{ companyId: string; value: number | null } | null>(null);
   const requestId = useRef(0);
 
   const loadPending = useCallback(async () => {
     const id = ++requestId.current;
-    if (!companyId) {
-      setPending(null);
-      return;
-    }
-    setLoadingPending(true);
+    if (!companyId) return;
     try {
       const stats = await fetchCompanyComplaintStats(companyId);
-      if (id === requestId.current) setPending(stats.pending);
+      if (id === requestId.current) setPendingResult({ companyId, value: stats.pending });
     } catch {
-      if (id === requestId.current) setPending(null);
-    } finally {
-      if (id === requestId.current) setLoadingPending(false);
+      if (id === requestId.current) setPendingResult({ companyId, value: null });
     }
   }, [companyId]);
 
   useEffect(() => {
-    void loadPending();
+    void Promise.resolve().then(loadPending);
   }, [loadPending]);
 
   const { refresh: refreshOperations } = operations;
   const refresh = useCallback(async () => {
     await Promise.all([refreshOperations(), loadPending()]);
   }, [refreshOperations, loadPending]);
+
+  const pending = pendingResult?.companyId === companyId ? pendingResult.value : null;
+  const loadingPending = companyId !== null && pendingResult?.companyId !== companyId;
 
   const stats = useMemo(
     () => computeDashboardStats(operations.buses, operations.routes, pending),

@@ -3,7 +3,7 @@ import { useRouter, type Href } from 'expo-router';
 import { useEffect } from 'react';
 
 import { useAuth } from '../auth/AuthContext';
-import { notificationsSupported } from '../notifications/notificationService';
+import { useNotificationResponse } from './useNotificationResponse';
 
 /** Pantalla que abre una notificación según su tipo y el rol de quien la toca; null = ninguna. */
 export function notificationTarget(data: unknown, role: string | undefined): Href | null {
@@ -24,9 +24,7 @@ const handledResponses = new WeakSet<Notifications.NotificationResponse>();
  * cerrada: espera a que haya sesión. Va una sola vez, en la raíz de la app.
  */
 export function useNotificationNavigation(): void {
-  // La condición no cambia mientras corre la app (es la plataforma), así que el
-  // orden de los hooks es siempre el mismo. En la web no hay notificaciones.
-  const response = notificationsSupported() ? Notifications.useLastNotificationResponse() : null;
+  const response = useNotificationResponse();
   const { status, user } = useAuth();
   const router = useRouter();
 

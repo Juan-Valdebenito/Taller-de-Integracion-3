@@ -197,14 +197,17 @@ export function CompanyBusesScreen() {
           ))
         )}
       </ScrollView>
-      <BusForm
-        visible={editing !== false}
-        bus={editing || null}
-        routes={routes}
-        companyId={user?.companyId ?? null}
-        onClose={() => setEditing(false)}
-        onSaved={onSaved}
-      />
+      {editing !== false ? (
+        <BusForm
+          key={editing === null ? 'new' : `bus:${editing.id}`}
+          visible
+          bus={editing}
+          routes={routes}
+          companyId={user?.companyId ?? null}
+          onClose={() => setEditing(false)}
+          onSaved={onSaved}
+        />
+      ) : null}
       <Modal
         visible={pendingDeletion !== null}
         transparent

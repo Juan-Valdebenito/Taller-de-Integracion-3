@@ -200,6 +200,17 @@ npm.cmd run dev
 > En PowerShell, usa `npm.cmd` si aparece el error de que `npm.ps1` no puede
 > ejecutarse por la politica de scripts.
 
+## ✅ Checklist de CI
+
+Antes de integrar cambios, ejecutar estas verificaciones desde la raíz del
+repositorio:
+
+- [ ] Lint del frontend: `npm run lint --workspace=frontend`
+- [ ] Compilación del frontend: `npm run build --workspace=frontend`
+
+El lint revisa archivos TypeScript y TSX con ESLint. La compilación también
+comprueba los tipos con TypeScript y genera la versión de producción con Vite.
+
 ---
 
 ## 👥 Roles del sistema
