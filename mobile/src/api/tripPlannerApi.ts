@@ -21,6 +21,18 @@ export interface RoutePlan {
   total_distance_meters: number;
   transfers: number;
   movements: PlannedMovement[];
+  /** Solo en las rutas recomendadas: la frase para el pasajero. */
+  explanation?: string;
+  /** Solo en las rutas recomendadas: espera estimada en los paraderos, en segundos. */
+  wait_seconds?: number;
+}
+
+/** Prioridades que acepta GET /recommendations/route. */
+export type RoutePriority = 'balanced' | 'fastest' | 'fewest_transfers' | 'least_walking';
+
+interface RecommendationsResponse {
+  routes?: Array<Omit<RoutePlan, 'origin_stop_id' | 'destination_stop_id' | 'wait_seconds'> & { cost?: { wait?: number } }>;
+  cost_weights?: { wait_weight?: number } | null;
 }
 
 export interface WeatherTelemetry {
@@ -45,7 +57,7 @@ export async function fetchWeatherTelemetry(): Promise<WeatherTelemetry[]> {
     to: to.toISOString(),
     limit: '20',
   });
-  const response = await apiRequest<{ data?: WeatherTelemetry[] }>(`/integrations/climate/telemetry?${params.toString()}`);
+  const response = await apiRequest<{ data?: WeatherTelemetry[] }>(`/mapinfo/climate/telemetry?${params.toString()}`);
   return response?.data ?? [];
 }
 
@@ -68,6 +80,23 @@ export async function fetchTransitRouteLabels(): Promise<Record<string, string>>
 
 function pathKey(plan: RoutePlan): string {
   return plan.movements.map((movement) => `${movement.mode}:${movement.route_id ?? ''}:${movement.to_stop_id}`).join('|');
+}
+
+/**
+ * Rutas recomendadas por backend-go, ya ordenadas de la más conveniente a la menos:
+ * consideran la ocupación predicha, el clima y el GPS de las micros. Exige sesión.
+ * La espera llega ponderada en el costo; se divide por su peso para tenerla en segundos.
+ */
+export async function fetchRecommendedRoutes(origin: Stop, destination: Stop, priority: RoutePriority): Promise<RoutePlan[]> {
+  const params = new URLSearchParams({ origin_stop: origin.id, destination_stop: destination.id, priority, limit: '3' });
+  const response = await apiRequest<RecommendationsResponse | null>(`/recommendations/route?${params.toString()}`);
+  const waitWeight = response?.cost_weights?.wait_weight ?? 0;
+  return (response?.routes ?? []).map(({ cost, ...route }) => ({
+    ...route,
+    origin_stop_id: origin.id,
+    destination_stop_id: destination.id,
+    wait_seconds: waitWeight > 0 && cost?.wait !== undefined ? Math.round(cost.wait / waitWeight) : undefined,
+  }));
 }
 
 /**

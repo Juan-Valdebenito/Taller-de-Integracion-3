@@ -22,7 +22,7 @@ describe('fetchNearbyStops', () => {
     await fetchNearbyStops(query);
 
     const url = new URL(fetchMock.mock.calls[0][0]);
-    expect(url.pathname).toMatch(/\/integrations\/micro\/stops$/);
+    expect(url.pathname).toMatch(/\/mapinfo\/micro\/stops$/);
     expect(Object.fromEntries(url.searchParams)).toEqual({ lat: '-38.735912', long: '-72.590446', radius_m: '1000', limit: '50' });
     expect(authHeaderOf(fetchMock, 0)).toBe('Bearer access-1');
   });

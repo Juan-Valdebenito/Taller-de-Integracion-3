@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
-import { fetchAllStops, fetchRouteAlternatives, fetchTransitRouteLabels, fetchWeatherTelemetry, type RoutePlan, type WeatherTelemetry } from '../../api/tripPlannerApi';
+import { fetchAllStops, fetchRecommendedRoutes, fetchTransitRouteLabels, fetchWeatherTelemetry, type RoutePlan, type RoutePriority, type WeatherTelemetry } from '../../api/tripPlannerApi';
 import type { Stop } from '../../location/geo';
 import type { LiveBus } from '../../realtime/liveBuses';
 import { Button } from '../Button';
@@ -16,9 +16,18 @@ type Preference = 'fastest' | 'least_walking' | 'least_occupied' | 'weather_expo
 const PREFERENCE_OPTIONS: readonly { id: Preference; label: string; description: string }[] = [
   { id: 'fastest', label: 'Llegar antes', description: 'Prioriza el menor tiempo total.' },
   { id: 'least_walking', label: 'Caminar menos', description: 'Reduce el tiempo de los tramos a pie.' },
-  { id: 'least_occupied', label: 'Menor ocupación', description: 'Usa la ocupación reciente de micros activas.' },
-  { id: 'weather_exposure', label: 'Reducir exposición climática', description: 'Prioriza menos caminata ante clima desfavorable.' },
+  { id: 'least_occupied', label: 'Menor ocupación', description: 'Evita las micros que estarán llenas cuando llegues.' },
+  { id: 'weather_exposure', label: 'Reducir exposición climática', description: 'Con mal clima, caminar pesa más al elegir la ruta.' },
 ];
+
+// backend-go considera la ocupación predicha y el clima en todas las prioridades,
+// así que esas dos opciones usan la equilibrada.
+const PRIORITY_BY_PREFERENCE: Record<Preference, RoutePriority> = {
+  fastest: 'fastest',
+  least_walking: 'least_walking',
+  least_occupied: 'balanced',
+  weather_exposure: 'balanced',
+};
 
 function formatDuration(seconds: number): string {
   const minutes = Math.max(1, Math.ceil(seconds / 60));
@@ -174,36 +183,9 @@ function occupancyScore(plan: RoutePlan, buses: readonly LiveBus[], routeLabels:
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
 }
 
-function recommendationFor(
-  plans: readonly RoutePlan[],
-  preference: Preference,
-  buses: readonly LiveBus[],
-  routeLabels: Record<string, string>,
-  weather: WeatherTelemetry | null,
-): { recommended: RoutePlan | null; alternatives: RoutePlan[]; occupancyAvailable: boolean } {
-  const byTime = [...plans].sort((left, right) => left.total_time_seconds - right.total_time_seconds);
-  const occupancyByPlan = new Map(plans.map((plan) => [plan, occupancyScore(plan, buses, routeLabels)]));
-  const occupancyAvailable = [...occupancyByPlan.values()].some((score) => score !== null);
-  let recommended = byTime[0] ?? null;
-  if (preference === 'least_walking') {
-    recommended = [...plans].sort((left, right) => walkingSeconds(left) - walkingSeconds(right) || left.total_time_seconds - right.total_time_seconds)[0] ?? null;
-  } else if (preference === 'weather_exposure') {
-    const unfavorable = Boolean(weather && (weather.humidity_pct >= 85 || weather.temperature_c >= 30 || weather.temperature_c <= 8 || weather.wind_speed_kmh >= 30 || weather.pm25_ug_m3 >= 35));
-    recommended = unfavorable
-      ? [...plans].sort((left, right) => walkingSeconds(left) - walkingSeconds(right) || left.total_time_seconds - right.total_time_seconds)[0] ?? null
-      : byTime[0] ?? null;
-  } else if (preference === 'least_occupied' && occupancyAvailable) {
-    recommended = [...plans].sort((left, right) => {
-      const leftScore = occupancyByPlan.get(left) ?? Number.POSITIVE_INFINITY;
-      const rightScore = occupancyByPlan.get(right) ?? Number.POSITIVE_INFINITY;
-      return leftScore - rightScore || left.total_time_seconds - right.total_time_seconds;
-    })[0] ?? null;
-  }
-  return {
-    recommended,
-    alternatives: byTime.filter((plan) => plan !== recommended).slice(0, 2),
-    occupancyAvailable,
-  };
+/** backend-go ya entrega las rutas ordenadas: la primera es la recomendada. */
+function recommendationFor(plans: readonly RoutePlan[]): { recommended: RoutePlan | null; alternatives: RoutePlan[] } {
+  return { recommended: plans[0] ?? null, alternatives: plans.slice(1, 3) };
 }
 
 function RouteOption({
@@ -259,10 +241,11 @@ function RouteOption({
         <Metric icon="walk-outline" color="#38bdf8" label="Caminata" value={formatSegmentDuration(walkingSeconds(plan))} />
         <Metric icon="bus-outline" color="#fb923c" label="En micro" value={formatSegmentDuration(busSeconds(plan))} />
         <Metric icon="swap-horizontal-outline" color="#a78bfa" label="Transbordos" value={String(plan.transfers)} />
-        <Metric icon="time-outline" color="#fbbf24" label="Espera" value="Sin estimación" />
+        <Metric icon="time-outline" color="#fbbf24" label="Espera" value={plan.wait_seconds !== undefined ? `~${formatSegmentDuration(plan.wait_seconds)}` : 'Sin estimación'} />
       </View>
+      {plan.explanation ? <Text style={styles.explanation}>{plan.explanation}</Text> : null}
       {routeWeatherAlert ? <Text style={styles.routeWeatherAlert}>{routeWeatherAlert}</Text> : null}
-      <Text style={styles.timeNote}>La espera no se incluye en el total porque el servicio no la calcula.</Text>
+      <Text style={styles.timeNote}>La espera es una estimación y no se suma al tiempo de viaje.</Text>
 
       <View style={styles.timelineHeader}><Text style={styles.timelineTitle}>Detalle del recorrido</Text></View>
       <TimelineEndpoint label="Subida" name={stopName(stops, plan.origin_stop_id)} color="#22c55e" icon="radio-button-on-outline" connectsToNext />
@@ -400,7 +383,7 @@ export function TripPlanner({ buses = [], onRecommendationChange }: { buses?: re
     setPlanError(null);
     setPlans(null);
     try {
-      const result = await fetchRouteAlternatives(origin, destination);
+      const result = await fetchRecommendedRoutes(origin, destination, PRIORITY_BY_PREFERENCE[preference]);
       setPlans(result);
       if (result.length === 0) setPlanError('No encontramos un recorrido entre esos paraderos.');
     } catch (error: unknown) {
@@ -413,10 +396,7 @@ export function TripPlanner({ buses = [], onRecommendationChange }: { buses?: re
   const selectionTitle = selection === 'origin' ? 'origen' : 'destino';
   const currentWeather = weatherForStop(weather, origin);
   const weatherAlertsList = currentWeather ? weatherAlerts(currentWeather) : [];
-  const recommendation = useMemo(
-    () => recommendationFor(plans ?? [], preference, buses, routeLabels, currentWeather),
-    [buses, currentWeather, plans, preference, routeLabels],
-  );
+  const recommendation = useMemo(() => recommendationFor(plans ?? []), [plans]);
 
   useEffect(() => {
     onRecommendationChange?.(recommendation.recommended, stops);
@@ -424,7 +404,7 @@ export function TripPlanner({ buses = [], onRecommendationChange }: { buses?: re
 
   return (
     <View>
-      <Text style={styles.intro}>Elige dos paraderos y compara las opciones por tiempo total.</Text>
+      <Text style={styles.intro}>Elige dos paraderos y te recomendamos la ruta más conveniente.</Text>
       {currentWeather ? (
         <View style={styles.weatherSection}>
           <View style={styles.weatherGrid}>
@@ -488,7 +468,7 @@ export function TripPlanner({ buses = [], onRecommendationChange }: { buses?: re
                   key={option.id}
                   accessibilityRole="radio"
                   accessibilityState={{ checked: selected }}
-                  onPress={() => setPreference(option.id)}
+                  onPress={() => { setPreference(option.id); setPlans(null); setPlanError(null); }}
                   style={[styles.preference, selected ? styles.preferenceSelected : null]}
                 >
                   <View style={[styles.radio, selected ? styles.radioSelected : null]} />
@@ -507,10 +487,7 @@ export function TripPlanner({ buses = [], onRecommendationChange }: { buses?: re
           {planError ? <ErrorState message={planError} onRetry={planTrip} /> : null}
           {plans?.length ? (
             <View style={styles.results}>
-              <Text style={styles.resultsTitle}>Recomendación y alternativas por tiempo total</Text>
-              {preference === 'least_occupied' && !recommendation.occupancyAvailable ? (
-                <Text style={styles.helper}>No hay ocupación reciente disponible; mostramos la ruta más rápida.</Text>
-              ) : null}
+              <Text style={styles.resultsTitle}>Recomendación y alternativas</Text>
               {recommendation.recommended ? <RouteOption plan={recommendation.recommended} index={0} routeLabels={routeLabels} occupancyRatio={occupancyScore(recommendation.recommended, buses, routeLabels)} stops={stops} weather={currentWeather} /> : null}
               {recommendation.alternatives.map((plan, index) => <RouteOption key={`${plan.origin_stop_id}-${plan.destination_stop_id}-${index}`} plan={plan} index={index + 1} routeLabels={routeLabels} occupancyRatio={occupancyScore(plan, buses, routeLabels)} stops={stops} weather={currentWeather} />)}
               {plans.length < 3 ? <Text style={styles.helper}>El planificador encontró {plans.length} recorrido{plans.length === 1 ? '' : 's'} distinto{plans.length === 1 ? '' : 's'}.</Text> : null}
@@ -532,6 +509,7 @@ const useStyles = makeStyles((colors, font) => ({
   weatherAlerts: { gap: 2 },
   weatherAlertText: { color: '#fbbf24', fontSize: font(10), lineHeight: font(15) },
   weatherUnavailable: { marginTop: spacing.sm, color: colors.muted, fontSize: font(11), lineHeight: font(16) },
+  explanation: { color: '#bae6fd', fontSize: font(12), lineHeight: font(17), paddingHorizontal: spacing.xs, paddingVertical: spacing.xs, borderRadius: radius.sm, backgroundColor: 'rgba(56,189,248,0.08)', marginTop: spacing.xs },
   routeWeatherAlert: { color: '#fbbf24', fontSize: font(11), lineHeight: font(16), paddingHorizontal: spacing.xs, paddingVertical: spacing.xs, borderRadius: radius.sm, backgroundColor: 'rgba(251,191,36,0.08)' },
   loading: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.md },
   helper: { color: colors.muted, fontSize: font(12), lineHeight: font(18), marginTop: spacing.xs },

@@ -1,6 +1,7 @@
 /**
- * Paraderos oficiales desde backend-go: GET /api/v1/integrations/micro/stops,
- * proxy gRPC hacia micro_service (paraderos reales de Temuco).
+ * Paraderos oficiales desde backend-go: GET /api/v1/mapinfo/micro/stops,
+ * proxy gRPC hacia micro_service (paraderos reales de Temuco). La ruta anterior,
+ * /integrations/micro/stops, ya no existe.
  */
 import { isValidCoordinates, type Coordinates, type Stop } from '../location/geo';
 import { apiRequest } from './client';
@@ -16,7 +17,7 @@ interface ListStopsResponse {
 
 /** Todos los paraderos disponibles para seleccionar origen y destino. */
 export async function fetchAllStops(): Promise<Stop[]> {
-  const response = await apiRequest<ListStopsResponse | null>('/integrations/micro/stops?limit=1000');
+  const response = await apiRequest<ListStopsResponse | null>('/mapinfo/micro/stops?limit=1000');
   return (response?.stops ?? []).map(toStop).filter((stop): stop is Stop => stop !== null);
 }
 
@@ -48,6 +49,6 @@ export async function fetchNearbyStops({ latitude, longitude, radiusMeters, limi
     radius_m: String(Math.round(radiusMeters)),
     limit: String(limit),
   });
-  const response = await apiRequest<ListStopsResponse | null>(`/integrations/micro/stops?${params.toString()}`);
+  const response = await apiRequest<ListStopsResponse | null>(`/mapinfo/micro/stops?${params.toString()}`);
   return (response?.stops ?? []).map(toStop).filter((stop): stop is Stop => stop !== null);
 }
